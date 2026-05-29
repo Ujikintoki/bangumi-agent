@@ -5,6 +5,7 @@ __pychache__
 *.py[cod]
 *.egg-info/
 dist/
+.pyc
 build/
 
 # ── IDE / Editor ─────────────────────────────────────────
