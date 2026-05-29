@@ -5,7 +5,7 @@ RAG 文本预处理模块
 不依赖 LangChain / LlamaIndex，基于原生 Python 列表运算 + tiktoken 实现。
 """
 
-from typing import List
+from typing import Any, List
 
 import tiktoken
 
@@ -136,3 +136,110 @@ class BangumiTextProcessor:
                 chunks.append(chunk_text)
 
         return chunks
+
+    def create_parent_child_documents(
+        self,
+        subject_id: int,
+        tags: list[str],
+        summary: str | None,
+    ) -> dict[str, Any]:
+        """为单个番剧条目创建父子文档结构。
+
+        遵循 Parent-Child Retriever 模式：父文档携带完整的标签与简介
+        富文本上下文，子文档为清洗后摘要的滑动窗口切片，用于高精度
+        语义检索。检索命中子文档后，可通过 ``parent_subject_id`` 回溯
+        父文档获取完整信息。
+
+        Args:
+            subject_id: Bangumi 条目 ID，用于关联父子文档。
+            tags: 条目标签列表，如 ``["百合", "科幻", "2023"]``。
+                若为空列表，父文档中不渲染标签行。
+            summary: 条目原始简介文本。若为 ``None`` 或空字符串，
+                父文档仅包含标签信息，子文档列表为空。
+
+        Returns:
+            包含父子文档的字典，结构如下::
+
+                {
+                    "parent": {
+                        "subject_id": int,
+                        "text": str,
+                        "meta_info": {
+                            "chunk_type": "parent",
+                            "tags": list[str],
+                        },
+                    },
+                    "children": [
+                        {
+                            "subject_id": int,
+                            "text": str,
+                            "meta_info": {
+                                "chunk_type": "child",
+                                "parent_subject_id": int,
+                            },
+                        },
+                        ...
+                    ],
+                }
+
+            若 summary 为空且 tags 也为空，父文档 text 为空字符串。
+
+        Example:
+            >>> processor = BangumiTextProcessor()
+            >>> result = processor.create_parent_child_documents(
+            ...     subject_id=8,
+            ...     tags=["机战", "原创", "2008"],
+            ...     summary="鲁路修带领黑色骑士团向帝国宣战...",
+            ... )
+            >>> result["parent"]["meta_info"]["chunk_type"]
+            'parent'
+            >>> len(result["children"]) > 0
+            True
+            >>> result["children"][0]["meta_info"]["chunk_type"]
+            'child'
+        """
+        # ── 清洗 summary ──────────────────────────────────────
+        cleaned_summary = self.clean_text(summary or "")
+
+        # ── 组装父文档 ────────────────────────────────────────
+        parent_text_parts: list[str] = []
+
+        if tags:
+            tags_str = ", ".join(tags)
+            parent_text_parts.append(f"[标签]: {tags_str}")
+
+        if cleaned_summary:
+            parent_text_parts.append(f"[简介]: {cleaned_summary}")
+
+        parent_text = "\n".join(parent_text_parts)
+
+        parent: dict[str, Any] = {
+            "subject_id": subject_id,
+            "text": parent_text,
+            "meta_info": {
+                "chunk_type": "parent",
+                "tags": tags,
+            },
+        }
+
+        # ── 切分子文档 ────────────────────────────────────────
+        children: list[dict[str, Any]] = []
+
+        if cleaned_summary:
+            child_chunks = self.split_text(cleaned_summary)
+            for chunk_text in child_chunks:
+                children.append(
+                    {
+                        "subject_id": subject_id,
+                        "text": chunk_text,
+                        "meta_info": {
+                            "chunk_type": "child",
+                            "parent_subject_id": subject_id,
+                        },
+                    }
+                )
+
+        return {
+            "parent": parent,
+            "children": children,
+        }
