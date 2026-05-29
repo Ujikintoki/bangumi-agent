@@ -1,0 +1,19 @@
+# ── Python ────────────────────────────────────────────────
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# ── IDE / Editor ─────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Environment & Secrets ────────────────────────────────
+.env
+
+# ── Generated / Cache ────────────────────────────────────
+test/mock_data/

@@ -67,7 +67,9 @@ class SlimSubjectResponse(BaseModel):
     score: Optional[float] = Field(
         default=0.0, description="条目评分（从 rating.score 提取）"
     )
-    # rank: Optional[int] = Field(default=0, description="条目排名")
+    rank: Optional[int] = Field(
+        default=0, description="条目排名（从 rating.rank 提取）"
+    )
     tags: list[str] = Field(
         default_factory=list,
         description="标签名称列表（最多 5 个）",
@@ -80,9 +82,10 @@ class SlimSubjectResponse(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        # 从 rating.score 中提取评分
+        # 从 rating 中提取评分和排名
         if "rating" in data and isinstance(data["rating"], dict):
             data.setdefault("score", data["rating"].get("score", 0.0))
+            data.setdefault("rank", data["rating"].get("rank", 0))
 
         # 如果没有 short_summary 则从 summary 回退
         if "short_summary" not in data and "summary" in data:
@@ -90,7 +93,7 @@ class SlimSubjectResponse(BaseModel):
 
         # 将 tags 从 [{name, count}, ...] 精简为 [str, ...]
         if "tags" in data:
-            data["tags"] = _extract_tag_names(data["tags"], max_count=5)
+            data["tags"] = _extract_tag_names(data["tags"], max_count=20)
 
         return data
 
