@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from clients.bgm_clients import BangumiClient
+from clients.bgm_client import BangumiClient
 
 
 async def search_bangumi_subject(
