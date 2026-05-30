@@ -233,6 +233,23 @@ def main() -> None:
         "  耗时: %.2f 秒, 命中 %d 条 (预期 0)", time.perf_counter() - t4, len(results_d)
     )
 
+    # ── 测试 E: 意图外/无厘头闲聊阻断测试（距离阈值防爆） ─────
+    query_e = "100个五条悟vs100个哥斯拉，谁能赢？"
+    logger.info("  --- 测试 E: 距离阈值防爆 (意图外闲聊) ---")
+    logger.info("  Query: '%s', distance_threshold=0.65 (默认)", query_e)
+
+    t5 = time.perf_counter()
+    results_e = retriever.hybrid_search(
+        query=query_e,
+        top_k=3,
+    )
+    logger.info(
+        "  耗时: %.2f 秒, 命中 %d 条 (预期 0 — 闲聊问题应被阈值拦截)",
+        time.perf_counter() - t5,
+        len(results_e),
+    )
+    _print_results("测试 E (闲聊阻断)", results_e)
+
     # ═══════════════════════════════════════════════════════════
     # Step 5: 结果断言 (软断言，打印概要)
     # ═══════════════════════════════════════════════════════════
@@ -246,6 +263,9 @@ def main() -> None:
         len(results_c),
     )
     logger.info("  测试 D (不可能组合) : %d 条结果 — 预期为 0", len(results_d))
+    logger.info(
+        "  测试 E (闲聊阻断)  : %d 条结果 — 预期为 0 (被距离阈值拦截)", len(results_e)
+    )
 
     # 软断言
     all_tags_b = {tag for r in results_b for tag in r.tags}
@@ -260,6 +280,10 @@ def main() -> None:
     )
     assert len(results_d) == 0, (
         f"❌ 测试 D 失败：预期 0 条结果，实际 {len(results_d)} 条"
+    )
+    assert len(results_e) == 0, (
+        f"❌ 测试 E 失败：闲聊问题应被距离阈值拦截，实际返回 {len(results_e)} 条。"
+        f" 请检查 distance_threshold=0.65 是否生效。"
     )
 
     logger.info("  ✅ 所有软断言通过！")

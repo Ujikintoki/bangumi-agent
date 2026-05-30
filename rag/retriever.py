@@ -107,14 +107,17 @@ class BangumiRetriever:
         required_tags: Optional[list[str]] = None,
         min_score: Optional[float] = None,
         top_k: int = 5,
+        distance_threshold: float = 0.65,
     ) -> list[SearchResult]:
-        """执行混合检索：向量召回 + JSONB 硬过滤。
+        """执行混合检索：向量召回 + JSONB 硬过滤 + 距离阈值防爆。
 
         检索管道：
           1. 将 query 向量化为 embedding。
           2. 构建 WHERE 子句，对 tags 和 score 做 JSONB 硬过滤。
           3. 按 PGVector 余弦距离升序排列（越小越相似）。
-          4. 截取 top_k 条结果并返回。
+          4. 截取 top_k 条结果。
+          5. **Python 层距离阈值过滤**：丢弃 cosine_distance > threshold 的
+             结果，防止向量检索在无相关数据时"强行匹配"无关条目（防幻觉）。
 
         Args:
             query: 用户自然语言查询，如 ``"高分科幻动画"``。
@@ -126,6 +129,8 @@ class BangumiRetriever:
             min_score: 最低评分阈值，仅返回评分 ≥ 此值的条目。
                 为 ``None`` 时跳过评分过滤。
             top_k: 最大返回条数，默认 5。
+            distance_threshold: 余弦距离上限，范围 [0, 2]。超过此阈值的
+                结果视为语义不相关，将被丢弃。默认 0.65。
 
         Returns:
             按余弦距离升序排列的 ``SearchResult`` 列表。
@@ -137,6 +142,7 @@ class BangumiRetriever:
             ...     query="机战类原创动画",
             ...     required_tags=["原创", "机战"],
             ...     min_score=7.0,
+            ...     distance_threshold=0.6,
             ... )
             >>> len(results) <= 5
             True
@@ -251,6 +257,31 @@ class BangumiRetriever:
             len(results),
             results[0].cosine_distance if results else float("inf"),
         )
+
+        # ── Step 5: 距离阈值防爆过滤 ──────────────────────────
+        # 在 Python 层丢弃 cosine_distance > threshold 的结果，
+        # 防止向量检索在库内无相关数据时"强行匹配"无关条目（防幻觉）。
+        if distance_threshold > 0:
+            filtered: list[SearchResult] = []
+            for r in results:
+                if r.cosine_distance <= distance_threshold:
+                    filtered.append(r)
+                else:
+                    logger.debug(
+                        "召回结果因距离超限被丢弃: %s (distance=%.4f > threshold=%.2f)",
+                        r.name or f"entity_id={r.entity_id}",
+                        r.cosine_distance,
+                        distance_threshold,
+                    )
+            discarded = len(results) - len(filtered)
+            if discarded > 0:
+                logger.info(
+                    "距离阈值过滤: 丢弃 %d 条超限结果 (threshold=%.2f), 保留 %d 条",
+                    discarded,
+                    distance_threshold,
+                    len(filtered),
+                )
+            return filtered
 
         return results
 
