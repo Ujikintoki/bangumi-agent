@@ -6,19 +6,23 @@
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 无论从哪个目录运行，始终指向项目根目录的 .env
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
     """应用全局配置。
 
     从环境变量或 .env 文件中加载配置项。
-    BANGUMI_APP_ID 和 BANGUMI_APP_SECRET 为必填项，缺失将导致启动失败。
+    BANGUMI_APP_ID 和 BANGUMI_APP_SECRET 目前为可选项（未导入真实用户ID）
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -37,12 +41,39 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://myuser:mypassword@localhost:5432/bangumidb"
     """PostgreSQL 数据库连接 URL，默认连接本地 bangumidb 库。"""
 
-    # ── Bangumi OAuth 凭证（必填） ────────────────────────────
-    BANGUMI_APP_ID: str
-    """Bangumi 应用的 Client ID(必填)。"""
+    # ── Bangumi OAuth 凭证 ────────────────────────────────────
+    BANGUMI_APP_ID: str = ""
+    """Bangumi 应用的 Client ID，调用 Bangumi API 时必填。"""
 
-    BANGUMI_APP_SECRET: str
-    """Bangumi 应用的 Client Secret(必填)。"""
+    BANGUMI_APP_SECRET: str = ""
+    """Bangumi 应用的 Client Secret，调用 Bangumi API 时必填。"""
+
+    # ── 智谱 AI 配置 ──────────────────────────────────────────
+    ZHIPU_API_KEY: str = ""
+    """智谱 API 密钥，用于调用 embedding-3 等模型生成向量嵌入。
+
+    可通过环境变量 ZHIPU_API_KEY 或 .env 文件注入。
+    在尚未缴费的开发阶段可留空，此时 embedding 功能不可用。
+    """
+
+    ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
+    """智谱 API 基础 URL，默认使用官方地址。"""
+
+    # ── Embedding 模型配置 ────────────────────────────────────
+    EMBEDDING_MODEL: str = "embedding-3"
+    """embedding 模型编码，默认智谱 embedding-3 (2048 维)。
+
+    常用备选: OpenAI text-embedding-3-small (1536 维) 或
+    text-embedding-3-large (3072 维)。切换模型时需同步修改
+    EMBEDDING_DIMENSION 以匹配 pgvector 列定义。
+    """
+
+    EMBEDDING_DIMENSION: int = 2048
+    """embedding 向量维度，必须与 EMBEDDING_MODEL 的实际输出一致。
+
+    智谱 embedding-3 → 2048, OpenAI ada-002 / 3-small → 1536,
+    OpenAI 3-large → 3072。
+    """
 
 
 @lru_cache

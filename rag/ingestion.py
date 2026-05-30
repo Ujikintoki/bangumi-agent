@@ -49,8 +49,7 @@ class BangumiIngestor:
 
         Args:
             engine: SQLAlchemy Engine 实例，通常由 ``database.engine.engine`` 提供。
-            zhipu_api_key: 智谱 API 密钥。可通过环境变量 ``ZHIPU_API_KEY`` 注入，
-                默认空字符串以支持尚未缴费的开发阶段。
+            zhipu_api_key: 智谱 API 密钥。通过环境变量 ``ZHIPU_API_KEY`` 注入。
             zhipu_base_url: 智谱 API 基础 URL，默认使用官方地址。
         """
         self.engine = engine

@@ -105,7 +105,7 @@ class BangumiClient:
             return {"error": f"网络异常: {exc}", "status_code": None}
 
     async def close(self) -> None:
-        """优雅关闭底层 HTTP 连接。"""
+        """关闭底层 HTTP 连接。"""
         await self._client.aclose()
 
     async def __aenter__(self) -> BangumiClient:

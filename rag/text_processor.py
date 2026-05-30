@@ -51,6 +51,7 @@ class BangumiTextProcessor:
         2. 全角空格 → 半角空格。
         3. 连续换行 → 单个换行。
         4. 连续空格 → 单个空格。
+        5. （TODO）未来根据实际情况待添加
 
         Args:
             text: 原始文本字符串。

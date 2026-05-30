@@ -8,8 +8,16 @@
 import uuid
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, Column
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
+
+from core.config import get_settings
+
+# 从配置中读取 embedding 维度，与 pgvector Vector(n) 列定义保持一致
+# 智谱 embedding-3 → 2048
+# 备选项 OpenAI ada-002/3-small → 1536, 3-large → 3072
+_EMBEDDING_DIM = get_settings().EMBEDDING_DIMENSION
 
 
 class BangumiChunk(SQLModel, table=True):
@@ -23,7 +31,7 @@ class BangumiChunk(SQLModel, table=True):
         entity_type: 条目类型标识，如 "subject"（番剧）、"character"（角色），建立索引。
         entity_id: Bangumi 官方对应的条目 ID，建立索引，与 entity_type 组合可唯一定位实体。
         chunk_text: 原始文本块内容。
-        embedding: 文本块的向量嵌入，维度 1536（适配 OpenAI text-embedding-ada-002）。
+        embedding: 文本块的向量嵌入，维度由 EMBEDDING_DIMENSION 配置决定。
         meta_info: 扩展元数据（如来源、分块序号、更新时间等），以 JSON 格式存储。
     """
 
@@ -52,15 +60,15 @@ class BangumiChunk(SQLModel, table=True):
     embedding: list[float] = Field(
         default=None,
         sa_column=Column(
-            Vector(1536),
+            Vector(_EMBEDDING_DIM),
             nullable=True,
         ),
-        description="向量嵌入，维度 1536（OpenAI ada-002），建表后由应用层填充",
+        description=f"向量嵌入，维度 {_EMBEDDING_DIM}，建表后由应用层填充",
     )
 
     meta_info: dict = Field(
         default_factory=dict,
-        sa_column=Column(JSON, nullable=True),
+        sa_column=Column(JSONB, nullable=True),
         description="扩展元数据（来源、分块序号、时间戳等），JSON 格式存储",
     )
 

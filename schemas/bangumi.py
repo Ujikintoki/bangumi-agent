@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 def _extract_tag_names(
     raw_tags: list[dict | str] | None,
-    max_count: int = 5,
+    max_count: int = 10,
 ) -> list[str]:
     """从原始 tags 数组中提取标签名称，限制数量。
 
@@ -72,7 +72,7 @@ class SlimSubjectResponse(BaseModel):
     )
     tags: list[str] = Field(
         default_factory=list,
-        description="标签名称列表（最多 5 个）",
+        description="标签名称列表（最多 10 个）（暂时，可能更改）",
     )
 
     @model_validator(mode="before")
@@ -93,7 +93,7 @@ class SlimSubjectResponse(BaseModel):
 
         # 将 tags 从 [{name, count}, ...] 精简为 [str, ...]
         if "tags" in data:
-            data["tags"] = _extract_tag_names(data["tags"], max_count=20)
+            data["tags"] = _extract_tag_names(data["tags"], max_count=10)
 
         return data
 
