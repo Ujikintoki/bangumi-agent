@@ -84,13 +84,17 @@ class BangumiIngestor:
             chunks_data: 预处理后的文本块列表，每个字典包含::
 
                 {
-                    "chunk_id": int,       # 分块序号（仅用于日志追踪）
-                    "subject_id": int,     # Bangumi 条目 ID
-                    "name": str,           # 条目名称
-                    "type": int,           # 条目类型 (1=书籍, 2=动画, ...)
-                    "score": float,        # 评分
-                    "tags": list[str],     # 标签列表
-                    "text": str,           # 切分后的纯文本正文
+                    "chunk_id": int,          # 分块序号（仅用于日志追踪）
+                    "subject_id": int,        # Bangumi 条目 ID
+                    "name": str,              # 条目名称
+                    "type": int,              # 条目类型 (1=书籍, 2=动画, ...)
+                    "score": float,           # 评分
+                    "rating_total": int,      # 评分人数（热度信号，用于降级排序）
+                    "nsfw": bool,             # 安全护栏：是否为 R18 内容
+                    "core_staff": list[str],  # 知识图谱：核心制作人员（导演/原作等）
+                    "main_cv": list[str],     # 知识图谱：主役声优
+                    "tags": list[str],        # 前10个社区标签
+                    "text": str,              # 切分后的纯文本正文
                 }
 
         Returns:
@@ -150,10 +154,18 @@ class BangumiIngestor:
                         chunk_text=item["text"],
                         embedding=vector,
                         meta_info={
-                            "tags": item.get("tags", []),
+                            # ── 核心元数据 ──────────────────────────
+                            "name": item.get("name", ""),
                             "subject_type": item.get("type", 0),
                             "score": item.get("score", 0.0),
-                            "name": item.get("name", ""),
+                            "tags": item.get("tags", []),
+                            # ── 热度信号（降级排序用） ─────────────
+                            "rating_total": item.get("rating_total", 0),
+                            # ── 安全护栏 ───────────────────────────
+                            "nsfw": item.get("nsfw", False),
+                            # ── 知识图谱 ───────────────────────────
+                            "core_staff": item.get("core_staff", []),
+                            "main_cv": item.get("main_cv", []),
                         },
                     )
                     session.add(chunk)

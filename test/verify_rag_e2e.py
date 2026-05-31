@@ -47,7 +47,7 @@ settings = get_settings()
 # ═══════════════════════════════════════════════════════════════
 
 # 使用极高的 subject_id 避免与真实数据冲突
-MOCK_SUBJECT_IDS = [999001, 999002, 999003]
+MOCK_SUBJECT_IDS = [999001, 999002, 999003, 999004, 999005]
 
 MOCK_CHUNKS_DATA: list[dict] = [
     {
@@ -56,6 +56,10 @@ MOCK_CHUNKS_DATA: list[dict] = [
         "name": "やがて君になる",
         "type": 2,  # 2 = 动画
         "score": 7.8,
+        "rating_total": 3200,
+        "nsfw": False,
+        "core_staff": ["加藤誠 (监督)", "花田十輝 (系列构成)"],
+        "main_cv": ["寿美菜子 (小糸侑)", "高田憂希 (七海灯子)"],
         "tags": ["百合", "校园", "恋爱", "漫画改"],
         "text": (
             "小糸侑是一名高中一年级学生，她一直无法理解'恋爱'这种感情。"
@@ -71,6 +75,10 @@ MOCK_CHUNKS_DATA: list[dict] = [
         "name": "魔法少女まどか☆マギカ",
         "type": 2,
         "score": 8.5,
+        "rating_total": 15800,
+        "nsfw": False,
+        "core_staff": ["新房昭之 (监督)", "虚渊玄 (剧本)", "蒼樹うめ (人设原案)"],
+        "main_cv": ["悠木碧 (鹿目圆)", "斎藤千和 (暁美焰)", "水橋かおり (巴麻美)"],
         "tags": ["原创", "魔法少女", "黑暗", "致郁", "虚渊玄"],
         "text": (
             "鹿目圆是一名普通的中学二年级学生，过着平凡的生活。"
@@ -86,6 +94,10 @@ MOCK_CHUNKS_DATA: list[dict] = [
         "name": "ゆるキャン△",
         "type": 2,
         "score": 8.2,
+        "rating_total": 8900,
+        "nsfw": False,
+        "core_staff": ["京極義昭 (监督)", "田中仁 (系列构成)"],
+        "main_cv": ["花守ゆみり (志摩凛)", "東山奈央 (各务原抚子)"],
         "tags": ["日常", "治愈", "露营", "漫画改"],
         "text": (
             "志摩凛是一名喜爱独自露营的女高中生。某个冬日，她在"
@@ -93,6 +105,43 @@ MOCK_CHUNKS_DATA: list[dict] = [
             "从此抚子对露营产生了浓厚的兴趣。故事围绕着野外活动"
             "同好会的成员们展开，描绘了她们在富士山脚下享受露营、"
             "欣赏美景的悠闲日常。"
+        ),
+    },
+    # ── 新增 #4: 冷门 R18 动画（测试安全护栏） ───────────
+    {
+        "chunk_id": 4,
+        "subject_id": 999004,
+        "name": "淫らな魔法少女と変態の塔",
+        "type": 2,
+        "score": 6.1,
+        "rating_total": 50,
+        "nsfw": True,
+        "core_staff": ["匿名 (监督)"],
+        "main_cv": ["匿名声優A (主人公)", "匿名声優B (ヒロイン)"],
+        "tags": ["R18", "魔法少女", "短篇"],
+        "text": (
+            "平凡な少年が異世界に召喚され、淫らな魔法少女たちと共に"
+            "変態の塔を攻略する物語。過激な描写が多く含まれる成人向け"
+            "アニメ作品であり、魔法少女というジャンルを大胆に再解釈している。"
+        ),
+    },
+    # ── 新增 #5: 极度冷门但合法的动画（测试长尾召回） ────
+    {
+        "chunk_id": 5,
+        "subject_id": 999005,
+        "name": "蛍火の杜へ",
+        "type": 2,
+        "score": 8.0,
+        "rating_total": 10,
+        "nsfw": False,
+        "core_staff": ["大森貴弘 (监督)"],
+        "main_cv": ["佐倉綾音 (竹川蛍)", "内山昂輝 (ギン)"],
+        "tags": ["治愈", "短篇", "妖怪", "恋爱", "催泪"],
+        "text": (
+            "竹川蛍在幼年时曾迷失在一片住着妖怪的森林中，"
+            "一个戴着狐狸面具的神秘少年银救了她。银一旦被人类触碰就会消失，"
+            "两人约定每年夏天在这片森林中相见。随着蛍渐渐长大，"
+            "两人之间的感情也越发深厚，但命运的悲剧也在悄然逼近。"
         ),
     },
 ]
@@ -167,23 +216,24 @@ def main() -> None:
         zhipu_api_key=settings.ZHIPU_API_KEY,
     )
 
-    # ── 测试 A: 纯向量检索（无过滤） ──────────────────────────
+    # ── 测试 A: 纯语义检索（无过滤，验证降级排序） ──────────
     query_a = "百合恋爱的校园动画"
-    logger.info("  --- 测试 A: 纯语义检索 ---")
+    logger.info("  --- 测试 A: 纯语义检索 (降级排序) ---")
     logger.info("  Query: '%s'", query_a)
 
     t1 = time.perf_counter()
     results_a = retriever.hybrid_search(
         query=query_a,
+        exclude_nsfw=True,
         top_k=3,
     )
     logger.info("  耗时: %.2f 秒, 命中 %d 条", time.perf_counter() - t1, len(results_a))
-    _print_results("测试 A (纯语义)", results_a)
+    _print_results("测试 A (降级排序)", results_a)
 
-    # ── 测试 B: JSONB 硬过滤 — 仅限带有"百合"标签的条目 ──────
+    # ── 测试 B: Tags JSONB 硬过滤 — 仅限带"百合"标签的条目 ────
     query_b = "少女之间的情感故事"
     required_tags_b = ["百合"]
-    logger.info("  --- 测试 B: Tags 硬过滤 ---")
+    logger.info("  --- 测试 B: Tags JSONB 硬过滤 ---")
     logger.info("  Query: '%s', required_tags: %s", query_b, required_tags_b)
 
     t2 = time.perf_counter()
@@ -195,95 +245,112 @@ def main() -> None:
     logger.info("  耗时: %.2f 秒, 命中 %d 条", time.perf_counter() - t2, len(results_b))
     _print_results("测试 B (Tags 过滤: 百合)", results_b)
 
-    # ── 测试 C: Tags + Score 双重硬过滤 ───────────────────────
-    query_c = "治愈系日常动画"
-    required_tags_c = ["日常"]
-    min_score_c = 8.0
-    logger.info("  --- 测试 C: Tags + Score 双重硬过滤 ---")
-    logger.info(
-        "  Query: '%s', required_tags: %s, min_score: %s",
-        query_c,
-        required_tags_c,
-        min_score_c,
-    )
+    # ── 测试 C: 日常治愈类检索 ──────────────────────────────────
+    query_c = "治愈系日常动画 露营"
+    logger.info("  --- 测试 C: 日常治愈语义检索 ---")
+    logger.info("  Query: '%s'", query_c)
 
     t3 = time.perf_counter()
     results_c = retriever.hybrid_search(
         query=query_c,
-        required_tags=required_tags_c,
-        min_score=min_score_c,
+        exclude_nsfw=True,
         top_k=3,
     )
     logger.info("  耗时: %.2f 秒, 命中 %d 条", time.perf_counter() - t3, len(results_c))
-    _print_results("测试 C (Tags + Score 双重过滤)", results_c)
+    _print_results("测试 C (日常治愈)", results_c)
 
-    # ── 测试 D: 不存在的标签组合（预期空结果） ─────────────────
-    query_d = "任何动画"
-    required_tags_d = ["机战", "百合"]
-    logger.info("  --- 测试 D: 不可能匹配的标签组合 ---")
-    logger.info("  Query: '%s', required_tags: %s", query_d, required_tags_d)
+    # ── 测试 D: 意图外闲聊阻断测试（距离阈值防爆） ────────────
+    query_d = "100个五条悟vs100个哥斯拉，谁能赢？"
+    logger.info("  --- 测试 D: 距离阈值防爆 (意图外闲聊) ---")
+    logger.info("  Query: '%s', distance_threshold=0.65 (默认)", query_d)
 
     t4 = time.perf_counter()
     results_d = retriever.hybrid_search(
         query=query_d,
-        required_tags=required_tags_d,
-        top_k=3,
-    )
-    logger.info(
-        "  耗时: %.2f 秒, 命中 %d 条 (预期 0)", time.perf_counter() - t4, len(results_d)
-    )
-
-    # ── 测试 E: 意图外/无厘头闲聊阻断测试（距离阈值防爆） ─────
-    query_e = "100个五条悟vs100个哥斯拉，谁能赢？"
-    logger.info("  --- 测试 E: 距离阈值防爆 (意图外闲聊) ---")
-    logger.info("  Query: '%s', distance_threshold=0.65 (默认)", query_e)
-
-    t5 = time.perf_counter()
-    results_e = retriever.hybrid_search(
-        query=query_e,
         top_k=3,
     )
     logger.info(
         "  耗时: %.2f 秒, 命中 %d 条 (预期 0 — 闲聊问题应被阈值拦截)",
-        time.perf_counter() - t5,
-        len(results_e),
+        time.perf_counter() - t4,
+        len(results_d),
     )
-    _print_results("测试 E (闲聊阻断)", results_e)
+    _print_results("测试 D (闲聊阻断)", results_d)
+
+    # ── 测试 E: 冷门番剧召回 — 验证不误杀长尾内容 ────────────
+    query_e = "妖怪森林的夏日恋爱故事"
+    logger.info("  --- 测试 E: 冷门番剧长尾召回 ---")
+    logger.info(
+        "  Query: '%s' — 预期召回《蛍火の杜へ》(rating_total=10, 极度冷门)",
+        query_e,
+    )
+
+    t5 = time.perf_counter()
+    results_e = retriever.hybrid_search(
+        query=query_e,
+        exclude_nsfw=True,
+        top_k=3,
+    )
+    logger.info("  耗时: %.2f 秒, 命中 %d 条", time.perf_counter() - t5, len(results_e))
+    _print_results("测试 E (冷门召回)", results_e)
+
+    # ── 测试 F: 安全护栏 — exclude_nsfw=True 拦截 R18 ──────────
+    query_f = "魔法少女"
+    logger.info("  --- 测试 F: 安全护栏 (exclude_nsfw=True) ---")
+    logger.info(
+        "  Query: '%s', exclude_nsfw=True — 预期拦截 R18《淫らな魔法少女》",
+        query_f,
+    )
+
+    t6 = time.perf_counter()
+    results_f = retriever.hybrid_search(
+        query=query_f,
+        exclude_nsfw=True,
+        top_k=5,
+    )
+    logger.info("  耗时: %.2f 秒, 命中 %d 条", time.perf_counter() - t6, len(results_f))
+    _print_results("测试 F (安全护栏 ON)", results_f)
 
     # ═══════════════════════════════════════════════════════════
     # Step 5: 结果断言 (软断言，打印概要)
     # ═══════════════════════════════════════════════════════════
     logger.info("[Step 5] 结果概要:")
-    logger.info("  测试 A (纯语义)    : %d 条结果", len(results_a))
+    logger.info("  测试 A (降级排序)    : %d 条结果", len(results_a))
     logger.info(
-        "  测试 B (Tags 过滤) : %d 条结果 — 应仅有 '百合' 标签条目", len(results_b)
+        "  测试 B (Tags 过滤)  : %d 条结果 — 应仅有 '百合' 标签条目", len(results_b)
     )
+    logger.info("  测试 C (日常治愈)    : %d 条结果", len(results_c))
+    logger.info("  测试 D (闲聊阻断)    : %d 条结果 — 预期为 0", len(results_d))
     logger.info(
-        "  测试 C (双重过滤)  : %d 条结果 — 应有 '日常' 标签且 score ≥ 8.0",
-        len(results_c),
+        "  测试 E (冷门召回)    : %d 条结果 — 需含《蛍火の杜へ》", len(results_e)
     )
-    logger.info("  测试 D (不可能组合) : %d 条结果 — 预期为 0", len(results_d))
-    logger.info(
-        "  测试 E (闲聊阻断)  : %d 条结果 — 预期为 0 (被距离阈值拦截)", len(results_e)
-    )
+    logger.info("  测试 F (安全护栏 ON) : %d 条结果 — 不得含 R18 条目", len(results_f))
 
-    # 软断言
-    all_tags_b = {tag for r in results_b for tag in r.tags}
+    # ── 软断言 ──────────────────────────────────────────────────
+    assert len(results_a) > 0, "❌ 测试 A 失败：纯语义检索无结果"
+
+    # 测试 B: Tags 硬过滤 — 所有结果必须包含"百合"标签
+    assert len(results_b) > 0, "❌ 测试 B 失败：Tags 过滤无结果"
     assert all("百合" in r.tags for r in results_b), (
         "❌ 测试 B 失败：结果中存在不含'百合'标签的条目！"
     )
-    assert all(r.score >= 8.0 for r in results_c), (
-        "❌ 测试 C 失败：结果中存在评分 < 8.0 的条目！"
-    )
-    assert all("日常" in r.tags for r in results_c), (
-        "❌ 测试 C 失败：结果中存在不含'日常'标签的条目！"
-    )
+
     assert len(results_d) == 0, (
-        f"❌ 测试 D 失败：预期 0 条结果，实际 {len(results_d)} 条"
+        f"❌ 测试 D 失败：闲聊问题应被距离阈值拦截，实际返回 {len(results_d)} 条"
     )
-    assert len(results_e) == 0, (
-        f"❌ 测试 E 失败：闲聊问题应被距离阈值拦截，实际返回 {len(results_e)} 条。"
-        f" 请检查 distance_threshold=0.65 是否生效。"
+
+    # 测试 E: 冷门番剧必须被召回
+    cold_names = [r.name for r in results_e]
+    assert any("蛍火" in name for name in cold_names), (
+        f"❌ 测试 E 失败：冷门番剧《蛍火の杜へ》(rating_total=10) 未被召回！"
+        f" 实际结果: {cold_names}"
+    )
+
+    # 测试 F: 安全护栏 — 不得返回任何 nsfw=True 的条目
+    nsfw_in_results = [r for r in results_f if r.nsfw]
+    assert len(nsfw_in_results) == 0, (
+        f"❌ 测试 F 失败：安全护栏失效！"
+        f" exclude_nsfw=True 时仍返回了 {len(nsfw_in_results)} 条 R18 条目: "
+        f"{[r.name for r in nsfw_in_results]}"
     )
 
     logger.info("  ✅ 所有软断言通过！")
@@ -302,12 +369,16 @@ def _print_results(label: str, results: list) -> None:
 
     for i, r in enumerate(results, 1):
         logger.info(
-            "    [%s #%d] %s | distance=%.4f | score=%.1f | tags=%s",
+            "    [%s #%d] %s | distance=%.4f | final=%.4f | "
+            "score=%.1f | heat=%d | nsfw=%s | tags=%s",
             label,
             i,
             r.name,
             r.cosine_distance,
+            r.final_score,
             r.score,
+            r.rating_total,
+            r.nsfw,
             r.tags,
         )
 

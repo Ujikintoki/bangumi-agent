@@ -5,6 +5,7 @@ RAG 文本预处理模块
 不依赖 LangChain / LlamaIndex，基于原生 Python 列表运算 + tiktoken 实现。
 """
 
+import html
 from typing import Any, List
 
 import tiktoken
@@ -67,6 +68,8 @@ class BangumiTextProcessor:
         if not text:
             return ""
 
+        text = html.unescape(text)
+
         # 1. 移除首尾无意义引号
         text = text.strip().strip('"').strip("'")
 
@@ -75,6 +78,9 @@ class BangumiTextProcessor:
 
         # 3. 统一换行符：\r\n → \n，连续换行（\n{2,}）→ 单个换行
         import re
+
+        # 2. 移除不可见的零宽字符 / 控制字符
+        text = re.sub(r"[\u200b\u200c\u200d\u200e\u200f\ufeff]", "", text)
 
         text = text.replace("\r\n", "\n")
         text = re.sub(r"\n{2,}", "\n", text)
