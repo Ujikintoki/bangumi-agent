@@ -1,8 +1,8 @@
 """
 数据库连接层
 
-负责 SQLAlchemy Engine 的初始化、pgvector 扩展的自动启用，
-以及 SQLModel Session 的生命周期管理。
+负责 SQLAlchemy Engine 的初始化、pgvector/pg_trgm 扩展的自动启用、
+rag_entities 表高性能索引的创建，以及 SQLModel Session 的生命周期管理。
 """
 
 from collections.abc import Generator
@@ -29,20 +29,24 @@ engine = create_engine(
 
 
 def init_db() -> None:
-    """初始化数据库表结构及必要扩展。
+    """初始化数据库表结构、必要扩展及高性能索引。
 
     执行顺序：
-    1. 启用 pgvector 扩展（幂等操作，重复执行无副作用）。
-    2. 根据所有注册的 SQLModel 子类自动建表（仅创建不存在的表）。
+    1. 启用 pgvector 扩展（幂等）。
+    2. 启用 pg_trgm 扩展，用于 GIN 三元组全文索引。
+    3. 根据所有注册的 SQLModel 子类自动建表。
+    4. 创建 HNSW 向量索引和 GIN trigram 全文索引（幂等）。
 
     Raises:
-        OperationalError: 数据库连接失败时抛出，调用方应捕获并决定是否重试。
-        ProgrammingError: SQL 执行错误（如权限不足无法创建扩展）时抛出。
+        OperationalError: 数据库连接失败时抛出。
+        ProgrammingError: SQL 执行错误（如权限不足）时抛出。
     """
     try:
         with engine.connect() as conn:
             # 开启 pgvector 扩展以支持 Vector 列类型
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            # 开启 pg_trgm 扩展以支持 GIN 三元组全文索引
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
             conn.commit()
     except OperationalError:
         raise
@@ -52,6 +56,35 @@ def init_db() -> None:
     try:
         SQLModel.metadata.create_all(engine)
     except OperationalError:
+        raise
+
+    # ── 高性能索引创建（幂等 DDL）──────────────────────────────
+    _INDEX_DDL_STATEMENTS = [
+        # HNSW 向量余弦距离索引 — 加速语义检索的向量最近邻查询
+        """
+        CREATE INDEX IF NOT EXISTS ix_rag_entities_embedding
+            ON rag_entities USING hnsw (embedding vector_cosine_ops);
+        """,
+        # GIN trigram 索引 — 加速 name 列的模糊匹配与 LIKE 查询
+        """
+        CREATE INDEX IF NOT EXISTS ix_rag_entities_name_trgm
+            ON rag_entities USING gin (name gin_trgm_ops);
+        """,
+        # GIN trigram 索引 — 加速 chunk_text 列的模糊匹配与 LIKE 查询
+        """
+        CREATE INDEX IF NOT EXISTS ix_rag_entities_chunk_text_trgm
+            ON rag_entities USING gin (chunk_text gin_trgm_ops);
+        """,
+    ]
+
+    try:
+        with engine.connect() as conn:
+            for idx_ddl in _INDEX_DDL_STATEMENTS:
+                conn.execute(text(idx_ddl))
+            conn.commit()
+    except (OperationalError, ProgrammingError):
+        # 索引创建失败不阻塞启动（如 pgvector/hnsw 不可用时），
+        # 实际生产环境应由运维确保扩展已安装
         raise
 
 

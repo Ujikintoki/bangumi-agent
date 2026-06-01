@@ -1,20 +1,28 @@
 """
 RAG 混合检索模块
 
-实现 JSONB 硬过滤 + Vector Similarity + 降级排序的三擎检索，
-严格遵循"SQL 硬过滤 → 向量召回 → 降级重排 → 阈值防爆"的查询管道。
+============================================================================
+  架构演进: 多态检索器 (Polymorphic Retriever)
+============================================================================
+  RagEntityRetriever 面向 ``rag_entities`` 表，支持 Subject / Character /
+  Person 三类实体的统一语义检索，核心增强：
+
+  1. **标量前置过滤**：硬编码 entity_type WHERE 子句，仅在特定领域内做向量比对。
+  2. **多态阶梯分桶排序**：保留向量距离分桶逻辑，桶内次级排序按实体类型动态路由：
+     Subject → rating_total, Character/Person → collects。
+============================================================================
 
 检索策略：
-  - SQL 硬过滤：对 tags（JSONB @> 交集）、nsfw 做精确 WHERE 裁剪
-  - 向量检索：对 query 做 embedding，用余弦距离召回 top_k * 2 候选集
-  - 降级重排：综合语义相似度 + 热度信号 (rating_total) 的混合打分
+  - SQL 硬过滤：entity_type 标量前置 + nsfw 安全护栏 + JSONB tags 交集过滤
+  - 向量检索：对 query 做 embedding，用余弦距离召回 limit * 2 候选集
+  - 多态降级重排：语义梯队分桶 → 动态热度信号降序
   - 距离阈值：丢弃 cosine_distance > threshold 的结果，防幻觉
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine, type_coerce
@@ -22,9 +30,256 @@ from sqlalchemy import cast as sa_cast
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Session, select
 
-from database.models import BangumiChunk
+from database.models import BangumiChunk, RagEntity
 
 logger = logging.getLogger("bgm-agent.retriever")
+
+# ============================================================================
+# 新架构: RagSearchResult — 多态检索结果
+# ============================================================================
+
+
+class RagSearchResult(BaseModel):
+    """单条多态检索结果。
+
+    统一承载 Subject / Character / Person 三类实体的检索命中信息。
+    实体特有的结构化字段通过 ``meta_info`` dict 暴露，由调用方按需解析。
+
+    Attributes:
+        entity_id: 带前缀的全局唯一 ID，如 ``"subject_10"``。
+        entity_type: 实体类型: ``"subject"`` / ``"character"`` / ``"person"``。
+        chunk_text: 命中文本块原文。
+        name: 实体原文名称。
+        name_cn: 实体中文名称。
+        cosine_distance: PGVector 余弦距离，范围 [0, 2]。
+        final_score: 降级重排后的综合得分（梯队 ID），越小越好。
+        meta_info: 反范式化元数据完整内容，包含评分、标签、关联边等。
+    """
+
+    entity_id: str = Field(description="带前缀的全局唯一 ID")
+    entity_type: str = Field(description="实体类型: subject / character / person")
+    chunk_text: str = Field(description="命中文本块原文")
+    name: str = Field(default="", description="实体原文名称")
+    name_cn: Optional[str] = Field(default=None, description="实体中文名称")
+    cosine_distance: float = Field(description="余弦距离，越小越相似")
+    final_score: float = Field(
+        default=0.0, description="降级重排后的综合得分（梯队 ID）"
+    )
+    meta_info: dict = Field(default_factory=dict, description="反范式化元数据完整内容")
+
+
+# ============================================================================
+# 新架构: RagEntityRetriever — 多态 RAG 检索器
+# ============================================================================
+
+
+def _extract_heat_signal(meta: dict, entity_type: str) -> int:
+    """根据实体类型动态提取次级热度信号，用于桶内降序重排。
+
+    Args:
+        meta: RagEntity.meta_info JSONB 内容。
+        entity_type: 实体类型。
+
+    Returns:
+        热度信号整数值，默认为 0。
+    """
+    if entity_type == "subject":
+        val = meta.get("rating_total", 0)
+    elif entity_type in ("character", "person"):
+        val = meta.get("collects", 0)
+    else:
+        val = 0
+    return int(val) if isinstance(val, (int, float)) else 0
+
+
+class RagEntityRetriever:
+    """多态 RAG 检索器（新架构）。
+
+    面向 ``rag_entities`` 表，支持对 Subject / Character / Person
+    三类实体进行标量前置过滤 + 向量语义检索 + 多态阶梯分桶排序。
+
+    Attributes:
+        engine: SQLAlchemy Engine 实例。
+        client: 智谱 ZhipuAiClient，用于查询向量化。
+    """
+
+    def __init__(
+        self,
+        engine: Engine,
+        zhipu_api_key: str = "",
+    ) -> None:
+        self.engine = engine
+        try:
+            from zai import ZhipuAiClient
+
+            self.client = ZhipuAiClient(api_key=zhipu_api_key)
+            logger.info("RagEntityRetriever: ZhipuAiClient 初始化成功")
+        except ImportError:
+            self.client = None
+            logger.warning("zai-sdk 未安装，检索器 embedding 功能不可用")
+        except Exception as exc:
+            self.client = None
+            logger.error("检索器客户端初始化失败: %s", exc)
+
+    def _check_client(self) -> None:
+        if self.client is None:
+            raise RuntimeError(
+                "智谱客户端未初始化，无法进行查询 embedding。"
+                "请确认 zai-sdk 已安装且 API Key 有效。"
+            )
+
+    def hybrid_search(
+        self,
+        query: str,
+        entity_type: Literal["subject", "character", "person", "all"] = "all",
+        limit: int = 5,
+        exclude_nsfw: bool = True,
+        distance_threshold: float = 0.65,
+        semantic_bucket_size: float = 0.03,
+    ) -> list[RagSearchResult]:
+        """多态混合检索：标量前置过滤 → 向量召回 → 多态分桶排序 → 阈值防爆。
+
+        检索管道：
+          1. **标量前置过滤**：若 entity_type != "all"，硬编码 WHERE 条件
+             限定检索域，仅在该领域内做向量比对。
+          2. 查询向量化。
+          3. 按 PGVector 余弦距离召回 limit * 2 候选集。
+          4. **距离阈值防爆**：丢弃 cosine_distance > threshold 的候选。
+          5. **多态阶梯分桶排序**：按 entity_type 动态选择次级热度信号：
+             - subject → meta_info.rating_total
+             - character / person → meta_info.collects
+          6. 截取 top ``limit`` 条返回。
+
+        Args:
+            query: 自然语言查询。
+            entity_type: 限定实体类型，``"all"`` 表示跨域检索。
+            limit: 最大返回条数，默认 5。
+            exclude_nsfw: 是否排除 R18（仅对 subject 生效）。
+            distance_threshold: 余弦距离上限，默认 0.65。
+            semantic_bucket_size: 语义梯队步长，默认 0.03。
+
+        Returns:
+            按 final_score 升序排列的 RagSearchResult 列表。
+        """
+        if not query or not query.strip():
+            logger.warning("查询为空，返回空列表")
+            return []
+
+        self._check_client()
+
+        # ── Step 1: 查询向量化 ────────────────────────────────
+        try:
+            response = self.client.embeddings.create(
+                model="embedding-3",
+                input=[query.strip()],
+            )
+            query_embedding: list[float] = response.data[0].embedding
+            logger.debug("查询向量化: '%s' → %d 维", query[:50], len(query_embedding))
+        except Exception as exc:
+            logger.error("查询 embedding 失败: %s", exc)
+            raise RuntimeError(f"查询 embedding 失败: {exc}") from exc
+
+        # ── Step 2: 标量前置过滤 + 向量召回 ──────────────────
+        candidate_limit = limit * 2
+        try:
+            with Session(self.engine) as session:
+                stmt = select(RagEntity)
+
+                # ── 标量前置过滤: entity_type ────────────────
+                if entity_type != "all":
+                    stmt = stmt.where(RagEntity.entity_type == entity_type)
+                    logger.debug("实体类型前置过滤: %s", entity_type)
+
+                # ── 安全护栏: nsfw ──────────────────────────
+                if exclude_nsfw and entity_type in ("subject", "all"):
+                    stmt = stmt.where(~RagEntity.meta_info.contains({"nsfw": True}))
+                    logger.debug("安全护栏: 排除 nsfw=True")
+
+                # ── 向量余弦距离排序 ────────────────────────
+                stmt = stmt.order_by(
+                    RagEntity.embedding.cosine_distance(query_embedding)
+                ).limit(candidate_limit)
+
+                rows = session.exec(stmt).all()
+
+        except Exception as exc:
+            logger.error("数据库查询失败: %s", exc)
+            raise RuntimeError(f"多态检索查询失败: {exc}") from exc
+
+        if not rows:
+            logger.info(
+                "无匹配: query='%s', entity_type=%s",
+                query[:50],
+                entity_type,
+            )
+            return []
+
+        # ── Step 3: 组装候选集 ─────────────────────────────────
+        raw_results: list[RagSearchResult] = []
+        for row in rows:
+            row_embedding = row.embedding.tolist() if row.embedding is not None else []
+            distance = _compute_cosine_distance(query_embedding, row_embedding)
+            meta = row.meta_info or {}
+
+            raw_results.append(
+                RagSearchResult(
+                    entity_id=row.id,
+                    entity_type=row.entity_type,
+                    chunk_text=row.chunk_text,
+                    name=row.name or "",
+                    name_cn=row.name_cn,
+                    cosine_distance=distance,
+                    final_score=0.0,
+                    meta_info=meta,
+                )
+            )
+
+        # ── Step 4: 距离阈值防爆 ──────────────────────────────
+        within_threshold = [
+            r for r in raw_results if r.cosine_distance <= distance_threshold
+        ]
+        discarded = len(raw_results) - len(within_threshold)
+        if discarded > 0:
+            logger.debug(
+                "阈值预过滤: 丢弃 %d 条, 保留 %d 条", discarded, len(within_threshold)
+            )
+
+        if not within_threshold:
+            logger.info("阈值过滤后无候选: query='%s'", query[:50])
+            return []
+
+        # ── Step 5: 多态阶梯分桶排序 ───────────────────────────
+        within_threshold.sort(
+            key=lambda r: (
+                int(r.cosine_distance / semantic_bucket_size),
+                -_extract_heat_signal(r.meta_info, r.entity_type),
+            )
+        )
+
+        for r in within_threshold:
+            r.final_score = float(int(r.cosine_distance / semantic_bucket_size))
+
+        final_results = within_threshold[:limit]
+
+        logger.info(
+            "多态检索完成: query='%s', type=%s, 候选=%d, 最终=%d, "
+            "top1='%s'(entity=%s, distance=%.4f, bucket=%d)",
+            query[:50],
+            entity_type,
+            len(raw_results),
+            len(final_results),
+            final_results[0].name if final_results else "N/A",
+            final_results[0].entity_type if final_results else "N/A",
+            final_results[0].cosine_distance if final_results else 0,
+            int(final_results[0].final_score) if final_results else -1,
+        )
+
+        return final_results
+
+
+# ============================================================================
+# 旧架构兼容: SearchResult / BangumiRetriever（已弃用）
+# ============================================================================
 
 
 class SearchResult(BaseModel):

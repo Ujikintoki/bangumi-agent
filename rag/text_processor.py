@@ -144,13 +144,101 @@ class BangumiTextProcessor:
 
         return chunks
 
+    def create_entity_documents(
+        self,
+        entity_type: str,
+        entity_id: int,
+        name: str = "",
+        name_cn: str = "",
+        summary: str | None = None,
+        tags: list[str] | None = None,
+        subject_name: str = "",
+    ) -> dict[str, Any]:
+        """为任意类型实体创建父子文档结构（多态版）。
+
+        遵循 Parent-Child Retriever 模式。父文档根据实体类型拼接不同语义前缀，
+        子文档为清洗后摘要的滑动窗口切片。
+
+        Args:
+            entity_type: 实体类型，``"subject"`` / ``"character"`` / ``"person"``。
+            entity_id: Bangumi 原始数字 ID。
+            name: 实体原文名称。
+            name_cn: 实体中文名称。
+            summary: 实体简介文本。若为空，仅生成父文档。
+            tags: 标签列表（仅 subject 有效）。
+            subject_name: 角色所属作品名（仅 character 有效）。
+
+        Returns:
+            父子文档字典，与 ``create_parent_child_documents`` 格式兼容。
+        """
+        cleaned_summary = self.clean_text(summary or "")
+
+        # ── 根据实体类型组装父文档前缀 ────────────────────────
+        parent_parts: list[str] = []
+
+        if entity_type == "subject":
+            prefix = f"[番剧] {name_cn}。" if name_cn else "[番剧] "
+            if tags:
+                tags_str = ", ".join(tags)
+                parent_parts.append(f"标签: {tags_str}")
+        elif entity_type == "character":
+            prefix = f"[角色] {name_cn}" if name_cn else "[角色]"
+            if subject_name:
+                prefix += f"，出自《{subject_name}》"
+            prefix += "。"
+        elif entity_type == "person":
+            prefix = f"[人物/声优] {name_cn}。" if name_cn else "[人物/声优] "
+        else:
+            prefix = ""
+
+        if cleaned_summary:
+            parent_parts.append(f"{prefix}{cleaned_summary}")
+        elif prefix:
+            parent_parts.append(prefix.strip("。"))
+
+        parent_text = "\n".join(parent_parts)
+
+        parent: dict[str, Any] = {
+            "entity_id": entity_id,
+            "entity_type": entity_type,
+            "text": parent_text,
+            "meta_info": {
+                "chunk_type": "parent",
+                "entity_type": entity_type,
+                "tags": tags or [],
+            },
+        }
+
+        # ── 切分子文档 ────────────────────────────────────────
+        children: list[dict[str, Any]] = []
+        if cleaned_summary:
+            child_chunks = self.split_text(cleaned_summary)
+            for chunk_text in child_chunks:
+                children.append(
+                    {
+                        "entity_id": entity_id,
+                        "entity_type": entity_type,
+                        "text": chunk_text,
+                        "meta_info": {
+                            "chunk_type": "child",
+                            "entity_type": entity_type,
+                            "parent_entity_id": entity_id,
+                        },
+                    }
+                )
+
+        return {"parent": parent, "children": children}
+
     def create_parent_child_documents(
         self,
         subject_id: int,
         tags: list[str],
         summary: str | None,
     ) -> dict[str, Any]:
-        """为单个番剧条目创建父子文档结构。
+        """[DEPRECATED] 为单个番剧条目创建父子文档结构。
+
+        .. deprecated::
+            请迁移至 ``create_entity_documents``，支持多态实体类型。
 
         遵循 Parent-Child Retriever 模式：父文档携带完整的标签与简介
         富文本上下文，子文档为清洗后摘要的滑动窗口切片，用于高精度
@@ -165,88 +253,11 @@ class BangumiTextProcessor:
                 父文档仅包含标签信息，子文档列表为空。
 
         Returns:
-            包含父子文档的字典，结构如下::
-
-                {
-                    "parent": {
-                        "subject_id": int,
-                        "text": str,
-                        "meta_info": {
-                            "chunk_type": "parent",
-                            "tags": list[str],
-                        },
-                    },
-                    "children": [
-                        {
-                            "subject_id": int,
-                            "text": str,
-                            "meta_info": {
-                                "chunk_type": "child",
-                                "parent_subject_id": int,
-                            },
-                        },
-                        ...
-                    ],
-                }
-
-            若 summary 为空且 tags 也为空，父文档 text 为空字符串。
-
-        Example:
-            >>> processor = BangumiTextProcessor()
-            >>> result = processor.create_parent_child_documents(
-            ...     subject_id=8,
-            ...     tags=["机战", "原创", "2008"],
-            ...     summary="鲁路修带领黑色骑士团向帝国宣战...",
-            ... )
-            >>> result["parent"]["meta_info"]["chunk_type"]
-            'parent'
-            >>> len(result["children"]) > 0
-            True
-            >>> result["children"][0]["meta_info"]["chunk_type"]
-            'child'
+            包含父子文档的字典。
         """
-        # ── 清洗 summary ──────────────────────────────────────
-        cleaned_summary = self.clean_text(summary or "")
-
-        # ── 组装父文档 ────────────────────────────────────────
-        parent_text_parts: list[str] = []
-
-        if tags:
-            tags_str = ", ".join(tags)
-            parent_text_parts.append(f"[标签]: {tags_str}")
-
-        if cleaned_summary:
-            parent_text_parts.append(f"[简介]: {cleaned_summary}")
-
-        parent_text = "\n".join(parent_text_parts)
-
-        parent: dict[str, Any] = {
-            "subject_id": subject_id,
-            "text": parent_text,
-            "meta_info": {
-                "chunk_type": "parent",
-                "tags": tags,
-            },
-        }
-
-        # ── 切分子文档 ────────────────────────────────────────
-        children: list[dict[str, Any]] = []
-
-        if cleaned_summary:
-            child_chunks = self.split_text(cleaned_summary)
-            for chunk_text in child_chunks:
-                children.append(
-                    {
-                        "subject_id": subject_id,
-                        "text": chunk_text,
-                        "meta_info": {
-                            "chunk_type": "child",
-                            "parent_subject_id": subject_id,
-                        },
-                    }
-                )
-
-        return {
-            "parent": parent,
-            "children": children,
-        }
+        return self.create_entity_documents(
+            entity_type="subject",
+            entity_id=subject_id,
+            summary=summary,
+            tags=tags,
+        )
