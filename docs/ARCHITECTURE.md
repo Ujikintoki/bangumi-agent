@@ -385,3 +385,24 @@ python test_rawtext.py   # 文本切片（离线）
 | 类型安全 | Tool 函数入参/返回值有 Type Hint + Google Style Docstring |
 | 无状态 | Token 与记忆不得全局变量硬编码，依赖持久化存储 |
 | 模糊澄清 | 用户输入语义模糊时主动询问，不假设默认值 |
+
+## 10. LangGraph DAG
+
+                 START
+                   │
+                   ▼
+            reasoning_node
+                   │
+                   ▼ (条件边: needs_tool?)
+            ┌──────┴──────┐
+            │             │
+         tool_node     (skip)
+            │             │
+            └──────┬──────┘
+                   ▼
+             critic_node
+                   │
+                   ▼ (条件边: PASS? 超限?)
+            ┌──────┴──────┐
+            │             │
+           END      reasoning_node

@@ -1,0 +1,153 @@
+/p1/characters/{characterID}/casts:
+
+# example: https://next.bgm.tv/p1/characters/1000/casts?type=1&limit=5&offset=0
+
+/p1/characters/{characterID}/casts:
+    get:
+      operationId: getCharacterCasts
+      parameters:
+        - in: query
+          name: subjectType
+          required: false
+          schema:
+            $ref: '#/components/schemas/SubjectType'
+        - description: '角色出场类型: 主角，配角，客串'
+          in: query
+          name: type
+          required: false
+          schema:
+            type: integer
+        - description: max 100
+          in: query
+          name: limit
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: min 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            default: 0
+            minimum: 0
+            type: integer
+        - in: path
+          name: characterID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    items:
+                      $ref: '#/components/schemas/CharacterSubject'
+                    type: array
+                  total:
+                    description: limit+offset 为参数的请求表示总条数，page 为参数的请求表示总页数
+                    type: integer
+                required:
+                  - data
+                  - total
+                type: object
+          description: Default Response
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: default error response type
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: 意料之外的服务器错误
+      security:
+        - CookiesSession: []
+          HTTPBearer: []
+      summary: 获取角色出演作品
+      tags:
+        - character
+
+
+# example: https://next.bgm.tv/p1/persons/3818/casts?type=1&limit=10&offset=0
+/p1/persons/{personID}/casts:
+    get:
+      operationId: getPersonCasts
+      parameters:
+        - in: query
+          name: subjectType
+          required: false
+          schema:
+            $ref: '#/components/schemas/SubjectType'
+        - description: '角色出场类型: 主角，配角，客串'
+          in: query
+          name: type
+          required: false
+          schema:
+            type: integer
+        - description: max 100
+          in: query
+          name: limit
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: min 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            default: 0
+            minimum: 0
+            type: integer
+        - in: path
+          name: personID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    items:
+                      $ref: '#/components/schemas/PersonCharacter'
+                    type: array
+                  total:
+                    description: limit+offset 为参数的请求表示总条数，page 为参数的请求表示总页数
+                    type: integer
+                required:
+                  - data
+                  - total
+                type: object
+          description: Default Response
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: default error response type
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: 意料之外的服务器错误
+      security:
+        - CookiesSession: []
+          HTTPBearer: []
+      summary: 获取人物的出演角色
+      tags:
+        - person
