@@ -196,13 +196,17 @@ class RagEntityIngestor:
             raw_casts,
             key=lambda c: rating_map.get(c.get("subject_id", 0), 0),
             reverse=True,
-        )[:10]
+        )
         casts: list[CharacterCast] = []
+        seen_subjects: set[str] = set()
         for c in sorted_casts:
+            prefixed = _prefixed_subject_id(c["subject_id"])
+            if prefixed in seen_subjects:
+                continue  # 同一作品不同版本（TV/总集篇）去重
             try:
                 casts.append(
                     CharacterCast(
-                        subject_id=_prefixed_subject_id(c["subject_id"]),
+                        subject_id=prefixed,
                         subject_name=str(c.get("subject_name", "")),
                         person_id=(
                             _prefixed_person_id(c["person_id"])
@@ -213,8 +217,11 @@ class RagEntityIngestor:
                         role_type=c.get("type", 0),
                     )
                 )
+                seen_subjects.add(prefixed)
             except ValidationError as exc:
                 logger.warning("CharacterCast 校验失败，跳过: %s", exc)
+            if len(casts) >= 10:
+                break
         return casts
 
     def _rerank_works(
@@ -231,13 +238,17 @@ class RagEntityIngestor:
             raw_works,
             key=lambda w: rating_map.get(w.get("subject_id", 0), 0),
             reverse=True,
-        )[:10]
+        )
         works: list[PersonWork] = []
+        seen_subjects: set[str] = set()
         for w in sorted_works:
+            prefixed = _prefixed_subject_id(w["subject_id"])
+            if prefixed in seen_subjects:
+                continue  # 同一作品不同版本（TV/总集篇）去重
             try:
                 works.append(
                     PersonWork(
-                        subject_id=_prefixed_subject_id(w["subject_id"]),
+                        subject_id=prefixed,
                         subject_name=str(w.get("subject_name", "")),
                         character_id=(
                             _prefixed_character_id(w["character_id"])
@@ -248,8 +259,12 @@ class RagEntityIngestor:
                         role_type=w.get("type", 0),
                     )
                 )
+                seen_subjects.add(prefixed)
             except ValidationError as exc:
                 logger.warning("PersonWork 校验失败，跳过: %s", exc)
+            if len(works) >= 10:
+                break
+        return works
         return works
 
     # ── 公开摄入方法 ──────────────────────────────────────────
