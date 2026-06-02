@@ -177,7 +177,7 @@ class BangumiTextProcessor:
         parent_parts: list[str] = []
 
         if entity_type == "subject":
-            prefix = f"[番剧] {name_cn}。" if name_cn else "[番剧] "
+            prefix = f"[作品名] {name_cn}。" if name_cn else "[作品名] "
             if tags:
                 tags_str = ", ".join(tags)
                 parent_parts.append(f"标签: {tags_str}")
@@ -187,7 +187,7 @@ class BangumiTextProcessor:
                 prefix += f"，出自《{subject_name}》"
             prefix += "。"
         elif entity_type == "person":
-            prefix = f"[人物/声优] {name_cn}。" if name_cn else "[人物/声优] "
+            prefix = f"[人物] {name_cn}。" if name_cn else "[人物] "
         else:
             prefix = ""
 

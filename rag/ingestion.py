@@ -45,17 +45,17 @@ logger = logging.getLogger("bgm-agent.ingestion")
 
 
 def _build_subject_chunk_text(name_cn: str, chunk_text: str) -> str:
-    """为番剧文本块拼接语义定调前缀。
+    """为作品文本块拼接语义定调前缀。
 
     Args:
         name_cn: 条目中文名称，为空时省略。
         chunk_text: 原始文本块内容。
 
     Returns:
-        带 ``[番剧]`` 前缀的完整文本，供 embedding 向量化。
+        带 ``[作品名]`` 前缀的完整文本，供 embedding 向量化。
     """
     name_part = f"{name_cn}。" if name_cn else ""
-    return f"[番剧] {name_part}{chunk_text}"
+    return f"[作品名] {name_part}{chunk_text}"
 
 
 def _build_character_chunk_text(
@@ -79,17 +79,17 @@ def _build_character_chunk_text(
 
 
 def _build_person_chunk_text(name_cn: str, chunk_text: str) -> str:
-    """为人物/声优文本块拼接语义定调前缀。
+    """为人物文本块拼接语义定调前缀。
 
     Args:
         name_cn: 人物中文名称，为空时省略。
         chunk_text: 原始文本块内容。
 
     Returns:
-        带 ``[人物/声优]`` 前缀的完整文本。
+        带 ``[人物]`` 前缀的完整文本。
     """
     name_part = f"{name_cn}。" if name_cn else ""
-    return f"[人物/声优] {name_part}{chunk_text}"
+    return f"[人物] {name_part}{chunk_text}"
 
 
 # ============================================================================
@@ -265,14 +265,13 @@ class RagEntityIngestor:
             if len(works) >= 10:
                 break
         return works
-        return works
 
     # ── 公开摄入方法 ──────────────────────────────────────────
 
     def ingest_subjects(self, subjects_data: list[dict[str, Any]]) -> int:
         """摄入番剧 (Subject) 实体。
 
-        对每个文本块拼接 ``[番剧] {name_cn}。`` 语义前缀后向量化，
+        对每个文本块拼接 ``[作品名] {name_cn}。`` 语义前缀后向量化，
         meta_info 经 SubjectMeta 契约校验后存入 JSONB。
 
         Args:
@@ -405,9 +404,9 @@ class RagEntityIngestor:
         return inserted
 
     def ingest_persons(self, persons_data: list[dict[str, Any]]) -> int:
-        """摄入人物/声优 (Person) 实体。
+        """摄入人物 (Person) 实体。
 
-        拼接 ``[人物/声优] {name_cn}。`` 前缀，
+        拼接 ``[人物] {name_cn}。`` 前缀，
         works 列表经内存重排（按关联作品 rating_total 降序，截断 Top 10）后
         经 PersonMeta 契约校验存入 meta_info。
 
