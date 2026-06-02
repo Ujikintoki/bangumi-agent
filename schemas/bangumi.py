@@ -1,10 +1,17 @@
 """
 Bangumi API 数据模型定义 (Fat Model 策略)
 
-采用"渐进式暴露"与"Fat Model"策略，基于 bangumi_openapi.yaml 中定义的
-SlimSubject / Subject 组件提取两个层次的 Pydantic v2 模型。
-Fat Model 要求每个模型完整覆盖该场景所需的全部字段，不依赖外部组合，
-同时使用 ConfigDict(extra="ignore") 严格丢弃未声明字段，保障解析稳定性。
+采用"渐进式暴露"与"Fat Model"策略，覆盖 v0 公开 API 与 p1 private API
+的响应契约。Fat Model 要求每个模型完整覆盖该场景所需的全部字段，
+不依赖外部组合，同时使用 ConfigDict(extra="ignore") 严格丢弃未声明字段。
+
+============================================================================
+  模型分层:
+  - v0 API: SlimSubjectResponse / DetailedSubjectResponse (搜索与详情)
+  - p1 API: P1SubjectResponse / P1CharacterResponse / P1PersonResponse
+            (RAG 摄入管道的原始数据源)
+  - 关联边: CastItem / WorkItem (角色出演 / 人物代表作列表项)
+============================================================================
 """
 
 from __future__ import annotations
@@ -158,3 +165,105 @@ class DetailedSubjectResponse(SlimSubjectResponse):
             )
 
         return data
+
+
+# ============================================================================
+# p1 API 响应模型 — Character / Person / Subject（RAG 摄入数据源）
+# ============================================================================
+
+
+class P1SubjectResponse(BaseModel):
+    """p1 API ``/subjects/{subjectID}`` 响应模型。
+
+    相比 v0 API 的 ``DetailedSubjectResponse``，p1 API 额外暴露 airtime、
+    platform 结构体、metaTags 及 rating 分布等更细粒度的元数据。
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int = Field(description="条目 ID")
+    name: str = Field(default="", description="条目原文名称")
+    nameCN: str = Field(default="", description="条目中文名称")
+    summary: str = Field(default="", description="条目完整简介")
+    type: int = Field(
+        default=0,
+        description="条目类型（1=书籍, 2=动画, 3=音乐, 4=游戏, 6=三次元）",
+    )
+    nsfw: bool = Field(default=False, description="是否 R18 内容")
+    eps: int = Field(default=0, description="由旧服务端从 wiki 中解析的集数/话数")
+    rating: dict = Field(
+        default_factory=dict,
+        description="评分详情，含 score(float) / total(int) / count(list[int])",
+    )
+    airtime: dict = Field(
+        default_factory=dict,
+        description="播出时间，含 date(str) / month(int) / weekday(int) / year(int)",
+    )
+    platform: dict = Field(
+        default_factory=dict,
+        description="播出平台，含 alias / type / typeCN 等",
+    )
+    metaTags: list[str] = Field(
+        default_factory=list, description="元标签（wiki 分类标签）"
+    )
+
+
+class P1CharacterResponse(BaseModel):
+    """p1 API ``/characters/{characterID}`` 响应模型。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int = Field(description="角色 ID")
+    name: str = Field(default="", description="角色原文名称")
+    nameCN: str = Field(default="", description="角色中文名称")
+    summary: str = Field(default="", description="角色简介")
+    role: int = Field(default=0, description="角色类型编号")
+    collects: int = Field(default=0, description="收藏数")
+    comment: int = Field(default=0, description="评论数")
+    nsfw: bool = Field(default=False, description="是否 R18 内容")
+
+
+class P1PersonResponse(BaseModel):
+    """p1 API ``/persons/{personID}`` 响应模型。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int = Field(description="人物 ID")
+    name: str = Field(default="", description="人物原文名称")
+    nameCN: str = Field(default="", description="人物中文名称")
+    summary: str = Field(default="", description="人物简介")
+    career: str = Field(default="", description="职业，如 producer / artist / seiyu")
+    type: int = Field(default=0, description="人物类型编号")
+    collects: int = Field(default=0, description="收藏数")
+    comment: int = Field(default=0, description="评论数")
+    nsfw: bool = Field(default=False, description="是否 R18 内容")
+
+
+class CastItem(BaseModel):
+    """p1 API ``/characters/{characterID}/casts`` 返回的单条记录。
+
+    对应角色在某部作品中的出场信息。
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    subject_id: int = Field(description="作品原始数字 ID")
+    subject_name: str = Field(default="", description="作品名称")
+    person_id: Optional[int] = Field(default=None, description="饰演者原始数字 ID")
+    person_name: Optional[str] = Field(default=None, description="饰演者名称")
+    type: int = Field(default=0, description="角色出场类型: 1=主角, 2=配角, 3=客串")
+
+
+class WorkItem(BaseModel):
+    """p1 API ``/persons/{personID}/casts`` 返回的单条记录。
+
+    对应人物在某部作品中参与的信息。
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    subject_id: int = Field(description="作品原始数字 ID")
+    subject_name: str = Field(default="", description="作品名称")
+    character_id: Optional[int] = Field(default=None, description="关联角色原始数字 ID")
+    character_name: Optional[str] = Field(default=None, description="关联角色名称")
+    type: int = Field(default=0, description="角色出场类型: 1=主角, 2=配角, 3=客串")

@@ -14,7 +14,7 @@
 ## 4. 核心 JSON 字段提取 (Output 契约)
 **API 1: `/p1/episodes/{episodeID}`**
 * `ep_sort` (int): 集数。
-* `ep_name` (str): 优先 nameCN，为空取 name。
+* `ep_name` (str): 单集名称（可能为空）。
 * `subject_name` (str): 提取自嵌套的 subject。
 * `desc` (str): 剧情简介与 STAFF（必须硬截断至前 500 字符）。
 

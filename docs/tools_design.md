@@ -1,84 +1,110 @@
-# Agent Tools list
-## Tool1: calendar (每日放送)
-## 核心意图
-[]
-## 聚合的 GET API 路由
-1. `[GET] /p1/calendar`
-## 3. Pydantic 入参建议 (Input)
+# Agent Tools 设计决策 & API 路由评估
 
-###
-# blog
-## 1./p1/blogs/{entryID}
-## 2./p1/blogs/{entryID}/comments
-## 3./p1/blogs/{entryID}/subjects
+> 版本 0.3.0 | 2026-06-03
 
-# calender
-## 1./p1/calendar
+---
 
-# character
-## 1./p1/characters/{characterID}
-## 2./p1/characters/{characterID}/casts
-## 3./p1/characters/{characterID}/comments
+## 设计原则：API 独有 ≠ LLM 共识
 
-# episode
-## 1./p1/episodes/{episodeID}
-## 2./p1/episodes/{episodeID}/comments
+| 信息分类 | 数据来源 | 示例 | 是否需要 Tool |
+|---|---|---|---|
+| **Bangumi 社区独有内容** | API | 吐槽箱、评分分布、热门趋势、用户动态 | ✅ **必须** |
+| **实时/时效性数据** | API | 每日放送、最新一集、当前热榜 | ✅ **必须** |
+| **公共知识/百科事实** | LLM | 声优姓名、剧情简介、播出年份 | ❌ 不需要 |
+| **ID 映射/精确路由** | RAG + API | 模糊名称 → 精确 ID | ✅ **必须**（RAG） |
 
-# group
+核心判断逻辑：**如果 LLM 的训练数据中已经有这个信息，就不要为此设计 Tool。Tool 只提供 LLM"不可能知道"的 Bangumi 专属内容。**
 
-# topic
+---
 
-# person
-## 1./p1/persons/{personID}
-## 2./p1/persons/{personID}/casts
-## 3./p1/persons/{personID}/comments
-## 5./p1/persons/{personID}/relations
-## 6./p1/persons/{personID}/works
+## API 端点评估与 Tool 建议
 
-# user
-## 1./p1/users/{username}
-## 2./p1/users/{username}/blogs
-## 3./p1/users/{username}/collections/characters
-## 4./p1/users/{username}/collections/persons
-## 5./p1/users/{username}/collections/subjects
+### calendar（放送日历）
+| 端点 | 评估 | 理由 |
+|---|---|---|
+| `GET /p1/calendar` | ✅ **Tool1: get_calendar** | 实时播出信息，LLM 无法预测 |
 
-# subject
-## 3./p1/subjects/{subjectID}
-## 4./p1/subjects/{subjectID}/characters
-## 5./p1/subjects/{subjectID}/comments
-## 6./p1/subjects/{subjectID}/episodes
+### episode（单集）
+| 端点 | 评估 | 理由 |
+|---|---|---|
+| `GET /p1/episodes/{id}` | ✅ **Tool2: get_episode** | 单集元数据作为上下文锚点 |
+| `GET /p1/episodes/{id}/comments` | ✅ **合并入 Tool2** | 单集吐槽箱——LLM 不知道"大家怎么评价这一集" |
 
-# trending
-## 1./p1/trending/subjects
-## 2./p1/trending/subjects/topics
+### trending（热门趋势）
+| 端点 | 评估 | 理由 |
+|---|---|---|
+| `GET /p1/trending/subjects` | ✅ **Tool3: get_trending** | 实时社区热度，LLM 无法计算 |
+| `GET /p1/trending/subjects/topics` | ❌ 暂不实现 | 与 subjects 高度重叠 |
 
-## 1. 核心意图
-[用一两句话描述这个工具用来回答用户的什么问题。例如：用于全面了解一部作品的社区评价、评分分布和讨论热点。]
+### subject（条目）
+| 端点 | 评估 | 理由 |
+|---|---|---|
+| `GET /p1/subjects/{id}` | ❌ **不做独立 Tool** | name/summary/eps 等客观信息属于公共知识 |
+| `GET /p1/subjects/{id}/comments` | ✅ **Tool5: get_subject_comments** | 社区评分和短评——这是 LLM 不知道的 |
+| `GET /p1/subjects/{id}/characters` | ❌ 不做 | 角色-作品关联属于公共知识，可被 RAG 覆盖 |
+| `GET /p1/subjects/{id}/episodes` | ❌ 不做 | 可通过 RAG meta_info.eps + 推算 episode ID 解决 |
+| `POST /p1/search/subjects` | ✅ **Tool4: resolve_subject** | ID ↔ 名称双向解析，串联所有 Tool 的枢纽 |
 
-## 2. 聚合的 GET API 路由
-[列出该工具需要调用的所有 Bangumi API 路由，包含路径参数。]
-1. `[GET] /p1/...`
-2. `[GET] /p1/...`
+### character（角色）
+| 端点 | 评估 | 理由 |
+|---|---|---|
+| `GET /p1/characters/{id}` | ❌ **不做独立 Tool** | name/role/summary 属于公共知识 |
+| `GET /p1/characters/{id}/casts` | ❌ 不做 | 角色-作品关联属于公共知识 |
+| `GET /p1/characters/{id}/comments` | ✅ **Tool6: get_character_comments** | 社区对角色的主观评价 |
 
-## 3. Pydantic 入参建议 (Input)
-[大模型调用此工具时需要传入的参数。]
-* `[参数名1]` ([类型]): [描述/来源，例如：subject_id (int): 条目纯数字 ID]
-* `[参数名2]` ([类型]): [可选，默认值，描述...]
+### person（人物）
+| 端点 | 评估 | 理由 |
+|---|---|---|
+| `GET /p1/persons/{id}` | ❌ **不做独立 Tool** | name/career/summary 属于公共知识 |
+| `GET /p1/persons/{id}/casts` | ❌ 不做 | 人物-作品关联属于公共知识 |
+| `GET /p1/persons/{id}/works` | ❌ 不做 | 同上 |
+| `GET /p1/persons/{id}/relations` | ❌ 不做 | 关系图属于公共知识 |
+| `GET /p1/persons/{id}/comments` | ✅ **Tool7: get_person_comments** | 社区对现实人物的主观评价 |
 
-## 4. 核心 JSON 字段提取 (Output 契约)
-[这是最重要的部分！剔除废弃字段，只列出你需要保留给大模型的字段及层级结构。]
+### user（用户）
+| 端点 | 评估 | 理由 |
+|---|---|---|
+| `GET /p1/users/{username}` | ❌ 不做 | 用户简介属于基本信息 |
+| `GET /p1/users/{username}/blogs` | ✅ **Tool8: get_user_blogs** | 用户日志是纯粹 UGC |
+| `GET /p1/users/{username}/timeline` | ✅ **Tool9: get_user_timeline**（已有） | 用户收藏/评分——Bangumi 独有行为数据 |
+| `GET /p1/users/{username}/collections/*` | ❌ 暂不实现 | 可通过 timeline 覆盖 |
 
-**API 1: `[路由名称]`**
-* `[字段名]` ([类型]): [说明，例如：total (int): 总评论数]
-* `[字段名]` ([类型]): [说明，例如：data (list): 评论列表]
-  * `[子字段名]` ([类型]): [说明，例如：rate (int): 1-10的评分]
-  * `[子字段名]` ([类型]): [说明，例如：comment (str): 评论正文（注意：此处可能需要截断）]
+### blog（日志）
+| 端点 | 评估 | 理由 |
+|---|---|---|
+| `GET /p1/blogs/{entryID}` | ✅ **合并入 Tool8** | 日志正文是纯 UGC |
+| `GET /p1/blogs/{entryID}/comments` | ✅ **合并入 Tool8** | 日志评论是纯 UGC |
+| `GET /p1/blogs/{entryID}/subjects` | ❌ 不做 | 关联条目可由 RAG 覆盖 |
 
-**API 2: `[路由名称]`**
-* [依此类推...]
+---
 
-## 5. 业务防御与特殊说明 (可选)
-[你注意到的任何坑点或特殊逻辑。例如：]
-* 权限问题：如果是 404，可能是 NSFW 条目。
-* 数据截断：正文字段如果太长，硬截断到前 500 字。
-* 聚合计算：不需要把所有评分给大模型，最好在客户端算一个“平均分”传过去。
+## Tool 最终清单（9 个）
+
+| # | Tool 名称 | 核心价值 | 实现状态 |
+|---|---|---|---|
+| 1 | `get_calendar` | 今日播出的番剧（LLM 不知道） | 📄 ✅ 💻 ✅ |
+| 2 | `get_episode` | 单集信息 + 吐槽箱 | 📄 ✅ 💻 ✅ |
+| 3 | `get_trending` | 全站热门趋势（LLM 不知道） | 📄 ✅ 💻 ✅ |
+| 4 | `resolve_subject` | ID ↔ 名称解析（串联枢纽） | 📄 ✅ 💻 ⏳ |
+| 5 | `get_subject_comments` | 条目社区评价 | 📄 ✅ 💻 ⏳ |
+| 6 | `get_character_comments` | 角色社区评价 | 📄 ✅ 💻 ⏳ |
+| 7 | `get_person_comments` | 人物社区评价 | 📄 ✅ 💻 ⏳ |
+| 8 | `get_user_blogs` | 用户日志 + 日志评论 | 📄 ⏳ 💻 ⏳ |
+| 9 | `get_user_timeline` | 用户收藏/评分动态 | 💻 ✅ |
+
+---
+
+## RAG 与 API Tools 的协作关系
+
+```
+用户模糊查询
+     │
+     ▼
+RAG 语义路由器 ──→ 精确 ID ──→ API Tools ──→ 社区独有内容
+     │                │
+     │                └── Subject ID / Character ID / Person ID
+     │
+     └── "类似《命运石之门》的烧脑番" → 向量相似度直接回答（无需 API）
+```
+
+**结论：RAG 解决"什么是什么"，API Tools 解决"大家怎么说"。两者互补，不可替代。**
