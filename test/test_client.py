@@ -1,6 +1,6 @@
 import asyncio
 
-from clients.bgm_client import BangumiClient
+from docs.tmp.bgm_client import BangumiClient
 
 
 async def main():

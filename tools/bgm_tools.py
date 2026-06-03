@@ -22,7 +22,7 @@ import httpx
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from clients.bgm_client import BangumiClient
+from docs.tmp.bgm_client import BangumiClient
 
 logger = logging.getLogger("bgm-agent.tools")
 

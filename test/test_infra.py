@@ -109,7 +109,7 @@ class TestSlimSubjectResponse:
     """SlimSubjectResponse 模型校验。"""
 
     def test_valid_data_parses(self):
-        from schemas.bangumi import SlimSubjectResponse
+        from rag.Rag_schemas.bangumi import SlimSubjectResponse
 
         obj = SlimSubjectResponse.model_validate(VALID_SLIM_RAW)
         assert obj.id == 1
@@ -119,7 +119,7 @@ class TestSlimSubjectResponse:
 
     def test_missing_fields_get_defaults(self):
         """缺失字段应填充默认值而非崩溃。"""
-        from schemas.bangumi import SlimSubjectResponse
+        from rag.Rag_schemas.bangumi import SlimSubjectResponse
 
         minimal = {"id": 99}
         obj = SlimSubjectResponse.model_validate(minimal)
@@ -130,7 +130,7 @@ class TestSlimSubjectResponse:
 
     def test_dirty_fields_are_ignored(self):
         """extra="ignore" — 未知字段不引发错误。"""
-        from schemas.bangumi import SlimSubjectResponse
+        from rag.Rag_schemas.bangumi import SlimSubjectResponse
 
         dirty = {**VALID_SLIM_RAW, "garbage": "should_be_dropped"}
         obj = SlimSubjectResponse.model_validate(dirty)
@@ -138,7 +138,7 @@ class TestSlimSubjectResponse:
 
     def test_type_coercion_fails_gracefully(self):
         """类型错误应抛出 ValidationError。"""
-        from schemas.bangumi import SlimSubjectResponse
+        from rag.Rag_schemas.bangumi import SlimSubjectResponse
 
         bad = {**VALID_SLIM_RAW, "id": "not_an_integer"}
         with pytest.raises(ValidationError):
@@ -146,7 +146,7 @@ class TestSlimSubjectResponse:
 
     def test_summary_fallback_from_summary_field(self):
         """short_summary 缺失时自动从 summary 字段回退。"""
-        from schemas.bangumi import SlimSubjectResponse
+        from rag.Rag_schemas.bangumi import SlimSubjectResponse
 
         data = {
             "id": 1,
@@ -158,7 +158,7 @@ class TestSlimSubjectResponse:
 
     def test_tags_list_of_strings_accepted(self):
         """tags 已是字符串列表时应直接使用。"""
-        from schemas.bangumi import SlimSubjectResponse
+        from rag.Rag_schemas.bangumi import SlimSubjectResponse
 
         data = {**VALID_SLIM_RAW, "tags": ["科幻", "原创"]}
         obj = SlimSubjectResponse.model_validate(data)
@@ -169,7 +169,7 @@ class TestDetailedSubjectResponse:
     """DetailedSubjectResponse 模型校验。"""
 
     def test_valid_detailed_parses(self):
-        from schemas.bangumi import DetailedSubjectResponse
+        from rag.Rag_schemas.bangumi import DetailedSubjectResponse
 
         obj = DetailedSubjectResponse.model_validate(VALID_DETAILED_RAW)
         assert obj.total_episodes == 13
@@ -180,7 +180,7 @@ class TestDetailedSubjectResponse:
 
     def test_collection_missing_returns_none(self):
         """collection 缺失时默认 None。"""
-        from schemas.bangumi import DetailedSubjectResponse
+        from rag.Rag_schemas.bangumi import DetailedSubjectResponse
 
         data = {**VALID_DETAILED_RAW}
         del data["collection"]
@@ -189,7 +189,7 @@ class TestDetailedSubjectResponse:
 
     def test_novel_entry_missing_episodes(self):
         """书籍条目（type=1）缺失动画字段时应有默认值。"""
-        from schemas.bangumi import DetailedSubjectResponse
+        from rag.Rag_schemas.bangumi import DetailedSubjectResponse
 
         novel = {
             "id": 123,
@@ -213,7 +213,7 @@ class TestBangumiClientErrors:
 
     @pytest.mark.asyncio
     async def test_search_timeout_returns_error_dict(self):
-        from clients.bgm_client import BangumiClient
+        from docs.tmp.bgm_client import BangumiClient
 
         client = BangumiClient()
         with patch.object(
@@ -230,7 +230,7 @@ class TestBangumiClientErrors:
     async def test_get_subject_http_error_returns_error_dict(self):
         import httpx
 
-        from clients.bgm_client import BangumiClient
+        from docs.tmp.bgm_client import BangumiClient
 
         client = BangumiClient()
         mock_resp = MagicMock()
