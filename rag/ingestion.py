@@ -227,7 +227,13 @@ class RagEntityIngestor:
     def _rerank_works(
         self, session: Session, raw_works: list[dict[str, Any]]
     ) -> list[PersonWork]:
-        """关联边内存洗牌与重排：按本地热度降序重排人物代表作列表，截断至 Top 10。"""
+        """关联边内存洗牌与重排：按本地热度降序重排人物代表作列表，截断至 Top 10。
+
+        输入 raw_works 格式::
+            [{subject_id, subject_name, positions: [{type: {cn, en, jp}, summary, appearEps}]}]
+
+        输出 PersonWork 列表，含 subject_id/name + positions。
+        """
         if not raw_works:
             return []
         subject_ids = {
@@ -246,17 +252,22 @@ class RagEntityIngestor:
             if prefixed in seen_subjects:
                 continue  # 同一作品不同版本（TV/总集篇）去重
             try:
+                # 提取职位信息（API PersonWork.positions 结构）
+                positions: list[dict] = []
+                raw_positions = w.get("positions", [])
+                if raw_positions:
+                    for pos in raw_positions:
+                        pos_type = pos.get("type", {}) if isinstance(pos.get("type"), dict) else {}
+                        positions.append({
+                            "type_cn": pos_type.get("cn", "") or pos.get("type_cn", ""),
+                            "summary": pos.get("summary", ""),
+                            "appear_eps": pos.get("appearEps", ""),
+                        })
                 works.append(
                     PersonWork(
                         subject_id=prefixed,
                         subject_name=str(w.get("subject_name", "")),
-                        character_id=(
-                            _prefixed_character_id(w["character_id"])
-                            if w.get("character_id")
-                            else None
-                        ),
-                        character_name=w.get("character_name"),
-                        role_type=w.get("type", 0),
+                        positions=positions,
                     )
                 )
                 seen_subjects.add(prefixed)
@@ -304,8 +315,11 @@ class RagEntityIngestor:
                 for item, vector in zip(subjects_data, embeddings):
                     meta = SubjectMeta(
                         score=item.get("score", 0.0),
+                        rank=item.get("rank", 0),
                         rating_total=item.get("rating_total", 0),
                         date=item.get("date"),
+                        year=item.get("year"),
+                        platform=item.get("platform", ""),
                         eps=item.get("eps", 0),
                         nsfw=item.get("nsfw", False),
                         tags=item.get("tags", []),
@@ -414,12 +428,11 @@ class RagEntityIngestor:
             persons_data: 列表，每个字典包含::
                 {
                     "person_id": int, "name": str, "name_cn": str,
-                    "chunk_text": str, "career": str, "type": int,
+                    "chunk_text": str, "career": list[str], "type": int,
                     "collects": int,
                     "works_raw": [
                         {"subject_id": int, "subject_name": str,
-                         "character_id": int|None, "character_name": str|None,
-                         "type": int}, ...
+                         "positions": [{"type": {"cn": str}, "summary": str, "appearEps": str}]}, ...
                     ],
                 }
         Returns:
@@ -444,7 +457,7 @@ class RagEntityIngestor:
                 for item, vector in zip(persons_data, embeddings):
                     works = self._rerank_works(session, item.get("works_raw", []))
                     meta = PersonMeta(
-                        career=item.get("career", ""),
+                        career=item.get("career", []),
                         type=item.get("type", 0),
                         collects=item.get("collects", 0),
                         works=works,

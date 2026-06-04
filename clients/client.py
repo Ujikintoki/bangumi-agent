@@ -408,17 +408,19 @@ class BangumiClient(BaseClient):
                 ]
             elif key == "persons":
                 data = raw if isinstance(raw, list) else (raw.get("data") or [])
-                result["persons"] = [
-                    {
+                persons: list[dict] = []
+                for p in data[:30]:
+                    subject = p.get("subject") or {}
+                    career_raw = subject.get("career", [])
+                    career_str = ", ".join(career_raw) if isinstance(career_raw, list) else str(career_raw or "")
+                    persons.append({
                         "id": p.get("subject_id") or p.get("id", 0),
                         "name": sanitizers._cn_name(
-                            (p.get("subject") or {}).get("name", ""),
-                            (p.get("subject") or {}).get("name_cn"),
+                            subject.get("name", ""), subject.get("name_cn"),
                         ),
-                        "career": (p.get("subject") or {}).get("career", ""),
-                    }
-                    for p in data[:30]
-                ]
+                        "career": career_str,
+                    })
+                result["persons"] = persons
             elif key == "blogs":
                 data = raw if isinstance(raw, list) else (raw.get("data") or [])
                 result["blogs"] = [

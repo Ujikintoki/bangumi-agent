@@ -137,9 +137,16 @@ class SubjectMeta(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     score: float = PydanticField(default=0.0, description="条目评分")
+    rank: int = PydanticField(default=0, description="全站排名（越小越靠前，0=未上榜）")
     rating_total: int = PydanticField(default=0, description="评分人数（热度信号）")
     date: Optional[str] = PydanticField(
         default=None, description="播出/发售日期 YYYY-MM-DD"
+    )
+    year: Optional[int] = PydanticField(
+        default=None, description="播出/发售年份，从 airtime.year 或 date 提取"
+    )
+    platform: str = PydanticField(
+        default="", description="播出平台类型，如 TV / Movie / OVA / Web / 书籍 等"
     )
     eps: int = PydanticField(default=0, description="总集数/话数")
     nsfw: bool = PydanticField(default=False, description="是否 R18 内容")
@@ -190,28 +197,25 @@ class CharacterMeta(BaseModel):
 
 
 class PersonWork(BaseModel):
-    """人物→作品关联边（代表作）。
+    """人物→作品关联边（代表作），对应 API ``PersonWork`` schema。
 
     记录现实人物（声优/导演/作者等）参与某部作品的关联信息。
+    API 结构为 ``{subject: SlimSubject, positions: [SubjectStaffPosition]}``，
+    此处反范式化展平为 subject_id/name + positions 列表。
 
     Attributes:
-        subject_id: 作品全局 ID。
+        subject_id: 作品全局 ID，前缀格式 ``"subject_xxx"``。
         subject_name: 作品名称。
-        character_id: 饰演/参与的角色 ID，可为空。
-        character_name: 角色名称，可为空。
-        role_type: 角色出场类型。
+        positions: 职位列表，每项含 ``type_cn``（职位中文名）和 ``summary``。
     """
 
     model_config = ConfigDict(extra="ignore")
 
-    subject_id: str = PydanticField(description="作品 ID")
+    subject_id: str = PydanticField(description="作品 ID，前缀格式 subject_xxx")
     subject_name: str = PydanticField(description="作品名称")
-    character_id: Optional[str] = PydanticField(default=None, description="关联角色 ID")
-    character_name: Optional[str] = PydanticField(
-        default=None, description="关联角色名称"
-    )
-    role_type: int = PydanticField(
-        default=0, description="角色出场类型: 1=主角, 2=配角, 3=客串"
+    positions: list[dict] = PydanticField(
+        default_factory=list,
+        description="职位列表，格式 [{type_cn: str, summary: str, appear_eps: str}, ...]",
     )
 
 
@@ -223,8 +227,9 @@ class PersonMeta(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    career: str = PydanticField(
-        default="", description="职业，如 producer / artist / seiyu"
+    career: list[str] = PydanticField(
+        default_factory=list,
+        description="职业标签列表，如 ['seiyu', 'actor']。API 返回 careers 数组",
     )
     type: int = PydanticField(default=0, description="人物类型编号")
     collects: int = PydanticField(default=0, description="收藏数")

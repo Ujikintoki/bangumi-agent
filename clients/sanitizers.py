@@ -63,15 +63,23 @@ def _is_noise(text: str) -> bool:
 
 
 def sanitize_subject_search(raw: list[dict]) -> list[dict]:
-    """搜索结果瘦身 → 仅保留 id/name/name_cn/type。"""
+    """搜索结果瘦身 → id/name/name_cn/type + score/rank（SlimSubject 自带）。
+
+    保留 ``type_id`` 整数供 filtering，``type`` 为中文标签供 LLM 阅读。
+    """
     results: list[dict] = []
     for item in raw:
+        rating = item.get("rating", {}) or {}
+        type_id = item.get("type", 0)
         results.append(
             {
                 "id": item.get("id", 0),
                 "name": item.get("name", ""),
                 "name_cn": item.get("name_cn", ""),
-                "type": _SUBJECT_TYPES.get(item.get("type", 0), "未知"),
+                "type_id": type_id,
+                "type": _SUBJECT_TYPES.get(type_id, "未知"),
+                "score": rating.get("score", 0),
+                "rank": rating.get("rank", 0),
             }
         )
     return results
@@ -118,8 +126,7 @@ def sanitize_calendar(raw: list[dict]) -> dict:
                 "name": _cn_name(subject.get("name", ""), subject.get("name_cn")),
                 "name_cn": subject.get("name_cn", ""),
                 "score": rating.get("score", 0),
-                "rank": entry.get("rank", 0),
-                "watchers": subject.get("watchers", 0) or subject.get("collect", 0),
+                "watchers": entry.get("watchers", 0),
             }
         )
 
@@ -289,7 +296,8 @@ def sanitize_entity_search(raw: list[dict], entity_type: str) -> list[dict]:
             entry["nsfw"] = item.get("nsfw", False)
         # 人物额外字段
         if entity_type == "person":
-            entry["career"] = item.get("career", "") or ""
+            career_raw = item.get("career", [])
+            entry["career"] = ", ".join(career_raw) if isinstance(career_raw, list) else (career_raw or "")
         results.append(entry)
     return results
 

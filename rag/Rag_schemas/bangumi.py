@@ -232,7 +232,9 @@ class P1PersonResponse(BaseModel):
     name: str = Field(default="", description="人物原文名称")
     nameCN: str = Field(default="", description="人物中文名称")
     summary: str = Field(default="", description="人物简介")
-    career: str = Field(default="", description="职业，如 producer / artist / seiyu")
+    career: list[str] = Field(
+        default_factory=list, description="职业标签列表，如 ['seiyu', 'actor']"
+    )
     type: int = Field(default=0, description="人物类型编号")
     collects: int = Field(default=0, description="收藏数")
     comment: int = Field(default=0, description="评论数")

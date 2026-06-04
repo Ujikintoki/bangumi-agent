@@ -89,7 +89,7 @@ async def search_bangumi_subject(
 
     # 按 subject_type 二次过滤（API 返回可能混合类型）
     results = result.get("results", [])
-    filtered = [item for item in results if item.get("type") == subject_type]
+    filtered = [item for item in results if item.get("type_id") == subject_type]
 
     return json.dumps(filtered, ensure_ascii=False)
 
@@ -456,10 +456,19 @@ def search_local_bangumi(
 
             if r.entity_type == "subject":
                 score = meta.get("score", 0)
+                rank = meta.get("rank", 0)
                 rating_total = meta.get("rating_total", 0)
                 heat_str = f"评分 {score:.1f}" if score else ""
+                if rank:
+                    heat_str += f" | 排名 #{rank}"
                 if rating_total:
                     heat_str += f" | {rating_total}人评"
+                year = meta.get("year")
+                if year:
+                    heat_str += f" | {year}年"
+                platform = meta.get("platform", "")
+                if platform:
+                    heat_str += f" | {platform}"
                 tags = meta.get("tags", [])
                 if isinstance(tags, list) and tags:
                     tag_names = [
@@ -481,17 +490,21 @@ def search_local_bangumi(
                         heat_str += f" | 出演: {', '.join(top_works)}"
             elif r.entity_type == "person":
                 collects = meta.get("collects", 0)
-                career = meta.get("career", "")
+                career = meta.get("career", [])
                 heat_str = f"收藏 {collects}" if collects else ""
                 if career:
-                    heat_str += f" | 职业: {career}"
+                    heat_str += f" | 职业: {', '.join(career)}"
                 works = meta.get("works", [])
                 if isinstance(works, list) and works:
-                    top_works = [
-                        w.get("subject_name", "")
-                        for w in works[:3]
-                        if w.get("subject_name")
-                    ]
+                    top_works = []
+                    for w in works[:3]:
+                        name = w.get("subject_name", "")
+                        positions = w.get("positions", [])
+                        if positions:
+                            role = positions[0].get("type_cn", "")
+                            top_works.append(f"{name}({role})" if role else name)
+                        elif name:
+                            top_works.append(name)
                     if top_works:
                         heat_str += f" | 代表作: {', '.join(top_works)}"
             else:
