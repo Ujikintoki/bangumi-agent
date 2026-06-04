@@ -128,18 +128,12 @@ class RagEntityIngestor:
         zhipu_api_key: str = "",
         zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4",
     ) -> None:
-        self.engine = engine
-        try:
-            from zai import ZhipuAiClient
+        from rag.utils import init_zhipu_client
 
-            self.client = ZhipuAiClient(api_key=zhipu_api_key)
-            logger.info("RagEntityIngestor: ZhipuAiClient 初始化成功")
-        except ImportError:
-            self.client = None
-            logger.warning("zai-sdk 未安装，embedding 功能不可用")
-        except Exception as exc:
-            self.client = None
-            logger.error("智谱客户端初始化失败: %s", exc)
+        self.engine = engine
+        self.client, init_error = init_zhipu_client(zhipu_api_key, zhipu_base_url)
+        if init_error:
+            logger.warning("RagEntityIngestor: %s", init_error)
 
     # ── 内部工具方法 ──────────────────────────────────────────
 
@@ -524,7 +518,9 @@ class BangumiIngestor:
         try:
             from zai import ZhipuAiClient
 
-            self.client: ZhipuAiClient = ZhipuAiClient(api_key=zhipu_api_key)
+            self.client: ZhipuAiClient = ZhipuAiClient(
+                api_key=zhipu_api_key, base_url=zhipu_base_url
+            )
             logger.info("智谱 ZhipuAiClient 初始化成功")
         except ImportError:
             self.client = None  # type: ignore[assignment]

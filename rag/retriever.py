@@ -107,19 +107,14 @@ class RagEntityRetriever:
         self,
         engine: Engine,
         zhipu_api_key: str = "",
+        zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4",
     ) -> None:
-        self.engine = engine
-        try:
-            from zai import ZhipuAiClient
+        from rag.utils import init_zhipu_client
 
-            self.client = ZhipuAiClient(api_key=zhipu_api_key)
-            logger.info("RagEntityRetriever: ZhipuAiClient 初始化成功")
-        except ImportError:
-            self.client = None
-            logger.warning("zai-sdk 未安装，检索器 embedding 功能不可用")
-        except Exception as exc:
-            self.client = None
-            logger.error("检索器客户端初始化失败: %s", exc)
+        self.engine = engine
+        self.client, init_error = init_zhipu_client(zhipu_api_key, zhipu_base_url)
+        if init_error:
+            logger.warning("RagEntityRetriever: %s", init_error)
 
     def _check_client(self) -> None:
         if self.client is None:
@@ -181,9 +176,14 @@ class RagEntityRetriever:
 
         # ── Step 2: 标量前置过滤 + 向量召回 ──────────────────
         candidate_limit = limit * 2
+        # PGVector 同时负责排序和返回余弦距离——Python 层不再用 _compute_cosine_distance
+        # 重算（避免 2048 维浮点向量重复计算及精度偏差）
+        distance_expr = RagEntity.embedding.cosine_distance(query_embedding).label(
+            "cosine_dist"
+        )
         try:
             with Session(self.engine) as session:
-                stmt = select(RagEntity)
+                stmt = select(RagEntity, distance_expr)
 
                 # ── 标量前置过滤: entity_type ────────────────
                 if entity_type != "all":
@@ -191,16 +191,15 @@ class RagEntityRetriever:
                     logger.debug("实体类型前置过滤: %s", entity_type)
 
                 # ── 安全护栏: nsfw ──────────────────────────
+                # subject 实体的 meta_info 中包含 nsfw 布尔字段；
+                # character / person 无此字段，`@>` 匹配永远为 false，
+                # 因此 NOT false = true 对其无影响（安全兜底正确）。
                 if exclude_nsfw and entity_type in ("subject", "all"):
                     stmt = stmt.where(~RagEntity.meta_info.contains({"nsfw": True}))
                     logger.debug("安全护栏: 排除 nsfw=True")
 
-                # ── 向量余弦距离排序 ────────────────────────
-                stmt = stmt.order_by(
-                    RagEntity.embedding.cosine_distance(query_embedding)
-                ).limit(candidate_limit)
-
-                rows = session.exec(stmt).all()
+                stmt = stmt.order_by(distance_expr).limit(candidate_limit)
+                rows = session.execute(stmt).fetchall()
 
         except Exception as exc:
             logger.error("数据库查询失败: %s", exc)
@@ -214,20 +213,20 @@ class RagEntityRetriever:
             )
             return []
 
-        # ── Step 3: 组装候选集 ─────────────────────────────────
+        # ── Step 3: 组装候选集（距离由 PGVector 直接返回） ──
         raw_results: list[RagSearchResult] = []
         for row in rows:
-            row_embedding = row.embedding.tolist() if row.embedding is not None else []
-            distance = _compute_cosine_distance(query_embedding, row_embedding)
-            meta = row.meta_info or {}
+            entity: RagEntity = row[0]
+            distance: float = float(row[1])
+            meta = entity.meta_info or {}
 
             raw_results.append(
                 RagSearchResult(
-                    entity_id=row.id,
-                    entity_type=row.entity_type,
-                    chunk_text=row.chunk_text,
-                    name=row.name or "",
-                    name_cn=row.name_cn,
+                    entity_id=entity.id,
+                    entity_type=entity.entity_type,
+                    chunk_text=entity.chunk_text,
+                    name=entity.name or "",
+                    name_cn=entity.name_cn,
                     cosine_distance=distance,
                     final_score=0.0,
                     meta_info=meta,
@@ -343,19 +342,23 @@ class BangumiRetriever:
         self,
         engine: Engine,
         zhipu_api_key: str = "",
+        zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4",
     ) -> None:
         """初始化混合检索器。
 
         Args:
             engine: SQLAlchemy Engine 实例。
             zhipu_api_key: 智谱 API 密钥，默认空字符串以支持尚未缴费的开发阶段。
+            zhipu_base_url: 智谱 API 基础 URL。
         """
         self.engine = engine
 
         try:
             from zai import ZhipuAiClient
 
-            self.client: ZhipuAiClient = ZhipuAiClient(api_key=zhipu_api_key)
+            self.client: ZhipuAiClient = ZhipuAiClient(
+                api_key=zhipu_api_key, base_url=zhipu_base_url
+            )
             logger.info("检索器 ZhipuAiClient 初始化成功")
         except ImportError:
             self.client = None  # type: ignore[assignment]
@@ -453,9 +456,12 @@ class BangumiRetriever:
         # 先在 SQL 层用 JSONB @> 对 tags 做交集过滤，
         # 以及 nsfw 布尔过滤，缩减候选集后再做向量排序。
         candidate_limit = top_k * 2
+        distance_expr = BangumiChunk.embedding.cosine_distance(query_embedding).label(
+            "cosine_dist"
+        )
         try:
             with Session(self.engine) as session:
-                stmt = select(BangumiChunk)
+                stmt = select(BangumiChunk, distance_expr)
 
                 # ── JSONB 硬过滤: tags ────────────────────────
                 if required_tags:
@@ -475,12 +481,8 @@ class BangumiRetriever:
                     stmt = stmt.where(~BangumiChunk.meta_info.contains({"nsfw": True}))
                     logger.debug("安全护栏: 排除 nsfw=True")
 
-                # ── 向量余弦距离排序 + 宽松召回 ────────────────
-                stmt = stmt.order_by(
-                    BangumiChunk.embedding.cosine_distance(query_embedding)
-                ).limit(candidate_limit)
-
-                rows = session.exec(stmt).all()
+                stmt = stmt.order_by(distance_expr).limit(candidate_limit)
+                rows = session.execute(stmt).fetchall()
 
         except Exception as exc:
             logger.error("数据库查询失败: %s", exc)
@@ -495,16 +497,13 @@ class BangumiRetriever:
             )
             return []
 
-        # ── Step 3: 组装候选集 ─────────────────────────────────
+        # ── Step 3: 组装候选集（距离由 PGVector 直接返回） ──
         raw_results: list[SearchResult] = []
 
         for row in rows:
-            meta = row.meta_info or {}
-
-            row_embedding: list[float] = (
-                row.embedding.tolist() if row.embedding is not None else []
-            )
-            distance = _compute_cosine_distance(query_embedding, row_embedding)
+            chunk: BangumiChunk = row[0]
+            distance: float = float(row[1])
+            meta = chunk.meta_info or {}
 
             tags_raw = meta.get("tags", [])
             if isinstance(tags_raw, list):
@@ -520,8 +519,8 @@ class BangumiRetriever:
 
             raw_results.append(
                 SearchResult(
-                    entity_id=row.entity_id,
-                    chunk_text=row.chunk_text,
+                    entity_id=chunk.entity_id,
+                    chunk_text=chunk.chunk_text,
                     name=meta.get("name", ""),
                     score=meta.get("score", 0.0),
                     rating_total=rating_total,

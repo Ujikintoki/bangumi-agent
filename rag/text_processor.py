@@ -6,6 +6,7 @@ RAG 文本预处理模块
 """
 
 import html
+import re
 from typing import Any, List
 
 import tiktoken
@@ -77,8 +78,6 @@ class BangumiTextProcessor:
         text = text.replace("\u3000", " ")
 
         # 3. 统一换行符：\r\n → \n，连续换行（\n{2,}）→ 单个换行
-        import re
-
         # 2. 移除不可见的零宽字符 / 控制字符
         text = re.sub(r"[\u200b\u200c\u200d\u200e\u200f\ufeff]", "", text)
 
@@ -88,7 +87,9 @@ class BangumiTextProcessor:
         # 4. 连续空格 → 单个空格
         text = re.sub(r" {2,}", " ", text)
 
-        # TODO: 未来在这里接入 BBCode to Markdown 转换器
+        # 注：BBCode 剥离由 clients/sanitizers._strip_bbcode() 在评论/日志层处理。
+        # RAG 文本处理器不在此处剥离 BBCode — 摘要中的标签（如 [b]）可能提供
+        # 结构语义信号，有助于 embedding 质量。
 
         return text
 

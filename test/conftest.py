@@ -1,193 +1,250 @@
-"""
-pytest 全局夹具 (Fixtures)
+"""Phase 1-2 共享 Fixtures。
 
-提供数据库事务隔离、Zhipu Embedding Mock、Bangumi API Mock、
-以及 FastAPI TestClient 等测试基础设施。
+提供 mock HTTP 响应、mock 数据工厂等可复用测试工具。
+所有 fixture 不依赖外部服务（无网络、无数据库）。
 """
 
 from __future__ import annotations
 
-import math
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import text
-from sqlmodel import Session, SQLModel, create_engine
-
-from core.config import get_settings
-from database.engine import get_session
-
-# ═══════════════════════════════════════════════════════════════
-# 向量工具（用于构造可控的 Mock Embedding）
-# ═══════════════════════════════════════════════════════════════
-
-EMBEDDING_DIM = 2048
 
 
-def _make_unit_vector(dim: int = EMBEDDING_DIM, first: float = 1.0) -> list[float]:
-    """构造 dim 维单位向量，first 为第一分量，其余分量补零或 sqrt(1-first²)。
+# ═══════════════════════════════════════════════════════════════════
+# Mock HTTP 响应工厂
+# ═══════════════════════════════════════════════════════════════════
 
-    若 |first| ≤ 1，第二分量为 sqrt(1-first²) 以保证单位长度。
+
+def mock_response(json_data: dict | list, status_code: int = 200) -> MagicMock:
+    """创建模拟的 httpx Response 对象。"""
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.json.return_value = json_data
+    resp.content = True
+    return resp
+
+
+def mock_httpx_client(response_map: dict[str, dict | list]) -> AsyncMock:
+    """创建模拟的 httpx.AsyncClient，按 path 返回预设响应。
+
+    Args:
+        response_map: path → response_data 的映射。
+            path 如 ``"/p1/subjects/8"``。
+
+    Returns:
+        配置好的 AsyncMock 实例，用作 ``BangumiClient._client``。
     """
-    v = [0.0] * dim
-    v[0] = first
-    if abs(first) < 1.0:
-        v[1] = math.sqrt(max(0.0, 1.0 - first * first))
-    return v
+    mock = AsyncMock()
 
+    async def request(method: str, path: str, **kwargs):
+        if path in response_map:
+            data = response_map[path]
+            resp = mock_response(data)
+            return resp
+        # 默认 404
+        resp = MagicMock()
+        resp.status_code = 404
+        resp.content = True
+        resp.json.return_value = {"error": "not found"}
+        import httpx
 
-# 标准 Query 向量：[1, 0, 0, ...]
-QUERY_VEC = _make_unit_vector(dim=EMBEDDING_DIM, first=1.0)
-
-
-def make_doc_vector(distance: float, dim: int = EMBEDDING_DIM) -> list[float]:
-    """构造与 QUERY_VEC 余弦距离为 distance 的文档向量。
-
-    cosine_similarity = 1 - distance
-    doc[0] = cosine_similarity
-    """
-    cos_sim = 1.0 - distance
-    return _make_unit_vector(dim=dim, first=cos_sim)
-
-
-# ═══════════════════════════════════════════════════════════════
-# 数据库 Fixtures（Transaction Rollback 隔离）
-# ═══════════════════════════════════════════════════════════════
-
-
-@pytest.fixture(scope="session")
-def test_engine():
-    """会话级 Engine，连接真实 PostgreSQL 但由事务回滚保证隔离。"""
-    settings = get_settings()
-    eng = create_engine(
-        settings.DATABASE_URL,
-        pool_size=5,
-        max_overflow=10,
-        echo=False,
-    )
-    # 确保 pgvector 扩展和表存在
-    with eng.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-        conn.commit()
-    SQLModel.metadata.create_all(eng)
-    yield eng
-    eng.dispose()
-
-
-@pytest.fixture
-def db_session(test_engine):
-    """函数级数据库会话，直接绑定 Engine 以确保 retriever 可读到已提交数据。
-
-    测试中调用 session.commit() 即可持久化数据。
-    清理工作由各测试自行负责（通过 try/finally 或 fixture teardown）。
-    """
-    session = Session(test_engine)
-    yield session
-    session.rollback()  # 安全回滚（如果测试未清理）
-    session.close()
-
-
-@pytest.fixture(autouse=True)
-def _cleanup_bangumi_chunks(test_engine):
-    """每个测试结束后清空 bangumi_chunks 表，保证数据库干净。
-
-    autouse=True 意味着每个测试函数自动调用此 fixture。
-    """
-    yield
-    from sqlmodel import Session, delete
-
-    from database.models import BangumiChunk
-
-    with Session(test_engine) as s:
-        s.exec(delete(BangumiChunk))
-        s.commit()
-
-
-# ═══════════════════════════════════════════════════════════════
-# Zhipu Embedding Mock Fixture
-# ═══════════════════════════════════════════════════════════════
-
-
-class FakeEmbeddingData:
-    """模拟智谱 API 返回的 embedding 数据对象。"""
-
-    def __init__(self, embedding: list[float]) -> None:
-        self.embedding = embedding
-
-
-class FakeEmbeddingResponse:
-    """模拟智谱 API 返回的 response 对象。"""
-
-    def __init__(self, embeddings: list[list[float]]) -> None:
-        self.data = [FakeEmbeddingData(e) for e in embeddings]
-
-
-@pytest.fixture
-def mock_zhipu_embeddings():
-    """Patch 智谱 ZhipuAiClient，拦截所有 embedding API 调用。
-
-    返回一个函数 ``set_embeddings(query_vec, doc_vecs)``：
-      - query_vec: 模拟查询向量（list[float]）
-      - doc_vecs: 模拟文档向量列表（list[list[float]]）或单个向量
-
-    实际使用示例::
-
-        def test_retrieval(db_session, mock_zhipu_embeddings):
-            mock_zhipu_embeddings(query_vec=QUERY_VEC, doc_vecs=[...])
-            retriever = BangumiRetriever(test_engine, zhipu_api_key="mock")
-            ...
-    """
-
-    def _setup(
-        query_vec: list[float], doc_vecs: list[list[float]] | list[float]
-    ) -> None:
-        # 归一化 doc_vecs
-        if doc_vecs and isinstance(doc_vecs[0], float):
-            doc_vecs = [doc_vecs]  # type: ignore[assignment]
-
-        call_count = [0]  # mutable counter
-
-        def fake_create(*, model: str, input: list[str], **kwargs):
-            call_count[0] += 1
-            # 第一次调用是 query embedding，后续是 ingestion
-            if call_count[0] == 1:
-                return FakeEmbeddingResponse([query_vec])
-            return FakeEmbeddingResponse(doc_vecs)  # type: ignore[arg-type]
-
-        patcher = patch.object(
-            target="zai.ZhipuAiClient.embeddings",
-            new=MagicMock(),
+        raise httpx.HTTPStatusError(
+            "404", request=MagicMock(), response=resp
         )
-        mock_embeddings = patcher.start()
-        mock_embeddings.create = fake_create
 
-    return _setup
-
-
-@pytest.fixture(autouse=True)
-def cleanup_zhipu_patches():
-    """自动清理所有 zai 相关 patch，防止跨测试污染。"""
-    yield
-    # 确保所有 patch 都被 stop
-    patch.stopall()
+    mock.request = request
+    return mock
 
 
-# ═══════════════════════════════════════════════════════════════
-# FastAPI TestClient Fixture
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
+# Mock 数据工厂
+# ═══════════════════════════════════════════════════════════════════
 
 
 @pytest.fixture
-def test_client(db_session):
-    """FastAPI TestClient，注入事务回滚的数据库会话。"""
-    from fastapi.testclient import TestClient
+def slim_subject() -> dict:
+    """标准 SlimSubject 数据。"""
+    return {
+        "id": 8,
+        "name": "コードギアス 反逆のルルーシュR2",
+        "nameCN": "",
+        "type": 2,
+        "rating": {"score": 8.19, "rank": 42, "total": 9438},
+        "images": {
+            "common": "https://lain.bgm.tv/pic/cover/c/8.jpg",
+            "large": "https://lain.bgm.tv/pic/cover/l/8.jpg",
+            "medium": "https://lain.bgm.tv/pic/cover/m/8.jpg",
+            "small": "https://lain.bgm.tv/pic/cover/s/8.jpg",
+        },
+        "nsfw": False,
+    }
 
-    from main import app
 
-    def _override_get_session():
-        yield db_session
+@pytest.fixture
+def full_subject(slim_subject: dict) -> dict:
+    """完整 Subject 数据。"""
+    return {
+        **slim_subject,
+        "summary": "东京决战一年后...",
+        "eps": 25,
+        "platform": {"type": "TV", "typeCN": "TV"},
+        "airtime": {"date": "2008-04-06", "year": 2008, "month": 4, "weekday": 7},
+        "tags": [
+            {"name": "科幻", "count": 8500},
+            {"name": "原创", "count": 6000},
+        ],
+        "nsfw": False,
+    }
 
-    app.dependency_overrides[get_session] = _override_get_session
-    client = TestClient(app)
-    yield client
-    app.dependency_overrides.clear()
+
+@pytest.fixture
+def sample_comment() -> dict:
+    """标准 Comment 数据。"""
+    return {
+        "id": 1,
+        "content": "这是一条测试评论",
+        "reactions": [{"users": [1, 2, 3]}],  # 3 reactions
+        "replies": 5,
+        "createdAt": 1700000000,
+    }
+
+
+@pytest.fixture
+def sample_subject_comment() -> dict:
+    """Subject 评论（含 rate）。"""
+    return {
+        "id": 1,
+        "comment": "确实可称之为神作",
+        "rate": 9,
+        "reactions": [{"users": [1, 2]}],
+        "replies": 0,
+    }
+
+
+@pytest.fixture
+def sample_character_data() -> dict:
+    """Character API 响应数据。"""
+    return {
+        "id": 1,
+        "name": "ルルーシュ",
+        "nameCN": "鲁路修",
+        "role": 1,
+        "summary": "作品主角",
+        "collects": 5000,
+        "nsfw": False,
+    }
+
+
+@pytest.fixture
+def sample_person_data() -> dict:
+    """Person API 响应数据。"""
+    return {
+        "id": 100,
+        "name": "福山潤",
+        "nameCN": "福山润",
+        "career": ["seiyu", "actor"],
+        "type": 1,
+        "collects": 8500,
+    }
+
+
+@pytest.fixture
+def subject_characters_response() -> list[dict]:
+    """GET /p1/subjects/8/characters 的 mock 响应。"""
+    return [
+        {
+            "character": {"id": 1, "name": "ルルーシュ", "nameCN": "鲁路修", "role": 1},
+            "casts": [
+                {
+                    "person": {"id": 100, "name": "福山潤", "nameCN": "福山润"},
+                    "relation": 0,  # CV
+                    "summary": "",
+                }
+            ],
+            "type": 0,
+            "order": 0,
+        }
+    ]
+
+
+@pytest.fixture
+def episode_response() -> dict:
+    """Episode 详情响应。"""
+    return {
+        "id": 1023497,
+        "name": "梨花の決断",
+        "nameCN": "",
+        "sort": 1,
+        "airdate": "2024-01-01",
+        "duration": "24m",
+        "desc": "测试单集描述",
+        "comment": 5,
+        "subjectID": 8,
+        "type": 0,
+        "subject": {"id": 8, "name": "Test Subject", "nameCN": "", "type": 2},
+    }
+
+
+@pytest.fixture
+def calendar_items() -> list[dict]:
+    """CalendarItem 列表。"""
+    return [
+        {
+            "subject": {
+                "id": 1,
+                "name": "Anime A",
+                "nameCN": "",
+                "rating": {"score": 7.5, "total": 3000},
+            },
+            "watchers": 5000,
+        },
+        {
+            "subject": {
+                "id": 2,
+                "name": "Anime B",
+                "nameCN": "",
+                "rating": {"score": 6.0, "total": 1000},
+            },
+            "watchers": 2000,
+        },
+    ]
+
+
+@pytest.fixture
+def trending_response() -> dict:
+    """Trending 响应。"""
+    return {
+        "data": [
+            {
+                "subject": {
+                    "id": 1,
+                    "name": "Hot Anime",
+                    "nameCN": "",
+                    "type": 2,
+                    "rating": {"score": 8.0},
+                },
+                "count": 500,
+            }
+        ],
+        "total": 1,
+    }
+
+
+@pytest.fixture
+def user_collections_data() -> list[dict]:
+    """用户收藏数据（30 条，测试 display cap）。"""
+    return [
+        {
+            "subject": {
+                "id": i,
+                "name": f"Item {i}",
+                "nameCN": "",
+                "type": 2,
+                "rating": {"score": 7.0},
+            },
+            "type": 2,
+            "rate": 7,
+        }
+        for i in range(1, 31)
+    ]

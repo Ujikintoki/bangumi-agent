@@ -24,7 +24,7 @@ from typing import Optional
 # ═══════════════════════════════════════════════════════════════════
 
 _SUBJECT_TYPES = {1: "书籍", 2: "动画", 3: "音乐", 4: "游戏", 6: "三次元"}
-_CHARACTER_ROLES = {1: "主角", 2: "配角", 3: "客串"}
+_CHARACTER_ROLES = {1: "角色", 2: "机体", 3: "舰船", 4: "组织机构"}
 _COLLECTION_TYPES: dict[int, str] = {
     1: "想看",
     2: "看过",
@@ -429,7 +429,9 @@ def sanitize_entity_comments(raw: list[dict], limit: int, entity_type: str) -> d
     # 从第一条评论中提取实体名称
     first = raw[0] if raw else {}
     subject_info = first.get("subject", {}) or {}
-    entity_name = subject_info.get("name_cn") or subject_info.get("name") or ""
+    entity_name = (
+        subject_info.get("nameCN") or subject_info.get("name_cn") or subject_info.get("name") or ""
+    )
 
     comments = sanitize_comments(raw, limit)
     return {

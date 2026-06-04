@@ -9,6 +9,9 @@ RAG 模块
     - RagEntityRetriever: 多态 RAG 检索器（新架构）
     - BangumiIngestor: [DEPRECATED] 旧版摄入器
     - BangumiRetriever: [DEPRECATED] 旧版检索器
+
+内部工具:
+    - rag.utils.init_zhipu_client: 统一的智谱客户端初始化
 """
 
 from rag.ingestion import BangumiIngestor, RagEntityIngestor
