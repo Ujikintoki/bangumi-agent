@@ -17,8 +17,9 @@ from core.config import get_settings
 
 logger = logging.getLogger("bgm-agent.client.base")
 
-P1_BASE_URL = "https://next.bgm.tv/p1"
-"""p1 private API 基底 URL，所有工具方法基于此构建。"""
+P1_BASE_URL = "https://next.bgm.tv"
+"""p1 private API 基底 URL，所有工具方法基于此构建。
+路径方法里自行拼接 /p1/... 前缀。"""
 
 USER_AGENT = "BangumiAgent/0.1.0 (https://github.com/Ujikintoki/bangumi-agent)"
 """遵循 Bangumi 社区规范的自定义 User-Agent。"""
@@ -139,3 +140,11 @@ class BaseClient:
     async def close(self) -> None:
         """关闭底层 HTTP 客户端。"""
         await self._client.aclose()
+
+    async def __aenter__(self) -> "BaseClient":
+        """异步上下文管理器入口。"""
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        """异步上下文管理器出口 — 自动关闭连接。"""
+        await self.close()

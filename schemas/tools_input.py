@@ -226,3 +226,84 @@ class GetEntityCommentsInput(BaseModel):
         le=100,
         description="拉取的评论最大条数。每条评论正文截断 200 字，保留用户昵称、时间、反应数和回复数",
     )
+
+
+class GetSubjectDetailInput(BaseModel):
+    """
+    【条目详情工具】获取单个条目的完整详细信息。
+
+    在 search_bangumi_subject 定位到目标条目后调用，获取评分、集数、
+    简介、标签等完整数据。也可用于已知 subject_id 的直接查询。
+    """
+
+    subject_id: int = Field(
+        ...,
+        description="Bangumi 条目 ID（即 subject_id），可通过 search_bangumi_subject 搜索名称获得",
+        ge=1,
+    )
+
+
+class GetSubjectCharactersInput(BaseModel):
+    """
+    【条目角色工具】获取一部作品的全部登场角色及其声优/演员信息。
+
+    返回角色列表，包含角色名、出演类型（主角/配角/客串）、
+    饰演者（声优/演员）名称和 ID。这是回答"主角是谁？""声优是谁？"
+    的核心数据源。
+    """
+
+    subject_id: int = Field(
+        ...,
+        description="Bangumi 条目 ID，可通过 search_bangumi_subject 搜索名称获得",
+        ge=1,
+    )
+
+
+class LocalSearchInput(BaseModel):
+    """
+    【本地语义搜索工具】基于 RAG 向量检索的离线搜索引擎。
+
+    适用于 API 关键词搜索无法覆盖的模糊意图——
+    如"类似命运石之门的烧脑番"、"80年代评分最高的机战番"、
+    或跨实体关联查询"配过最多主角的声优"。
+    """
+
+    query: str = Field(
+        ...,
+        description="自然语言查询，越具体越好。例如：'80年代评分最高的机战番'",
+    )
+    entity_type: Literal["subject", "character", "person", "all"] = Field(
+        default="all",
+        description="实体类型过滤：subject=番剧/书籍/音乐/游戏，character=虚拟角色，"
+        "person=现实人物（声优/导演等），all=跨域全量检索",
+    )
+    limit: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="返回结果数上限",
+    )
+    nsfw: bool = Field(
+        default=False,
+        description="是否包含 R18 内容，默认 False（安全护栏）",
+    )
+
+
+class UserTimelineInput(BaseModel):
+    """
+    【用户时光机工具】获取指定 Bangumi 用户的动态时间线。
+
+    拉取用户最近的收藏、评分、吐槽等动态，帮助分析用户的追番偏好。
+    **需要系统配置有效的 Bangumi Access Token。**
+    """
+
+    username: str = Field(
+        ...,
+        description="Bangumi 用户名（个人主页 URL 中的用户名部分），如 'deepseek_jiang'",
+    )
+    limit: int = Field(
+        default=20,
+        ge=1,
+        le=50,
+        description="返回动态条数上限",
+    )

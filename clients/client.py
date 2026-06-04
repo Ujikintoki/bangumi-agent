@@ -125,6 +125,15 @@ class BangumiClient(BaseClient):
     # 热门趋势
     # ═══════════════════════════════════════════════════════════
 
+    # SubjectType → p1 API 整数
+    _TRENDING_TYPE_MAP: dict[str, int] = {
+        "anime": 2,
+        "book": 1,
+        "music": 3,
+        "game": 4,
+        "real": 6,
+    }
+
     async def get_trending(self, input: GetTrendingInput) -> dict:
         """获取热门条目/话题趋势。"""
         category = input.category
@@ -133,9 +142,8 @@ class BangumiClient(BaseClient):
         # 构建并行任务
         tasks: dict[str, asyncio.Task] = {}
         if category in ("subjects", "both"):
-            params: dict = {"limit": input.limit}
-            if subject_type:
-                params["type"] = subject_type
+            type_id = self._TRENDING_TYPE_MAP.get(subject_type, 2) if subject_type else 2
+            params: dict = {"limit": input.limit, "type": type_id}
             tasks["subjects"] = asyncio.create_task(
                 self._get("/p1/trending/subjects", params=params)
             )
@@ -539,3 +547,64 @@ class BangumiClient(BaseClient):
             f"/p1/users/{username}/timeline", params={"limit": limit}
         )
         return raw
+
+    # ═══════════════════════════════════════════════════════════
+    # 条目角色
+    # ═══════════════════════════════════════════════════════════
+
+    # CharacterCastType 枚举 → 人类可读标签
+    _CAST_RELATION_MAP: dict[int, str] = {
+        0: "CV",
+        1: "Dub",
+        2: "Actor",
+        3: "中配",
+        4: "日配",
+        5: "英配",
+        6: "韩配",
+    }
+
+    async def get_subject_characters(self, subject_id: int) -> dict:
+        """获取条目角色列表（p1 API）。
+
+        GET /p1/subjects/{subject_id}/characters
+
+        Args:
+            subject_id: Bangumi 条目 ID。
+
+        Returns:
+            清洗后的角色列表字典 ``{"subject_id": ..., "characters": [...]}``，
+            或 ``{"_error": ...}``。
+        """
+        raw = await self._get(f"/p1/subjects/{subject_id}/characters")
+        if "_error" in raw:
+            return raw
+
+        # API 返回纯数组
+        data = raw if isinstance(raw, list) else raw.get("data", raw.get("results", []))
+        if not data:
+            return {"subject_id": subject_id, "characters": []}
+
+        characters: list[dict] = []
+        for item in data:
+            character = item.get("character") or {}
+            casts_raw = item.get("casts") or []
+            casts: list[dict] = []
+            for cast in casts_raw:
+                person = cast.get("person") or {}
+                relation_id = cast.get("relation", 0)
+                casts.append({
+                    "person_id": person.get("id", 0),
+                    "person_name": person.get("name", ""),
+                    "person_name_cn": person.get("nameCN", ""),
+                    "relation": self._CAST_RELATION_MAP.get(relation_id, f"类型{relation_id}"),
+                })
+
+            characters.append({
+                "character_id": character.get("id", 0),
+                "name": character.get("name", ""),
+                "name_cn": character.get("nameCN", ""),
+                "role": character.get("role", 1),
+                "casts": casts,
+            })
+
+        return {"subject_id": subject_id, "characters": characters}

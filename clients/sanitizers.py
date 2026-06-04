@@ -50,9 +50,12 @@ def _truncate(text: str, max_len: int = 500) -> str:
 
 def _is_noise(text: str) -> bool:
     """判断是否为无价值短评。"""
-    if len(text) < 4:
+    if len(text) < 2:
         return True
     if re.fullmatch(r"[\d\s\-\/:年月日\.]+", text):
+        return True
+    if len(set(text)) == 1 and len(text) > 1:
+        # "hhhhh"、"。。。。" 等纯重复字符
         return True
     return False
 
@@ -184,47 +187,56 @@ def sanitize_trending(raw: dict, subject_type: str) -> dict:
 
 
 def sanitize_comments(raw: list[dict], limit: int) -> list[str]:
-    """评论列表瘦身 → 压扁为纯文本列表 + 噪音过滤。
+    """评论列表瘦身 → 压扁为纯文本列表 + 噪音过滤 + 按热度排序。
 
     通用评论清洗器，用于 episode / character / person 评论。
-    每条格式: "({likes}赞) {content} 【回复: {replies}】"
+    每条格式: "[N] {content} 【回复: {replies}条】"
+    其中 N 为回应数（站内表情反应总数，非"赞"）。
+    按回应数降序排列，确保截断窗口内保留高质量评论。
     """
     if not raw:
         return []
 
-    result: list[str] = []
+    # Step 1: 清洗 + 计算热度
+    scored: list[tuple[int, str]] = []
     for c in raw:
         content = (c.get("comment") or c.get("content") or "").strip()
         if not content or _is_noise(content):
             continue
 
-        # 计算 reactions 总 likes
+        # reactions 是站内表情包，无法映射正负语义，仅统计总数
         reactions = c.get("reactions", []) or []
-        likes = sum(len(r.get("users", [])) for r in reactions)
+        total_reactions = sum(len(r.get("users", [])) for r in reactions)
 
         replies = c.get("replies", 0) or 0
-        text = f"({likes}赞) {_truncate(content, 200)}"
+        text = f"[{total_reactions}] {_truncate(content, 200)}"
         if replies:
             text += f" 【回复: {replies}条】"
 
-        result.append(text)
-        if len(result) >= limit:
-            break
+        scored.append((total_reactions, text))
 
-    return result
+    # Step 2: 按回应数降序
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # Step 3: 截断
+    return [text for _, text in scored[:limit]]
 
 
 def sanitize_subject_comments(raw: list[dict], limit: int) -> dict:
-    """条目评论瘦身 → 含评分分布聚合。
+    """条目评论瘦身 → 含评分分布聚合 + 按热度排序。
 
     每条评论格式: "[{rate}星] {content}"
     额外聚合 rating_distribution: {"1-3": N, "4-6": N, "7-8": N, "9-10": N}
+    按回应数降序排列，comment_count 为过滤前真实总数。
     """
     if not raw:
         return {"comments": [], "rating_distribution": {}, "comment_count": 0}
 
-    comments: list[str] = []
+    real_total = len(raw)
+
+    # Step 1: 清洗 + 计算评分分布（全量） + 热度打分
     rating_dist: dict[str, int] = {"1-3": 0, "4-6": 0, "7-8": 0, "9-10": 0}
+    scored: list[tuple[int, str]] = []
 
     for c in raw:
         content = (c.get("comment") or c.get("content") or "").strip()
@@ -241,20 +253,25 @@ def sanitize_subject_comments(raw: list[dict], limit: int) -> dict:
         elif 9 <= rate <= 10:
             rating_dist["9-10"] += 1
 
+        # 回应数（站内表情包反应总数，不区分正负）
+        reactions = c.get("reactions", []) or []
+        total_reactions = sum(len(r.get("users", [])) for r in reactions)
+
         rate_label = f"{rate}星" if rate else "未评分"
         text = f"[{rate_label}] {_truncate(content, 200)}"
-        comments.append(text)
+        scored.append((total_reactions, text))
 
-        if len(comments) >= limit:
-            break
+    # Step 2: 按回应数降序
+    scored.sort(key=lambda x: x[0], reverse=True)
 
-    # 移除值为 0 的分段以节省 token
+    # Step 3: 截断 + 清理空分段
+    comments = [text for _, text in scored[:limit]]
     rating_dist = {k: v for k, v in rating_dist.items() if v > 0}
 
     return {
         "comments": comments,
         "rating_distribution": rating_dist,
-        "comment_count": len(comments),
+        "comment_count": real_total,
     }
 
 
@@ -373,7 +390,12 @@ def sanitize_entity_comments(raw: list[dict], limit: int, entity_type: str) -> d
 
 
 def sanitize_user_collections(raw: list[dict], limit: int) -> dict:
-    """用户收藏清洗 → 展平 subject 信息 + 聚合统计。"""
+    """用户收藏清洗 → 展平 subject 信息 + 聚合统计。
+
+    统计基于全量数据（最多 limit 条），展示列表截断至 15 条以节省 token。
+    """
+    _DISPLAY_CAP = 15
+
     if not raw:
         return {"collections": [], "collection_stats": {}, "total": 0}
 
@@ -408,7 +430,6 @@ def sanitize_user_collections(raw: list[dict], limit: int) -> dict:
         stats["avg_score"] = round(sum(scores) / len(scores), 2)
         stats["max_score"] = max(scores)
         stats["min_score"] = min(scores)
-        # 评分分布
         stats["score_dist"] = {
             "1-3": sum(1 for s in scores if 1 <= s <= 3),
             "4-6": sum(1 for s in scores if 4 <= s <= 6),
@@ -417,7 +438,7 @@ def sanitize_user_collections(raw: list[dict], limit: int) -> dict:
         }
 
     return {
-        "collections": collections,
+        "collections": collections[:_DISPLAY_CAP],
         "collection_stats": stats,
         "total": len(collections),
     }
