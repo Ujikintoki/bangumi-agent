@@ -213,24 +213,28 @@ class TestBangumiClientErrors:
 
     @pytest.mark.asyncio
     async def test_search_timeout_returns_error_dict(self):
-        from docs.tmp.bgm_client import BangumiClient
+        from clients import BangumiClient
 
         client = BangumiClient()
         with patch.object(
             client._client,
-            "post",
+            "request",
             AsyncMock(side_effect=__import__("httpx").TimeoutException("timed out")),
         ):
-            result = await client.search_subjects("test")
+            result = await client.search(
+                __import__("schemas.tools_input").SearchBangumiInput(
+                    keyword="test", entity_type="subject"
+                )
+            )
             assert isinstance(result, dict)
-            assert "请求超时" in result["error"]
+            assert "_error" in result
         await client.close()
 
     @pytest.mark.asyncio
     async def test_get_subject_http_error_returns_error_dict(self):
         import httpx
 
-        from docs.tmp.bgm_client import BangumiClient
+        from clients import BangumiClient
 
         client = BangumiClient()
         mock_resp = MagicMock()
@@ -238,14 +242,14 @@ class TestBangumiClientErrors:
         mock_resp.status_code = 404
         with patch.object(
             client._client,
-            "get",
+            "request",
             AsyncMock(
                 side_effect=httpx.HTTPStatusError(
                     "404", request=MagicMock(), response=mock_resp
                 )
             ),
         ):
-            result = await client.get_subject(999999)
+            result = await client.get_subject_detail(999999)
             assert isinstance(result, dict)
-            assert result["status_code"] == 404
+            assert "_error" in result
         await client.close()

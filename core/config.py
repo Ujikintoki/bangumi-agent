@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     BANGUMI_APP_SECRET: str = ""
     """Bangumi 应用的 Client Secret，调用 Bangumi API 时必填。"""
 
+    BANGUMI_ACCESS_TOKEN: str = ""
+    """Bangumi Bearer Access Token，用于 p1 private API 认证。
+
+    可通过环境变量 BANGUMI_ACCESS_TOKEN 或 .env 文件注入。
+    部分工具（如用户时光机、日志）需要有效 Token 才能调用。
+    """
+
     # ── 智谱 AI 配置 ──────────────────────────────────────────
     ZHIPU_API_KEY: str = ""
     """智谱 API 密钥，用于调用 embedding-3 等模型生成向量嵌入。

@@ -9,53 +9,33 @@ AI Agent 工具函数层
   - 纯读操作：仅 GET 请求，绝无 PUT/POST/DELETE。
   - 认证透明化：access_token 绝不暴露给 LLM Schema。
   - 优雅降级：所有异常捕获后返回自然语言字符串。
+  - HTTP 通信统一通过 clients.BangumiClient，工具层不再裸写 HTTP。
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 
-import httpx
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from docs.tmp.bgm_client import BangumiClient
+from clients import BangumiClient
+from clients.sanitizers import _cn_name, _truncate
+from core.config import get_settings
+from schemas.tools_input import (
+    GetEpisodeDiscussionInput,
+    GetTrendingInput,
+    SearchBangumiInput,
+)
 
 logger = logging.getLogger("bgm-agent.tools")
 
-# ═══════════════════════════════════════════════════════════════════
-# 全局配置
-# ═══════════════════════════════════════════════════════════════════
-
-P1_BASE_URL: str = "https://next.bgm.tv/p1"
-"""p1 private API 基底 URL，用于单集吐槽、热门趋势、用户时光机等接口。"""
-
-USER_AGENT: str = "BangumiAgent/1.0 (https://github.com/Ujikintoki/bangumi-agent)"
-"""统一的 User-Agent 头，遵循 Bangumi 社区规范。"""
-
-
-@lru_cache
-def _get_access_token() -> Optional[str]:
-    """从环境变量安全获取 Bangumi Access Token（带缓存）。
-
-    Token 仅在此函数内读取一次，后续调用命中 LRU 缓存，
-    避免重复读取环境变量。返回 None 表示未配置。
-
-    Returns:
-        Bangumi Bearer Token 字符串，或 None。
-    """
-    import os
-
-    return os.getenv("BGM_ACCESS_TOKEN")
-
 
 # ═══════════════════════════════════════════════════════════════════
-# 原有的 v0 API 工具（保留不变）
+# search_bangumi_subject — 名字 → ID 映射
 # ═══════════════════════════════════════════════════════════════════
-
 
 async def search_bangumi_subject(
     keyword: str,
@@ -70,14 +50,12 @@ async def search_bangumi_subject(
     - "推荐几部评分高的科幻动画"
     - "查一下 2024 年有什么新番"
 
-    本工具会按照 `subject_type` 对搜索结果进行二次过滤，确保返回结果
+    本工具会按照 ``subject_type`` 对搜索结果进行二次过滤，确保返回结果
     的类型与用户需求一致。返回的 JSON 中包含每个条目的 ID、名称、
-    中文名、评分、排名、标签和简介，便于后续后续调用
-    ``get_bangumi_subject_detail`` 获取完整详情。
+    中文名、类型，便于后续调用 ``get_bangumi_subject_detail`` 获取完整详情。
 
     Args:
-        keyword: 搜索关键词，支持日语、中文、英文等多种语言。例如
-            "進撃の巨人"、"命运石之门"、"Steins;Gate"。
+        keyword: 搜索关键词，支持日语、中文、英文等多种语言。
         subject_type: 条目类型 ID，默认为 ``2``（动画）。
             可用的类型：
             - ``1``: 书籍（漫画、小说、画集等）
@@ -87,44 +65,45 @@ async def search_bangumi_subject(
             - ``6``: 三次元（日剧、欧美剧、电影、综艺等）
         sort: 排序方式，默认为 ``"score"``（按评分从高到低）。
             可选值：
-            - ``"match"``: 按匹配程度排序（MeiliSearch 默认）
+            - ``"match"``: 按匹配程度排序
             - ``"heat"``: 按收藏人数排序（热度）
             - ``"rank"``: 按排名由高到低排序
             - ``"score"``: 按评分从高到低排序
 
     Returns:
-        JSON 格式字符串。成功时为一个包含 ``SlimSubjectResponse``
-        对象的数组，每个对象包含 ``id``、``type``、``name``、
-        ``name_cn``、``score``、``rank``、``tags`` 等字段；
-        失败时返回 ``{"error": "错误描述", "status_code": ...}``。
+        JSON 格式字符串。成功时为一个包含条目对象的数组；
+        失败时返回 ``{"error": "错误描述", ...}``。
     """
     async with BangumiClient() as client:
-        result: list[Any] | dict[str, Any] = await client.search_subjects(
-            keyword=keyword,
-            sort=sort,
-            limit=30,
+        result = await client.search(
+            SearchBangumiInput(
+                keyword=keyword,
+                entity_type="subject",
+                limit=30,
+                subject_type=subject_type,
+            )
         )
 
-    # ── 错误分支：Client 返回了错误字典 ──
-    if isinstance(result, dict):
+    if "_error" in result:
         return json.dumps(result, ensure_ascii=False)
 
-    # ── 按 subject_type 过滤，确保返回结果类型一致 ──
-    filtered = [item for item in result if item.type == subject_type]
+    # 按 subject_type 二次过滤（API 返回可能混合类型）
+    results = result.get("results", [])
+    filtered = [item for item in results if item.get("type") == subject_type]
 
-    # ── 序列化为 JSON 字符串 ──
-    return json.dumps(
-        [item.model_dump() for item in filtered],
-        ensure_ascii=False,
-    )
+    return json.dumps(filtered, ensure_ascii=False)
 
+
+# ═══════════════════════════════════════════════════════════════════
+# get_bangumi_subject_detail — 条目详情
+# ═══════════════════════════════════════════════════════════════════
 
 async def get_bangumi_subject_detail(subject_id: int) -> str:
     """获取 Bangumi 单个条目的完整详细信息（JSON 格式字符串）。
 
     当用户需要了解某个条目的完整信息时调用此工具，通常在
     ``search_bangumi_subject`` 之后使用。在用户已明确知道条目 ID
-    （如从搜索结果中看到）时也可直接调用。
+    时也可直接调用。
 
     典型场景：
     - "帮我看看编号 12345 这个番的详情"
@@ -134,118 +113,32 @@ async def get_bangumi_subject_detail(subject_id: int) -> str:
     返回的 JSON 中包含该条目的：
     - 基本信息和评分（name、name_cn、score、rank）
     - 播出/发售日期（date）
-    - 平台信息（platform，如 TV / Web / Movie 等）
-    - 章节总数（total_episodes，动画/剧集特有）
+    - 平台信息（platform）
+    - 章节总数（total_episodes）
     - 集数/册数（eps / volumes）
-    - 简介（short_summary）
+    - 简介（summary）
     - 标签（tags）
     - 收藏统计（collection.wish / doing / collect）
 
     Args:
-        subject_id: 条目 ID，即 Bangumi 条目详情页 URL 中的
-            数字编号。例如 ``https://bgm.tv/subject/8`` 对应的
-            ``subject_id`` 为 ``8``。
+        subject_id: 条目 ID，即 Bangumi 条目详情页 URL 中的数字编号。
+            例如 ``https://bgm.tv/subject/8`` 对应的 ``subject_id`` 为 ``8``。
 
     Returns:
-        JSON 格式字符串。成功时为一个包含完整条目信息的
-        ``DetailedSubjectResponse`` 对象；失败时返回
-        ``{"error": "错误描述", "status_code": ...}``。
+        JSON 格式字符串。成功时为一个包含完整条目信息的对象；
+        失败时返回 ``{"error": "错误描述", ...}``。
     """
     async with BangumiClient() as client:
-        result: Any | dict[str, Any] = await client.get_subject(
-            subject_id=subject_id,
-        )
+        result = await client.get_subject_detail(subject_id=subject_id)
 
-    # ── 错误分支 ──
-    if isinstance(result, dict) and "error" in result:
+    if isinstance(result, dict) and "_error" in result:
         return json.dumps(result, ensure_ascii=False)
 
-    # ── 序列化为 JSON 字符串 ──
-    return result.model_dump_json()
+    return json.dumps(result, ensure_ascii=False)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 新增 p1 API 工具（M4-Step2）
-# ═══════════════════════════════════════════════════════════════════
-
-
-# ── 辅助函数 ──────────────────────────────────────────────────────
-
-
-def _build_headers(require_auth: bool = False) -> dict[str, str]:
-    """构建 p1 API 请求头，可选注入 Bearer Token。
-
-    Args:
-        require_auth: 是否需要附带 Authorization 头。
-
-    Returns:
-        HTTP 请求头字典。
-    """
-    headers: dict[str, str] = {
-        "User-Agent": USER_AGENT,
-        "Accept": "application/json",
-    }
-    if require_auth:
-        token = _get_access_token()
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-    return headers
-
-
-def _safe_extract(data: Any, *keys: str, default: Any = "") -> Any:
-    """安全地从嵌套字典中逐层提取值，任一层缺失时返回 default。"""
-    for key in keys:
-        if isinstance(data, dict):
-            data = data.get(key, default)
-        else:
-            return default
-    return data
-
-
-async def _get_p1_json(
-    path: str,
-    params: dict[str, Any] | None = None,
-    require_auth: bool = False,
-) -> dict[str, Any]:
-    """对 p1 API 发起 GET 请求并返回 JSON，所有异常均已内部捕获。
-
-    Args:
-        path: API 路径，如 "/episodes/123/comments"。
-        params: URL 查询参数。
-        require_auth: 是否需要认证。
-
-    Returns:
-        API 返回的 JSON 字典，或包含 "_error" 键的错误字典。
-    """
-    url = f"{P1_BASE_URL}{path}"
-    headers = _build_headers(require_auth=require_auth)
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0)) as client:
-            resp = await client.get(url, headers=headers, params=params)
-            resp.raise_for_status()
-            return resp.json()
-    except httpx.TimeoutException:
-        logger.warning("p1 API 超时: %s", url)
-        return {"_error": f"请求超时：Bangumi 服务器响应过慢（{url}），请稍后重试。"}
-    except httpx.HTTPStatusError as exc:
-        logger.warning("p1 API HTTP 错误 %d: %s", exc.response.status_code, url)
-        if exc.response.status_code == 401:
-            return {
-                "_error": "认证失败：Access Token 无效或已过期，请联系管理员更新凭证。"
-            }
-        if exc.response.status_code == 404:
-            return {"_error": "未找到请求的资源，请检查 ID 是否正确。"}
-        return {"_error": f"Bangumi API 返回错误 (HTTP {exc.response.status_code})。"}
-    except httpx.HTTPError as exc:
-        logger.warning("p1 API 网络异常: %s — %s", url, exc)
-        return {"_error": f"网络连接异常，无法访问 Bangumi 服务器。原因：{exc}"}
-    except Exception:
-        logger.exception("p1 API 未知异常: %s", url)
-        return {"_error": "系统内部异常，请稍后重试。"}
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Pydantic Input Schema（LangChain Tool 专用）
+# Pydantic Input Schema（p1 API 工具专用，Phase 2 将统一到 schemas/）
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -311,42 +204,26 @@ async def get_episode_comments(episode_id: int, limit: int = 20) -> str:
         limit: 返回吐槽条数上限，默认 20，最大 50。
 
     Returns:
-        纯文本格式的吐槽摘要，包含每条吐槽的用户昵称和正文内容。
+        纯文本格式的吐槽摘要，包含每条吐槽的评论内容。
         若无吐槽或 API 异常，返回对应的自然语言提示。
     """
-    # ── Step 1: 请求 p1 API ────────────────────────────────────
-    result = await _get_p1_json(
-        path=f"/episodes/{episode_id}/comments",
-        params={"limit": limit},
-        require_auth=False,
-    )
+    async with BangumiClient() as client:
+        result = await client.get_episode_discussion(
+            GetEpisodeDiscussionInput(episode_id=episode_id, comments_limit=limit)
+        )
 
-    # ── Step 2: 错误分支 ───────────────────────────────────────
     if "_error" in result:
         return f"系统提示：获取单集吐槽失败。{result['_error']}"
 
-    # ── Step 3: 提取 data 列表 ─────────────────────────────────
-    data: list[dict[str, Any]] = result.get("data", [])
-    if not data:
+    comments = result.get("comments", [])
+    if not comments:
         return f"该单集（ID: {episode_id}）目前还没有吐槽评论，来做第一个吐槽的人吧！"
 
-    # ── Step 4: 拼接为自然语言摘要 ─────────────────────────────
-    lines: list[str] = [f"📺 单集 {episode_id} 的吐槽箱（共 {len(data)} 条）：\n"]
-    for i, comment in enumerate(data[:limit], 1):
-        try:
-            nickname = _safe_extract(comment, "user", "nickname", default="匿名用户")
-            text = _safe_extract(comment, "text", default="（无内容）")
-            # 截断过长文本
-            display_text = (
-                text[:200] + "..."
-                if isinstance(text, str) and len(text) > 200
-                else text
-            )
-            lines.append(f"{i}. 【{nickname}】: {display_text}")
-        except Exception:
-            lines.append(f"{i}. （该条吐槽解析失败，已跳过）")
+    lines: list[str] = [f"📺 单集 {episode_id} 的吐槽箱（共 {len(comments)} 条）：\n"]
+    for i, text in enumerate(comments[:limit], 1):
+        lines.append(f"{i}. {text}")
 
-    lines.append(f"\n── 以上为最近 {min(len(data), limit)} 条吐槽 ──")
+    lines.append(f"\n── 以上为最近 {min(len(comments), limit)} 条吐槽 ──")
     return "\n".join(lines)
 
 
@@ -368,38 +245,32 @@ async def get_trending_topics(limit: int = 10) -> str:
     Returns:
         纯文本格式的热门条目列表，包含名称、评分、排名等。
     """
-    result = await _get_p1_json(
-        path="/trending/subjects",
-        params={"limit": limit},
-        require_auth=False,
-    )
+    async with BangumiClient() as client:
+        result = await client.get_trending(
+            GetTrendingInput(category="subjects", limit=limit)
+        )
 
     if "_error" in result:
         return f"系统提示：获取热门趋势失败。{result['_error']}"
 
-    data: list[dict[str, Any]] = result.get("data", [])
-    if not data:
+    subjects_data = result.get("subjects", {})
+    if "_error" in subjects_data:
+        return f"系统提示：获取热门趋势失败。{subjects_data['_error']}"
+
+    items = subjects_data.get("items", [])
+    if not items:
         return "当前没有热门条目数据，请稍后再试。"
 
-    lines: list[str] = [f"🔥 Bangumi 全站热门风向标（TOP {min(len(data), limit)}）：\n"]
-    for i, subject in enumerate(data[:limit], 1):
+    type_map = {1: "📚", 2: "📺", 3: "🎵", 4: "🎮", 6: "🎬"}
+    lines: list[str] = [f"🔥 Bangumi 全站热门风向标（TOP {len(items)}）：\n"]
+    for i, item in enumerate(items, 1):
         try:
-            name = subject.get("name", "未知作品")
-            name_cn = subject.get("name_cn", "")
-            display_name = f"{name}（{name_cn}）" if name_cn else name
-
-            rating = subject.get("rating", {})
-            score = rating.get("score", 0) if isinstance(rating, dict) else 0
-            rank = rating.get("rank", 0) if isinstance(rating, dict) else 0
+            display_name = item.get("name", "未知作品")
+            score = item.get("score", 0)
+            icon = type_map.get(item.get("type", 0), "📌")
 
             score_str = f"评分 {score}" if score else "暂无评分"
-            rank_str = f" | 排名 #{rank}" if rank else ""
-
-            subject_type = subject.get("type", 0)
-            type_map = {1: "📚", 2: "📺", 3: "🎵", 4: "🎮", 6: "🎬"}
-            icon = type_map.get(subject_type, "📌")
-
-            lines.append(f"{i}. {icon} {display_name} — {score_str}{rank_str}")
+            lines.append(f"{i}. {icon} {display_name} — {score_str}")
         except Exception:
             lines.append(f"{i}. （该条数据解析失败，已跳过）")
 
@@ -428,22 +299,18 @@ async def get_user_timeline(username: str, limit: int = 20) -> str:
     Returns:
         纯文本格式的用户动态摘要，或 Token 未配置时的引导提示。
     """
-    # ── Auth 拦截：无 Token 时直接返回引导提示 ──────────────────
-    token = _get_access_token()
+    token = get_settings().BANGUMI_ACCESS_TOKEN
     if not token:
         return (
             "系统提示：系统未配置 Bangumi Access Token，无法获取用户时光机。\n"
             "您可以尝试以下替代方案：\n"
             "1. 直接访问该用户的 Bangumi 主页查看公开收藏：https://bgm.tv/user/{username}\n"
             "2. 使用搜索工具查找该用户公开评价过的条目。\n"
-            "3. 如果您是该系统的管理员，请设置环境变量 BGM_ACCESS_TOKEN 以启用此功能。"
+            "3. 如果您是该系统的管理员，请设置环境变量 BANGUMI_ACCESS_TOKEN 以启用此功能。"
         )
 
-    result = await _get_p1_json(
-        path=f"/users/{username}/timeline",
-        params={"limit": limit},
-        require_auth=True,
-    )
+    async with BangumiClient(access_token=token) as client:
+        result = await client.get_user_timeline(username=username, limit=limit)
 
     if "_error" in result:
         return f"系统提示：获取用户时光机失败。{result['_error']}"
@@ -456,26 +323,24 @@ async def get_user_timeline(username: str, limit: int = 20) -> str:
         f"🕐 用户 {username} 的时光机动态（最近 {min(len(data), limit)} 条）：\n"
     ]
 
+    type_labels = {
+        1: "💬 吐槽",
+        2: "📂 收藏",
+        6: "⭐ 评分",
+        8: "📝 进度",
+        9: "📝 进度",
+    }
+
     for i, event in enumerate(data[:limit], 1):
         try:
             event_type = event.get("type", 0)
-            # 常见 type 映射: 1=吐槽, 2=收藏, 6=评分, 9=进度
-            type_labels = {
-                1: "💬 吐槽",
-                2: "📂 收藏",
-                6: "⭐ 评分",
-                8: "📝 进度",
-                9: "📝 进度",
-            }
             label = type_labels.get(event_type, f"📌 动态(type={event_type})")
 
-            # 尝试提取关联条目
             subject = event.get("subject", {})
             subject_name = ""
             if isinstance(subject, dict):
                 subject_name = subject.get("name", "") or subject.get("name_cn", "")
 
-            # 提取评分
             rating = event.get("rating", None)
             rating_str = ""
             if isinstance(rating, (int, float)) and rating > 0:
@@ -485,14 +350,12 @@ async def get_user_timeline(username: str, limit: int = 20) -> str:
                 if score_val:
                     rating_str = f" → {score_val} 分"
 
-            # 提取吐槽/正文
             text = event.get("text", "") or event.get("content", "")
             text_str = ""
             if isinstance(text, str) and text.strip():
                 short_text = text[:100] + "..." if len(text) > 100 else text
                 text_str = f"：「{short_text}」"
 
-            # 拼接
             subject_str = f"《{subject_name}》" if subject_name else ""
             line = f"{i}. {label}{subject_str}{rating_str}{text_str}"
             lines.append(line)
@@ -537,7 +400,7 @@ def search_local_bangumi(
         纯文本格式的检索结果摘要。无结果时返回友好提示。
     """
     try:
-        from core.config import get_settings
+        from core.config import get_settings as _get_rag_settings
         from database.engine import engine
         from rag.retriever import RagEntityRetriever
     except ImportError as exc:
@@ -545,7 +408,7 @@ def search_local_bangumi(
         return f"系统提示：本地搜索引擎模块加载失败。错误：{exc}"
 
     try:
-        settings = get_settings()
+        settings = _get_rag_settings()
         retriever = RagEntityRetriever(
             engine=engine,
             zhipu_api_key=settings.ZHIPU_API_KEY,
@@ -662,7 +525,7 @@ def get_agent_tools() -> list:
     工具注册策略：
     - **无条件注册**：``search_local_bangumi``、``get_episode_comments``、
       ``get_trending_topics``（无需认证，始终可用）。
-    - **条件注册**：``get_user_timeline`` 仅在 ``BGM_ACCESS_TOKEN``
+    - **条件注册**：``get_user_timeline`` 仅在 ``BANGUMI_ACCESS_TOKEN``
       环境变量已配置时注册。
 
     使用方式::
@@ -681,7 +544,7 @@ def get_agent_tools() -> list:
         get_trending_topics,
     ]
 
-    token = _get_access_token()
+    token = get_settings().BANGUMI_ACCESS_TOKEN
     if token:
         tools.append(get_user_timeline)
         logger.info(
@@ -690,7 +553,7 @@ def get_agent_tools() -> list:
         )
     else:
         logger.info(
-            "已启用 %d 个 Agent Tools（用户时光机因未配置 BGM_ACCESS_TOKEN 而禁用）",
+            "已启用 %d 个 Agent Tools（用户时光机因未配置 BANGUMI_ACCESS_TOKEN 而禁用）",
             len(tools),
         )
 
