@@ -484,7 +484,9 @@ class BangumiClient(BaseClient):
                 result["blog"] = {
                     "id": raw.get("id", 0),
                     "title": raw.get("title", ""),
-                    "content": sanitizers._truncate(raw.get("content") or raw.get("text") or "", 300),
+                    "content": sanitizers._truncate(
+                        sanitizers._strip_bbcode(raw.get("content") or raw.get("text") or ""), 300
+                    ),
                     "tags": raw.get("tags", []),
                     "created_at": raw.get("created_at", "") or raw.get("createdAt", ""),
                     "replies": raw.get("replies", 0),

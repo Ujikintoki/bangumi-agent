@@ -60,6 +60,60 @@ def _is_noise(text: str) -> bool:
     return False
 
 
+def _strip_bbcode(text: str) -> str:
+    """去除 BBCode 标签，保留语义标签的中文标注。
+
+    Bangumi 的日志、评论、讨论帖等用户生成内容大量使用 BBCode 格式。
+    此函数：
+      - 去掉纯视觉标签（[b][i][u][s][size][color][font][align]）但保留内容
+      - 将语义标签转为 LLM 可读的中文标注（[mask]→【剧透】, [quote]→【引用】）
+      - 展平 [url] 为 \"文字(链接)\" 格式
+      - 删除 [img] 标签（LLM 无法识别图片）
+    """
+    if not text:
+        return text
+
+    # 去除开标签: [b][size=20][color=red][font=X][align=center][left]等
+    text = re.sub(
+        r'\[(?:[bius]|size=[^\]]*|color=[^\]]*|font=[^\]]*|align=[^\]]*|left|center|right)\]',
+        '', text,
+    )
+    # 去除闭标签: [/b][/size][/color][/font][/align][/left]等
+    text = re.sub(
+        r'\[/(?:[bius]|size|color|font|align|left|center|right)\]',
+        '', text,
+    )
+
+    # [mask] / [spoiler] → 【剧透】...【/剧透】
+    text = re.sub(
+        r'\[mask\](.*?)\[/mask\]', r'【剧透】\1【/剧透】', text,
+        flags=re.DOTALL,
+    )
+    text = re.sub(
+        r'\[spoiler\](.*?)\[/spoiler\]', r'【剧透】\1【/剧透】', text,
+        flags=re.DOTALL,
+    )
+
+    # [quote=作者]内容[/quote] → 【引用 作者】内容【/引用】
+    text = re.sub(
+        r'\[quote(?:=([^\]]*))?\](.*?)\[/quote\]',
+        lambda m: f'【引用 {m.group(1)}】{m.group(2)}【/引用】' if m.group(1) else f'【引用】{m.group(2)}【/引用】',
+        text, flags=re.DOTALL,
+    )
+
+    # [url=https://...]文字[/url] → 文字(https://...)
+    text = re.sub(
+        r'\[url=([^\]]+)\](.*?)\[/url\]', r'\2(\1)', text,
+    )
+
+    # [img]...[/img] → 删除（LLM 看不懂图片）
+    text = re.sub(r'\[img[^\]]*\].*?\[/img\]', '', text, flags=re.DOTALL)
+
+    # 清理多余的空行
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Subject（条目）相关
 # ═══════════════════════════════════════════════════════════════════
@@ -201,6 +255,7 @@ def sanitize_comments(raw: list[dict], limit: int) -> list[str]:
     scored: list[tuple[int, str]] = []
     for c in raw:
         content = (c.get("comment") or c.get("content") or "").strip()
+        content = _strip_bbcode(content)
         if not content or _is_noise(content):
             continue
 
@@ -240,6 +295,7 @@ def sanitize_subject_comments(raw: list[dict], limit: int) -> dict:
 
     for c in raw:
         content = (c.get("comment") or c.get("content") or "").strip()
+        content = _strip_bbcode(content)
         if not content or _is_noise(content):
             continue
 
