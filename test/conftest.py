@@ -1,7 +1,7 @@
-"""Phase 1-2 共享 Fixtures。
+"""Phase 1-3 共享 Fixtures 和测试工具。
 
-提供 mock HTTP 响应、mock 数据工厂等可复用测试工具。
-所有 fixture 不依赖外部服务（无网络、无数据库）。
+提供 mock HTTP 响应、mock 数据工厂、mock LLM、mock 工具
+等可复用测试工具。所有 fixture 不依赖外部服务（无网络、无数据库）。
 """
 
 from __future__ import annotations
@@ -9,6 +9,11 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.tools import tool as langchain_tool
+from langchain_openai import ChatOpenAI
+
+from agent.state import AgentState
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -26,15 +31,7 @@ def mock_response(json_data: dict | list, status_code: int = 200) -> MagicMock:
 
 
 def mock_httpx_client(response_map: dict[str, dict | list]) -> AsyncMock:
-    """创建模拟的 httpx.AsyncClient，按 path 返回预设响应。
-
-    Args:
-        response_map: path → response_data 的映射。
-            path 如 ``"/p1/subjects/8"``。
-
-    Returns:
-        配置好的 AsyncMock 实例，用作 ``BangumiClient._client``。
-    """
+    """创建模拟的 httpx.AsyncClient，按 path 返回预设响应。"""
     mock = AsyncMock()
 
     async def request(method: str, path: str, **kwargs):
@@ -42,19 +39,72 @@ def mock_httpx_client(response_map: dict[str, dict | list]) -> AsyncMock:
             data = response_map[path]
             resp = mock_response(data)
             return resp
-        # 默认 404
         resp = MagicMock()
         resp.status_code = 404
         resp.content = True
         resp.json.return_value = {"error": "not found"}
         import httpx
 
-        raise httpx.HTTPStatusError(
-            "404", request=MagicMock(), response=resp
-        )
+        raise httpx.HTTPStatusError("404", request=MagicMock(), response=resp)
 
     mock.request = request
     return mock
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Agent Phase 3 共享测试工厂
+# ═══════════════════════════════════════════════════════════════════
+
+
+def make_state(**overrides) -> AgentState:
+    """构造 AgentState，所有字段带有合理默认值。"""
+    defaults: dict = {
+        "messages": [SystemMessage(content="You are Bangumi assistant."), HumanMessage(content="你好")],
+        "iterations": 0,
+        "critic_status": "PENDING",
+        "critic_feedback": "",
+        "last_tool_calls": [],
+        "query_intent": "unknown",
+        "session_id": "test-session",
+        "user_id": "test-user",
+        "error_flag": False,
+    }
+    defaults.update(overrides)
+    return defaults  # type: ignore[return-value]
+
+
+def make_mock_llm(content: str = "Mock response", tool_calls: list[dict] | None = None):
+    """创建 mock ChatOpenAI，invoke() 返回预设 AIMessage。"""
+    mock = MagicMock(spec=ChatOpenAI)
+    mock.invoke.return_value = AIMessage(content=content, tool_calls=tool_calls or [])
+    mock.bind_tools.return_value = mock
+    return mock
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Mock 工具（ToolNode 测试用）
+# ═══════════════════════════════════════════════════════════════════
+
+
+@langchain_tool
+def mock_search_tool(keyword: str) -> str:
+    """搜索 Bangumi 条目。"""
+    return f"搜索 '{keyword}' 的结果: 找到 3 个匹配条目"
+
+
+@langchain_tool
+def mock_detail_tool(subject_id: int) -> str:
+    """获取条目详情。"""
+    return f"条目 #{subject_id} 详情: 评分 8.5, 排名 #42"
+
+
+@langchain_tool
+def mock_failing_tool(query: str) -> str:
+    """会抛出异常的工具。"""
+    raise RuntimeError("模拟工具执行失败")
+
+
+MOCK_TOOLS = [mock_search_tool, mock_detail_tool]
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -104,7 +154,7 @@ def sample_comment() -> dict:
     return {
         "id": 1,
         "content": "这是一条测试评论",
-        "reactions": [{"users": [1, 2, 3]}],  # 3 reactions
+        "reactions": [{"users": [1, 2, 3]}],
         "replies": 5,
         "createdAt": 1700000000,
     }
@@ -158,7 +208,7 @@ def subject_characters_response() -> list[dict]:
             "casts": [
                 {
                     "person": {"id": 100, "name": "福山潤", "nameCN": "福山润"},
-                    "relation": 0,  # CV
+                    "relation": 0,
                     "summary": "",
                 }
             ],
@@ -191,21 +241,11 @@ def calendar_items() -> list[dict]:
     """CalendarItem 列表。"""
     return [
         {
-            "subject": {
-                "id": 1,
-                "name": "Anime A",
-                "nameCN": "",
-                "rating": {"score": 7.5, "total": 3000},
-            },
+            "subject": {"id": 1, "name": "Anime A", "nameCN": "", "rating": {"score": 7.5, "total": 3000}},
             "watchers": 5000,
         },
         {
-            "subject": {
-                "id": 2,
-                "name": "Anime B",
-                "nameCN": "",
-                "rating": {"score": 6.0, "total": 1000},
-            },
+            "subject": {"id": 2, "name": "Anime B", "nameCN": "", "rating": {"score": 6.0, "total": 1000}},
             "watchers": 2000,
         },
     ]
@@ -217,13 +257,7 @@ def trending_response() -> dict:
     return {
         "data": [
             {
-                "subject": {
-                    "id": 1,
-                    "name": "Hot Anime",
-                    "nameCN": "",
-                    "type": 2,
-                    "rating": {"score": 8.0},
-                },
+                "subject": {"id": 1, "name": "Hot Anime", "nameCN": "", "type": 2, "rating": {"score": 8.0}},
                 "count": 500,
             }
         ],
@@ -236,13 +270,7 @@ def user_collections_data() -> list[dict]:
     """用户收藏数据（30 条，测试 display cap）。"""
     return [
         {
-            "subject": {
-                "id": i,
-                "name": f"Item {i}",
-                "nameCN": "",
-                "type": 2,
-                "rating": {"score": 7.0},
-            },
+            "subject": {"id": i, "name": f"Item {i}", "nameCN": "", "type": 2, "rating": {"score": 7.0}},
             "type": 2,
             "rate": 7,
         }

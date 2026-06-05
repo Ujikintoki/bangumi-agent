@@ -3,6 +3,9 @@ LangGraph Agent 状态定义
 
 使用 TypedDict 定义 AgentState，配合 Annotated[list, operator.add]
 实现节点间消息的自动合并（追加而非覆盖），避免跨节点消息丢失。
+
+Phase 3 升级：消息类型从 ``list[str]`` 升级为 ``list[BaseMessage]``，
+新增意图分类、Critic 定向反馈、会话/用户标识字段。
 """
 
 from __future__ import annotations
@@ -10,27 +13,39 @@ from __future__ import annotations
 import operator
 from typing import Annotated, TypedDict
 
+from langchain_core.messages import BaseMessage
+
 
 class AgentState(TypedDict):
     """Agent 全局状态，在 LangGraph 节点间流转。
 
-    本骨架不接入真实 LLM 或 RAG，所有字段仅用于验证
-    图谱控制流与优雅降级机制的完整性。
-
     Attributes:
         messages: 对话历史列表。使用 ``operator.add`` 作为 reducer，
             节点返回的新消息会自动追加到现有列表末尾，而非覆盖。
+            元素类型为 LangChain ``BaseMessage``（HumanMessage / AIMessage / ToolMessage / SystemMessage）。
         iterations: 当前 ReAct 循环次数。每轮推理 +1，用于熔断控制。
         critic_status: 自省节点的判定结果。
             ``"PENDING"`` — 尚未评估；
             ``"PASS"``   — 输出合格，可结束；
             ``"REVISE"`` — 需修正，回到推理节点重试。
+        critic_feedback: Critic 的具体改进建议。
+            PASS 时为确认描述，REVISE 时为 ``"<缺陷> | <建议> | <缺失>"`` 格式的定向反馈。
+            下一轮 reasoning_node 将其注入 prompt 以指导 LLM 定向修正。
+        last_tool_calls: 上一轮 LLM 请求的工具调用列表。
+            直接来自 ``AIMessage.tool_calls``。非空时条件边路由到 tool_node，
+            为空时跳过工具直达 critic_node。
+            **生命周期约束**：仅 reasoning_node 写入；tool_node / critic_node 禁止触碰。
+        query_intent: 查询意图分类结果，由 reasoning_node 内部分类器设置。
+            ``"chitchat" | "factual" | "lookup" | "discovery" | "realtime" | "unknown"``。
+            影响 prompt 变体选择，不直接参与路由决策。
+        session_id: 会话标识（Layer 2 会话记忆预留）。由 /chat 端点传入。
+        user_id: 用户标识（Layer 3 用户画像预留）。由 /chat 端点传入。
         error_flag: 优雅降级标记。当底层组件异常或循环超限时置为
             ``True``，通知下游走兜底路径而非崩溃。
     """
 
-    messages: Annotated[list, operator.add]
-    """对话历史，使用 Annotated[list, operator.add] 保证节点间追加语义。"""
+    messages: Annotated[list[BaseMessage], operator.add]
+    """对话历史，使用 Annotated[list[BaseMessage], operator.add] 保证节点间追加语义。"""
 
     iterations: int
     """当前循环轮次，从 0 开始计数。"""
@@ -38,10 +53,23 @@ class AgentState(TypedDict):
     critic_status: str
     """自省判定：PENDING / PASS / REVISE。"""
 
-    needs_tool: bool
-    """是否需要调用工具。由 reasoning_node 根据用户意图判定。
-    ``True`` 时经条件边进入 tool_node；``False`` 时跳过工具直达 critic_node。
+    critic_feedback: str
+    """Critic 的具体改进建议。REVISE 时为定向反馈，下一轮注入 reasoning prompt。"""
+
+    last_tool_calls: list[dict]
+    """上一轮 LLM 返回的工具调用列表。非空 → tool_node，空 → 跳过工具。
+
+    ⚠️ 生命周期约束：仅 reasoning_node 写入，tool_node 和 critic_node 禁止触碰。
     """
+
+    query_intent: str
+    """查询意图分类：chitchat | factual | lookup | discovery | realtime | unknown。"""
+
+    session_id: str
+    """会话 ID（Layer 2 预留）。"""
+
+    user_id: str
+    """用户 ID（Layer 3 预留）。"""
 
     error_flag: bool
     """优雅降级标记，默认 False。置 True 时 reasoning_node 进入兜底模式。"""

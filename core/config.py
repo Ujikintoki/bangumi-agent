@@ -8,6 +8,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 无论从哪个目录运行，始终指向项目根目录的 .env
@@ -18,7 +19,6 @@ class Settings(BaseSettings):
     """应用全局配置。
 
     从环境变量或 .env 文件中加载配置项。
-    BANGUMI_APP_ID 和 BANGUMI_APP_SECRET 目前为可选项（未导入真实用户ID）
     """
 
     model_config = SettingsConfigDict(
@@ -53,6 +53,75 @@ class Settings(BaseSettings):
 
     可通过环境变量 BANGUMI_ACCESS_TOKEN 或 .env 文件注入。
     部分工具（如用户时光机、日志）需要有效 Token 才能调用。
+    """
+
+    # ── LLM 通用配置 ──────────────────────────────────────────
+    LLM_API_KEY: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "LLM_API_KEY", "AZURE_OPENAI_API_KEY", "OPENAI_API_KEY"
+        ),
+    )
+    """LLM API 密钥。
+
+    支持以下环境变量名（优先级从左到右）：
+    LLM_API_KEY → AZURE_OPENAI_API_KEY → OPENAI_API_KEY
+    """
+
+    LLM_MODEL: str = Field(
+        default="gpt-4o",
+        validation_alias=AliasChoices("LLM_MODEL", "AZURE_OPENAI_CHAT_DEPLOYMENT"),
+    )
+    """LLM 模型名称。Azure 模式下为部署名（deployment name）；其他模式下为模型名。
+
+    常用值：gpt-4o, gpt-4o-mini, deepseek-chat, qwen-plus。
+    """
+
+    LLM_BASE_URL: str = ""
+    """自定义 API Base URL（DeepSeek、Qwen 等 OpenAI 兼容 API）。
+
+    示例：https://api.deepseek.com/v1, https://dashscope.aliyuncs.com/compatible-mode/v1。
+    Azure 用户应使用 LLM_AZURE_ENDPOINT 而非此字段。
+    """
+
+    LLM_TEMPERATURE: float = 0.3
+    """LLM 温度参数。工具调用场景建议 0.1-0.3，创意生成可调至 0.7+。"""
+
+    LLM_MAX_TOKENS: int = 4096
+    """LLM 单次输出最大 Token 数。"""
+
+    # ── LLM — Azure 专用 ───────────────────────────────────────
+    LLM_AZURE_ENDPOINT: str = Field(
+        default="",
+        validation_alias=AliasChoices("LLM_AZURE_ENDPOINT", "AZURE_OPENAI_ENDPOINT"),
+    )
+    """Azure OpenAI 端点 URL。
+
+    示例：https://<resource>.openai.azure.com。
+    """
+
+    LLM_AZURE_API_VERSION: str = Field(
+        default="2024-10-21",
+        validation_alias=AliasChoices("LLM_AZURE_API_VERSION", "AZURE_OPENAI_API_VERSION"),
+    )
+    """Azure OpenAI API 版本。"""
+
+    # ── LLM — Critic 可选模型 ─────────────────────────────────
+    LLM_CRITIC_MODEL: str = ""
+    """Critic 节点专用模型（可选）。留空则默认使用 LLM_MODEL。
+
+    允许为 Critic 使用更便宜的小模型以降低评估成本。
+    """
+
+    # ── Critic 模式 ───────────────────────────────────────────
+    CRITIC_MODE: str = "rule"
+    """Critic 评估模式：``"rule"``（零 Token 规则版，默认）或 ``"llm"``（LLM 定向反馈）。
+
+    推荐先用规则版验证流程，确认 ReAct 循环和 feedback 注入机制正确后，
+    切换到 LLM 版获得更精准的评估。"""
+    """Critic 节点专用模型（可选）。留空则默认使用 LLM_MODEL。
+
+    允许为 Critic 使用更便宜的小模型（如 gpt-4o-mini）以降低评估成本。
     """
 
     # ── 智谱 AI 配置 ──────────────────────────────────────────
