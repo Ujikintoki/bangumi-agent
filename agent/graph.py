@@ -1,10 +1,15 @@
 """
 LangGraph 图谱编排
 
-核心拓扑：reasoning → (条件边: last_tool_calls?) → tool/critic → (条件边) → END/retry
+核心拓扑：reasoning → (条件边) → tool/critic/END → (条件边) → END/retry
 
-Phase 3 Step 3 升级：tool_node 从占位实现切换为 LangGraph 内置 ``ToolNode``，
-自动并发执行 LLM 请求的工具调用并返回 ``ToolMessage`` 列表。
+决策矩阵：
+    - tool_calls 非空 → ToolNode → critic → END/retry
+    - intent = chitchat → END（快速通道，跳过 critic）
+    - 其他无工具调用 → critic → END/retry
+
+Phase 3 Step 3 升级：tool_node 从占位实现切换为 LangGraph 内置 ``ToolNode``。
+快速通道：chitchat 直接结束，不经过质量自省。factual 仍然经过 critic。
 """
 
 from __future__ import annotations
@@ -28,18 +33,28 @@ _MAX_ITERATIONS = 3
 # ── 条件路由: reasoning → tool / critic ──────────────────────
 
 
-def route_after_reasoning(state: AgentState) -> Literal["tool_node", "critic_node"]:
-    """reasoning_node 之后的条件边：依据 last_tool_calls 决定是否调用工具。
+# 快速通道意图：纯闲聊跳过 Critic，直接结束。
+# 注意：factual 不走快速通道——"什么是三集定律"和"什么是麻辣仙人"
+# 对 LLM 的难度不同，Critic 有真实价值。
+_FAST_PATH_INTENTS = frozenset({"chitchat"})
 
-    LLM 通过 ``AIMessage.tool_calls`` 自主决定是否需要工具：
-        - last_tool_calls 非空 → tool_node → critic_node
-        - last_tool_calls 为空 → 跳过工具，直达 critic_node
+
+def route_after_reasoning(state: AgentState) -> Literal["tool_node", "critic_node", "__end__"]:
+    """reasoning_node 之后的条件边。
+
+    三级路由决策：
+        1. last_tool_calls 非空 → tool_node（执行工具后进 critic）
+        2. query_intent = chitchat 且无工具调用 → END（快速通道，跳过 critic）
+        3. 其他无工具调用 → critic_node（质量评估）
+
+    快速通道的设计理由：闲聊和常识问答不需要质量检查。
+    对于"你好"→"你好！"这类直接回复，Critic 没有可验证的维度。
 
     Args:
         state: 当前 Agent 全局状态。
 
     Returns:
-        ``"tool_node"`` 或 ``"critic_node"``。
+        ``"tool_node"``、``"critic_node"`` 或 ``"__end__"``。
     """
     last_tool_calls = state.get("last_tool_calls", [])
     if last_tool_calls:
@@ -48,7 +63,13 @@ def route_after_reasoning(state: AgentState) -> Literal["tool_node", "critic_nod
             [tc.get("name", "?") for tc in last_tool_calls],
         )
         return "tool_node"
-    logger.debug("route_after_reasoning: last_tool_calls 为空 → critic_node（跳过工具）")
+
+    query_intent = state.get("query_intent", "unknown")
+    if query_intent in _FAST_PATH_INTENTS:
+        logger.debug("route_after_reasoning: intent=%s → 快速通道 END", query_intent)
+        return END
+
+    logger.debug("route_after_reasoning: intent=%s 无工具调用 → critic_node", query_intent)
     return "critic_node"
 
 
@@ -102,20 +123,21 @@ def build_graph(tools: list | None = None) -> StateGraph:
                       ▼
                reasoning_node
                       │
-                      ▼ (条件边: last_tool_calls 非空?)
-               ┌──────┴──────┐
-               │             │
-            ToolNode      (skip)
-               │             │
-               └──────┬──────┘
+                      ▼ (条件边: last_tool_calls? intent?)
+               ┌──────┼──────────┐
+               │      │          │
+            ToolNode  │    chitchat/factual
+               │      │     (快速通道)
+               │   critic_node     │
+               │      │            │
+               │      ▼            │
+               │  (PASS? 超限?)    │
+               │   ┌──┴──┐        │
+               │  END  reasoning   │
+               │       (REVISE)    │
+               └──────┴────────────┘
                       ▼
-                critic_node
-                      │
-                      ▼ (条件边: PASS? 超限?)
-               ┌──────┴──────┐
-               │             │
-              END      reasoning_node
-                       (REVISE + 未超限)
+                     END
 
     Args:
         tools: LangChain 工具列表。None 时自动加载 ``get_agent_tools()``。
@@ -138,13 +160,14 @@ def build_graph(tools: list | None = None) -> StateGraph:
     graph.add_edge(START, "reasoning_node")
     graph.add_edge("tool_node", "critic_node")
 
-    # ── 条件边 1: reasoning → tool 或跳过工具直达 critic ──
+    # ── 条件边 1: reasoning → tool / critic / END ──────────
     graph.add_conditional_edges(
         "reasoning_node",
         route_after_reasoning,
         {
             "tool_node": "tool_node",
             "critic_node": "critic_node",
+            END: END,
         },
     )
 

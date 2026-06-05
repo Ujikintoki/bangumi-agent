@@ -42,12 +42,34 @@ class TestRouteAfterReasoning:
         )) == "tool_node"
 
     def test_routes_to_critic_when_calls_empty(self):
-        assert route_after_reasoning(make_state(last_tool_calls=[])) == "critic_node"
+        """无工具调用且非 chitchat → critic_node"""
+        assert route_after_reasoning(make_state(
+            last_tool_calls=[], query_intent="lookup"
+        )) == "critic_node"
 
     def test_routes_to_critic_when_calls_missing(self):
         state = make_state(last_tool_calls=None)  # type: ignore
         del state["last_tool_calls"]  # type: ignore
         assert route_after_reasoning(state) == "critic_node"
+
+    def test_chitchat_fast_path_to_end(self):
+        """chitchat 无工具调用 → 快速通道直达 END"""
+        assert route_after_reasoning(make_state(
+            last_tool_calls=[], query_intent="chitchat"
+        )) == END
+
+    def test_factual_still_goes_to_critic(self):
+        """factual 不走快速通道 → critic_node"""
+        assert route_after_reasoning(make_state(
+            last_tool_calls=[], query_intent="factual"
+        )) == "critic_node"
+
+    def test_tool_calls_override_fast_path(self):
+        """即使 chitchat 意图，有工具调用时仍然走 tool_node"""
+        assert route_after_reasoning(make_state(
+            last_tool_calls=[{"name": "search", "args": {}, "id": "c1"}],
+            query_intent="chitchat",
+        )) == "tool_node"
 
 
 class TestRouteAfterCritic:

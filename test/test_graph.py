@@ -21,13 +21,14 @@ class TestGraphIntegration:
     """端到端图谱"""
 
     @patch("agent.nodes.create_llm")
-    def test_chitchat_skips_tools(self, mock_create_llm):
-        """'你好' → 不调工具 → critic → PASS → END"""
+    def test_chitchat_fast_path_skips_critic(self, mock_create_llm):
+        """'你好' → 快速通道直达 END，不经过 critic"""
         mock_create_llm.return_value = make_mock_llm(content="你好！有什么可以帮你的？")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(messages=[SystemMessage(content="..."), HumanMessage(content="你好")])
         result = graph.invoke(state)
-        assert result.get("critic_status") == "PASS"
+        # 快速通道：critic 从未被调用，状态保持 PENDING
+        assert result.get("critic_status") == "PENDING"
         assert result.get("query_intent") == "chitchat"
 
     @patch("agent.nodes.create_llm")
