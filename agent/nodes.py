@@ -18,6 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from agent.classifier import classify_intent
 from agent.llm import create_llm
+from agent.memory import manage_memory
 from agent.prompts import build_system_prompt
 from agent.state import AgentState
 from core.config import get_settings
@@ -60,6 +61,12 @@ def reasoning_node(state: AgentState) -> dict:
 
     new_iterations = state.get("iterations", 0) + 1
 
+    # ── Step 0.5: 记忆截断 ───────────────────────────────────
+    # 在进入 LLM 推理前检查 Token 预算，超限时滑动窗口截断旧消息。
+    # 工具返回数据量最不可控，因此在每轮 reasoning 开头检查。
+    messages = state.get("messages", [])
+    trimmed_messages = manage_memory(messages)
+
     # ── Step 1: 意图分类（仅第一轮） ─────────────────────────
     query_intent = state.get("query_intent", "unknown")
     intent_method = "cached"
@@ -91,8 +98,8 @@ def reasoning_node(state: AgentState) -> dict:
     # ── Step 3: 构建消息列表 ─────────────────────────────────
     messages_for_llm = [SystemMessage(content=system_content)]
 
-    # 追加历史消息（跳过原有的 SystemMessage，避免 prompt 叠加）
-    for m in state.get("messages", []):
+    # 追加历史消息（使用截断后的消息，跳过原有的 SystemMessage）
+    for m in trimmed_messages:
         if isinstance(m, SystemMessage):
             continue  # 用新的 SystemMessage 替换
         messages_for_llm.append(m)
