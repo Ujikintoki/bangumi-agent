@@ -21,3 +21,4 @@ build/
 
 # ── Generated / Cache ────────────────────────────────────
 test/mock_data/
+docs/tmp/
