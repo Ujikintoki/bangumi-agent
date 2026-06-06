@@ -56,7 +56,7 @@ class TestCriticNodeRule:
         assert critic_node(state)["critic_status"] == "PASS"
 
     def test_circuit_breaker(self):
-        for it in (3, 5):
+        for it in (5, 7):
             r = critic_node(make_state(iterations=it))
             assert r["critic_status"] == "PASS" and r["error_flag"] is True
 
@@ -155,6 +155,6 @@ class TestCriticNodeLLM:
     @patch("agent.nodes.create_llm")
     def test_circuit_breaker_in_llm_mode(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
-        r = critic_node(make_state(iterations=3))
+        r = critic_node(make_state(iterations=5))
         assert r["critic_status"] == "PASS" and r["error_flag"] is True
         mock_llm.assert_not_called()

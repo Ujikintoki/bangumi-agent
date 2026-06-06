@@ -211,7 +211,7 @@ def tool_node_manual_reference(state: AgentState) -> dict:
 # 自省节点（Phase 3 Step 4：定向反馈）
 # ═══════════════════════════════════════════════════════════════════
 
-_MAX_ITERATIONS = 3
+_MAX_ITERATIONS = 5
 
 
 def critic_node(state: AgentState) -> dict:
@@ -395,9 +395,11 @@ def _critic_node_llm(state: AgentState) -> dict:
 def _get_last_ai_response(messages: list) -> "AIMessage | None":
     """提取最后一条有实质内容的 AI 回复。
 
-    跳过纯 tool_call 的 AIMessage（content 为空）。
+    返回任意有 content 的 AIMessage（含附带 tool_calls 的混合回复）。
+    LLM 可能同时输出文字 + 工具调用（"我先介绍已知信息，同时帮你查最新数据"），
+    这种情况应视为有效回复，不能被 critic 误判为"无回复"。
     """
     for m in reversed(messages):
-        if isinstance(m, AIMessage) and m.content and not (hasattr(m, "tool_calls") and m.tool_calls):
+        if isinstance(m, AIMessage) and m.content:
             return m
     return None

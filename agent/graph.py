@@ -27,7 +27,7 @@ from tools.bgm_tools import get_agent_tools
 logger = logging.getLogger("bgm-agent.graph")
 
 # 最大允许的迭代轮次，超过此值强制终止以防无限递归
-_MAX_ITERATIONS = 3
+_MAX_ITERATIONS = 5
 
 
 # ── 条件路由: reasoning → tool / critic ──────────────────────
