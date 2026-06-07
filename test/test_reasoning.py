@@ -108,20 +108,23 @@ class TestReasoningNode:
 
     @patch("agent.research.nodes.create_llm")
     @patch("agent.research.nodes.get_agent_tools")
-    def test_critic_feedback_injected_and_cleared(self, mock_get_tools, mock_create_llm):
+    def test_critic_feedback_synthesis_mode(self, mock_get_tools, mock_create_llm):
+        """REVISE 轮次（有 critic_feedback）→ 工具仍绑定但 prompt 含合成指令"""
         mock_get_tools.return_value = []
-        mock = make_mock_llm(
-            content="",
-            tool_calls=[{"name": "get_bangumi_subject_detail", "args": {"subject_id": 123}, "id": "c2"}],
-        )
+        mock = make_mock_llm(content="攻壳机动队 S.A.C. 评分 9.1，排名 #12。")
         mock_create_llm.return_value = mock
 
         state = make_state(
             query_intent="lookup", iterations=1,
-            critic_feedback="缺少评分 | 调用 get_detail | 缺失评分",
+            critic_feedback="请基于工具返回的内容组织回答 | 回复缺失",
         )
         result = reasoning_node(state)
+        # 验证：工具仍然被绑定（不强制解绑）
+        mock.bind_tools.assert_called_once()
+        # 验证：feedback 已消费
         assert result["critic_feedback"] == ""
+        # 验证：LLM 合成出回复
+        assert result["last_tool_calls"] == []
 
     @patch("agent.research.nodes.create_llm")
     def test_preserves_existing_query_intent(self, mock_create_llm):

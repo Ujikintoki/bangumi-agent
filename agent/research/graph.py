@@ -21,13 +21,10 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from agent.research.nodes import critic_node, reasoning_node
-from agent.research.state import AgentState
+from agent.research.state import _MAX_ITERATIONS, AgentState
 from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.graph")
-
-# 最大允许的迭代轮次，超过此值强制终止以防无限递归
-_MAX_ITERATIONS = 5
 
 
 # ── 条件路由: reasoning → tool / critic ──────────────────────

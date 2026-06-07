@@ -227,8 +227,11 @@ def classify_intent_llm(user_message: str, llm: ChatOpenAI) -> str:
         intent 字符串，非预期值时 fallback 为 "unknown"。
     """
     try:
+        # 转义花括号：用户输入含 {name} 等字面量时，
+        # str.format() 会把它们当成占位符抛出 KeyError
+        safe_message = user_message.replace("{", "{{").replace("}", "}}")
         response = llm.invoke(
-            INTENT_CLASSIFIER_PROMPT.format(user_message=user_message)
+            INTENT_CLASSIFIER_PROMPT.format(user_message=safe_message)
         )
         raw = (
             response.content.strip().lower()

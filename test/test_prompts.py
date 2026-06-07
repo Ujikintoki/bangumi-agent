@@ -28,7 +28,7 @@ class TestPrompts:
 
     def test_build_includes_critic_feedback(self):
         result = build_system_prompt("lookup", critic_feedback="缺少评分 | 调用 get_detail")
-        assert "缺少评分" in result and "请针对以上问题修正" in result
+        assert "缺少评分" in result and "SYNTHESIS MODE" in result and "请直接基于已有数据回复" in result
 
     def test_build_no_feedback_when_empty(self):
         assert "上一轮回复需要改进" not in build_system_prompt("lookup")

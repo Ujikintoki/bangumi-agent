@@ -73,3 +73,9 @@ class AgentState(TypedDict):
 
     error_flag: bool
     """优雅降级标记，默认 False。置 True 时 reasoning_node 进入兜底模式。"""
+
+
+# ── Agent 全局常量 ────────────────────────────────────────────────────
+
+_MAX_ITERATIONS = 5
+"""最大 ReAct 迭代轮次。graph 条件边和 critic 节点都引用此值做熔断。"""

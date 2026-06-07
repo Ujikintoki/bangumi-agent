@@ -20,8 +20,40 @@ from agent.research.prompts import BASE_SYSTEM_PROMPT
 from agent.research.state import AgentState
 from core.config import get_settings
 
-logger = logging.getLogger("bgm-agent")
 settings = get_settings()
+
+
+def _setup_logging() -> None:
+    """初始化 bgm-agent 命名空间下的所有 logger。
+
+    默认输出到 stdout，日志级别由环境变量 BGM_LOG_LEVEL 控制（默认 INFO）。
+    避免触碰 root logger 以防干扰 uvicorn/sqlalchemy 的独立配置。
+    """
+    level_name = __import__("os").environ.get("BGM_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    # 根 logger for bgm-agent 命名空间
+    root = logging.getLogger("bgm-agent")
+    root.setLevel(level)
+    root.propagate = False  # 不向 root logger 重复传播
+
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(level)
+        fmt = logging.Formatter(
+            "[%(asctime)s] %(levelname)-5s %(name)s | %(message)s",
+            datefmt="%m-%d %H:%M:%S",
+        )
+        handler.setFormatter(fmt)
+        root.addHandler(handler)
+
+    # 抑制 sqlalchemy engine 的 SQL 日志（太吵），除非显式设了 DEBUG
+    if level_name != "DEBUG":
+        logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+
+_setup_logging()
+logger = logging.getLogger("bgm-agent")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -218,7 +250,10 @@ async def chat_stream(request: ChatRequest):
 def _extract_final_reply(messages: list) -> str:
     """从消息历史中提取最终 AI 回复。
 
-    查找最后一条有实质内容且不含 tool_calls 的 AIMessage。
+    两级降级策略：
+        1. 查找最后一条不含 tool_calls 且有内容的 AIMessage（理想情况）
+        2. 退而求其次：任何有内容的 AIMessage（含仍带 tool_calls 的过渡语）
+        3. 最终兜底
 
     Args:
         messages: 完整的消息历史列表。
@@ -226,9 +261,19 @@ def _extract_final_reply(messages: list) -> str:
     Returns:
         最终回复文本。未找到时返回兜底消息。
     """
+    # 第一遍：不含 tool_calls 的干净回复
     for m in reversed(messages):
-        if isinstance(m, AIMessage) and m.content and not (hasattr(m, "tool_calls") and m.tool_calls):
+        if isinstance(m, AIMessage) and m.content:
+            has_tc = hasattr(m, "tool_calls") and m.tool_calls
+            if not has_tc:
+                return m.content
+
+    # 第二遍：退而求其次——有内容的 AIMessage（即使还挂着 tool_calls）
+    # 说明 Critic 未触发新一轮合成，但至少有部分内容可以展示
+    for m in reversed(messages):
+        if isinstance(m, AIMessage) and m.content:
             return m.content
+
     return "抱歉，无法处理您的请求。"
 
 

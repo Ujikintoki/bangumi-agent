@@ -28,6 +28,34 @@ class TestCriticNodeRule:
         assert result["critic_status"] == "REVISE"
         assert "回复缺失" in result.get("critic_feedback", "")
 
+    def test_revise_when_last_ai_has_tool_calls(self):
+        """过渡语陷阱：LLM 输出了文字 + tool_calls，但还没处理工具结果 → REVISE"""
+        state = make_state(iterations=1, messages=[
+            SystemMessage(content="..."), HumanMessage(content="攻壳机动队的评分？"),
+            AIMessage(
+                content="让我帮你搜索一下攻壳机动队的信息。",
+                tool_calls=[{"name": "search_bangumi_subject", "args": {"keyword": "攻壳机动队"}, "id": "c1"}],
+            ),
+            ToolMessage(content="找到 3 个结果: 攻壳机动队 S.A.C. ...", tool_call_id="c1"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "REVISE"
+        assert "工具结果未消费" in result.get("critic_feedback", "")
+
+    def test_pass_when_tool_results_synthesized(self):
+        """工具结果已被消费：最后 AIMessage 不含 tool_calls → PASS"""
+        state = make_state(iterations=2, messages=[
+            SystemMessage(content="..."), HumanMessage(content="攻壳机动队的评分？"),
+            AIMessage(
+                content="让我帮你搜索。",
+                tool_calls=[{"name": "search_bangumi_subject", "args": {"keyword": "攻壳机动队"}, "id": "c1"}],
+            ),
+            ToolMessage(content="找到 3 个结果", tool_call_id="c1"),
+            AIMessage(content="攻壳机动队 S.A.C. 评分 9.1，排名 #12，是一部经典的赛博朋克科幻番。"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "PASS"
+
     def test_revise_when_reply_too_short(self):
         state = make_state(iterations=1, messages=[
             SystemMessage(content="..."), HumanMessage(content="搜巨人"),

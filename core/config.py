@@ -119,10 +119,6 @@ class Settings(BaseSettings):
 
     推荐先用规则版验证流程，确认 ReAct 循环和 feedback 注入机制正确后，
     切换到 LLM 版获得更精准的评估。"""
-    """Critic 节点专用模型（可选）。留空则默认使用 LLM_MODEL。
-
-    允许为 Critic 使用更便宜的小模型（如 gpt-4o-mini）以降低评估成本。
-    """
 
     # ── 智谱 AI 配置 ──────────────────────────────────────────
     ZHIPU_API_KEY: str = ""

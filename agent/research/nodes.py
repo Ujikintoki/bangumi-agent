@@ -20,7 +20,7 @@ from agent.classifier import classify_intent
 from agent.llm import create_llm
 from agent.memory import manage_memory
 from agent.research.prompts import build_system_prompt
-from agent.research.state import AgentState
+from agent.research.state import _MAX_ITERATIONS, AgentState
 from core.config import get_settings
 from tools.bgm_tools import get_agent_tools
 
@@ -120,12 +120,14 @@ def reasoning_node(state: AgentState) -> dict:
         response: AIMessage = llm_to_use.invoke(messages_for_llm)
     except Exception as e:
         logger.exception("reasoning_node: LLM 调用失败")
+        # 保留 state 中已有的 critic_feedback：它来自上一轮 Critic 的评估，
+        # 丢弃会让下一轮 REVISE 失去方向，浪费一个修正轮次。
         return {
             "messages": [AIMessage(content=f"抱歉，AI 服务暂时不可用：{e}")],
             "last_tool_calls": [],
             "query_intent": query_intent,
             "iterations": new_iterations,
-            "critic_feedback": "",
+            "critic_feedback": state.get("critic_feedback", ""),
         }
 
     # ── Step 5: 提取 tool_calls ──────────────────────────────
@@ -211,9 +213,6 @@ def tool_node_manual_reference(state: AgentState) -> dict:
 # 自省节点（Phase 3 Step 4：定向反馈）
 # ═══════════════════════════════════════════════════════════════════
 
-_MAX_ITERATIONS = 5
-
-
 def critic_node(state: AgentState) -> dict:
     """自省节点：评估 LLM 输出质量，输出定向反馈。
 
@@ -244,10 +243,11 @@ def critic_node(state: AgentState) -> dict:
 def _critic_node_rule(state: AgentState) -> dict:
     """规则版 Critic：快速结构化检查，零 Token 消耗。
 
-    检查维度：
-        1. 熔断防御：iterations >= 3 → 强制 PASS
+    检查维度（顺序即优先级）：
+        1. 熔断防御：iterations >= _MAX_ITERATIONS → 强制 PASS
         2. 回复缺失：工具返回了数据但 LLM 未生成有效回复 → REVISE
-        3. 回复过短：有工具数据但回复 < 20 字 → REVISE
+        3. 过渡语陷阱：最后 AI 回复仍带 tool_calls（未消费工具结果）→ REVISE
+        4. 回复过短：有工具数据但回复 < 20 字 → REVISE
     """
     iterations = state.get("iterations", 0)
 
@@ -275,6 +275,25 @@ def _critic_node_rule(state: AgentState) -> dict:
                 "工具已返回数据但未生成有效回复 | "
                 "请基于工具返回的内容组织自然语言回答 | "
                 "回复缺失"
+            ),
+        }
+
+    # ── 检查 1.5: 工具返回了数据，但最后 AI 回复仍带 tool_calls ──
+    # 说明 LLM 只是输出了"过渡语 + 工具调用"，尚未基于工具结果合成最终回复。
+    # 必须再走一轮 reasoning_node 把 ToolMessage 的内容消化掉。
+    if (
+        has_tool_msgs
+        and last_ai
+        and hasattr(last_ai, "tool_calls")
+        and last_ai.tool_calls
+    ):
+        logger.debug("critic(rule): 最后 AI 回复仍带 tool_calls（未处理工具结果）→ REVISE")
+        return {
+            "critic_status": "REVISE",
+            "critic_feedback": (
+                "回复仅为过渡语，尚未基于工具返回的数据合成最终回答 | "
+                "请基于工具返回的内容组织完整的自然语言回复 | "
+                "工具结果未消费"
             ),
         }
 

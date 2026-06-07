@@ -194,12 +194,19 @@ def build_system_prompt(
     intent_prompt = INTENT_PROMPTS.get(intent, INTENT_PROMPTS["unknown"])
     parts.append(intent_prompt)
 
-    # Critic 反馈注入
+    # Critic 反馈注入 → 合成轮策略
+    # 将"禁止工具调用"指令放在 prompt 最开头（最高注意力位置），
+    # 否则 DeepSeek 等模型会忽略中段的反馈继续调工具，导致死循环。
     if critic_feedback:
+        synthesis_header = (
+            "## SYNTHESIS MODE — 本轮禁止调用工具，直接生成回复\n"
+            "你已经从工具拿到了数据。现在只用对话历史中的数据组织回答，不要发起新的工具调用。\n"
+        )
+        parts.insert(0, synthesis_header)
         parts.append(
             "\n## ⚠️ 上一轮回复需要改进\n"
             f"{critic_feedback}\n"
-            "请针对以上问题修正你的回复。"
+            "请直接基于已有数据回复，不要调用任何工具。"
         )
 
     return "\n".join(parts)
