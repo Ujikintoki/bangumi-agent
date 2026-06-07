@@ -15,9 +15,9 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel, Field
 
-from agent.graph import agent_app
-from agent.prompts import BASE_SYSTEM_PROMPT
-from agent.state import AgentState
+from agent.research.graph import agent_app
+from agent.research.prompts import BASE_SYSTEM_PROMPT
+from agent.research.state import AgentState
 from core.config import get_settings
 
 logger = logging.getLogger("bgm-agent")

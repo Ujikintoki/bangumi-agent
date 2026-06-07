@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from agent.nodes import reasoning_node
+from agent.research.nodes import reasoning_node
 from test.conftest import make_mock_llm, make_state
 
 # ═══════════════════════════════════════════════════════════════════
@@ -22,7 +22,7 @@ from test.conftest import make_mock_llm, make_state
 class TestReasoningNode:
     """reasoning_node — mock LLM"""
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_chitchat_does_not_bind_tools(self, mock_create_llm):
         """chitchat（规则命中） → 不绑定工具"""
         mock = make_mock_llm(content="你好！有什么可以帮你的？")
@@ -36,7 +36,7 @@ class TestReasoningNode:
         assert result["last_tool_calls"] == []
         assert result["query_intent"] == "chitchat"
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_factual_does_not_bind_tools(self, mock_create_llm):
         """factual → 不绑定工具"""
         mock = make_mock_llm(content="三集定律是指...")
@@ -49,8 +49,8 @@ class TestReasoningNode:
         mock.bind_tools.assert_not_called()
         assert result["query_intent"] == "factual"
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.research.nodes.create_llm")
+    @patch("agent.research.nodes.get_agent_tools")
     def test_lookup_binds_tools(self, mock_get_tools, mock_create_llm):
         """lookup → 绑定工具并返回 tool_calls"""
         mock_get_tools.return_value = []
@@ -67,8 +67,8 @@ class TestReasoningNode:
         assert len(result["last_tool_calls"]) == 1
         assert result["last_tool_calls"][0]["name"] == "search_bangumi_subject"
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.research.nodes.create_llm")
+    @patch("agent.research.nodes.get_agent_tools")
     def test_discovery_binds_tools(self, mock_get_tools, mock_create_llm):
         """discovery → 绑定工具"""
         mock_get_tools.return_value = []
@@ -82,7 +82,7 @@ class TestReasoningNode:
         result = reasoning_node(state)
         mock.bind_tools.assert_called_once()
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_no_tool_calls_when_llm_answers_directly(self, mock_create_llm):
         mock = make_mock_llm(content="顶上战争是...", tool_calls=[])
         mock_create_llm.return_value = mock
@@ -91,14 +91,14 @@ class TestReasoningNode:
         result = reasoning_node(state)
         assert result["last_tool_calls"] == []
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_error_flag_returns_fallback(self, mock_create_llm):
         state = make_state(error_flag=True)
         result = reasoning_node(state)
         assert result["last_tool_calls"] == []
         assert "抱歉" in str(result["messages"][0].content)
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_increments_iterations(self, mock_create_llm):
         mock = make_mock_llm(content="test")
         mock_create_llm.return_value = mock
@@ -106,8 +106,8 @@ class TestReasoningNode:
         state = make_state(query_intent="chitchat", iterations=0)
         assert reasoning_node(state)["iterations"] == 1
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.research.nodes.create_llm")
+    @patch("agent.research.nodes.get_agent_tools")
     def test_critic_feedback_injected_and_cleared(self, mock_get_tools, mock_create_llm):
         mock_get_tools.return_value = []
         mock = make_mock_llm(
@@ -123,7 +123,7 @@ class TestReasoningNode:
         result = reasoning_node(state)
         assert result["critic_feedback"] == ""
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_preserves_existing_query_intent(self, mock_create_llm):
         mock = make_mock_llm(content="已修正")
         mock_create_llm.return_value = mock
@@ -131,7 +131,7 @@ class TestReasoningNode:
         state = make_state(query_intent="lookup", iterations=1)
         assert reasoning_node(state)["query_intent"] == "lookup"
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_handles_llm_call_failure(self, mock_create_llm):
         mock = make_mock_llm()
         mock.invoke.side_effect = RuntimeError("Connection timeout")

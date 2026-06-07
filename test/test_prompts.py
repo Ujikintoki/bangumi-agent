@@ -9,7 +9,7 @@ CRITIC_SYSTEM_PROMPT 完整性。
 from __future__ import annotations
 
 from agent.classifier import _VALID_INTENTS
-from agent.prompts import (
+from agent.research.prompts import (
     BASE_SYSTEM_PROMPT,
     CRITIC_SYSTEM_PROMPT,
     INTENT_PROMPTS,

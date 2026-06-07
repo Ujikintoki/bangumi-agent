@@ -20,8 +20,8 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from agent.nodes import critic_node, reasoning_node
-from agent.state import AgentState
+from agent.research.nodes import critic_node, reasoning_node
+from agent.research.state import AgentState
 from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.graph")

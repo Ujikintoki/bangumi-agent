@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from agent.state import AgentState
+from agent.research.state import AgentState
 from test.conftest import (
     MOCK_TOOLS,
     make_state,

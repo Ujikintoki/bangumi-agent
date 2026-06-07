@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage, HumanMessage
 
-from agent.nodes import critic_node
+from agent.research.nodes import critic_node
 from test.conftest import make_mock_llm, make_state
 
 
@@ -85,8 +85,8 @@ class TestCriticNodeLLM:
         s.LLM_MODEL = "test"
         mock_get_settings.return_value = s
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.get_settings")
+    @patch("agent.research.nodes.create_llm")
     def test_pass(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock_llm.return_value = make_mock_llm(content="PASS: 回复完整。")
@@ -97,8 +97,8 @@ class TestCriticNodeLLM:
         r = critic_node(state)
         assert r["critic_status"] == "PASS" and "PASS" in r["critic_feedback"]
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.get_settings")
+    @patch("agent.research.nodes.create_llm")
     def test_revise_with_feedback(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock_llm.return_value = make_mock_llm(
@@ -112,8 +112,8 @@ class TestCriticNodeLLM:
         assert r["critic_status"] == "REVISE"
         assert "get_detail" in r["critic_feedback"]
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.get_settings")
+    @patch("agent.research.nodes.create_llm")
     def test_escape_hatch(self, mock_llm, mock_settings):
         """逃逸舱：API 无数据 → 强制 PASS"""
         self._set_mode(mock_settings, "llm")
@@ -129,8 +129,8 @@ class TestCriticNodeLLM:
         r = critic_node(state)
         assert r["critic_status"] == "PASS", f"逃逸舱失效！got: {r.get('critic_feedback')}"
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.get_settings")
+    @patch("agent.research.nodes.create_llm")
     def test_default_pass_on_llm_error(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock = make_mock_llm()
@@ -141,8 +141,8 @@ class TestCriticNodeLLM:
         ])
         assert critic_node(state)["critic_status"] == "PASS"
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.get_settings")
+    @patch("agent.research.nodes.create_llm")
     def test_default_pass_on_unexpected_output(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock_llm.return_value = make_mock_llm(content="UNKNOWN xyz")
@@ -151,8 +151,8 @@ class TestCriticNodeLLM:
         ])
         assert critic_node(state)["critic_status"] == "PASS"
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.get_settings")
+    @patch("agent.research.nodes.create_llm")
     def test_circuit_breaker_in_llm_mode(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         r = critic_node(make_state(iterations=5))

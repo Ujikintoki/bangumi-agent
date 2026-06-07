@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from langgraph.graph import END
 
-from agent.graph import _MAX_ITERATIONS, route_after_critic, route_after_reasoning
-from agent.nodes import _extract_user_input
+from agent.research.graph import _MAX_ITERATIONS, route_after_critic, route_after_reasoning
+from agent.research.nodes import _extract_user_input
 from test.conftest import make_state
 
 

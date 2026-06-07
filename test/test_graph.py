@@ -12,9 +12,9 @@ from unittest.mock import call, patch
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.graph import build_graph
+from agent.research.graph import build_graph
 from agent.memory import estimate_tokens
-from agent.nodes import _get_last_ai_response, reasoning_node
+from agent.research.nodes import _get_last_ai_response, reasoning_node
 from test.conftest import MOCK_TOOLS, make_mock_llm, make_state
 
 # ═══════════════════════════════════════════════════════════════════
@@ -25,7 +25,7 @@ from test.conftest import MOCK_TOOLS, make_mock_llm, make_state
 class TestGraphIntegration:
     """端到端图谱：基本路径 + 熔断"""
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_chitchat_fast_path_skips_critic(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="你好！")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -34,7 +34,7 @@ class TestGraphIntegration:
         assert result.get("critic_status") == "PENDING"  # critic 从未被调用
         assert result.get("query_intent") == "chitchat"
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_circuit_breaker(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="test")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -46,7 +46,7 @@ class TestGraphIntegration:
         result = graph.invoke(state)
         assert result.get("error_flag") is True
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_factual_skips_tools(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="三集定律是指...")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -54,7 +54,7 @@ class TestGraphIntegration:
         result = graph.invoke(state)
         assert result.get("critic_status") == "PASS"
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.research.nodes.create_llm")
     def test_query_intent_persists_across_rounds(self, mock_create_llm):
         """query_intent 在 REVISE 重入 reasoning 时不丢失"""
         mock_create_llm.return_value = make_mock_llm(content="done")
@@ -76,8 +76,8 @@ class TestGraphIntegration:
 class TestCriticFeedbackPropagation:
     """验证 critic_feedback 确实注入到下一轮 reasoning_node 的 LLM 调用"""
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.research.nodes.create_llm")
+    @patch("agent.research.nodes.get_agent_tools")
     def test_feedback_appears_in_llm_prompt(self, mock_get_tools, mock_create_llm):
         """critic_feedback 文本出现在发送给 LLM 的 SystemMessage 中"""
         mock_get_tools.return_value = []
@@ -120,7 +120,7 @@ class TestMemoryGraphIntegration:
         state = make_state(messages=messages, query_intent="chitchat")
 
         # 手动调用 reasoning_node（mock create_llm 避免真实 LLM 调用）
-        with patch("agent.nodes.create_llm") as mock_create_llm:
+        with patch("agent.research.nodes.create_llm") as mock_create_llm:
             mock_llm = make_mock_llm(content="你好！")
             mock_create_llm.return_value = mock_llm
             result = reasoning_node(state)
@@ -153,9 +153,9 @@ class TestStateLifecycle:
 
     def test_last_tool_calls_not_polluted_by_tool_node(self):
         """ToolNode 图执行后 last_tool_calls 保持 reasoning_node 设置的值"""
-        from agent.graph import build_graph
+        from agent.research.graph import build_graph
 
-        @patch("agent.nodes.create_llm")
+        @patch("agent.research.nodes.create_llm")
         def _test(mock_llm):
             mock_llm.return_value = make_mock_llm(
                 content="",
@@ -174,7 +174,7 @@ class TestStateLifecycle:
 
     def test_critic_status_transitions(self):
         """critic_status 正常流转: PENDING → REVISE → PASS"""
-        from agent.nodes import critic_node
+        from agent.research.nodes import critic_node
         from langchain_core.messages import AIMessage, ToolMessage
 
         # REVISE: 工具返回但无有效回复

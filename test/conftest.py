@@ -13,7 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool as langchain_tool
 from langchain_openai import ChatOpenAI
 
-from agent.state import AgentState
+from agent.research.state import AgentState
 
 
 # ═══════════════════════════════════════════════════════════════════

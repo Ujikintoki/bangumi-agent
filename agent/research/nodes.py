@@ -19,8 +19,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from agent.classifier import classify_intent
 from agent.llm import create_llm
 from agent.memory import manage_memory
-from agent.prompts import build_system_prompt
-from agent.state import AgentState
+from agent.research.prompts import build_system_prompt
+from agent.research.state import AgentState
 from core.config import get_settings
 from tools.bgm_tools import get_agent_tools
 
@@ -317,7 +317,7 @@ def _critic_node_llm(state: AgentState) -> dict:
     评估维度：完整性、具体性、工具利用。
     逃逸舱：助手已调工具并如实告知数据不存在 → 强制 PASS。
     """
-    from agent.prompts import CRITIC_SYSTEM_PROMPT
+    from agent.research.prompts import CRITIC_SYSTEM_PROMPT
 
     iterations = state.get("iterations", 0)
 
