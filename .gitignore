@@ -22,4 +22,5 @@ build/
 # ── Generated / Cache ────────────────────────────────────
 test/mock_data/
 docs/tmp/
-docs/tmp
+docs/phase3/
+test/AI.js
