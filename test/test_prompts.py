@@ -28,7 +28,7 @@ class TestPrompts:
 
     def test_build_includes_critic_feedback(self):
         result = build_system_prompt("lookup", critic_feedback="缺少评分 | 调用 get_detail")
-        assert "缺少评分" in result and "SYNTHESIS MODE" in result and "请直接基于已有数据回复" in result
+        assert "缺少评分" in result and "请针对以上问题修正" in result
 
     def test_build_no_feedback_when_empty(self):
         assert "上一轮回复需要改进" not in build_system_prompt("lookup")
@@ -49,3 +49,25 @@ class TestPrompts:
     def test_critic_prompt_has_escape_hatch(self):
         assert "逃逸舱" in CRITIC_SYSTEM_PROMPT or "Escape Hatch" in CRITIC_SYSTEM_PROMPT
         assert "必须判定为 PASS" in CRITIC_SYSTEM_PROMPT
+
+    # ── 数据模型约束 & 退出条件 ────────────────────────────
+
+    def test_base_prompt_has_data_model_constraint(self):
+        """BASE_SYSTEM_PROMPT 应包含角色/人物无评分的领域约束"""
+        assert "只有" in BASE_SYSTEM_PROMPT and "评分" in BASE_SYSTEM_PROMPT
+        assert "角色" in BASE_SYSTEM_PROMPT and "没有评分" in BASE_SYSTEM_PROMPT or "没有" in BASE_SYSTEM_PROMPT
+        assert "collects" in BASE_SYSTEM_PROMPT
+
+    def test_lookup_has_exit_conditions(self):
+        """lookup prompt 应包含退出条件和名称消歧指导"""
+        lookup = INTENT_PROMPTS["lookup"]
+        assert "退出条件" in lookup
+        assert "名称消歧" in lookup
+        assert "诚实告知" in lookup
+        assert "追问" in lookup
+
+    def test_discovery_has_exit_conditions(self):
+        """discovery prompt 应包含退出条件"""
+        discovery = INTENT_PROMPTS["discovery"]
+        assert "退出条件" in discovery
+        assert "诚实告知" in discovery

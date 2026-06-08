@@ -152,23 +152,26 @@ class TestStateLifecycle:
     """验证跨轮次 state 字段的完整性"""
 
     def test_last_tool_calls_not_polluted_by_tool_node(self):
-        """ToolNode 图执行后 last_tool_calls 保持 reasoning_node 设置的值"""
+        """ToolNode 完成后 last_tool_calls 由后续 reasoning_node 更新，不被 tool_node 触碰"""
         from agent.research.graph import build_graph
 
         @patch("agent.research.nodes.create_llm")
         def _test(mock_llm):
+            # 第一轮：调工具。第二轮：消化结果后直接回复（不调新工具）
             mock_llm.return_value = make_mock_llm(
-                content="",
-                tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}],
+                content="根据搜索结果，巨人评分 8.5 分。",
+                tool_calls=[],
             )
             graph = build_graph(tools=MOCK_TOOLS)
             state = make_state(
                 messages=[SystemMessage(content="..."), HumanMessage(content="搜巨人")],
                 query_intent="lookup",
+                # 模拟已完成一轮工具调用的状态
+                last_tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}],
             )
             result = graph.invoke(state)
-            # ToolNode 不应该清空 last_tool_calls
-            assert "last_tool_calls" in result
+            # ToolNode 执行后，reasoning 消化结果，last_tool_calls 应为空
+            assert result.get("last_tool_calls", []) == []
 
         _test()
 

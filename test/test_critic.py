@@ -28,34 +28,6 @@ class TestCriticNodeRule:
         assert result["critic_status"] == "REVISE"
         assert "回复缺失" in result.get("critic_feedback", "")
 
-    def test_revise_when_last_ai_has_tool_calls(self):
-        """过渡语陷阱：LLM 输出了文字 + tool_calls，但还没处理工具结果 → REVISE"""
-        state = make_state(iterations=1, messages=[
-            SystemMessage(content="..."), HumanMessage(content="攻壳机动队的评分？"),
-            AIMessage(
-                content="让我帮你搜索一下攻壳机动队的信息。",
-                tool_calls=[{"name": "search_bangumi_subject", "args": {"keyword": "攻壳机动队"}, "id": "c1"}],
-            ),
-            ToolMessage(content="找到 3 个结果: 攻壳机动队 S.A.C. ...", tool_call_id="c1"),
-        ])
-        result = critic_node(state)
-        assert result["critic_status"] == "REVISE"
-        assert "工具结果未消费" in result.get("critic_feedback", "")
-
-    def test_pass_when_tool_results_synthesized(self):
-        """工具结果已被消费：最后 AIMessage 不含 tool_calls → PASS"""
-        state = make_state(iterations=2, messages=[
-            SystemMessage(content="..."), HumanMessage(content="攻壳机动队的评分？"),
-            AIMessage(
-                content="让我帮你搜索。",
-                tool_calls=[{"name": "search_bangumi_subject", "args": {"keyword": "攻壳机动队"}, "id": "c1"}],
-            ),
-            ToolMessage(content="找到 3 个结果", tool_call_id="c1"),
-            AIMessage(content="攻壳机动队 S.A.C. 评分 9.1，排名 #12，是一部经典的赛博朋克科幻番。"),
-        ])
-        result = critic_node(state)
-        assert result["critic_status"] == "PASS"
-
     def test_revise_when_reply_too_short(self):
         state = make_state(iterations=1, messages=[
             SystemMessage(content="..."), HumanMessage(content="搜巨人"),
@@ -100,6 +72,60 @@ class TestCriticNodeRule:
         ])
         fb = critic_node(state)["critic_feedback"]
         assert fb.count("|") >= 2
+
+    # ── 逃逸舱：语义终端回复识别 ──────────────────────────
+
+    def test_pass_for_honest_not_found(self):
+        """搜索空结果 + 诚实告知 → PASS（不因字数少而 REVISE）"""
+        state = make_state(iterations=2, messages=[
+            SystemMessage(content="..."), HumanMessage(content="查上伊娜牡丹"),
+            AIMessage(content="", tool_calls=[{"name": "search_bangumi_subject", "args": {}, "id": "c1"}]),
+            ToolMessage(content="未找到匹配条目", tool_call_id="c1"),
+            AIMessage(content="未找到上伊娜牡丹的相关信息。"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "PASS", (
+            f"诚实告知'未找到'应被逃逸舱保护为 PASS，实际: {result.get('critic_feedback')}"
+        )
+
+    def test_pass_for_clarification(self):
+        """追问用户澄清意图 → PASS"""
+        state = make_state(iterations=2, messages=[
+            SystemMessage(content="..."), HumanMessage(content="评分多少"),
+            AIMessage(content="", tool_calls=[{"name": "search_bangumi_subject", "args": {}, "id": "c1"}]),
+            ToolMessage(content="找到 50 个结果", tool_call_id="c1"),
+            AIMessage(content="您是指哪一部作品？巨人还是鲁路修？"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "PASS", (
+            f"追问用户应被逃逸舱保护为 PASS，实际: {result.get('critic_feedback')}"
+        )
+
+    def test_pass_for_character_no_rating_explanation(self):
+        """说明角色没有评分 → PASS"""
+        state = make_state(iterations=2, messages=[
+            SystemMessage(content="..."), HumanMessage(content="上伊那牡丹的评分"),
+            AIMessage(content="", tool_calls=[{"name": "search_local_bangumi", "args": {}, "id": "c1"}]),
+            ToolMessage(content="角色信息", tool_call_id="c1"),
+            AIMessage(content="上伊那牡丹是一个角色，角色本身没有评分。她所属的作品评分可为您查询。"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "PASS", (
+            f"角色无评分说明应被逃逸舱保护为 PASS，实际: {result.get('critic_feedback')}"
+        )
+
+    def test_still_revise_for_truly_short_reply(self):
+        """有工具数据但回复真正过短且非终端语义 → 仍然 REVISE"""
+        state = make_state(iterations=1, messages=[
+            SystemMessage(content="..."), HumanMessage(content="搜巨人"),
+            AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
+            ToolMessage(content="找到 5 个结果，评分 8.5", tool_call_id="c1"),
+            AIMessage(content="好的。"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "REVISE", (
+            "仅说'好的'不包含追问/澄清/诚实告知，应继续 REVISE"
+        )
 
 
 class TestCriticNodeLLM:

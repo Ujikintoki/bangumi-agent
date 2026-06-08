@@ -1,15 +1,24 @@
 """
 LangGraph 图谱编排
 
-核心拓扑：reasoning → (条件边) → tool/critic/END → (条件边) → END/retry
+核心拓扑
+========
 
-决策矩阵：
-    - tool_calls 非空 → ToolNode → critic → END/retry
-    - intent = chitchat → END（快速通道，跳过 critic）
-    - 其他无工具调用 → critic → END/retry
+完整工具调用回合: reasoning → tool → reasoning → (条件边) → critic/END
+无工具调用路径:   reasoning → (条件边) → critic/END → END/retry
+快速通道:         reasoning → END（chitchat，跳过 tool 和 critic）
 
-Phase 3 Step 3 升级：tool_node 从占位实现切换为 LangGraph 内置 ``ToolNode``。
-快速通道：chitchat 直接结束，不经过质量自省。factual 仍然经过 critic。
+关键设计决策：tool_node 后回到 reasoning_node 而非 critic_node
+-----------------------------------------------------------------
+LLM 需要看到工具返回的结果才能生成自然语言回复。如果工具执行后直接进入
+critic，LLM 没有机会消化工具数据——critic 评估的是"空壳"tool_call 消息
+而非对工具结果的回应。
+
+一轮完整的工具回合：reasoning（决定调工具）→ tool（执行）→ reasoning（消化结果，生成回复）
+
+Critic 永远评估 LLM 在**看到工具结果后**生成的回复，这保证了：
+- 工具返回空时，LLM 可以诚实告知"未找到"而非被 critic 误判
+- 工具返回数据时，LLM 已被 prompt 要求生成文字回复后才到 critic
 """
 
 from __future__ import annotations
@@ -29,23 +38,23 @@ logger = logging.getLogger("bgm-agent.graph")
 
 # ── 条件路由: reasoning → tool / critic ──────────────────────
 
-
 # 快速通道意图：纯闲聊跳过 Critic，直接结束。
-# 注意：factual 不走快速通道——"什么是三集定律"和"什么是麻辣仙人"
-# 对 LLM 的难度不同，Critic 有真实价值。
 _FAST_PATH_INTENTS = frozenset({"chitchat"})
 
 
-def route_after_reasoning(state: AgentState) -> Literal["tool_node", "critic_node", "__end__"]:
+def route_after_reasoning(
+    state: AgentState,
+) -> Literal["tool_node", "critic_node", "__end__"]:
     """reasoning_node 之后的条件边。
 
-    三级路由决策：
-        1. last_tool_calls 非空 → tool_node（执行工具后进 critic）
-        2. query_intent = chitchat 且无工具调用 → END（快速通道，跳过 critic）
-        3. 其他无工具调用 → critic_node（质量评估）
+    四级路由决策（优先级从高到低）：
+        1. last_tool_calls 非空 + iterations < MAX → tool_node
+        2. last_tool_calls 非空 + iterations >= MAX → critic_node（熔断，跳过工具）
+        3. query_intent = chitchat 且无工具调用 → END（快速通道）
+        4. 其他无工具调用 → critic_node（质量评估）
 
-    快速通道的设计理由：闲聊和常识问答不需要质量检查。
-    对于"你好"→"你好！"这类直接回复，Critic 没有可验证的维度。
+    新增熔断：当 tool → reasoning → tool 循环耗尽迭代预算时，
+    即使还有待执行的 tool_calls，也强制进入 critic 终止。
 
     Args:
         state: 当前 Agent 全局状态。
@@ -54,7 +63,15 @@ def route_after_reasoning(state: AgentState) -> Literal["tool_node", "critic_nod
         ``"tool_node"``、``"critic_node"`` 或 ``"__end__"``。
     """
     last_tool_calls = state.get("last_tool_calls", [])
+    iterations = state.get("iterations", 0)
+
     if last_tool_calls:
+        if iterations >= _MAX_ITERATIONS:
+            logger.warning(
+                "route_after_reasoning: 迭代已达上限 %d，跳过工具调用强制进入 critic",
+                _MAX_ITERATIONS,
+            )
+            return "critic_node"
         logger.debug(
             "route_after_reasoning: last_tool_calls=%s → tool_node",
             [tc.get("name", "?") for tc in last_tool_calls],
@@ -66,11 +83,14 @@ def route_after_reasoning(state: AgentState) -> Literal["tool_node", "critic_nod
         logger.debug("route_after_reasoning: intent=%s → 快速通道 END", query_intent)
         return END
 
-    logger.debug("route_after_reasoning: intent=%s 无工具调用 → critic_node", query_intent)
+    logger.debug(
+        "route_after_reasoning: intent=%s 无工具调用 → critic_node", query_intent
+    )
     return "critic_node"
 
 
 # ── 条件路由: critic → retry / END ───────────────────────────
+# 我们的问题：默认在最大iterarions中，一定能找到合适的工具调用并返回具体数据吗？如果不能，是否应该允许agent在没有工具调用的情况下直接修正回复，而不是强制要求工具调用？（因为有些问题可能确实不需要工具调用，或者工具调用无法提供有用信息）
 
 
 def route_after_critic(state: AgentState) -> Literal["reasoning_node", "__end__"]:
@@ -79,7 +99,7 @@ def route_after_critic(state: AgentState) -> Literal["reasoning_node", "__end__"
     决策矩阵：
 
         +----------------+----------------+----------------+
-        | critic_status  | iterations < 3 | iterations >= 3|
+        | critic_status  | iterations < 5 | iterations >= 5|
         +================+================+================+
         | PASS           | → END          | → END          |
         +----------------+----------------+----------------+
@@ -107,6 +127,9 @@ def route_after_critic(state: AgentState) -> Literal["reasoning_node", "__end__"
     return "reasoning_node"
 
 
+# 自省后，不要重复调用工具，是否允许agent向用户询问更多信息或直接修正回复即可。工具调用的重复最多允许一次（reasoning → tool → critic → reasoning → critic），超过两次就强制结束，避免死循环。
+# 还是有更明智的解决方案？
+
 # ── 图谱构建 ──────────────────────────────────────────────────
 
 
@@ -115,26 +138,32 @@ def build_graph(tools: list | None = None) -> StateGraph:
 
     图谱拓扑::
 
-                    START
-                      │
-                      ▼
-               reasoning_node
-                      │
-                      ▼ (条件边: last_tool_calls? intent?)
-               ┌──────┼──────────┐
-               │      │          │
-            ToolNode  │    chitchat/factual
-               │      │     (快速通道)
-               │   critic_node     │
-               │      │            │
-               │      ▼            │
-               │  (PASS? 超限?)    │
-               │   ┌──┴──┐        │
-               │  END  reasoning   │
-               │       (REVISE)    │
-               └──────┴────────────┘
-                      ▼
-                     END
+                        START
+                          │
+                          ▼
+                   reasoning_node ◄─────────────────┐
+                          │                         │
+                          ▼ (条件边: tool_calls?)    │
+                   ┌──────┼──────────┐              │
+                   │      │          │              │
+               ToolNode   │      chitchat           │
+                   │      │      (快速通道)          │
+                   └──────┤          │              │
+                          │          ▼              │
+                   (回到 reasoning   END             │
+                    消化工具结果)                    │
+                          │                         │
+                          ▼ (条件边: 无 tool_calls)  │
+                     critic_node                    │
+                          │                         │
+                          ▼ (条件边: PASS? 超限?)    │
+                   ┌──────┴──────┐                  │
+                   │             │                  │
+                  END     reasoning_node (REVISE) ──┘
+
+    一轮完整工具回合: reasoning → tool → reasoning → critic → END/retry
+    无工具路径:       reasoning → critic → END/retry
+    快速通道:         reasoning → END
 
     Args:
         tools: LangChain 工具列表。None 时自动加载 ``get_agent_tools()``。
@@ -155,7 +184,7 @@ def build_graph(tools: list | None = None) -> StateGraph:
 
     # ── 固定边 ────────────────────────────────────────────
     graph.add_edge(START, "reasoning_node")
-    graph.add_edge("tool_node", "critic_node")
+    graph.add_edge("tool_node", "reasoning_node")  # 工具结果需LLM消化后再到critic
 
     # ── 条件边 1: reasoning → tool / critic / END ──────────
     graph.add_conditional_edges(

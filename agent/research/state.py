@@ -4,7 +4,7 @@ LangGraph Agent 状态定义
 使用 TypedDict 定义 AgentState，配合 Annotated[list, operator.add]
 实现节点间消息的自动合并（追加而非覆盖），避免跨节点消息丢失。
 
-Phase 3 升级：消息类型从 ``list[str]`` 升级为 ``list[BaseMessage]``，
+消息类型从 ``list[str]`` 升级为 ``list[BaseMessage]``，
 新增意图分类、Critic 定向反馈、会话/用户标识字段。
 """
 
@@ -38,9 +38,9 @@ class AgentState(TypedDict):
         query_intent: 查询意图分类结果，由 reasoning_node 内部分类器设置。
             ``"chitchat" | "factual" | "lookup" | "discovery" | "realtime" | "unknown"``。
             影响 prompt 变体选择，不直接参与路由决策。
-        session_id: 会话标识（Layer 2 会话记忆预留）。由 /chat 端点传入。
-        user_id: 用户标识（Layer 3 用户画像预留）。由 /chat 端点传入。
-        error_flag: 优雅降级标记。当底层组件异常或循环超限时置为
+        session_id: 会话标识（Lay2 会话记忆预留）。由 /chat 端点传入。
+        user_id: 用户标识（Lay3 用户画像预留）。由 /chat 端点传入。
+        error_flag: 降级标记。当底层组件异常或循环超限时置为
             ``True``，通知下游走兜底路径而非崩溃。
     """
 
@@ -72,10 +72,10 @@ class AgentState(TypedDict):
     """用户 ID（Layer 3 预留）。"""
 
     error_flag: bool
-    """优雅降级标记，默认 False。置 True 时 reasoning_node 进入兜底模式。"""
+    """降级标记，默认 False。置 True 时 reasoning_node 进入兜底模式。"""
 
 
 # ── Agent 全局常量 ────────────────────────────────────────────────────
 
-_MAX_ITERATIONS = 5
+_MAX_ITERATIONS = 10
 """最大 ReAct 迭代轮次。graph 条件边和 critic 节点都引用此值做熔断。"""

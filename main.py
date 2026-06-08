@@ -250,10 +250,7 @@ async def chat_stream(request: ChatRequest):
 def _extract_final_reply(messages: list) -> str:
     """从消息历史中提取最终 AI 回复。
 
-    两级降级策略：
-        1. 查找最后一条不含 tool_calls 且有内容的 AIMessage（理想情况）
-        2. 退而求其次：任何有内容的 AIMessage（含仍带 tool_calls 的过渡语）
-        3. 最终兜底
+    查找最后一条有实质内容且不含 tool_calls 的 AIMessage。
 
     Args:
         messages: 完整的消息历史列表。
@@ -261,19 +258,9 @@ def _extract_final_reply(messages: list) -> str:
     Returns:
         最终回复文本。未找到时返回兜底消息。
     """
-    # 第一遍：不含 tool_calls 的干净回复
     for m in reversed(messages):
-        if isinstance(m, AIMessage) and m.content:
-            has_tc = hasattr(m, "tool_calls") and m.tool_calls
-            if not has_tc:
-                return m.content
-
-    # 第二遍：退而求其次——有内容的 AIMessage（即使还挂着 tool_calls）
-    # 说明 Critic 未触发新一轮合成，但至少有部分内容可以展示
-    for m in reversed(messages):
-        if isinstance(m, AIMessage) and m.content:
+        if isinstance(m, AIMessage) and m.content and not (hasattr(m, "tool_calls") and m.tool_calls):
             return m.content
-
     return "抱歉，无法处理您的请求。"
 
 

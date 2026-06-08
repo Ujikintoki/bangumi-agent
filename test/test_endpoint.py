@@ -94,29 +94,6 @@ class TestChatEndpoint:
         assert "8.5" in data["reply"]
 
     @patch("main.agent_app.invoke")
-    def test_fallback_to_aimessage_with_tool_calls(self, mock_invoke):
-        """降级策略：找不到干净 AIMessage 时，退而求其次用带 tool_calls 的"""
-        mock_invoke.return_value = {
-            "messages": [
-                SystemMessage(content="..."),
-                HumanMessage(content="攻壳机动队评分？"),
-                AIMessage(
-                    content="让我帮你搜索攻壳机动队的信息。",
-                    tool_calls=[{"name": "search", "args": {"keyword": "攻壳机动队"}, "id": "c1"}],
-                ),
-                ToolMessage(content="找到 3 个结果", tool_call_id="c1", name="search"),
-            ],
-            "iterations": 1,
-            "query_intent": "lookup",
-        }
-
-        response = client.post("/chat", json={"message": "攻壳机动队评分？"})
-        data = response.json()
-        # 降级：找不到无 tool_calls 的 AIMessage，退而求其次
-        assert "搜索" in data["reply"]
-        assert data["iterations"] == 1
-
-    @patch("main.agent_app.invoke")
     def test_extracts_tools_used(self, mock_invoke):
         """提取并去重工具名称"""
         mock_invoke.return_value = {
