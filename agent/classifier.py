@@ -206,9 +206,10 @@ def classify_intent_rule(user_message: str) -> Optional[str]:
                 logger.debug("classify_intent_rule: pattern='%s' → %s", pattern, intent)
                 return intent
 
-    # 短消息（< 5 字）且无明确工具意图 → chitchat
+    # 短消息（< 5 字）且无明确工具意图 → LLM fallback
+    # 不能硬判为 chitchat："mygo"、"EVA" 等短作品名会被误分类。
     if len(msg) < 5:
-        return "chitchat"
+        return None  # 走 LLM fallback
 
     return None  # 需要 LLM fallback
 

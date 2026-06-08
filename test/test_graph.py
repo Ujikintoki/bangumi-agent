@@ -40,7 +40,7 @@ class TestGraphIntegration:
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
             messages=[SystemMessage(content="..."), HumanMessage(content="搜巨人")],
-            iterations=4, critic_status="REVISE", query_intent="lookup",
+            iterations=9, critic_status="REVISE", query_intent="lookup",
             last_tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}],
         )
         result = graph.invoke(state)
@@ -152,12 +152,11 @@ class TestStateLifecycle:
     """验证跨轮次 state 字段的完整性"""
 
     def test_last_tool_calls_not_polluted_by_tool_node(self):
-        """ToolNode 完成后 last_tool_calls 由后续 reasoning_node 更新，不被 tool_node 触碰"""
+        """ToolNode 执行后 critic 不触碰 last_tool_calls，仅 reasoning_node 写入"""
         from agent.research.graph import build_graph
 
         @patch("agent.research.nodes.create_llm")
         def _test(mock_llm):
-            # 第一轮：调工具。第二轮：消化结果后直接回复（不调新工具）
             mock_llm.return_value = make_mock_llm(
                 content="根据搜索结果，巨人评分 8.5 分。",
                 tool_calls=[],
@@ -166,11 +165,11 @@ class TestStateLifecycle:
             state = make_state(
                 messages=[SystemMessage(content="..."), HumanMessage(content="搜巨人")],
                 query_intent="lookup",
-                # 模拟已完成一轮工具调用的状态
                 last_tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}],
             )
             result = graph.invoke(state)
-            # ToolNode 执行后，reasoning 消化结果，last_tool_calls 应为空
+            # reasoning 在首轮设置 last_tool_calls，tool → critic 不触碰此字段
+            assert "last_tool_calls" in result
             assert result.get("last_tool_calls", []) == []
 
         _test()

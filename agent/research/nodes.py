@@ -109,34 +109,11 @@ def reasoning_node(state: AgentState) -> dict:
             continue  # 用新的 SystemMessage 替换
         messages_for_llm.append(m)
 
-    # ── Step 4: LLM 初始化 ─────────────────────────────────────
+    # ── Step 4: LLM 调用 ─────────────────────────────────────
     llm = create_llm()
 
-    # ── Step 4.5: 搜索枯竭检测 ─────────────────────────────────
-    # 当历史中已有工具调用但全部返回空结果时，继续绑定工具只会让
-    # LLM 无限切换搜索策略。此时解除工具绑定并注入停止指令，
-    # 强制 LLM 生成文本回复（诚实告知或追问用户）。
-    tool_results = [m for m in trimmed_messages if isinstance(m, ToolMessage)]
-    search_exhausted = tool_results and _all_searches_exhausted(tool_results)
-
-    if search_exhausted:
-        logger.info(
-            "reasoning_node: 搜索枯竭（%d 条工具结果均为空），解除工具绑定",
-            len(tool_results),
-        )
-        # 在 system prompt 中注入强制停止指令
-        stop_directive = (
-            "\n## ⚠️ 强制：所有搜索均已返回空结果\n"
-            "之前的工具调用均未找到匹配数据。**禁止再调用任何搜索工具。**"
-            "直接生成自然语言回复，诚实地告知用户未找到该信息，"
-            "建议用户确认名称拼写或到 Bangumi 站内搜索。"
-        )
-        messages_for_llm[0] = SystemMessage(
-            content=messages_for_llm[0].content + stop_directive
-        )
-        llm_to_use = llm  # 不绑定工具
-        logger.debug("reasoning_node: 搜索枯竭 → 强制文本回复模式")
-    elif query_intent in _NO_TOOL_INTENTS:
+    # chitchat / factual 不绑定工具——节省 token，防止"你好"也调搜索
+    if query_intent in _NO_TOOL_INTENTS:
         llm_to_use = llm
         logger.debug("reasoning_node: intent=%s → 不绑定工具", query_intent)
     else:
@@ -203,43 +180,6 @@ def _extract_user_input(state: AgentState) -> str:
         if isinstance(m, HumanMessage):
             return m.content if hasattr(m, "content") else str(m)
     return ""
-
-
-# ── 搜索枯竭检测 ──────────────────────────────────────────────
-# 当所有 ToolMessage 的内容都表示"无匹配/空结果"时，
-# 判定为搜索枯竭——继续绑定工具只会让 LLM 无限切换搜索策略。
-
-_SEARCH_EXHAUSTED_PATTERNS = [
-    r"未匹配",
-    r"无匹配",
-    r"无结果",
-    r"暂无",
-    r"未找到",
-    r"未收录",
-    r"没有.*(匹配|结果|收录|找到)",
-    r"返回.*空",
-    r"0\s*(条|个).*(结果|匹配)",
-]
-
-
-def _all_searches_exhausted(tool_messages: list) -> bool:
-    """判断所有 ToolMessage 是否均表示空结果。
-
-    当所有工具返回都匹配枯竭模式时返回 True，表示搜索已穷尽——
-    reason_node 应解除工具绑定并强制 LLM 生成文本回复。
-
-    Args:
-        tool_messages: 历史中的 ToolMessage 列表。
-
-    Returns:
-        True 如果所有搜索结果均为空/无匹配。
-    """
-    if not tool_messages:
-        return False
-    return all(
-        any(re.search(pattern, str(m.content)) for pattern in _SEARCH_EXHAUSTED_PATTERNS)
-        for m in tool_messages
-    )
 
 
 # ═══════════════════════════════════════════════════════════════════

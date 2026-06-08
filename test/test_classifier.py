@@ -72,8 +72,10 @@ class TestIntentClassifierRule:
         assert classify_intent_rule("最近评分最高的番") == "discovery"
         assert classify_intent_rule("找进击的巨人评分") == "lookup"
 
-    def test_short_message_defaults_to_chitchat(self):
-        assert classify_intent_rule("嗯") == "chitchat"
+    def test_short_message_falls_back_to_llm(self):
+        """短消息不再硬判 chitchat，交由 LLM fallback 分类"""
+        assert classify_intent_rule("嗯") is None
+        assert classify_intent_rule("mygo") is None  # 短作品名不应误判
 
     def test_unknown_falls_back_to_none(self):
         assert classify_intent_rule("这个番的画风怎么样和那个比") is None
