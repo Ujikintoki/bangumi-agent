@@ -31,10 +31,6 @@ class AgentState(TypedDict):
         critic_feedback: Critic 的具体改进建议。
             PASS 时为确认描述，REVISE 时为 ``"<缺陷> | <建议> | <缺失>"`` 格式的定向反馈。
             下一轮 reasoning_node 将其注入 prompt 以指导 LLM 定向修正。
-        last_tool_calls: 上一轮 LLM 请求的工具调用列表。
-            直接来自 ``AIMessage.tool_calls``。非空时条件边路由到 tool_node，
-            为空时跳过工具直达 critic_node。
-            **生命周期约束**：仅 reasoning_node 写入；tool_node / critic_node 禁止触碰。
         query_intent: 查询意图分类结果，由 reasoning_node 内部分类器设置。
             ``"chitchat" | "factual" | "lookup" | "discovery" | "realtime" | "unknown"``。
             影响 prompt 变体选择，不直接参与路由决策。
@@ -55,12 +51,6 @@ class AgentState(TypedDict):
 
     critic_feedback: str
     """Critic 的具体改进建议。REVISE 时为定向反馈，下一轮注入 reasoning prompt。"""
-
-    last_tool_calls: list[dict]
-    """上一轮 LLM 返回的工具调用列表。非空 → tool_node，空 → 跳过工具。
-
-    ⚠️ 生命周期约束：仅 reasoning_node 写入，tool_node 和 critic_node 禁止触碰。
-    """
 
     query_intent: str
     """查询意图分类：chitchat | factual | lookup | discovery | realtime | unknown。"""

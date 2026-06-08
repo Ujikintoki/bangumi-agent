@@ -22,20 +22,20 @@ LangGraph 图谱编排 — 标准 ReAct 拓扑
               │   │     │                   │
               │  END  reasoning (REVISE) ───┘
               │
-              └──→ reasoning（消化工具结果，生成回复后再到 critic）
+              └──→ reasoning（消化工具结果，消化态禁工具绑定）
 
 决策矩阵
 ========
 
-route_after_reasoning:
-    - last_tool_calls 非空 → tool_node → reasoning_node（消化结果）
-    - intent = chitchat  → END（快速通道）
-    - 其他无工具调用     → critic_node
+route_after_reasoning（原生消息路由，读 messages[-1]）:
+    - AIMessage.tool_calls 非空 → tool_node → reasoning_node（消化结果）
+    - intent = chitchat         → END（快速通道）
+    - 其他无工具调用            → critic_node
 
 route_after_critic:
     - PASS               → END
-    - REVISE + iter < 5  → reasoning_node（重试）
-    - REVISE + iter >= 5 → END（熔断）
+    - REVISE + iter < 10 → reasoning_node（重试）
+    - REVISE + iter >= 10→ END（熔断）
 """
 
 from __future__ import annotations
@@ -62,12 +62,15 @@ _FAST_PATH_INTENTS = frozenset({"chitchat"})
 def route_after_reasoning(
     state: AgentState,
 ) -> Literal["tool_node", "critic_node", "__end__"]:
-    """reasoning_node 后的条件边。
+    """reasoning_node 后的条件边（原生消息路由）。
+
+    直接读取 ``state["messages"][-1]`` 的 ``tool_calls`` 属性判定路由，
+    不依赖冗余的 ``last_tool_calls`` 状态字段。
 
     三级路由（优先级从高到低）：
-        1. last_tool_calls 非空 → tool_node（执行后回到 reasoning 消化结果）
-        2. query_intent = chitchat → END（快速通道，跳过 tool 和 critic）
-        3. 其他（无工具调用）   → critic_node（直接评估回复质量）
+        1. AIMessage.tool_calls 非空 → tool_node（执行后回到 reasoning 消化结果）
+        2. query_intent = chitchat   → END（快速通道，跳过 tool 和 critic）
+        3. 其他（无工具调用）       → critic_node（直接评估回复质量）
 
     Args:
         state: 当前 Agent 全局状态。
@@ -75,11 +78,19 @@ def route_after_reasoning(
     Returns:
         ``"tool_node"``、``"critic_node"`` 或 ``"__end__"``。
     """
-    last_tool_calls = state.get("last_tool_calls", [])
-    if last_tool_calls:
+    from langchain_core.messages import AIMessage
+
+    messages = state.get("messages", [])
+    last_msg = messages[-1] if messages else None
+    has_tool_calls = (
+        isinstance(last_msg, AIMessage)
+        and hasattr(last_msg, "tool_calls")
+        and last_msg.tool_calls
+    )
+    if has_tool_calls:
         logger.debug(
-            "route_after_reasoning: last_tool_calls=%s → tool_node",
-            [tc.get("name", "?") for tc in last_tool_calls],
+            "route_after_reasoning: tool_calls=%s → tool_node",
+            [tc.get("name", "?") for tc in last_msg.tool_calls],
         )
         return "tool_node"
 

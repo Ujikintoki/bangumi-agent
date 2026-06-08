@@ -1,12 +1,8 @@
 """
 LangGraph Agent 节点函数
 
-- reasoning_node: 接入真实 LLM（function-calling），集成意图分类器
-- tool_node / critic_node: 保持占位?
-
-State 安全约束:
-- last_tool_calls 仅 reasoning_node 写入
-- tool_node / critic_node 禁止返回 last_tool_calls
+- reasoning_node: 接入真实 LLM（function-calling），集成意图分类器、消化态隔离
+- critic_node: 双模式自省（规则/LLM），评估输出质量
 """
 
 from __future__ import annotations
@@ -43,22 +39,24 @@ def reasoning_node(state: AgentState) -> dict:
         1. 兜底检查（error_flag）
         2. 意图分类（仅第一轮执行）
         3. 构建 System prompt（含 intent 变体 + critic_feedback）
-        4. 调用 LLM（chitchat/factual 不绑定工具）
-        5. 返回 AIMessage + last_tool_calls + query_intent
+        4. 调用 LLM（chitchat/factual 不绑定工具，其余绑定 12 工具）
+        5. 返回 AIMessage（含 tool_calls，由 graph 原生路由读取）
+
+    工具绑定在所有轮次保持一致——多步工具链（search → detail → answer）
+    和工具失败后的 fallback 均依赖 LLM 自主决策，不做硬性截断。
+    ``_MAX_ITERATIONS`` 和 critic 熔断机制防止死循环。
 
     Args:
         state: 当前 Agent 全局状态。
 
     Returns:
-        包含 messages、iterations、last_tool_calls、query_intent 等更新的字典。
+        包含 messages、iterations、query_intent 等更新的字典。
     """
     # ── Step 0: 兜底模式 ────────────────────────────────────
     if state.get("error_flag", False):
         logger.warning("reasoning_node: error_flag=True，进入兜底模式")
         return {
-            # 这里会不会有更好的处理方式？
             "messages": [AIMessage(content="抱歉，系统当前繁忙，请稍后再试。")],
-            "last_tool_calls": [],
         }
 
     new_iterations = state.get("iterations", 0) + 1
@@ -109,8 +107,16 @@ def reasoning_node(state: AgentState) -> dict:
             continue  # 用新的 SystemMessage 替换
         messages_for_llm.append(m)
 
+    # ── 消息状态日志（每次 reasoning 入口，DEBUG 级别） ────
+    _log_message_state(messages_for_llm, new_iterations)
+
     # ── Step 4: LLM 调用 ─────────────────────────────────────
     llm = create_llm()
+
+    # 消化态日志：记录当前是否在消化工具结果，方便排查多轮行为
+    is_digesting = trimmed_messages and isinstance(trimmed_messages[-1], ToolMessage)
+    if is_digesting:
+        logger.debug("reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
     # chitchat / factual 不绑定工具——节省 token，防止"你好"也调搜索
     if query_intent in _NO_TOOL_INTENTS:
@@ -131,13 +137,12 @@ def reasoning_node(state: AgentState) -> dict:
         # 丢弃会让下一轮 REVISE 失去方向，浪费一个修正轮次。
         return {
             "messages": [AIMessage(content=f"抱歉，AI 服务暂时不可用：{e}")],
-            "last_tool_calls": [],
             "query_intent": query_intent,
             "iterations": new_iterations,
             "critic_feedback": state.get("critic_feedback", ""),
         }
 
-    # ── Step 5: 提取 tool_calls ──────────────────────────────
+    # ── Step 5: 提取 tool_calls（仅用于日志） ──────────────
     last_tool_calls = (
         list(response.tool_calls)
         if hasattr(response, "tool_calls") and response.tool_calls
@@ -154,7 +159,6 @@ def reasoning_node(state: AgentState) -> dict:
     return {
         "messages": [response],
         "iterations": new_iterations,
-        "last_tool_calls": last_tool_calls,
         "query_intent": query_intent,
         "critic_feedback": "",  # 已消费
     }
@@ -239,8 +243,6 @@ def critic_node(state: AgentState) -> dict:
     - ``"rule"``：零 Token 规则评估，检查工具利用和回复质量
     - ``"llm"``：LLM 三元维度评估 + 逃逸舱 + 定向反馈
 
-    ⚠️ State 安全约束：不触碰 ``last_tool_calls``。
-
     Args:
         state: 当前 Agent 全局状态。
 
@@ -290,6 +292,14 @@ def _critic_node_rule(state: AgentState) -> dict:
 
     # 找到最后一条有实质内容的 AI 回复（排除纯 tool_call 的 AIMessage）
     last_ai = _get_last_ai_response(messages)
+
+    # ── 检查 0: 重复调用同一工具（参数相同） ──────────────────
+    # 当 LLM 连续两轮调用相同工具且参数一致时，说明工具可能返回了错误
+    # 或空结果，LLM 陷入无效重试。此时应强制切换到不同策略。
+    _dup_feedback = _check_duplicate_tool_calls(messages)
+    if _dup_feedback:
+        logger.info("critic(rule): 检测到重复工具调用 → REVISE")
+        return {"critic_status": "REVISE", "critic_feedback": _dup_feedback}
 
     # ── 检查 1: 工具已返回数据但没有 AI 回复 ──────────────
     if has_tool_msgs and last_ai is None:
@@ -435,7 +445,69 @@ def _critic_node_llm(state: AgentState) -> dict:
 # Critic 辅助函数
 # ═══════════════════════════════════════════════════════════════════
 
+
+def _log_message_state(messages: list, iteration: int) -> None:
+    """记录消息列表结构（DEBUG 级别），便于排查状态机行为。
+
+    对每条消息输出：类型、内容预览（前 200 字），ToolMessage 额外输出全量内容。
+    """
+    if not logger.isEnabledFor(logging.DEBUG):
+        return
+
+    logger.debug("── 消息状态 (iter=%d, 共 %d 条) ──", iteration, len(messages))
+    for i, m in enumerate(messages):
+        mtype = type(m).__name__
+        content = m.content if hasattr(m, "content") else str(m)
+        if isinstance(content, str):
+            preview = content[:200].replace("\n", "\\n")
+        else:
+            preview = str(content)[:200]
+
+        if isinstance(m, ToolMessage):
+            # ToolMessage: 完整内容 + tool_call_id
+            tc_id = getattr(m, "tool_call_id", "?")
+            name = getattr(m, "name", "?")
+            logger.debug(
+                "  [%d] %s name=%s tc_id=%s content=%s",
+                i, mtype, name, tc_id, content if isinstance(content, str) else str(content),
+            )
+        elif isinstance(m, AIMessage):
+            tcs = getattr(m, "tool_calls", []) or []
+            tc_names = [tc.get("name", "?") for tc in tcs]
+            logger.debug("  [%d] %s tool_calls=%s preview=%s", i, mtype, tc_names, preview)
+        else:
+            logger.debug("  [%d] %s preview=%s", i, mtype, preview)
+
 # 最后一条是否可以作为critc的评估依据？
+
+
+def _check_duplicate_tool_calls(messages: list) -> str:
+    """检测 LLM 是否连续两轮调用相同工具（参数完全一致）。"""
+    tool_call_rounds: list[list[dict]] = []
+    for m in messages:
+        if isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls:
+            tool_call_rounds.append(list(m.tool_calls))
+
+    if len(tool_call_rounds) < 2:
+        return ""
+
+    prev = tool_call_rounds[-2]
+    curr = tool_call_rounds[-1]
+
+    dup_names: set[str] = set()
+    for ptc in prev:
+        for ctc in curr:
+            if ptc.get("name") == ctc.get("name") and ptc.get("args") == ctc.get("args"):
+                dup_names.add(ctc.get("name", "?"))
+
+    if dup_names:
+        return (
+            f"连续两轮调用了相同工具 {'/'.join(sorted(dup_names))} 且参数未变 | "
+            "上一轮该工具返回了错误或空数据，请换用不同工具（如 get_trending_topics 替代 get_calendar）"
+            "或直接告知用户当前数据不可用 | "
+            "重复调用"
+        )
+    return ""
 
 
 def _get_last_ai_response(messages: list) -> "AIMessage | None":

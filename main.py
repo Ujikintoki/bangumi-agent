@@ -145,7 +145,6 @@ async def chat(request: ChatRequest) -> ChatResponse:
         "iterations": 0,
         "critic_status": "PENDING",
         "critic_feedback": "",
-        "last_tool_calls": [],
         "query_intent": "unknown",
         "session_id": request.session_id,
         "user_id": request.user_id,
@@ -153,7 +152,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     }
 
     try:
-        result = agent_app.invoke(initial_state)
+        result = await agent_app.ainvoke(initial_state)
     except Exception as e:
         logger.exception("/chat: Agent 执行异常")
         return ChatResponse(
@@ -201,7 +200,6 @@ async def chat_stream(request: ChatRequest):
         "iterations": 0,
         "critic_status": "PENDING",
         "critic_feedback": "",
-        "last_tool_calls": [],
         "query_intent": "unknown",
         "session_id": request.session_id,
         "user_id": request.user_id,
@@ -215,8 +213,10 @@ async def chat_stream(request: ChatRequest):
                     if node_name == "reasoning_node":
                         intent = node_output.get("query_intent", "unknown")
                         tool_calls = []
-                        if node_output.get("last_tool_calls"):
-                            tool_calls = [tc.get("name", "?") for tc in node_output["last_tool_calls"]]
+                        for msg in node_output.get("messages", []):
+                            if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+                                tool_calls = [tc.get("name", "?") for tc in msg.tool_calls]
+                                break
                         yield f"data: {json.dumps({'node': 'reasoning', 'intent': intent, 'tool_calls': tool_calls}, ensure_ascii=False)}\n\n"
 
                     elif node_name == "tool_node":

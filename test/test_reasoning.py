@@ -1,13 +1,15 @@
 """
 reasoning_node 测试（mock LLM）
 
-验证意图分类、bind_tools 开关、critic_feedback 注入、LLM 异常处理。
+验证意图分类、bind_tools 开关、消化态隔离、critic_feedback 注入、LLM 异常处理。
 可独立运行: python -m pytest test/test_reasoning.py -v
 """
 
 from __future__ import annotations
 
 from unittest.mock import patch
+
+from langchain_core.messages import AIMessage, ToolMessage
 
 from agent.research.nodes import reasoning_node
 from test.conftest import make_mock_llm, make_state
@@ -17,6 +19,14 @@ from test.conftest import make_mock_llm, make_state
 # 为避免分类器 mock 干扰，需要预置 query_intent（跳过分类步骤）
 # 的测试将 query_intent + iterations≥1 作为前置条件。
 # ═══════════════════════════════════════════════════════════════════
+
+
+def _extract_tool_calls_from_result(result: dict) -> list[dict]:
+    """从 reasoning_node 返回的 messages 中提取 tool_calls。"""
+    for msg in result.get("messages", []):
+        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+            return list(msg.tool_calls)
+    return []
 
 
 class TestReasoningNode:
@@ -33,7 +43,7 @@ class TestReasoningNode:
         result = reasoning_node(state)
 
         mock.bind_tools.assert_not_called()
-        assert result["last_tool_calls"] == []
+        assert _extract_tool_calls_from_result(result) == []
         assert result["query_intent"] == "chitchat"
 
     @patch("agent.research.nodes.create_llm")
@@ -52,7 +62,7 @@ class TestReasoningNode:
     @patch("agent.research.nodes.create_llm")
     @patch("agent.research.nodes.get_agent_tools")
     def test_lookup_binds_tools(self, mock_get_tools, mock_create_llm):
-        """lookup → 绑定工具并返回 tool_calls"""
+        """lookup → 绑定工具并返回 AIMessage 含 tool_calls"""
         mock_get_tools.return_value = []
         mock = make_mock_llm(
             content="",
@@ -64,8 +74,9 @@ class TestReasoningNode:
         result = reasoning_node(state)
 
         mock.bind_tools.assert_called_once()
-        assert len(result["last_tool_calls"]) == 1
-        assert result["last_tool_calls"][0]["name"] == "search_bangumi_subject"
+        tool_calls = _extract_tool_calls_from_result(result)
+        assert len(tool_calls) == 1
+        assert tool_calls[0]["name"] == "search_bangumi_subject"
 
     @patch("agent.research.nodes.create_llm")
     @patch("agent.research.nodes.get_agent_tools")
@@ -89,13 +100,13 @@ class TestReasoningNode:
 
         state = make_state(query_intent="factual", iterations=1)
         result = reasoning_node(state)
-        assert result["last_tool_calls"] == []
+        assert _extract_tool_calls_from_result(result) == []
 
     @patch("agent.research.nodes.create_llm")
     def test_error_flag_returns_fallback(self, mock_create_llm):
         state = make_state(error_flag=True)
         result = reasoning_node(state)
-        assert result["last_tool_calls"] == []
+        assert _extract_tool_calls_from_result(result) == []
         assert "抱歉" in str(result["messages"][0].content)
 
     @patch("agent.research.nodes.create_llm")
@@ -138,3 +149,61 @@ class TestReasoningNode:
         state = make_state(query_intent="lookup", iterations=1)
         result = reasoning_node(state)
         assert "暂时不可用" in str(result["messages"][0].content)
+
+    # ── 消化态测试：验证工具绑定不受消化态影响 ──────────────
+
+    @patch("agent.research.nodes.create_llm")
+    @patch("agent.research.nodes.get_agent_tools")
+    def test_digestion_mode_still_binds_tools_for_lookup(self, mock_get_tools, mock_create_llm):
+        """消化态（最后一条消息为 ToolMessage）+ lookup → 仍然绑定工具
+
+        多步工具链（search → detail）和工具失败 fallback 依赖 LLM
+        在消化工具结果后继续调用新工具。不应硬性禁止。
+        """
+        mock_get_tools.return_value = []
+        mock = make_mock_llm(
+            content="",
+            tool_calls=[{"name": "get_bangumi_subject_detail", "args": {"subject_id": 8}, "id": "call_2"}],
+        )
+        mock_create_llm.return_value = mock
+
+        from langchain_core.messages import SystemMessage, HumanMessage
+        state = make_state(
+            messages=[
+                SystemMessage(content="..."),
+                HumanMessage(content="搜巨人"),
+                AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
+                ToolMessage(content="找到 5 个结果", tool_call_id="c1"),
+            ],
+            query_intent="lookup",
+            iterations=1,
+        )
+        result = reasoning_node(state)
+
+        # 消化态下 lookup 仍然绑定工具（支持多步工具链）
+        mock.bind_tools.assert_called_once()
+        tool_calls = _extract_tool_calls_from_result(result)
+        assert len(tool_calls) == 1
+        assert tool_calls[0]["name"] == "get_bangumi_subject_detail"
+
+    @patch("agent.research.nodes.create_llm")
+    def test_digestion_mode_chitchat_still_skips_tools(self, mock_create_llm):
+        """消化态 + chitchat → 仍不绑定工具（chitchat 任何情况下都不绑）"""
+        mock = make_mock_llm(content="你好！有什么可以帮你的？")
+        mock_create_llm.return_value = mock
+
+        from langchain_core.messages import SystemMessage, HumanMessage
+        state = make_state(
+            messages=[
+                SystemMessage(content="..."),
+                HumanMessage(content="你好"),
+                AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
+                ToolMessage(content="结果", tool_call_id="c1"),
+            ],
+            query_intent="chitchat",
+            iterations=1,
+        )
+        result = reasoning_node(state)
+        mock.bind_tools.assert_not_called()
+        assert _extract_tool_calls_from_result(result) == []
+        assert result["query_intent"] == "chitchat"

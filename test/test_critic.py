@@ -60,10 +60,6 @@ class TestCriticNodeRule:
             r = critic_node(make_state(iterations=it))
             assert r["critic_status"] == "PASS" and r["error_flag"] is True
 
-    def test_does_not_touch_last_tool_calls(self):
-        state = make_state(iterations=1, last_tool_calls=[{"name": "s", "args": {}, "id": "c1"}])
-        assert "last_tool_calls" not in critic_node(state)
-
     def test_feedback_uses_pipe_format(self):
         state = make_state(iterations=1, messages=[
             SystemMessage(content="..."), HumanMessage(content="搜"),
@@ -125,6 +121,53 @@ class TestCriticNodeRule:
         result = critic_node(state)
         assert result["critic_status"] == "REVISE", (
             "仅说'好的'不包含追问/澄清/诚实告知，应继续 REVISE"
+        )
+
+
+    # ── 重复工具调用检测 ──────────────────────────────────
+
+    def test_revise_on_duplicate_tool_calls(self):
+        """连续两轮调用相同工具且参数一致 → REVISE"""
+        state = make_state(iterations=3, messages=[
+            SystemMessage(content="..."), HumanMessage(content="今天有什么番"),
+            AIMessage(content="", tool_calls=[{"name": "get_calendar", "args": {}, "id": "c1"}]),
+            ToolMessage(content="API 错误", tool_call_id="c1"),
+            AIMessage(content="", tool_calls=[{"name": "get_calendar", "args": {}, "id": "c2"}]),
+            ToolMessage(content="API 错误", tool_call_id="c2"),
+            AIMessage(content="让我重试..."),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "REVISE", (
+            f"重复调用 get_calendar 应被检测，实际: {result.get('critic_feedback')}"
+        )
+        assert "重复调用" in result.get("critic_feedback", "")
+
+    def test_pass_when_different_tool_calls(self):
+        """连续两轮调用不同工具 → 不触发重复检测"""
+        state = make_state(iterations=3, messages=[
+            SystemMessage(content="..."), HumanMessage(content="今天有什么番"),
+            AIMessage(content="", tool_calls=[{"name": "get_calendar", "args": {}, "id": "c1"}]),
+            ToolMessage(content="API 错误", tool_call_id="c1"),
+            AIMessage(content="", tool_calls=[{"name": "get_trending_topics", "args": {}, "id": "c2"}]),
+            ToolMessage(content="热门数据", tool_call_id="c2"),
+            AIMessage(content="今日热门番剧有 A、B、C 三部，评分分别为 8.5、8.0、7.5 分。"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "PASS", (
+            f"不同工具调用不应触发重复检测，实际: {result.get('critic_feedback')}"
+        )
+
+    def test_duplicate_detection_skips_single_tool_round(self):
+        """只有一轮工具调用 → 不触发重复检测（正常 PASS）"""
+        state = make_state(iterations=2, messages=[
+            SystemMessage(content="..."), HumanMessage(content="今天有什么番"),
+            AIMessage(content="", tool_calls=[{"name": "get_calendar", "args": {}, "id": "c1"}]),
+            ToolMessage(content="今日放送数据...", tool_call_id="c1"),
+            AIMessage(content="今日放送的番剧有 A、B、C 三部，其中 A 评分最高。"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "PASS", (
+            f"单轮工具调用不应触发重复检测，实际: {result.get('critic_feedback')}"
         )
 
 

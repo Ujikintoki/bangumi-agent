@@ -33,7 +33,7 @@ class TestHealthEndpoint:
 class TestChatEndpoint:
     """POST /chat"""
 
-    @patch("main.agent_app.invoke")
+    @patch("main.agent_app.ainvoke")
     def test_returns_chat_response_structure(self, mock_invoke):
         """响应包含所有必需字段"""
         mock_invoke.return_value = {
@@ -57,7 +57,7 @@ class TestChatEndpoint:
         assert "tools_used" in data
         assert "query_intent" in data
 
-    @patch("main.agent_app.invoke")
+    @patch("main.agent_app.ainvoke")
     def test_extracts_final_ai_reply(self, mock_invoke):
         """提取最后一条有内容的 AIMessage"""
         mock_invoke.return_value = {
@@ -74,7 +74,7 @@ class TestChatEndpoint:
         data = response.json()
         assert "三集定律" in data["reply"]
 
-    @patch("main.agent_app.invoke")
+    @patch("main.agent_app.ainvoke")
     def test_skips_tool_call_aimessages(self, mock_invoke):
         """跳过纯 tool_call 的 AIMessage（content 为空）"""
         mock_invoke.return_value = {
@@ -93,7 +93,7 @@ class TestChatEndpoint:
         data = response.json()
         assert "8.5" in data["reply"]
 
-    @patch("main.agent_app.invoke")
+    @patch("main.agent_app.ainvoke")
     def test_extracts_tools_used(self, mock_invoke):
         """提取并去重工具名称"""
         mock_invoke.return_value = {
@@ -115,7 +115,7 @@ class TestChatEndpoint:
         assert "search_bangumi_subject" in data["tools_used"]
         assert "get_bangumi_subject_detail" in data["tools_used"]
 
-    @patch("main.agent_app.invoke")
+    @patch("main.agent_app.ainvoke")
     def test_handles_agent_exception(self, mock_invoke):
         """Agent 异常时返回错误消息而不是 500"""
         mock_invoke.side_effect = RuntimeError("模拟的 Agent 崩溃")
@@ -149,7 +149,7 @@ class TestChatStreamEndpoint:
     def test_stream_returns_sse_format(self, mock_astream):
         """流式响应包含 SSE 格式的 data: 前缀和 [DONE]"""
         async def mock_stream(state):
-            yield {"reasoning_node": {"query_intent": "chitchat", "last_tool_calls": []}}
+            yield {"reasoning_node": {"query_intent": "chitchat", "messages": [AIMessage(content="你好！")]}}
             yield {"critic_node": {"critic_status": "PASS", "critic_feedback": ""}}
 
         mock_astream.return_value = mock_stream(0)
@@ -163,11 +163,11 @@ class TestChatStreamEndpoint:
 
     @patch("main.agent_app.astream")
     def test_stream_includes_reasoning_event(self, mock_astream):
-        """reasoning_node 事件包含 intent 和 tool_calls"""
+        """reasoning_node 事件包含 intent 和 tool_calls（从 AIMessage 提取）"""
         async def mock_stream(state):
             yield {"reasoning_node": {
                 "query_intent": "lookup",
-                "last_tool_calls": [{"name": "search_bangumi_subject"}],
+                "messages": [AIMessage(content="", tool_calls=[{"name": "search_bangumi_subject", "args": {}, "id": "c1"}])],
             }}
 
         mock_astream.return_value = mock_stream(0)

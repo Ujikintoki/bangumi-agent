@@ -2,7 +2,7 @@
 图谱集成测试（mock LLM + mock 工具）
 
 验证跨模块耦合：critic_feedback 传播、memory 截断不破坏 graph、
-last_tool_calls 生命周期、多轮状态一致性。
+消化态隔离、多轮状态一致性。
 可独立运行: python -m pytest test/test_graph.py -v
 """
 
@@ -39,9 +39,12 @@ class TestGraphIntegration:
         mock_create_llm.return_value = make_mock_llm(content="test")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
-            messages=[SystemMessage(content="..."), HumanMessage(content="搜巨人")],
+            messages=[
+                SystemMessage(content="..."),
+                HumanMessage(content="搜巨人"),
+                AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}]),
+            ],
             iterations=9, critic_status="REVISE", query_intent="lookup",
-            last_tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}],
         )
         result = graph.invoke(state)
         assert result.get("error_flag") is True
@@ -60,9 +63,12 @@ class TestGraphIntegration:
         mock_create_llm.return_value = make_mock_llm(content="done")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
-            messages=[SystemMessage(content="..."), HumanMessage(content="搜巨人")],
+            messages=[
+                SystemMessage(content="..."),
+                HumanMessage(content="搜巨人"),
+                AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}]),
+            ],
             query_intent="lookup", iterations=1, critic_status="REVISE",
-            last_tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}],
         )
         result = graph.invoke(state)
         assert result.get("query_intent") == "lookup"  # 不因重入而重置
@@ -151,8 +157,8 @@ class TestMemoryGraphIntegration:
 class TestStateLifecycle:
     """验证跨轮次 state 字段的完整性"""
 
-    def test_last_tool_calls_not_polluted_by_tool_node(self):
-        """ToolNode 执行后 critic 不触碰 last_tool_calls，仅 reasoning_node 写入"""
+    def test_tool_to_reasoning_to_critic_pipeline(self):
+        """tool → reasoning（消化工具结果）→ critic 链路正常完成"""
         from agent.research.graph import build_graph
 
         @patch("agent.research.nodes.create_llm")
@@ -163,21 +169,22 @@ class TestStateLifecycle:
             )
             graph = build_graph(tools=MOCK_TOOLS)
             state = make_state(
-                messages=[SystemMessage(content="..."), HumanMessage(content="搜巨人")],
+                messages=[
+                    SystemMessage(content="..."),
+                    HumanMessage(content="搜巨人"),
+                    AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}]),
+                ],
                 query_intent="lookup",
-                last_tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}],
             )
             result = graph.invoke(state)
-            # reasoning 在首轮设置 last_tool_calls，tool → critic 不触碰此字段
-            assert "last_tool_calls" in result
-            assert result.get("last_tool_calls", []) == []
+            # tool → reasoning 消化后应生成回复，critic 评估后 PASS
+            assert result.get("critic_status") == "PASS"
 
         _test()
 
     def test_critic_status_transitions(self):
         """critic_status 正常流转: PENDING → REVISE → PASS"""
         from agent.research.nodes import critic_node
-        from langchain_core.messages import AIMessage, ToolMessage
 
         # REVISE: 工具返回但无有效回复
         state1 = make_state(iterations=1, messages=[

@@ -63,7 +63,6 @@ def make_state(**overrides) -> AgentState:
         "iterations": 0,
         "critic_status": "PENDING",
         "critic_feedback": "",
-        "last_tool_calls": [],
         "query_intent": "unknown",
         "session_id": "test-session",
         "user_id": "test-user",
