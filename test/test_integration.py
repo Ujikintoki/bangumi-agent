@@ -46,7 +46,8 @@ class TestRealLLM:
         assert len(response.content) > 10, f"回复过短: {response.content}"
         print(f"\n  LLM reply: {response.content[:120]}...")
 
-    def test_classifier_integration(self):
+    @pytest.mark.asyncio
+    async def test_classifier_integration(self):
         """意图分类器 + 真实 LLM"""
         from agent.classifier import classify_intent
         from agent.llm import create_llm
@@ -61,7 +62,7 @@ class TestRealLLM:
             ("今天放什么番", "realtime"),
         ]
         for query, expected in intents:
-            intent, method = classify_intent(query, classifier_llm)
+            intent, method = await classify_intent(query, classifier_llm)
             print(f"\n  '{query}' → {intent} ({method})")
             assert intent == expected, f"'{query}' 期望 {expected}，实际 {intent}"
 

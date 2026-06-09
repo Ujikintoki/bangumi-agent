@@ -21,6 +21,8 @@ from agent.classifier import (
 )
 from test.conftest import make_mock_llm
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestIntentClassifierRule:
     """规则层 — 优先级队列验证"""
@@ -92,39 +94,39 @@ class TestIntentClassifierRule:
 class TestIntentClassifierLLM:
     """LLM fallback 分类"""
 
-    def test_returns_valid_intent(self):
-        assert classify_intent_llm("推荐类似巨人的番", make_mock_llm(content="discovery")) == "discovery"
+    async def test_returns_valid_intent(self):
+        assert await classify_intent_llm("推荐类似巨人的番", make_mock_llm(content="discovery")) == "discovery"
 
-    def test_falls_back_to_unknown_on_invalid_output(self):
-        assert classify_intent_llm("query", make_mock_llm(content="invalid_xyz")) == "unknown"
+    async def test_falls_back_to_unknown_on_invalid_output(self):
+        assert await classify_intent_llm("query", make_mock_llm(content="invalid_xyz")) == "unknown"
 
-    def test_falls_back_to_unknown_on_error(self):
+    async def test_falls_back_to_unknown_on_error(self):
         mock = MagicMock(spec=ChatOpenAI)
-        mock.invoke.side_effect = RuntimeError("API error")
-        assert classify_intent_llm("query", mock) == "unknown"
+        mock.ainvoke.side_effect = RuntimeError("API error")
+        assert await classify_intent_llm("query", mock) == "unknown"
 
-    def test_extracts_first_word_only(self):
-        assert classify_intent_llm("找巨人", make_mock_llm(content="lookup  \n extra")) == "lookup"
+    async def test_extracts_first_word_only(self):
+        assert await classify_intent_llm("找巨人", make_mock_llm(content="lookup  \n extra")) == "lookup"
 
 
 class TestClassifyIntent:
     """两阶段入口"""
 
-    def test_rule_wins_when_matched(self):
+    async def test_rule_wins_when_matched(self):
         mock = make_mock_llm()
-        intent, method = classify_intent("推荐几部好看的番", mock)
+        intent, method = await classify_intent("推荐几部好看的番", mock)
         assert intent == "discovery" and method == "rule"
-        mock.invoke.assert_not_called()
+        mock.ainvoke.assert_not_called()
 
-    def test_llm_fallback(self):
-        intent, method = classify_intent("这个番和那个番比怎么样", make_mock_llm(content="lookup"))
+    async def test_llm_fallback(self):
+        intent, method = await classify_intent("这个番和那个番比怎么样", make_mock_llm(content="lookup"))
         assert intent == "lookup" and method == "llm"
 
-    def test_returns_unknown_when_no_llm(self):
+    async def test_returns_unknown_when_no_llm(self):
         # 注意：避免含 "hi"/"hello" 等英文关键词的输入
-        intent, method = classify_intent("花开伊吕波和taritari哪个更感人", None)
+        intent, method = await classify_intent("花开伊吕波和taritari哪个更感人", None)
         assert intent == "unknown" and method.startswith("rule")
 
-    def test_empty_message(self):
-        intent, method = classify_intent("", None)
+    async def test_empty_message(self):
+        intent, method = await classify_intent("", None)
         assert intent == "chitchat" and "empty" in method

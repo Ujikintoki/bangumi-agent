@@ -214,7 +214,7 @@ def classify_intent_rule(user_message: str) -> Optional[str]:
     return None  # 需要 LLM fallback
 
 
-def classify_intent_llm(user_message: str, llm: ChatOpenAI) -> str:
+async def classify_intent_llm(user_message: str, llm: ChatOpenAI) -> str:
     """LLM fallback 分类。
 
     用轻量 prompt 让 LLM 判断意图。temperature=0, max_tokens=10
@@ -231,7 +231,7 @@ def classify_intent_llm(user_message: str, llm: ChatOpenAI) -> str:
         # 转义花括号：用户输入含 {name} 等字面量时，
         # str.format() 会把它们当成占位符抛出 KeyError
         safe_message = user_message.replace("{", "{{").replace("}", "}}")
-        response = llm.invoke(
+        response = await llm.ainvoke(
             INTENT_CLASSIFIER_PROMPT.format(user_message=safe_message)
         )
         raw = (
@@ -252,7 +252,7 @@ def classify_intent_llm(user_message: str, llm: ChatOpenAI) -> str:
         return "unknown"
 
 
-def classify_intent(
+async def classify_intent(
     user_message: str,
     llm: ChatOpenAI | None = None,
 ) -> tuple[str, str]:
@@ -280,7 +280,7 @@ def classify_intent(
 
     # Stage 2: LLM fallback
     if llm is not None:
-        intent = classify_intent_llm(user_message, llm)
+        intent = await classify_intent_llm(user_message, llm)
         return (intent, "llm")
 
     return ("unknown", "rule")

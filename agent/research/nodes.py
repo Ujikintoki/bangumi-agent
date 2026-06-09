@@ -32,7 +32,7 @@ _NO_TOOL_INTENTS = frozenset({"chitchat", "factual"})
 # ═══════════════════════════════════════════════════════════════════
 
 
-def reasoning_node(state: AgentState) -> dict:
+async def reasoning_node(state: AgentState) -> dict:
     """推理节点：意图分类 + LLM function-calling 决策。
 
     流程：
@@ -40,7 +40,7 @@ def reasoning_node(state: AgentState) -> dict:
         2. 记忆截断（manage_memory，含单条 ToolMessage 内容截断）
         3. 意图分类（仅第一轮执行）
         4. 构建 System prompt（含 intent 变体 + critic_feedback）
-        5. 调用 LLM
+        5. 调用 LLM（全部使用 ainvoke，不阻塞 event loop）
 
     工具绑定策略：
         - chitchat / factual：不绑工具（节省 token）
@@ -61,6 +61,9 @@ def reasoning_node(state: AgentState) -> dict:
         logger.warning("reasoning_node: error_flag=True，进入兜底模式")
         return {
             "messages": [AIMessage(content="抱歉，系统当前繁忙，请稍后再试。")],
+            "iterations": state.get("iterations", 0),
+            "query_intent": state.get("query_intent", "unknown"),
+            "critic_feedback": "",
         }
 
     new_iterations = state.get("iterations", 0) + 1
@@ -81,10 +84,9 @@ def reasoning_node(state: AgentState) -> dict:
         # 提取用户原始输入
         user_input = _extract_user_input(state)
         if user_input:
-            # maxtokens的限时是否可以调整？
             # 使用轻量 LLM 做 fallback 分类（temperature=0, max_tokens=10）
             classifier_llm = create_llm(temperature=0, max_tokens=10)
-            query_intent, intent_method = classify_intent(user_input, classifier_llm)
+            query_intent, intent_method = await classify_intent(user_input, classifier_llm)
             logger.info(
                 "[Intent] query='%s' → intent=%s (method=%s)",
                 user_input[:80],
@@ -138,7 +140,7 @@ def reasoning_node(state: AgentState) -> dict:
         )
 
     try:
-        response: AIMessage = llm_to_use.invoke(messages_for_llm)
+        response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)
     except Exception as e:
         logger.exception("reasoning_node: LLM 调用失败")
         # 保留 state 中已有的 critic_feedback：它来自上一轮 Critic 的评估，
@@ -195,56 +197,11 @@ def _extract_user_input(state: AgentState) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 工具执行节点（Step 3 起由 LangGraph ToolNode 接管）
-# ═══════════════════════════════════════════════════════════════════
-# 以下手动实现仅作参考，graph.py 已使用 langgraph.prebuilt.ToolNode。
-# ToolNode 自动完成：读取 AIMessage.tool_calls → 并发 .ainvoke()
-# → 返回 list[ToolMessage]。保留此函数用于理解 ReAct 循环机制。
-
-
-def tool_node_manual_reference(state: AgentState) -> dict:
-    """（参考实现）手动执行工具调用。
-
-    实际 graph.py 使用 LangGraph 内置 ``ToolNode(get_agent_tools())``，
-    它提供了并发执行、错误处理、重试等特性。
-    """
-    from langchain_core.messages import ToolMessage
-
-    from tools.bgm_tools import get_agent_tools
-
-    tools = get_agent_tools()
-    tools_by_name = {t.name: t for t in tools}
-    last_message = state["messages"][-1]
-    tool_messages = []
-
-    for tc in last_message.tool_calls:
-        tool = tools_by_name.get(tc["name"])
-        if tool:
-            try:
-                import asyncio
-
-                result = asyncio.run(tool.ainvoke(tc["args"]))
-                tool_messages.append(
-                    ToolMessage(content=str(result), tool_call_id=tc["id"])
-                )
-            except Exception as e:
-                tool_messages.append(
-                    ToolMessage(content=f"工具执行失败: {e}", tool_call_id=tc["id"])
-                )
-        else:
-            tool_messages.append(
-                ToolMessage(content=f"未知工具: {tc['name']}", tool_call_id=tc["id"])
-            )
-
-    return {"messages": tool_messages}
-
-
-# ═══════════════════════════════════════════════════════════════════
 # 自省节点（Phase 3 Step 4：定向反馈）
 # ═══════════════════════════════════════════════════════════════════
 
 
-def critic_node(state: AgentState) -> dict:
+async def critic_node(state: AgentState) -> dict:
     """自省节点：评估 LLM 输出质量，输出定向反馈。
 
     支持双模式（通过 config.CRITIC_MODE 切换）：
@@ -260,7 +217,7 @@ def critic_node(state: AgentState) -> dict:
     """
     settings = get_settings()
     if settings.CRITIC_MODE == "llm":
-        return _critic_node_llm(state)
+        return await _critic_node_llm(state)
     return _critic_node_rule(state)
 
 
@@ -269,7 +226,6 @@ def critic_node(state: AgentState) -> dict:
 # ═══════════════════════════════════════════════════════════════════
 
 
-# critic策略可能需要更具具体事使用情况修改
 def _critic_node_rule(state: AgentState) -> dict:
     """规则版 Critic：快速结构化检查，零 Token 消耗。
 
@@ -296,11 +252,16 @@ def _critic_node_rule(state: AgentState) -> dict:
         }
 
     messages = state.get("messages", [])
-    # 仅扫描当前 iteration 的 ToolMessages（倒数第二个 AIMessage 之后），
-    # 避免历史工具调用污染当前轮次的 has_tool_msgs 判定。
-    ai_indices = [i for i, m in enumerate(messages) if isinstance(m, AIMessage)]
-    cutoff = ai_indices[-2] if len(ai_indices) >= 2 else 0
-    has_tool_msgs = any(isinstance(m, ToolMessage) for m in messages[cutoff:])
+    # 精确定位当前轮次的 ToolMessages：找到最后一条带 tool_calls 的 AIMessage，
+    # 其后出现的 ToolMessage 即为本轮工具调用。用 tool_calls 语义耦合替代
+    # 脆弱的 [-2] 列表索引——重试/降级产生额外 AIMessage 时不会误判。
+    _last_tc_idx = -1
+    for i, m in enumerate(messages):
+        if isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls:
+            _last_tc_idx = i
+    has_tool_msgs = any(
+        isinstance(m, ToolMessage) for m in messages[_last_tc_idx + 1:]
+    ) if _last_tc_idx >= 0 else False
 
     # 找到最后一条有实质内容的 AI 回复（排除纯 tool_call 的 AIMessage）
     last_ai = _get_last_ai_response(messages)
@@ -367,10 +328,7 @@ def _critic_node_rule(state: AgentState) -> dict:
 # LLM 版 Critic（三元维度 + 逃逸舱 + 定向反馈）
 # ═══════════════════════════════════════════════════════════════════
 
-# 是否应该将LLM的critic作为默认？
-
-
-def _critic_node_llm(state: AgentState) -> dict:
+async def _critic_node_llm(state: AgentState) -> dict:
     """LLM 版 Critic：三元维度评估 + 逃逸舱 + 定向反馈。
 
     评估维度：完整性、具体性、工具利用。
@@ -423,7 +381,7 @@ def _critic_node_llm(state: AgentState) -> dict:
     ]
 
     try:
-        response = llm.invoke(eval_messages)
+        response = await llm.ainvoke(eval_messages)
         verdict = (
             response.content.strip()
             if hasattr(response, "content")
@@ -489,9 +447,6 @@ def _log_message_state(messages: list, iteration: int) -> None:
             logger.debug("  [%d] %s tool_calls=%s preview=%s", i, mtype, tc_names, preview)
         else:
             logger.debug("  [%d] %s preview=%s", i, mtype, preview)
-
-# 最后一条是否可以作为critc的评估依据？
-
 
 def _check_duplicate_tool_calls(messages: list) -> str:
     """检测 LLM 是否连续两轮调用相同工具（参数完全一致）。"""

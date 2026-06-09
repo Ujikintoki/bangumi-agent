@@ -73,9 +73,11 @@ def make_state(**overrides) -> AgentState:
 
 
 def make_mock_llm(content: str = "Mock response", tool_calls: list[dict] | None = None):
-    """创建 mock ChatOpenAI，invoke() 返回预设 AIMessage。"""
+    """创建 mock ChatOpenAI，invoke() / ainvoke() 返回预设 AIMessage。"""
     mock = MagicMock(spec=ChatOpenAI)
-    mock.invoke.return_value = AIMessage(content=content, tool_calls=tool_calls or [])
+    aimessage = AIMessage(content=content, tool_calls=tool_calls or [])
+    mock.invoke.return_value = aimessage
+    mock.ainvoke.return_value = aimessage
     mock.bind_tools.return_value = mock
     return mock
 
