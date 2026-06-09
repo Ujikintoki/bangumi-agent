@@ -170,6 +170,45 @@ class TestCriticNodeRule:
             f"单轮工具调用不应触发重复检测，实际: {result.get('critic_feedback')}"
         )
 
+    # ── Critic 窗口缩窄测试 ──────────────────────────────────
+
+    def test_has_tool_msgs_scoped_to_current_iteration(self):
+        """历史有 ToolMessage 但当前轮无工具 → has_tool_msgs 应为 False
+
+        模拟场景：第一轮调了工具并 PASS，第二轮 REVISE 后 reasoning 直接回答
+        （无新工具调用），critic 不应因历史 ToolMessage 而误判"使用了工具"。
+        """
+        state = make_state(iterations=3, messages=[
+            SystemMessage(content="..."),
+            HumanMessage(content="搜巨人"),
+            # 第一轮：调工具 → 消化 → 回答
+            AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
+            ToolMessage(content="找到 5 个结果", tool_call_id="c1"),
+            AIMessage(content="进击的巨人评分 8.5，排名 #15。"),
+            # 第二轮：critic REVISE → reasoning 补充回答（无新工具）
+            AIMessage(content="进击的巨人最终季评分 8.7 分，非常推荐。"),
+        ])
+        result = critic_node(state)
+        # 当前轮无 ToolMessage → 不应触发"回复过短"
+        assert result["critic_status"] == "PASS", (
+            f"历史 ToolMessage 不应污染当前轮次判定，实际: {result.get('critic_feedback')}"
+        )
+
+    def test_has_tool_msgs_detects_current_iteration(self):
+        """当前轮有 ToolMessage → critic 正确检测"""
+        state = make_state(iterations=2, messages=[
+            SystemMessage(content="..."),
+            HumanMessage(content="搜巨人"),
+            AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
+            ToolMessage(content="找到 5 个结果", tool_call_id="c1"),
+            # 消化后直接回答（无 tool_calls），但回复过短
+            AIMessage(content="好的。"),
+        ])
+        result = critic_node(state)
+        assert result["critic_status"] == "REVISE", (
+            f"当前轮有工具但回复过短应 REVISE，实际: {result.get('critic_feedback')}"
+        )
+
 
 class TestCriticNodeLLM:
     """LLM 版 Critic（CRITIC_MODE='llm'）"""

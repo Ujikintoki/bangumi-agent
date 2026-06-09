@@ -250,7 +250,8 @@ async def chat_stream(request: ChatRequest):
 def _extract_final_reply(messages: list) -> str:
     """从消息历史中提取最终 AI 回复。
 
-    查找最后一条有实质内容且不含 tool_calls 的 AIMessage。
+    查找最后一条有实质内容的 AIMessage。与 Critic 的 ``_get_last_ai_response``
+    标准一致：有 content 即视为有效回复，不因附带 tool_calls 而拒绝。
 
     Args:
         messages: 完整的消息历史列表。
@@ -259,7 +260,7 @@ def _extract_final_reply(messages: list) -> str:
         最终回复文本。未找到时返回兜底消息。
     """
     for m in reversed(messages):
-        if isinstance(m, AIMessage) and m.content and not (hasattr(m, "tool_calls") and m.tool_calls):
+        if isinstance(m, AIMessage) and m.content:
             return m.content
     return "抱歉，无法处理您的请求。"
 

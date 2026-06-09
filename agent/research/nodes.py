@@ -288,7 +288,11 @@ def _critic_node_rule(state: AgentState) -> dict:
         }
 
     messages = state.get("messages", [])
-    has_tool_msgs = any(isinstance(m, ToolMessage) for m in messages)
+    # 仅扫描当前 iteration 的 ToolMessages（倒数第二个 AIMessage 之后），
+    # 避免历史工具调用污染当前轮次的 has_tool_msgs 判定。
+    ai_indices = [i for i, m in enumerate(messages) if isinstance(m, AIMessage)]
+    cutoff = ai_indices[-2] if len(ai_indices) >= 2 else 0
+    has_tool_msgs = any(isinstance(m, ToolMessage) for m in messages[cutoff:])
 
     # 找到最后一条有实质内容的 AI 回复（排除纯 tool_call 的 AIMessage）
     last_ai = _get_last_ai_response(messages)
