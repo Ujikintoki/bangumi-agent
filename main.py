@@ -8,6 +8,7 @@ FastAPI 应用启动入口
 import json
 import logging
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,9 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel, Field
 
+from agent.dialogue.graph import dialogue_app
+from agent.dialogue.prompts import DIALOGUE_SYSTEM_PROMPT
+from agent.dialogue.state import DialogueState
 from agent.research.graph import agent_app
 from agent.research.prompts import BASE_SYSTEM_PROMPT
 from agent.research.state import AgentState
@@ -65,6 +69,10 @@ class ChatRequest(BaseModel):
     """对话请求。"""
 
     message: str = Field(..., description="用户消息", min_length=1)
+    agent_type: Literal["dialogue", "research"] = Field(
+        default="dialogue",
+        description="Agent 类型：dialogue（快速对话/Bangumi娘）或 research（深度搜索/中性助手）",
+    )
     session_id: str = Field(default="default", description="会话 ID（Layer 2 预留）")
     user_id: str = Field(default="anonymous", description="用户 ID（Layer 3 预留）")
 
@@ -127,16 +135,59 @@ async def health_check() -> dict:
 async def chat(request: ChatRequest) -> ChatResponse:
     """Agent 对话端点。
 
-    接收用户消息，执行完整的 ReAct 循环（推理 → 工具 → 自省），
-    返回最终回复和诊断信息。
+    通过 ``agent_type`` 选择 Agent：
+
+    - ``"dialogue"``（默认）：Bangumi娘人格，2 节点拓扑，无 Critic，
+      回复 30-150 字，<2s 延迟。适合日常闲聊和快速查询。
+    - ``"research"``：中性助手，3 节点拓扑，Critic 质量自省，
+      深度链式工具调用。适合需要完整数据的复杂查询。
 
     Args:
-        request: 包含用户消息、会话 ID 和用户 ID 的请求体。
+        request: 包含用户消息、Agent 类型、会话 ID 和用户 ID 的请求体。
 
     Returns:
         ChatResponse: 包含回复、迭代次数、工具列表和意图分类的响应。
     """
-    # ── 构建初始状态 ─────────────────────────────────────────
+    if request.agent_type == "research":
+        return await _chat_research(request)
+    return await _chat_dialogue(request)
+
+
+async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
+    """Dialogue Agent 内部处理。"""
+    initial_state: DialogueState = {
+        "messages": [
+            SystemMessage(content=DIALOGUE_SYSTEM_PROMPT),
+            HumanMessage(content=request.message),
+        ],
+        "iterations": 0,
+        "query_intent": "unknown",
+        "session_id": request.session_id,
+        "user_id": request.user_id,
+    }
+
+    try:
+        result = await dialogue_app.ainvoke(initial_state)
+    except Exception as e:
+        logger.exception("/chat (dialogue): Agent 执行异常")
+        return ChatResponse(
+            reply=f"啧，出错了：{e}",
+            iterations=0,
+            tools_used=[],
+            query_intent="unknown",
+        )
+
+    messages = result.get("messages", [])
+    return ChatResponse(
+        reply=_extract_final_reply(messages),
+        iterations=result.get("iterations", 0),
+        tools_used=_extract_tools_used(messages),
+        query_intent=result.get("query_intent", "unknown"),
+    )
+
+
+async def _chat_research(request: ChatRequest) -> ChatResponse:
+    """Research Agent 内部处理。"""
     initial_state: AgentState = {
         "messages": [
             SystemMessage(content=BASE_SYSTEM_PROMPT),
@@ -154,7 +205,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     try:
         result = await agent_app.ainvoke(initial_state)
     except Exception as e:
-        logger.exception("/chat: Agent 执行异常")
+        logger.exception("/chat (research): Agent 执行异常")
         return ChatResponse(
             reply=f"系统异常：{e}",
             iterations=0,
@@ -162,19 +213,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
             query_intent="unknown",
         )
 
-    # ── 提取结果 ─────────────────────────────────────────────
     messages = result.get("messages", [])
-
-    # 提取最终 AI 回复（最后一条有实质内容的 AIMessage）
-    final_reply = _extract_final_reply(messages)
-
-    # 统计工具使用
-    tools_used = _extract_tools_used(messages)
-
     return ChatResponse(
-        reply=final_reply,
+        reply=_extract_final_reply(messages),
         iterations=result.get("iterations", 0),
-        tools_used=tools_used,
+        tools_used=_extract_tools_used(messages),
         query_intent=result.get("query_intent", "unknown"),
     )
 
@@ -183,34 +226,49 @@ async def chat(request: ChatRequest) -> ChatResponse:
 async def chat_stream(request: ChatRequest):
     """Agent 对话流式端点（SSE）。
 
-    按节点级别推送事件：reasoning → tool → critic → done。
-    前端可据此展示阶段性进度。
+    通过 ``agent_type`` 选择 Agent。按节点级别推送事件。
+    Research: reasoning → tool → critic → done。
+    Dialogue: reasoning → tool → done（无 critic 节点）。
 
     Args:
-        request: 包含用户消息、会话 ID 和用户 ID 的请求体。
+        request: 包含用户消息、Agent 类型、会话 ID 和用户 ID 的请求体。
 
     Returns:
         StreamingResponse: SSE 事件流（text/event-stream）。
     """
-    initial_state: AgentState = {
-        "messages": [
-            SystemMessage(content=BASE_SYSTEM_PROMPT),
-            HumanMessage(content=request.message),
-        ],
-        "iterations": 0,
-        "critic_status": "PENDING",
-        "critic_feedback": "",
-        "query_intent": "unknown",
-        "session_id": request.session_id,
-        "user_id": request.user_id,
-        "error_flag": False,
-    }
+    if request.agent_type == "dialogue":
+        initial_state: DialogueState = {
+            "messages": [
+                SystemMessage(content=DIALOGUE_SYSTEM_PROMPT),
+                HumanMessage(content=request.message),
+            ],
+            "iterations": 0,
+            "query_intent": "unknown",
+            "session_id": request.session_id,
+            "user_id": request.user_id,
+        }
+        graph_app = dialogue_app
+    else:
+        initial_state: AgentState = {
+            "messages": [
+                SystemMessage(content=BASE_SYSTEM_PROMPT),
+                HumanMessage(content=request.message),
+            ],
+            "iterations": 0,
+            "critic_status": "PENDING",
+            "critic_feedback": "",
+            "query_intent": "unknown",
+            "session_id": request.session_id,
+            "user_id": request.user_id,
+            "error_flag": False,
+        }
+        graph_app = agent_app
 
     async def generate():
         try:
-            async for event in agent_app.astream(initial_state):
+            async for event in graph_app.astream(initial_state):
                 for node_name, node_output in event.items():
-                    if node_name == "reasoning_node":
+                    if node_name in ("reasoning_node", "dialogue_reasoning_node"):
                         intent = node_output.get("query_intent", "unknown")
                         tool_calls = []
                         for msg in node_output.get("messages", []):

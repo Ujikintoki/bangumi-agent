@@ -31,7 +31,7 @@ docker run -d --name bangumi-pg \
 
 The system follows a **layered architecture** with strict separation of concerns.
 
-### Agent topology (Phase 3 — current)
+### Agent topology (Phase 4 — current)
 
 ```
                         START
@@ -89,11 +89,11 @@ agent/
 │   ├── nodes.py     # reasoning_node (工具始终可用, 消化态仅引导), critic_node (rule/llm 双模式)
 │   └── prompts.py   # BASE + 5 个 intent 变体 + CRITIC_SYSTEM_PROMPT
 │
-└── dialogue/        # 对话式 agent（计划新建 — 快 > 准，回复 ~100 字节）
-    ├── state.py     # DialogueState（5 字段，无 critic）
-    ├── graph.py     # reasoning → tool → reasoning(直接回复) → END
-    ├── nodes.py     # dialogue_reasoning_node
-    └── prompts.py   # 极简 prompt
+└── dialogue/        # 对话式 agent（Phase 4 — 快 > 准，30-150 字，<2s）
+    ├── state.py     # DialogueState（5 字段，无 critic，_MAX_ITERATIONS=3）
+    ├── graph.py     # 2 节点拓扑: reasoning → (条件) tool/END, tool → reasoning(固定边)
+    ├── nodes.py     # dialogue_reasoning_node（极简推理，无消化态引导/XML安全网/critic）
+    └── prompts.py   # Bangumi娘人格 prompt（腹黑萝莉，黑色幽默）
 ```
 
 共用层：`tools/`, `rag/`, `clients/`, `core/config.py`, `agent/llm.py`, `agent/memory.py`, `agent/classifier.py`
@@ -102,7 +102,7 @@ agent/
 
 | Layer | Module | Role |
 |-------|--------|------|
-| Entry | `main.py` | FastAPI app, CORS, health check, POST `/chat` + `/chat/stream` |
+| Entry | `main.py` | FastAPI app, CORS, health check, POST `/chat` + `/chat/dialogue` + `/chat/stream` |
 | Config | `core/config.py` | pydantic-settings from `.env`, `@lru_cache` singleton |
 | Agent | `agent/research/` | LangGraph StateGraph: reasoning → (条件) tool/critic/END, tool → reasoning (固定边), 消化态解绑工具. 最大 10 轮强制终止 |
 | Tools | `tools/bgm_tools.py` | LangChain `@tool` functions with Pydantic `args_schema`. Returns natural-language strings to the LLM |
@@ -182,11 +182,37 @@ All three entity types (Subject, Character, Person) share one `rag_entities` tab
 - **Client 层重复**: `clients/` 含 `bgm_client.py`(原始) + `client.py`/`base.py`/`sanitizers.py`(新版) + `docs/tmp/bgm_client.py`(第三个副本)。`tools/bgm_tools.py` 从 `docs/tmp/` 导入绕过了 client 层。
 - **RAG v0/v1 共存**: 旧 `BangumiChunk` 系列 (deprecated) 与新 `RagEntity` 系列并存，旧表仍在测试中被引用。
 
-### 未来方向：双 Agent 架构
+### Phase 4 — 已完成 (2026-06-09)
 
-Research agent 已就位 (`agent/research/`)。下一步写 `agent/dialogue/` 对话式 agent：
+双 Agent 架构落地：
 
-- **Research**: 深度搜索、Critic 质量自省、多轮修正、消化态隔离 — 准确 > 速度
-- **Dialogue**: reasoning → tool → 直接回复，无 Critic — 速度 > 准确，回复 ~100 字节
+| | Research Agent | Dialogue Agent |
+|---|---|---|
+| 端点 | `POST /chat` | `POST /chat/dialogue` |
+| 定位 | 深度研究助手 | 快速对话（Bangumi娘人格） |
+| 节点数 | 3 (reasoning, tool, critic) | 2 (reasoning, tool) |
+| Max 迭代 | 10 | 3 |
+| 回复长度 | 不限 | 30-80 字（闲聊）/ ≤150 字（工具查询） |
+| 工具链 | search→detail→characters→comments | search → (可选 detail) |
+| LLM 调用 | 2-5 次 | 1-2 次 |
+| Critic | rule/llm 双模式 | 无 |
+| 人格 | 中性助手 | Bangumi娘（腹黑萝莉，黑色幽默） |
+| 文件位置 | `agent/research/` | `agent/dialogue/` |
 
-共用 `tools/`、`rag/`、`clients/`、`agent/llm.py`、`agent/memory.py`、`agent/classifier.py`。
+### Dialogue Agent 数据流
+
+```
+POST /chat/dialogue → dialogue_app.ainvoke(initial_state)
+  → dialogue_reasoning_node:
+      manage_memory (两层截断)
+      → classify_intent (规则/LLM, 仅首轮)
+      → build_dialogue_prompt (Bangumi娘人格)
+      → LLM invoke (chitchat/factual 不绑工具，其余绑工具)
+      → AIMessage(tool_calls=[...])
+  → route_after_dialogue_reasoning: 原生路由 —
+      iterations >= 3 → END (熔断)
+      AIMessage.tool_calls 非空 → tool_node → dialogue_reasoning_node
+      其他 → END
+```
+
+共用层：`tools/`、`rag/`、`clients/`、`agent/llm.py`、`agent/memory.py`、`agent/classifier.py`。
