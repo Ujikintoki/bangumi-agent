@@ -24,10 +24,13 @@ reasoning_node(state)
     ├─ Step 3: 注入 critic_feedback（如果非空）
     │   REVISE 时附带上一轮 Critic 的具体改进建议
     │
-    ├─ Step 4: 构建消息列表 → 调用 LLM（bind_tools）
+    ├─ Step 4: 构建消息列表 → 调用 LLM
+    │   ├─ chitchat / factual → 不绑工具
+    │   ├─ 消化态（最后一条为 ToolMessage）→ 不绑工具，强制输出文本
+    │   └─ 其余 intent → bind_tools(12 工具)
     │
     └─ Step 5: 返回结果
-        {messages: [AIMessage], last_tool_calls: [...], query_intent, iterations+1}
+        {messages: [AIMessage], query_intent, iterations+1}
 ```
 
 ## Step 1: 意图分类器
@@ -201,57 +204,48 @@ def reasoning_node(state: AgentState) -> dict:
     if state.get("error_flag"):
         return {
             "messages": [AIMessage(content="抱歉，系统当前繁忙，请稍后再试。")],
-            "last_tool_calls": [],
         }
 
     settings = get_settings()
 
+    # Step 0.5: 记忆截断（manage_memory，含单条 ToolMessage 内容截断）
+    messages = state.get("messages", [])
+    trimmed_messages = manage_memory(messages)
+
     # Step 1: 意图分类（仅第一轮执行）
     query_intent = state.get("query_intent", "unknown")
-    if query_intent == "unknown" or state.get("iterations", 0) == 0:
-        # 先从历史中提取用户原始输入
-        user_msgs = [m for m in state["messages"] if isinstance(m, HumanMessage)]
-        user_input = user_msgs[-1].content if user_msgs else ""
-
-        query_intent = classify_intent_rule(user_input)
-        if query_intent is None:
-            # LLM fallback（用小参数、低延迟调用）
-            llm = ChatOpenAI(
-                model=settings.LLM_MODEL,
-                api_key=settings.LLM_API_KEY,
-                base_url=settings.LLM_BASE_URL,
-                temperature=0,
-                max_tokens=10,
-            )
-            query_intent = classify_intent_llm(user_input, llm)
+    if state.get("iterations", 0) == 0:
+        user_input = _extract_user_input(state)
+        if user_input:
+            classifier_llm = create_llm(temperature=0, max_tokens=10)
+            query_intent, intent_method = classify_intent(user_input, classifier_llm)
 
     # Step 2 & 3: 构建消息（含 intent prompt + critic_feedback）
-    messages = build_messages_for_llm(state)
+    critic_feedback = state.get("critic_feedback", "")
+    system_content = build_system_prompt(intent=query_intent, critic_feedback=critic_feedback)
+    messages_for_llm = [SystemMessage(content=system_content)]
+    for m in trimmed_messages:
+        if not isinstance(m, SystemMessage):
+            messages_for_llm.append(m)
 
-    # Step 4: 调用 LLM（绑定工具）
-    llm = ChatOpenAI(
-        model=settings.LLM_MODEL,
-        api_key=settings.LLM_API_KEY,
-        base_url=settings.LLM_BASE_URL,
-        temperature=0.3,
-    )
+    # Step 4: 调用 LLM
+    llm = create_llm()
+    is_digesting = trimmed_messages and isinstance(trimmed_messages[-1], ToolMessage)
 
-    # chitchat 和 factual 不绑定工具
-    if query_intent in ("chitchat", "factual"):
-        llm_with_tools = llm  # 不 bind_tools
+    # chitchat / factual 不绑工具；消化态也不绑（强制输出文本，斩断工具乱调）
+    if query_intent in ("chitchat", "factual") or is_digesting:
+        llm_with_tools = llm
     else:
         tools = get_agent_tools()
         llm_with_tools = llm.bind_tools(tools)
 
-    response: AIMessage = llm_with_tools.invoke(messages)
+    response: AIMessage = llm_with_tools.invoke(messages_for_llm)
 
     return {
         "messages": [response],
         "iterations": state.get("iterations", 0) + 1,
-        "last_tool_calls": response.tool_calls if hasattr(response, 'tool_calls') else [],
         "query_intent": query_intent,
-        # critic_feedback 在本轮已被消费，清空
-        "critic_feedback": "",
+        "critic_feedback": "",  # 已消费
     }
 ```
 
@@ -280,9 +274,18 @@ AIMessage(
 ## 路由逻辑
 
 ```python
-def route_after_reasoning(state: AgentState) -> Literal["tool_node", "critic_node"]:
-    if state.get("last_tool_calls"):
+def route_after_reasoning(state: AgentState) -> Literal["tool_node", "critic_node", "__end__"]:
+    # 原生消息路由：直接读 messages[-1] 的 tool_calls 属性
+    last_msg = state["messages"][-1]
+    has_tool_calls = (
+        isinstance(last_msg, AIMessage)
+        and hasattr(last_msg, "tool_calls")
+        and last_msg.tool_calls
+    )
+    if has_tool_calls:
         return "tool_node"
+    if state.get("query_intent") == "chitchat":
+        return END  # 快速通道
     return "critic_node"
 ```
 
@@ -313,7 +316,9 @@ logger.info(f"[Reasoning] intent={query_intent} tool_calls={[tc['name'] for tc i
 
 1. **意图分类仅第一轮执行**：后续 REVISE 重试时复用第一轮的 `query_intent`
 2. **chitchat/factual 不绑定工具**：节省 token，防止 LLM 对"你好"也去调搜索
-3. **critic_feedback 消费后清空**：避免下一轮重复注入
-4. **intent prompt 是附加的**：拼在 SYSTEM_PROMPT 之后，不是替换
-5. **temperature = 0.3**：工具调用场景需要低温度，减少幻觉和错误参数
-6. **重入安全**：reasoning_node 可能被多次调用（critic REVISE 后）。LLM 看到完整消息历史来理解上下文
+3. **消化态不绑定工具**：`tool_node → reasoning_node` 后，最后一条为 ToolMessage 时强制解绑工具，从物理层面斩断"工具诱惑陷阱"
+4. **critic_feedback 消费后清空**：避免下一轮重复注入
+5. **intent prompt 是附加的**：拼在 SYSTEM_PROMPT 之后，不是替换
+6. **temperature = 0.3**：工具调用场景需要低温度，减少幻觉和错误参数
+7. **重入安全**：reasoning_node 可能被多次调用（critic REVISE 后）。LLM 看到完整消息历史来理解上下文
+8. **记忆截断**：每轮开头调用 `manage_memory()`，先截断超大单条 ToolMessage（上限 2000 tokens），再滑动窗口管理总预算

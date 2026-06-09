@@ -38,55 +38,56 @@ The system follows a **layered architecture** with strict separation of concerns
                           │
                           ▼
                    reasoning_node
-                   ├─ manage_memory (tiktoken 滑动窗口截断)
+                   ├─ manage_memory (两层截断: 单条 ToolMessage + 列表滑动窗口)
                    ├─ classify_intent (规则优先 + LLM fallback, 6 类)
                    ├─ build_system_prompt (BASE + intent 变体 + critic_feedback)
-                   └─ LLM invoke (chitchat/factual 不绑定工具)
+                   └─ LLM invoke
+                       ├─ chitchat/factual → 不绑工具
+                       ├─ 消化态（最后一条为 ToolMessage）→ 不绑工具，强制输出文本
+                       └─ 其余 intent → bind_tools(12 工具)
                           │
-                          ▼ (条件边: route_after_reasoning)
+                          ▼ (条件边: route_after_reasoning — 原生消息路由)
                ┌──────────┼──────────┐
                │          │          │
-          last_tool_calls  chitchat  其他无工具
-           非空            无工具
-               │          │          │
-               ▼          ▼          ▼
-          ToolNode      END       critic_node
-         (LangGraph    (快速通道)   (rule/llm 双模式)
-          内置)                      │
-               │                    ▼
-               │            (条件边: route_after_critic)
-               │             PASS/超限 → END
-               │             REVISE  → reasoning_node (重试)
-               │                    │
-               └──────────┬─────────┘
+        AIMessage.      chitchat    其他无工具
+        tool_calls       无工具
+        非空               │          │
+               │          ▼          ▼
+               │        END       critic_node
+               │      (快速通道)   (rule/llm 双模式)
+               │                     │
+               ▼                     ▼ (条件边: route_after_critic)
+          ToolNode            PASS/超限 → END
+         (LangGraph           REVISE  → reasoning_node (重试)
+          内置)                    │
+               │                   │
+               └──────────┬────────┘
                           ▼
-                         END
+                   reasoning_node（固定边: 消化工具结果, 消化态解绑工具）
 ```
 
 **关键设计点：**
-- `last_tool_calls` 单写者驱动路由（仅 `reasoning_node` 写入）
+- **原生消息路由**：`route_after_reasoning` 直接读 `state["messages"][-1]` 的 `tool_calls` 属性，不依赖冗余状态字段
+- **固定边** `tool_node → reasoning_node`：工具执行后必须回到 reasoning 消化结果，不直接进 critic
+- **消化态隔离**：`reasoning_node` 检测到入口最后一条为 ToolMessage 时，解绑全部工具，从物理层面强制 LLM 输出文本回复，斩断"工具诱惑陷阱"
 - chitchat 快速通道：跳过工具和 critic，直达 END
 - `critic_feedback` 定向注入下一轮 System Prompt（`"<缺陷> | <建议> | <缺失>"` 格式）
-- 最大 5 轮迭代熔断（graph 和 critic 双重检查）
+- 最大 10 轮迭代熔断（`_MAX_ITERATIONS = 10`，graph 和 critic 双重检查）
 - `error_flag` 优雅降级：置 True 时 reasoning_node 返回兜底消息
 
 ### Agent 目录结构
 
 ```
 agent/
-├── state.py         # AgentState TypedDict (9 字段)
-├── graph.py         # build_graph() + 2 条条件边 + 快速通道
-├── nodes.py         # reasoning_node, critic_node (rule/llm 双模式)
 ├── classifier.py    # 两阶段意图分类 (优先级规则 + LLM fallback)
-├── prompts.py       # BASE + 5 个 intent 变体 + CRITIC_SYSTEM_PROMPT
 ├── llm.py           # create_llm() 多 Provider 工厂 (Azure/OpenAI/DeepSeek)
-├── memory.py        # tiktoken 滑动窗口截断 (cl100k_base 精确计数)
+├── memory.py        # 两层截断: 单条 ToolMessage 内容截断 + 列表滑动窗口 (tiktoken cl100k_base)
 │
-├── research/        # 研究助手 agent（当前，计划迁移）
-│   ├── state.py     # 从 agent/ 移入
-│   ├── graph.py     # 从 agent/ 移入
-│   ├── nodes.py     # 从 agent/ 移入
-│   └── prompts.py   # 从 agent/ 移入
+├── research/        # 研究助手 agent（当前主力）
+│   ├── state.py     # AgentState TypedDict (8 字段，无 last_tool_calls)
+│   ├── graph.py     # build_graph() + 2 条件边 + 1 固定边 + 快速通道
+│   ├── nodes.py     # reasoning_node (消化态解绑工具), critic_node (rule/llm 双模式)
+│   └── prompts.py   # BASE + 5 个 intent 变体 + CRITIC_SYSTEM_PROMPT
 │
 └── dialogue/        # 对话式 agent（计划新建 — 快 > 准，回复 ~100 字节）
     ├── state.py     # DialogueState（5 字段，无 critic）
@@ -103,7 +104,7 @@ agent/
 |-------|--------|------|
 | Entry | `main.py` | FastAPI app, CORS, health check, POST `/chat` + `/chat/stream` |
 | Config | `core/config.py` | pydantic-settings from `.env`, `@lru_cache` singleton |
-| Agent | `agent/` | LangGraph StateGraph: reasoning → (条件) tool/critic/END → (条件) END/retry. 最大 5 轮强制终止 |
+| Agent | `agent/research/` | LangGraph StateGraph: reasoning → (条件) tool/critic/END, tool → reasoning (固定边), 消化态解绑工具. 最大 10 轮强制终止 |
 | Tools | `tools/bgm_tools.py` | LangChain `@tool` functions with Pydantic `args_schema`. Returns natural-language strings to the LLM |
 | Client | `clients/` | `BaseClient` (httpx, retry, auth) → `BangumiClient` (business methods) → `sanitizers` (field whitelisting, type coercion) |
 | RAG | `rag/` | `text_processor.py` (tiktoken sliding-window chunking) → `ingestion.py` (batch embedding + DB write) → `retriever.py` (hybrid vector + JSONB filter search) |
@@ -115,15 +116,21 @@ agent/
 ```
 POST /chat → agent_app.invoke(initial_state)
   → reasoning_node:
-      manage_memory (token 截断) → classify_intent (规则/LLM)
+      manage_memory (两层截断: 单条 ToolMessage 内容 + 列表滑动窗口)
+      → classify_intent (规则/LLM, 仅首轮)
       → build_system_prompt (BASE + intent 变体)
-      → LLM invoke (绑定工具 if lookup/discovery/realtime)
+      → LLM invoke (绑定工具: lookup/discovery/realtime, 解绑: chitchat/factual/消化态)
       → AIMessage(tool_calls=[...])
-  → route_after_reasoning: last_tool_calls 非空 → tool_node
+  → route_after_reasoning: 原生路由 —
+      AIMessage.tool_calls 非空 → tool_node
+      chitchat → END (快速通道)
+      其他 → critic_node
   → ToolNode: 并发执行工具调用 (RAG 检索 + Bangumi API)
-      → ToolMessage(content=结果)
+      → ToolMessage(content=格式化文本)
+  → reasoning_node (固定边): 消化态 — 解绑工具，强制 LLM 输出文本回复
+      → AIMessage(content=文本回复)
   → critic_node: rule/llm 评估 → PASS/REVISE
-  → PASS → END, REVISE → reasoning_node (注入 critic_feedback)
+  → PASS → END, REVISE → reasoning_node (重新绑定工具, 注入 critic_feedback)
 ```
 
 ### RAG architecture — single-table polymorphism
@@ -135,7 +142,7 @@ All three entity types (Subject, Character, Person) share one `rag_entities` tab
 - **Async-first**: all network I/O uses `async/await`. HTTP client is `httpx.AsyncClient`.
 - **Error handling**: API failures return `{"_error": "..."}` dicts — never throw. Callers check `"_error" in result` and propagate gracefully. BaseClient retries on 429/502/503/TimeoutException with exponential backoff (max 3 attempts).
 - **Sanitizer pattern**: pure functions that whitelist fields, coerce magic numbers to human-readable labels, hard-truncate text, and filter noise (<4 char comments, pure numbers/dates). No self, no side effects.
-- **Agent state** (`agent/state.py`): TypedDict with 9 fields — `messages` (Annotated[list[BaseMessage], operator.add]), `iterations`, `critic_status` (PENDING/PASS/REVISE), `critic_feedback`, `last_tool_calls` (仅 reasoning_node 写入，驱动路由), `query_intent` (chitchat/factual/lookup/discovery/realtime/unknown), `session_id`, `user_id`, `error_flag`.
+- **Agent state** (`agent/research/state.py`): TypedDict with 8 fields — `messages` (Annotated[list[BaseMessage], operator.add]), `iterations`, `critic_status` (PENDING/PASS/REVISE), `critic_feedback`, `query_intent` (chitchat/factual/lookup/discovery/realtime/unknown), `session_id`, `user_id`, `error_flag`. 路由由原生消息属性 (`messages[-1].tool_calls`) 驱动，不依赖冗余状态字段。`_MAX_ITERATIONS = 10`。
 - **Token input schemas** (`schemas/tools_input.py`): every tool's parameters are defined as Pydantic BaseModel subclasses with Field descriptions written for LLM consumption.
 - **`.env`** is at project root, loaded by `core/config.py`. Key variables: `DATABASE_URL`, `BANGUMI_APP_ID`, `BANGUMI_APP_SECRET`, `ZHIPU_API_KEY`, `EMBEDDING_DIMENSION` (default 2048).
 
@@ -143,25 +150,32 @@ All three entity types (Subject, Character, Person) share one `rag_entities` tab
 
 ### Phase 3 — 已完成 (2026-06-06)
 
-全部 9 个 Step 完成，375 tests 通过。LLM + 工具 + Critic + 记忆 + 端点全线贯通。
+全部 9 个 Step 完成，438 tests 通过。LLM + 工具 + Critic + 记忆 + 端点全线贯通。
 
-### 当前已知问题（2026-06-07 review）
+### 2026-06-09 架构重构（已完成）
 
-**🔴 严重：**
+以下 2026-06-07 review 发现的问题已修复：
 
-1. **critic_feedback 在 LLM 异常时被静默丢弃** (`agent/nodes.py:121-129`)：异常 handler 返回的 dict 不含 `critic_feedback`，上一轮的反馈丢失，浪费 REVISE 轮次
-2. **超大 ToolMessage 无截断保护** (`agent/memory.py`)：`manage_memory` 只截断消息列表，不截断单条内容。工具返回 50KB JSON 时单条 ToolMessage 即可爆预算
+- ✅ **critic_feedback 异常时丢弃** — `reasoning_node` 异常 handler 现在保留 `state.get("critic_feedback", "")`
+- ✅ **超大 ToolMessage 无截断** — 两层截断：单条 >2000 tokens 内容截断 + 列表滑动窗口（`agent/memory.py`）
+- ✅ **`_MAX_ITERATIONS` 重复定义** — 统一定义在 `agent/research/state.py:70` (=10)
+- ✅ **prompt 注入风险** — `classifier.py` 对用户输入做 `{`→`{{` `}`→`}}` 转义
+- ✅ **消化步仍绑定工具** — 消化态检测 `is_digesting` 后解绑全部工具，强制 LLM 输出文本
+- ✅ **`last_tool_calls` 冗余字段** — 已从 State 删除，路由改为原生 `messages[-1].tool_calls`
+- ✅ **`search_bangumi_subject` / `get_bangumi_subject_detail` 裸返 JSON** — 改为结构化文本输出
+
+### 当前已知问题（2026-06-09）
 
 **🟡 中等：**
 
-3. **`_MAX_ITERATIONS` 重复定义**：`graph.py:30` 和 `nodes.py:214` 各定义一次 (=5)，改一处漏一处会行为不一致
-4. **prompt 注入风险** (`agent/classifier.py:231`)：`INTENT_CLASSIFIER_PROMPT.format(user_message=...)` — 用户含 `{}` 时抛 `KeyError`
-5. **流式端点仅节点级**：`/chat/stream` 推送节点完成事件，非逐 token 流。LLM 慢时用户感知无改善
-6. **session_id / user_id 存而未用**：标注 "Layer 2/3 预留" 但无持久化，每次 /chat 无状态
+1. **流式端点仅节点级**：`/chat/stream` 推送节点完成事件，非逐 token 流。LLM 慢时用户感知无改善
+2. **session_id / user_id 存而未用**：标注 "Layer 2/3 预留" 但无持久化，每次 /chat 无状态
+3. **Critic 仍含 `< 20 字` 硬阈值**：尽管有逃逸舱（`_is_terminal_response` 12 条正则），仍可能误伤合法短回复
+4. **ToolNode 无数据降噪**：直接使用 LangGraph 内置 ToolNode，无 JSON 清洗/投影层
 
 **ℹ️ 轻微：**
 
-7. **`_extract_final_reply` 兜底无区分度**：异常/超限/工具失败统一返回相同兜底消息
+5. **`_extract_final_reply` 兜底无区分度**：异常/超限/工具失败统一返回相同兜底消息
 
 ### 技术债
 
@@ -170,9 +184,9 @@ All three entity types (Subject, Character, Person) share one `rag_entities` tab
 
 ### 未来方向：双 Agent 架构
 
-当前"研究助手" agent 将迁移到 `agent/research/`，另写 `agent/dialogue/` 对话式 agent：
+Research agent 已就位 (`agent/research/`)。下一步写 `agent/dialogue/` 对话式 agent：
 
-- **Research**: 深度搜索、Critic 质量自省、多轮修正 — 准确 > 速度
+- **Research**: 深度搜索、Critic 质量自省、多轮修正、消化态隔离 — 准确 > 速度
 - **Dialogue**: reasoning → tool → 直接回复，无 Critic — 速度 > 准确，回复 ~100 字节
 
 共用 `tools/`、`rag/`、`clients/`、`agent/llm.py`、`agent/memory.py`、`agent/classifier.py`。

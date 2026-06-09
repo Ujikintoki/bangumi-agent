@@ -77,13 +77,13 @@ docs/Agent/
 
 | 决策 | 结论 |
 |---|---|
-| Agent 框架 | LangGraph StateGraph（已就位，拓扑不变） |
+| Agent 框架 | LangGraph StateGraph（`tool → reasoning` 固定边，消化态解绑工具） |
 | LLM 接入方式 | OpenAI SDK 兼容（支持 OpenAI / DeepSeek / Qwen） |
 | 工具调用 | LangGraph `ToolNode` + 本项目 `get_agent_tools()` |
 | 意图分类 | 两阶段：优先级规则匹配（复合意图先于简单意图）+ LLM fallback |
 | 自省策略 | LLM 三元维度评估 + 定向反馈 + 逃逸舱（数据缺失时强制 PASS） |
 | Critic 版本策略 | 先用规则版验证流程，再切换到 LLM 版——两版接口相同 |
-| 迭代上限 | 3 轮（当前配置，可调） |
+| 迭代上限 | 10 轮（`_MAX_ITERATIONS = 10`） |
 | 消息类型 | LangChain `BaseMessage`（HumanMessage, AIMessage, ToolMessage） |
 | 记忆架构 | Layer 1 滑动窗口（tiktoken 精确计数）；Layer 2/3 会话 + 画像（预留接口） |
 | 工具依赖约束 | Prompt 中明确：需要前序结果的工具不能并行调用 |

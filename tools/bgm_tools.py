@@ -15,7 +15,6 @@ AI Agent 工具函数层
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any, Optional
 
@@ -58,6 +57,127 @@ _TYPE_ICONS: dict[int, str] = {
     4: "🎮",
     6: "🎬",
 }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 格式化辅助函数
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _format_search_results(
+    results: list[dict],
+    total: int,
+    keyword: str,
+    entity_type: str,
+) -> str:
+    """将搜索结果格式化为易读文本，避免裸 JSON 进入 LLM 上下文。
+
+    根据 entity_type 自适应展示不同字段：
+    - subject: 评分、排名、类型图标
+    - character: 角色类型、NSFW 标记
+    - person: 职业
+    """
+    if not results:
+        return (
+            f"未找到与「{keyword}」相关的"
+            f"{'条目' if entity_type == 'subject' else '角色' if entity_type == 'character' else '人物'}，"
+            f"请尝试更换关键词。"
+        )
+
+    lines: list[str] = [f"🔍 「{keyword}」的搜索结果（共 {total} 条）：\n"]
+
+    for i, item in enumerate(results, 1):
+        item_id = item.get("id", 0)
+        name = item.get("name_cn") or item.get("name", "未知")
+        orig_name = item.get("name", "")
+        display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
+
+        etype = item.get("entity_type", entity_type)
+
+        if etype == "subject":
+            type_icon = _TYPE_ICONS.get(item.get("type_id", 0), "📌")
+            score = item.get("score", 0)
+            rank = item.get("rank", 0)
+            extras: list[str] = []
+            if score:
+                extras.append(f"评分 {score:.1f}")
+            if rank:
+                extras.append(f"排名 #{rank}")
+            extra_str = f" — {' | '.join(extras)}" if extras else ""
+            lines.append(f"{i}. {type_icon} {display}{extra_str}  [ID: {item_id}]")
+
+        elif etype == "character":
+            role = item.get("role", "")
+            role_str = f"（{role}）" if role and role != "未知" else ""
+            nsfw_tag = " 🔞" if item.get("nsfw") else ""
+            lines.append(f"{i}. 🧑 {display}{role_str}{nsfw_tag}  [ID: {item_id}]")
+
+        elif etype == "person":
+            career = item.get("career", "")
+            career_str = f" — {career}" if career else ""
+            lines.append(f"{i}. 🎤 {display}{career_str}  [ID: {item_id}]")
+
+        else:
+            lines.append(f"{i}. {display}  [ID: {item_id}]")
+
+    lines.append(
+        f"\n── 使用详情工具（get_bangumi_subject_detail / get_entity_comments"
+        f"{' / get_subject_characters' if entity_type == 'subject' else ''}）"
+        f"获取完整信息 ──"
+    )
+    return "\n".join(lines)
+
+
+def _format_subject_detail(detail: dict) -> str:
+    """将条目详情格式化为易读文本，避免裸 JSON 进入 LLM 上下文。"""
+    name = detail.get("name_cn") or detail.get("name", "未知")
+    orig_name = detail.get("name", "")
+    display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
+
+    lines: list[str] = [f"📺 {display}"]
+
+    # ── 评分行 ──────────────────────────────────────────────
+    score = detail.get("score", 0)
+    rank = detail.get("rank", 0)
+    total_ratings = detail.get("total_rating_count", 0)
+    meta: list[str] = []
+    if score:
+        meta.append(f"评分 {score:.1f}")
+    if rank:
+        meta.append(f"排名 #{rank}")
+    if total_ratings:
+        meta.append(f"{total_ratings} 人评")
+    if meta:
+        lines.append(f"{' | '.join(meta)}")
+
+    # ── 类型/集数行 ──────────────────────────────────────────
+    type_name = detail.get("type", "")
+    eps = detail.get("eps", 0)
+    sub: list[str] = []
+    if type_name:
+        sub.append(f"类型: {type_name}")
+    if eps:
+        sub.append(f"集数: {eps}")
+    if sub:
+        lines.append(f"{' | '.join(sub)}")
+
+    # ── 简介 ────────────────────────────────────────────────
+    summary = detail.get("summary", "")
+    if summary:
+        lines.append(f"\n简介：{summary}")
+
+    # ── 标签 ────────────────────────────────────────────────
+    tags = detail.get("tags", [])
+    if tags:
+        tag_strs = [
+            f"{t['name']}{'(' + str(t['count']) + ')' if t.get('count') else ''}"
+            for t in tags[:10]
+        ]
+        lines.append(f"\n标签：{', '.join(tag_strs)}")
+
+    subject_id = detail.get("id", 0)
+    lines.append(f"\n── 条目 {subject_id} 详情 ──")
+    return "\n".join(lines)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -114,10 +234,15 @@ async def search_bangumi_subject(
         return f"系统提示：搜索失败。{result['_error']}"
 
     results = result.get("results", [])
+    total = result.get("total", len(results))
     if not results:
-        return f"未找到与「{keyword}」相关的{'条目' if entity_type == 'subject' else '角色' if entity_type == 'character' else '人物'}，请尝试更换关键词或调整搜索条件。"
+        return (
+            f"未找到与「{keyword}」相关的"
+            f"{'条目' if entity_type == 'subject' else '角色' if entity_type == 'character' else '人物'}，"
+            f"请尝试更换关键词或调整搜索条件。"
+        )
 
-    return json.dumps(results, ensure_ascii=False)
+    return _format_search_results(results, total, keyword, entity_type)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -158,7 +283,7 @@ async def get_bangumi_subject_detail(subject_id: int) -> str:
     if "_error" in result:
         return f"系统提示：获取条目详情失败。{result['_error']}"
 
-    return json.dumps(result, ensure_ascii=False)
+    return _format_subject_detail(result)
 
 
 # ═══════════════════════════════════════════════════════════════════

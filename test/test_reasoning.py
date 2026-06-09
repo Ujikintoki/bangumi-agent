@@ -150,21 +150,18 @@ class TestReasoningNode:
         result = reasoning_node(state)
         assert "暂时不可用" in str(result["messages"][0].content)
 
-    # ── 消化态测试：验证工具绑定不受消化态影响 ──────────────
+    # ── 消化态测试：验证消化态解绑工具 ──────────────────────
 
     @patch("agent.research.nodes.create_llm")
     @patch("agent.research.nodes.get_agent_tools")
-    def test_digestion_mode_still_binds_tools_for_lookup(self, mock_get_tools, mock_create_llm):
-        """消化态（最后一条消息为 ToolMessage）+ lookup → 仍然绑定工具
+    def test_digestion_mode_skips_tools(self, mock_get_tools, mock_create_llm):
+        """消化态（最后一条消息为 ToolMessage）+ lookup → 不绑定工具
 
-        多步工具链（search → detail）和工具失败 fallback 依赖 LLM
-        在消化工具结果后继续调用新工具。不应硬性禁止。
+        消化态从物理层面强制 LLM 输出文本回复，杜绝"工具诱惑陷阱"——
+        LLM 在消化海量工具结果时被工具列表挟持，放弃生成总结、继续盲目调工具。
         """
         mock_get_tools.return_value = []
-        mock = make_mock_llm(
-            content="",
-            tool_calls=[{"name": "get_bangumi_subject_detail", "args": {"subject_id": 8}, "id": "call_2"}],
-        )
+        mock = make_mock_llm(content="根据搜索结果，进击的巨人是...")
         mock_create_llm.return_value = mock
 
         from langchain_core.messages import SystemMessage, HumanMessage
@@ -180,11 +177,11 @@ class TestReasoningNode:
         )
         result = reasoning_node(state)
 
-        # 消化态下 lookup 仍然绑定工具（支持多步工具链）
-        mock.bind_tools.assert_called_once()
-        tool_calls = _extract_tool_calls_from_result(result)
-        assert len(tool_calls) == 1
-        assert tool_calls[0]["name"] == "get_bangumi_subject_detail"
+        # 消化态下不绑定工具（get_agent_tools 不应被调用）
+        mock_get_tools.assert_not_called()
+        # LLM 直接生成文本回复，不发起新的工具调用
+        assert result["messages"][0].content == "根据搜索结果，进击的巨人是..."
+        assert _extract_tool_calls_from_result(result) == []
 
     @patch("agent.research.nodes.create_llm")
     def test_digestion_mode_chitchat_still_skips_tools(self, mock_create_llm):

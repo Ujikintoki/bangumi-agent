@@ -37,13 +37,17 @@ def reasoning_node(state: AgentState) -> dict:
 
     流程：
         1. 兜底检查（error_flag）
-        2. 意图分类（仅第一轮执行）
-        3. 构建 System prompt（含 intent 变体 + critic_feedback）
-        4. 调用 LLM（chitchat/factual 不绑定工具，其余绑定 12 工具）
-        5. 返回 AIMessage（含 tool_calls，由 graph 原生路由读取）
+        2. 记忆截断（manage_memory，含单条 ToolMessage 内容截断）
+        3. 意图分类（仅第一轮执行）
+        4. 构建 System prompt（含 intent 变体 + critic_feedback）
+        5. 调用 LLM
 
-    工具绑定在所有轮次保持一致——多步工具链（search → detail → answer）
-    和工具失败后的 fallback 均依赖 LLM 自主决策，不做硬性截断。
+    工具绑定策略：
+        - chitchat / factual：不绑工具（节省 token）
+        - 消化态（最后一条消息为 ToolMessage）：不绑工具，
+          从物理层面强制 LLM 只能输出归纳文本，斩断工具乱调死循环
+        - 其余 intent：绑定 12 工具
+
     ``_MAX_ITERATIONS`` 和 critic 熔断机制防止死循环。
 
     Args:
@@ -119,9 +123,13 @@ def reasoning_node(state: AgentState) -> dict:
         logger.debug("reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
     # chitchat / factual 不绑定工具——节省 token，防止"你好"也调搜索
-    if query_intent in _NO_TOOL_INTENTS:
+    # 消化态不绑定工具——从物理层面强制 LLM 输出文本，斩断工具乱调死循环
+    if query_intent in _NO_TOOL_INTENTS or is_digesting:
         llm_to_use = llm
-        logger.debug("reasoning_node: intent=%s → 不绑定工具", query_intent)
+        if is_digesting:
+            logger.debug("reasoning_node: 消化态 → 解绑工具，强制生成文本回复")
+        else:
+            logger.debug("reasoning_node: intent=%s → 不绑定工具", query_intent)
     else:
         tools = get_agent_tools()
         llm_to_use = llm.bind_tools(tools)

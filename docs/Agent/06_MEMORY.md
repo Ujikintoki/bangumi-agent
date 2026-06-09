@@ -57,9 +57,26 @@ AIMessage:      ~200 tokens (LLM 最终回复)
             旧消息：被截断                    最近 K 条：完整保留
 ```
 
-### 触发时机：ToolNode 返回之后
+### 两层截断策略
 
-> **关键**：不放在 reasoning_node 开头，而放在 ToolNode 返回之后。因为工具返回的数据量最不可控（评论 JSON、搜索结果等），Token 数可能在 ToolNode 后暴涨。在进入下一轮 reasoning 之前截断更可靠。
+**第 0 层：单条消息内容截断**
+
+在列表级截断之前，先对单条超大消息（主要是 ToolMessage 返回的海量 JSON）进行内容截断。单条上限 `_MAX_SINGLE_MESSAGE_TOKENS = 2000`，超出则用 tiktoken 精确截断后追加 `...[内容已截断]` 标记。防止一条 50KB 的搜索结果单条爆掉全部 token 预算。
+
+```python
+def _truncate_oversized_messages(messages, max_single_tokens=2000):
+    """截断超过单条上限的消息内容"""
+    # 遍历所有消息，对超过 max_single_tokens 的 ToolMessage 做内容截断
+    # 保留 tool_call_id 和 name 元数据
+```
+
+**第 1 层：列表级滑动窗口**
+
+当总 Token 超预算时，从头部丢弃旧消息。ToolMessage 优先截断而非丢弃。
+
+### 触发时机：reasoning_node 开头
+
+每轮 reasoning 开头调用 `manage_memory()`，先单条截断再检查总预算，最可靠地管理上下文窗口。
 
 ### 实现
 
@@ -105,6 +122,13 @@ def trim_messages(messages: list, max_tokens: int = 8000) -> list:
     for m in reversed(other_msgs):
         estimated = estimate_tokens([m])
         if token_count + estimated > max_tokens:
+            # 超大 ToolMessage：截断内容而非整条丢弃
+            if isinstance(m, ToolMessage):
+                remaining = max_tokens - token_count
+                if remaining > 100:
+                    truncated_m = _truncate_message_content(m, remaining)
+                    kept.insert(0, truncated_m)
+                    token_count += estimate_tokens([truncated_m])
             break
         kept.insert(0, m)
         token_count += estimated
@@ -131,18 +155,19 @@ graph.add_edge("tool_node", "memory_node")
 graph.add_edge("memory_node", "critic_node")
 ```
 
-方式二——集成在 `reasoning_node` 内（更简单，不改图拓扑）：
+当前实现——集成在 `reasoning_node` 内（方式二）：
 
 ```python
-def reasoning_node(state: AgentState) -> dict:
-    # 记忆截断（在进入 LLM 推理前）
-    messages = state["messages"]
-    if estimate_tokens(messages) > 8000:
-        state["messages"] = trim_messages(messages, max_tokens=8000)
-    # ... 继续推理
-```
+def manage_memory(messages, max_tokens=8000):
+    """两步策略：先截断超大单条消息，再检查总预算。"""
+    # Step 0: 截断超大单条消息（>2000 tokens → 截断内容）
+    messages = _truncate_oversized_messages(messages)
 
-> Phase 3 建议方式二，不改图拓扑，实现更简单。
+    # Step 1: 检查总预算，超限时滑动窗口截断
+    if estimate_tokens(messages) <= max_tokens:
+        return messages
+    return trim_messages(messages, max_tokens)
+```
 
 ### 进阶：摘要压缩（Phase 3 可选，默认不启用）
 
