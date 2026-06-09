@@ -154,17 +154,19 @@ class TestReasoningNode:
         result = await reasoning_node(state)
         assert "暂时不可用" in str(result["messages"][0].content)
 
-    # ── 消化态测试：验证消化态解绑工具 ──────────────────────
+    # ── 消化态测试：验证消化态仍绑定工具（允许串行调用） ──
 
     @patch("agent.research.nodes.create_llm")
     @patch("agent.research.nodes.get_agent_tools")
-    async def test_digestion_mode_skips_tools(self, mock_get_tools, mock_create_llm):
-        """消化态（最后一条消息为 ToolMessage）+ lookup → 不绑定工具
+    async def test_digestion_mode_still_binds_tools(self, mock_get_tools, mock_create_llm):
+        """消化态（最后一条消息为 ToolMessage）+ lookup → 仍绑定工具
 
-        消化态从物理层面强制 LLM 输出文本回复，杜绝"工具诱惑陷阱"——
-        LLM 在消化海量工具结果时被工具列表挟持，放弃生成总结、继续盲目调工具。
+        不再强制解绑——强制解绑是 XML 泄漏的根因（DeepSeek 等模型
+        想继续调工具但通道被封，把 <function_calls> 喷到 .content）。
+        模型自主判断是否需要后续调用，循环保护由 Critic + 熔断负责。
         """
-        mock_get_tools.return_value = []
+        from unittest.mock import Mock
+        mock_get_tools.return_value = [Mock(name="search"), Mock(name="detail")]
         mock = make_mock_llm(content="根据搜索结果，进击的巨人是...")
         mock_create_llm.return_value = mock
 
@@ -181,9 +183,9 @@ class TestReasoningNode:
         )
         result = await reasoning_node(state)
 
-        # 消化态下不绑定工具（get_agent_tools 不应被调用）
-        mock_get_tools.assert_not_called()
-        # LLM 直接生成文本回复，不发起新的工具调用
+        # 消化态下 lookup 仍绑定工具——模型自主判断是否需要后续调用
+        mock_get_tools.assert_called_once()
+        # LLM 生成文本回复（模型选择不继续调工具）
         assert result["messages"][0].content == "根据搜索结果，进击的巨人是..."
         assert _extract_tool_calls_from_result(result) == []
 

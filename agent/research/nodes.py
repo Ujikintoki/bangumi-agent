@@ -44,9 +44,9 @@ async def reasoning_node(state: AgentState) -> dict:
 
     工具绑定策略：
         - chitchat / factual：不绑工具（节省 token）
-        - 消化态（最后一条消息为 ToolMessage）：不绑工具，
-          从物理层面强制 LLM 只能输出归纳文本，斩断工具乱调死循环
-        - 其余 intent：绑定 12 工具
+        - lookup / discovery / realtime：始终绑定工具，模型自主判断何时
+          停止调用。不再在每轮工具执行后强制消化——强制解绑是 XML 泄漏
+          的根因。循环保护由 Critic 重复调用检测 + _MAX_ITERATIONS 熔断负责。
 
     ``_MAX_ITERATIONS`` 和 critic 熔断机制防止死循环。
 
@@ -125,18 +125,38 @@ async def reasoning_node(state: AgentState) -> dict:
         logger.debug("reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
     # chitchat / factual 不绑定工具——节省 token，防止"你好"也调搜索
-    # 消化态不绑定工具——从物理层面强制 LLM 输出文本，斩断工具乱调死循环
-    if query_intent in _NO_TOOL_INTENTS or is_digesting:
+    # lookup / discovery / realtime 始终绑定工具——模型自主判断何时停止调用，
+    # 而非每一轮工具执行后强制消化。强制消化是 XML 泄漏的根因（DeepSeek 等
+    # function-calling 微调模型想继续调工具但通道被封 → 溢写到 .content）。
+    # 循环保护由 Critic（重复调用检测）+ _MAX_ITERATIONS 熔断负责。
+    if query_intent in _NO_TOOL_INTENTS:
         llm_to_use = llm
-        if is_digesting:
-            logger.debug("reasoning_node: 消化态 → 解绑工具，强制生成文本回复")
-        else:
-            logger.debug("reasoning_node: intent=%s → 不绑定工具", query_intent)
+        logger.debug("reasoning_node: intent=%s → 不绑定工具", query_intent)
     else:
         tools = get_agent_tools()
         llm_to_use = llm.bind_tools(tools)
-        logger.debug(
-            "reasoning_node: intent=%s → 绑定 %d 个工具", query_intent, len(tools)
+        if is_digesting:
+            logger.debug(
+                "reasoning_node: 消化态 → 仍然绑定 %d 个工具，模型自主判断是否需要后续调用",
+                len(tools),
+            )
+        else:
+            logger.debug(
+                "reasoning_node: intent=%s → 绑定 %d 个工具", query_intent, len(tools)
+            )
+
+    # ── 消化态引导指令 ────────────────────────────────────
+    # 工具结果回来后，引导模型优先综合数据输出文本回复，同时允许必要时
+    # 继续调用工具（如 search → get_detail 的串行依赖）。
+    if is_digesting:
+        messages_for_llm.append(
+            HumanMessage(
+                content=(
+                    "（系统指令：以上是工具返回的数据。请综合这些信息回答用户的问题。"
+                    "如果当前数据足以回答，直接生成文字回复；"
+                    "如果确实需要更多数据，可以继续调用必要的工具。）"
+                )
+            )
         )
 
     try:
@@ -151,6 +171,30 @@ async def reasoning_node(state: AgentState) -> dict:
             "iterations": new_iterations,
             "critic_feedback": state.get("critic_feedback", ""),
         }
+
+    # ── 消化态 XML 泄漏安全网 ──────────────────────────────
+    # 第二道防线：即使注入指令后模型仍然在 content 中输出 XML 工具调用，
+    # 检测并剥离这些标签。防止脏数据进入路由器和 Critic。
+    if is_digesting and response.content:
+        cleaned, was_stripped = _strip_tool_call_xml(response.content)
+        if was_stripped:
+            logger.warning(
+                "reasoning_node: 消化态检测到泄露的工具调用 XML，已自动清理"
+            )
+            if not cleaned:
+                # XML 是全部内容 → 替换为兜底回复
+                cleaned = (
+                    "抱歉，我无法正确处理工具返回的数据。"
+                    "请尝试换个方式提问，或提供更具体的信息。"
+                )
+                logger.warning(
+                    "reasoning_node: 消化态 XML 剥离后内容为空，使用兜底回复"
+                )
+            response = AIMessage(
+                content=cleaned,
+                response_metadata=getattr(response, "response_metadata", {}),
+                id=getattr(response, "id", None),
+            )
 
     # ── Step 5: 提取 tool_calls（仅用于日志） ──────────────
     last_tool_calls = (
@@ -273,6 +317,21 @@ def _critic_node_rule(state: AgentState) -> dict:
     if _dup_feedback:
         logger.info("critic(rule): 检测到重复工具调用 → REVISE")
         return {"critic_status": "REVISE", "critic_feedback": _dup_feedback}
+
+    # ── 检查 0.5: XML 工具调用泄漏 ──────────────────────────
+    # DeepSeek 等模型在消化态解绑工具后可能在 .content 中输出原始
+    # <function_calls> XML。reasoning_node 有第一/二道防线（注入指令 +
+    # 剥离），此处作为第三道防线确保无漏网之鱼。
+    if last_ai and _TOOL_CALL_XML_RESIDUE.search(last_ai.content):
+        logger.warning("critic(rule): 检测到回复中包含工具调用 XML 残骸 → REVISE")
+        return {
+            "critic_status": "REVISE",
+            "critic_feedback": (
+                "回复中包含工具调用 XML 标签，应输出纯文本回复 | "
+                "请基于工具数据直接生成自然语言回答，不要输出 XML 标签或 function_calls 标记 | "
+                "格式错误"
+            ),
+        }
 
     # ── 检查 1: 工具已返回数据但没有 AI 回复 ──────────────
     if has_tool_msgs and last_ai is None:
@@ -488,6 +547,42 @@ def _get_last_ai_response(messages: list) -> "AIMessage | None":
         if isinstance(m, AIMessage) and m.content:
             return m
     return None
+
+
+# ── XML 工具调用泄漏检测 ──────────────────────────────────────
+# DeepSeek 等 function-calling 微调模型在解绑工具后仍可能在 .content
+# 中输出原始 XML/DSML 标签。这些模式用于检测和剥离泄漏的标签。
+
+_TOOL_CALL_XML_BLOCK = re.compile(
+    r"<\s*function_calls\s*>.*?</\s*function_calls\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+"""匹配完整的 <function_calls>...</function_calls> 块（DeepSeek DSML 格式）。"""
+
+_TOOL_CALL_XML_RESIDUE = re.compile(
+    r"<\s*(?:function_calls|invoke|parameter|xml)[\s>]",
+    re.IGNORECASE,
+)
+"""匹配 XML 工具调用标签的残骸（用于 Critic 快速检测）。"""
+
+
+def _strip_tool_call_xml(content: str) -> tuple[str, bool]:
+    """剥离 LLM 回复中泄漏的工具调用 XML/DSML 标签。
+
+    只剥离完整 XML 块（``<function_calls>...</function_calls>``），
+    不破坏正常文本内容。空字符串/纯空白不触发剥离。
+
+    Args:
+        content: LLM 回复的文本内容。
+
+    Returns:
+        ``(cleaned_content, was_stripped)`` 元组。
+    """
+    if not content or not content.strip():
+        return content, False
+    cleaned = _TOOL_CALL_XML_BLOCK.sub("", content).strip()
+    was_stripped = cleaned != content.strip()
+    return cleaned, was_stripped
 
 
 # ── 终端回复识别模式 ──────────────────────────────────────────

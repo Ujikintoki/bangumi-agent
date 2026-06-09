@@ -43,7 +43,7 @@ The system follows a **layered architecture** with strict separation of concerns
                    ├─ build_system_prompt (BASE + intent 变体 + critic_feedback)
                    └─ LLM invoke
                        ├─ chitchat/factual → 不绑工具
-                       ├─ 消化态（最后一条为 ToolMessage）→ 不绑工具，强制输出文本
+                       └─ 其余 intent → bind_tools(12 工具，消化态不摘工具)
                        └─ 其余 intent → bind_tools(12 工具)
                           │
                           ▼ (条件边: route_after_reasoning — 原生消息路由)
@@ -63,13 +63,13 @@ The system follows a **layered architecture** with strict separation of concerns
                │                   │
                └──────────┬────────┘
                           ▼
-                   reasoning_node（固定边: 消化工具结果, 消化态解绑工具）
+                   reasoning_node（固定边: 消化工具结果，如需继续调工具则 model 自主判定）
 ```
 
 **关键设计点：**
 - **原生消息路由**：`route_after_reasoning` 直接读 `state["messages"][-1]` 的 `tool_calls` 属性，不依赖冗余状态字段
 - **固定边** `tool_node → reasoning_node`：工具执行后必须回到 reasoning 消化结果，不直接进 critic
-- **消化态隔离**：`reasoning_node` 检测到入口最后一条为 ToolMessage 时，解绑全部工具，从物理层面强制 LLM 输出文本回复，斩断"工具诱惑陷阱"
+- **消化态引导**：`reasoning_node` 检测到入口最后一条为 ToolMessage 时，注入引导指令让模型优先综合数据输出文本，但不强制解绑工具——允许模型在确实需要更多数据时（如 search → get_detail 串行依赖）继续调用工具。循环保护由 Critic 重复调用检测 + `_MAX_ITERATIONS` 熔断负责。不再强制解绑是 XML 泄漏（DeepSeek 在无工具通道时将 `<function_calls>` 喷到 `.content`）的最终修复
 - chitchat 快速通道：跳过工具和 critic，直达 END
 - `critic_feedback` 定向注入下一轮 System Prompt（`"<缺陷> | <建议> | <缺失>"` 格式）
 - 最大 10 轮迭代熔断（`_MAX_ITERATIONS = 10`，graph 和 critic 双重检查）
@@ -86,7 +86,7 @@ agent/
 ├── research/        # 研究助手 agent（当前主力）
 │   ├── state.py     # AgentState TypedDict (8 字段，无 last_tool_calls)
 │   ├── graph.py     # build_graph() + 2 条件边 + 1 固定边 + 快速通道
-│   ├── nodes.py     # reasoning_node (消化态解绑工具), critic_node (rule/llm 双模式)
+│   ├── nodes.py     # reasoning_node (工具始终可用, 消化态仅引导), critic_node (rule/llm 双模式)
 │   └── prompts.py   # BASE + 5 个 intent 变体 + CRITIC_SYSTEM_PROMPT
 │
 └── dialogue/        # 对话式 agent（计划新建 — 快 > 准，回复 ~100 字节）
