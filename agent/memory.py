@@ -47,9 +47,13 @@ def count_tokens(text: str) -> int:
         text: 任意文本。
 
     Returns:
-        Token 数量。
+        Token 数量。编码失败时回退到 ``len(text) // 2`` 估算。
     """
-    return len(_ENCODER.encode(text))
+    try:
+        return len(_ENCODER.encode(text))
+    except Exception:
+        logger.warning("tiktoken encode 失败，使用 len//2 估算（%d 字符）", len(text))
+        return max(1, len(text) // 2)
 
 
 def estimate_tokens(messages: list[BaseMessage]) -> int:
@@ -84,12 +88,16 @@ def _truncate_text_by_tokens(text: str, max_tokens: int) -> str:
         max_tokens: 保留的最大 token 数。
 
     Returns:
-        截断后的文本。
+        截断后的文本。编码失败时回退到字符截断。
     """
-    tokens = _ENCODER.encode(text)
-    if len(tokens) <= max_tokens:
-        return text
-    return _ENCODER.decode(tokens[:max_tokens])
+    try:
+        tokens = _ENCODER.encode(text)
+        if len(tokens) <= max_tokens:
+            return text
+        return _ENCODER.decode(tokens[:max_tokens])
+    except Exception:
+        logger.warning("tiktoken encode/decode 失败，使用字符截断")
+        return text[: max_tokens * 2]  # 退避：中文字符约 2 tokens/字
 
 
 def _truncate_message_content(msg: BaseMessage, max_tokens: int) -> BaseMessage:

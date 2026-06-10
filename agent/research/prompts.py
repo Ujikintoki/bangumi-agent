@@ -10,6 +10,10 @@
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger("bgm-agent.prompts")
+
 # ═══════════════════════════════════════════════════════════════════
 # 基础系统提示词
 # ═══════════════════════════════════════════════════════════════════
@@ -236,11 +240,27 @@ def build_system_prompt(
     intent_prompt = INTENT_PROMPTS.get(intent, INTENT_PROMPTS["unknown"])
     parts.append(intent_prompt)
 
-    # Critic 反馈注入
+    # Critic 反馈注入（含基础格式校验）
     if critic_feedback:
+        # 期望格式："<缺陷> | <建议> | <缺失类型>"，但 LLM 输出可能偏离。
+        # 对明显异常（超长、无分隔符）的反馈做截断和日志，但不丢弃——
+        # LLM 对格式有一定鲁棒性，丢弃反馈会让 REVISE 循环失去方向。
+        safe_feedback = critic_feedback
+        if "|" not in critic_feedback and len(critic_feedback) > 200:
+            logger.warning(
+                "critic_feedback 缺少 '|' 分隔符且超长（%d 字），截断至 200 字",
+                len(critic_feedback),
+            )
+            safe_feedback = critic_feedback[:200] + "\n…[反馈过长已截断]"
+        elif "|" not in critic_feedback:
+            logger.debug(
+                "critic_feedback 缺少 '|' 分隔符，保留原文注入（%d 字）",
+                len(critic_feedback),
+            )
+
         parts.append(
             "\n## ⚠️ 上一轮回复需要改进\n"
-            f"{critic_feedback}\n"
+            f"{safe_feedback}\n"
             "请针对以上问题修正你的回复。"
         )
 

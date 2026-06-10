@@ -46,6 +46,7 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from agent.guardrails import format_tool_error
 from agent.research.nodes import critic_node, reasoning_node
 from agent.research.state import _MAX_ITERATIONS, AgentState
 from tools.bgm_tools import get_agent_tools
@@ -162,7 +163,7 @@ def build_graph(tools: list | None = None) -> StateGraph:
 
     # ── 注册节点 ──────────────────────────────────────────
     graph.add_node("reasoning_node", reasoning_node)
-    graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=True))
+    graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=format_tool_error))
     graph.add_node("critic_node", critic_node)
 
     # ── 固定边 ────────────────────────────────────────────

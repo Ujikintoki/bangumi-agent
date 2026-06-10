@@ -31,6 +31,7 @@ def create_llm(
     temperature: float | None = None,
     max_tokens: int | None = None,
     model: str | None = None,
+    request_timeout: float | None = None,
     settings: Settings | None = None,
     **kwargs: Any,
 ) -> ChatOpenAI:
@@ -49,6 +50,8 @@ def create_llm(
         temperature: 温度参数。None 时使用 Settings.LLM_TEMPERATURE。
         max_tokens: 最大输出 Token。None 时使用 Settings.LLM_MAX_TOKENS。
         model: 模型名/部署名。None 时使用 Settings.LLM_MODEL。
+        request_timeout: HTTP 请求超时（秒）。None 时使用 Settings.LLM_REQUEST_TIMEOUT。
+            轻量场景（如意图分类）可传入更短的超时（如 10s）。
         settings: Settings 实例。None 时调用 get_settings()。
         **kwargs: 透传给 ChatOpenAI 的额外参数。
 
@@ -67,9 +70,10 @@ def create_llm(
     # ── 解析模型名 ─────────────────────────────────────────
     resolved_model = model or settings.LLM_MODEL
 
-    # ── 解析温度 / max_tokens ──────────────────────────────
+    # ── 解析温度 / max_tokens / timeout ─────────────────────
     resolved_temperature = temperature if temperature is not None else settings.LLM_TEMPERATURE
     resolved_max_tokens = max_tokens or settings.LLM_MAX_TOKENS
+    resolved_timeout = request_timeout if request_timeout is not None else settings.LLM_REQUEST_TIMEOUT
 
     # ── Azure 模式 ─────────────────────────────────────────
     azure_endpoint = settings.LLM_AZURE_ENDPOINT or os.environ.get("AZURE_OPENAI_ENDPOINT", "")
@@ -90,6 +94,7 @@ def create_llm(
             openai_api_key=api_key,
             temperature=resolved_temperature,
             max_tokens=resolved_max_tokens,
+            request_timeout=resolved_timeout,
             **kwargs,
         )
 
@@ -107,6 +112,7 @@ def create_llm(
             api_key=api_key,
             temperature=resolved_temperature,
             max_tokens=resolved_max_tokens,
+            request_timeout=resolved_timeout,
             **kwargs,
         )
 
@@ -117,6 +123,7 @@ def create_llm(
         api_key=api_key,
         temperature=resolved_temperature,
         max_tokens=resolved_max_tokens,
+        request_timeout=resolved_timeout,
         **kwargs,
     )
 

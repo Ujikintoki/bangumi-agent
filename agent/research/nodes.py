@@ -8,12 +8,17 @@ LangGraph Agent 节点函数
 from __future__ import annotations
 
 import logging
-import re
 
 from langchain_core.messages import (AIMessage, HumanMessage, SystemMessage,
                                      ToolMessage)
 
 from agent.classifier import classify_intent
+from agent.guardrails import (
+    TOOL_CALL_XML_RESIDUE,
+    check_duplicate_tool_calls,
+    is_terminal_response,
+    strip_tool_call_xml,
+)
 from agent.llm import create_llm
 from agent.memory import manage_memory
 from agent.research.prompts import build_system_prompt
@@ -85,7 +90,7 @@ async def reasoning_node(state: AgentState) -> dict:
         user_input = _extract_user_input(state)
         if user_input:
             # 使用轻量 LLM 做 fallback 分类（temperature=0, max_tokens=10）
-            classifier_llm = create_llm(temperature=0, max_tokens=10)
+            classifier_llm = create_llm(temperature=0, max_tokens=10, request_timeout=10)
             query_intent, intent_method = await classify_intent(user_input, classifier_llm)
             logger.info(
                 "[Intent] query='%s' → intent=%s (method=%s)",
@@ -108,10 +113,14 @@ async def reasoning_node(state: AgentState) -> dict:
     messages_for_llm = [SystemMessage(content=system_content)]
 
     # 追加历史消息（使用截断后的消息，跳过原有的 SystemMessage）
+    skipped_system = 0
     for m in trimmed_messages:
         if isinstance(m, SystemMessage):
+            skipped_system += 1
             continue  # 用新的 SystemMessage 替换
         messages_for_llm.append(m)
+    if skipped_system > 0:
+        logger.debug("跳过 %d 条旧 SystemMessage，使用新的 SystemPrompt", skipped_system)
 
     # ── 消息状态日志（每次 reasoning 入口，DEBUG 级别） ────
     _log_message_state(messages_for_llm, new_iterations)
@@ -176,7 +185,7 @@ async def reasoning_node(state: AgentState) -> dict:
     # 第二道防线：即使注入指令后模型仍然在 content 中输出 XML 工具调用，
     # 检测并剥离这些标签。防止脏数据进入路由器和 Critic。
     if is_digesting and response.content:
-        cleaned, was_stripped = _strip_tool_call_xml(response.content)
+        cleaned, was_stripped = strip_tool_call_xml(response.content)
         if was_stripped:
             logger.warning(
                 "reasoning_node: 消化态检测到泄露的工具调用 XML，已自动清理"
@@ -313,7 +322,7 @@ def _critic_node_rule(state: AgentState) -> dict:
     # ── 检查 0: 重复调用同一工具（参数相同） ──────────────────
     # 当 LLM 连续两轮调用相同工具且参数一致时，说明工具可能返回了错误
     # 或空结果，LLM 陷入无效重试。此时应强制切换到不同策略。
-    _dup_feedback = _check_duplicate_tool_calls(messages)
+    _dup_feedback = check_duplicate_tool_calls(messages)
     if _dup_feedback:
         logger.info("critic(rule): 检测到重复工具调用 → REVISE")
         return {"critic_status": "REVISE", "critic_feedback": _dup_feedback}
@@ -322,7 +331,7 @@ def _critic_node_rule(state: AgentState) -> dict:
     # DeepSeek 等模型在消化态解绑工具后可能在 .content 中输出原始
     # <function_calls> XML。reasoning_node 有第一/二道防线（注入指令 +
     # 剥离），此处作为第三道防线确保无漏网之鱼。
-    if last_ai and _TOOL_CALL_XML_RESIDUE.search(last_ai.content):
+    if last_ai and TOOL_CALL_XML_RESIDUE.search(last_ai.content):
         logger.warning("critic(rule): 检测到回复中包含工具调用 XML 残骸 → REVISE")
         return {
             "critic_status": "REVISE",
@@ -348,7 +357,7 @@ def _critic_node_rule(state: AgentState) -> dict:
     # ── 检查 1.5: 逃逸舱 — 追问/澄清/诚实告知不存在 ────
     # 当 LLM 向用户追问、诚实地告知数据不存在、或说明领域约束（如"角色没有评分"）
     # 时，即使回复较短也属于合法终端状态，不应被字数阈值误伤。
-    if last_ai and _is_terminal_response(last_ai.content):
+    if last_ai and is_terminal_response(last_ai.content):
         logger.debug("critic(rule): 终端回复（追问/澄清/诚实告知）→ PASS")
         return {
             "critic_status": "PASS",
@@ -356,7 +365,7 @@ def _critic_node_rule(state: AgentState) -> dict:
         }
 
     # ── 检查 2: 有工具数据但回复过短，可能未充分利用 ──────
-    if has_tool_msgs and last_ai and len(last_ai.content) < 20:
+    if has_tool_msgs and last_ai and len(last_ai.content) < 10:
         logger.debug("critic(rule): 回复过短 (%d 字) → REVISE", len(last_ai.content))
         return {
             "critic_status": "REVISE",
@@ -507,34 +516,6 @@ def _log_message_state(messages: list, iteration: int) -> None:
         else:
             logger.debug("  [%d] %s preview=%s", i, mtype, preview)
 
-def _check_duplicate_tool_calls(messages: list) -> str:
-    """检测 LLM 是否连续两轮调用相同工具（参数完全一致）。"""
-    tool_call_rounds: list[list[dict]] = []
-    for m in messages:
-        if isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls:
-            tool_call_rounds.append(list(m.tool_calls))
-
-    if len(tool_call_rounds) < 2:
-        return ""
-
-    prev = tool_call_rounds[-2]
-    curr = tool_call_rounds[-1]
-
-    dup_names: set[str] = set()
-    for ptc in prev:
-        for ctc in curr:
-            if ptc.get("name") == ctc.get("name") and ptc.get("args") == ctc.get("args"):
-                dup_names.add(ctc.get("name", "?"))
-
-    if dup_names:
-        return (
-            f"连续两轮调用了相同工具 {'/'.join(sorted(dup_names))} 且参数未变 | "
-            "上一轮该工具返回了错误或空数据，请换用不同工具（如 get_trending_topics 替代 get_calendar）"
-            "或直接告知用户当前数据不可用 | "
-            "重复调用"
-        )
-    return ""
-
 
 def _get_last_ai_response(messages: list) -> "AIMessage | None":
     """提取最后一条有实质内容的 AI 回复。
@@ -549,82 +530,6 @@ def _get_last_ai_response(messages: list) -> "AIMessage | None":
     return None
 
 
-# ── XML 工具调用泄漏检测 ──────────────────────────────────────
-# DeepSeek 等 function-calling 微调模型在解绑工具后仍可能在 .content
-# 中输出原始 XML/DSML 标签。这些模式用于检测和剥离泄漏的标签。
-
-_TOOL_CALL_XML_BLOCK = re.compile(
-    r"<\s*function_calls\s*>.*?</\s*function_calls\s*>",
-    re.IGNORECASE | re.DOTALL,
-)
-"""匹配完整的 <function_calls>...</function_calls> 块（DeepSeek DSML 格式）。"""
-
-_TOOL_CALL_XML_RESIDUE = re.compile(
-    r"<\s*(?:function_calls|invoke|parameter|xml)[\s>]",
-    re.IGNORECASE,
-)
-"""匹配 XML 工具调用标签的残骸（用于 Critic 快速检测）。"""
 
 
-def _strip_tool_call_xml(content: str) -> tuple[str, bool]:
-    """剥离 LLM 回复中泄漏的工具调用 XML/DSML 标签。
 
-    只剥离完整 XML 块（``<function_calls>...</function_calls>``），
-    不破坏正常文本内容。空字符串/纯空白不触发剥离。
-
-    Args:
-        content: LLM 回复的文本内容。
-
-    Returns:
-        ``(cleaned_content, was_stripped)`` 元组。
-    """
-    if not content or not content.strip():
-        return content, False
-    cleaned = _TOOL_CALL_XML_BLOCK.sub("", content).strip()
-    was_stripped = cleaned != content.strip()
-    return cleaned, was_stripped
-
-
-# ── 终端回复识别模式 ──────────────────────────────────────────
-# 当 AI 回复匹配以下任一模式时，视为合法终端状态（追问、澄清、
-# 诚实告知数据不存在、说明领域约束），即使字数较少也不应被
-# Critic 判定为 REVISE。
-
-_TERMINAL_RESPONSE_PATTERNS = [
-    # 追问澄清
-    r"您(是指|说的|想查|要找).{1,30}(吗|\?|？)",
-    r"请问.{1,30}(吗|\?|？)",
-    r"(需要|请).{1,20}(确认|指定|明确|说明)",
-    # 诚实告知不存在
-    r"(未|没有|无法)(找到|检索到|搜索到|匹配|收录|发现)",
-    r"暂无.{1,20}(数据|信息|结果|记录|评分|评论)",
-    r"(数据库|站内|系统|本地|Bangumi).{0,10}(不含|没有|不存在|未收录)",
-    r"(暂无|没有|无)(收录|相关|匹配).{0,10}(条目|信息|数据)",
-    # 建议用户下一步操作
-    r"(建议|推荐|您可以|请尝试|不妨).{1,30}(搜索|查找|确认|尝试|访问)",
-    # 角色/人物无评分说明
-    r"(角色|人物|声优|真人).{0,5}(没有|无|不含|不提供).{0,5}(评分|rating)",
-    r"(只有|仅有).{1,10}(条目|作品|subject).{1,10}(评分|rating)",
-    # 多候选让用户选
-    r"(可能|也许).{1,10}(是|指).{1,30}(还是|或者|哪一个)",
-    r"以下.{1,20}(候选|可能|结果)",
-]
-
-
-def _is_terminal_response(content: str) -> bool:
-    """判断 AI 回复是否为合法的终端状态。
-
-    当 LLM 在执行以下操作时，说明它已经完成了"尽职"的部分，
-    不需要 Critic 要求它继续搜索或展开：
-    - 向用户追问以澄清意图
-    - 诚实告知数据客观不存在
-    - 建议用户换一种方式搜索
-    - 说明 Bangumi 数据模型的边界（如角色没有评分）
-
-    Args:
-        content: AI 回复的文本内容。
-
-    Returns:
-        True 如果该回复应被视为合法终端状态。
-    """
-    return any(re.search(pattern, content) for pattern in _TERMINAL_RESPONSE_PATTERNS)

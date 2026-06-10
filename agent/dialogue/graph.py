@@ -41,6 +41,7 @@ from langgraph.prebuilt import ToolNode
 
 from agent.dialogue.nodes import dialogue_reasoning_node
 from agent.dialogue.state import _MAX_ITERATIONS, DialogueState
+from agent.guardrails import format_tool_error
 from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.dialogue.graph")
@@ -114,7 +115,7 @@ def build_dialogue_graph(tools: list | None = None) -> StateGraph:
 
     # ── 注册节点 ──────────────────────────────────────────
     graph.add_node("dialogue_reasoning_node", dialogue_reasoning_node)
-    graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=True))
+    graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=format_tool_error))
 
     # ── 固定边 ────────────────────────────────────────────
     graph.add_edge(START, "dialogue_reasoning_node")

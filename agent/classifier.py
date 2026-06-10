@@ -93,7 +93,6 @@ INTENT_RULES: list[tuple[str, dict]] = [
                 "声优",
                 "角色",
                 "详情",
-                "评价",
                 "评论",
                 "吐槽",
                 "几集",
@@ -101,9 +100,14 @@ INTENT_RULES: list[tuple[str, dict]] = [
                 "评分",
                 "排名",
                 "信息",
+                # 用户相关查询（@用户名、班友、用户资料）
+                "@",
+                "班友",
+                "用户",
             ],
             "patterns": [
-                r"^(搜|找|查|帮我).*(评分|声优|角色|详情|评论|评价|多少|几集|信息|排名)",
+                r"^(搜|找|查|帮我).*(评分|声优|角色|详情|评论|评价|多少|几集|信息|排名|用户)",
+                r"@\S{1,20}",  # @用户名 是明确的 Bangumi 用户查询信号
             ],
         },
     ),
@@ -206,10 +210,13 @@ def classify_intent_rule(user_message: str) -> Optional[str]:
                 logger.debug("classify_intent_rule: pattern='%s' → %s", pattern, intent)
                 return intent
 
-    # 短消息（< 5 字）且无明确工具意图 → LLM fallback
-    # 不能硬判为 chitchat："mygo"、"EVA" 等短作品名会被误分类。
+    # 短消息（< 5 字）且不匹配任何规则关键词 → 极可能是作品名缩写
+    # "EVA"、"86"、"K"、"mygo" 等不应走 LLM fallback——LLM 可能误判为
+    # chitchat 导致不绑工具、无法搜索。
+    # 返回 "unknown" 而非 "lookup"：保留 LLM 自行判断的灵活性。
+    # "unknown" 不在 _NO_TOOL_INTENTS 中，工具会绑定，LLM 自行决定是否调用。
     if len(msg) < 5:
-        return None  # 走 LLM fallback
+        return "unknown"
 
     return None  # 需要 LLM fallback
 

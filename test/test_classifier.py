@@ -74,10 +74,11 @@ class TestIntentClassifierRule:
         assert classify_intent_rule("最近评分最高的番") == "discovery"
         assert classify_intent_rule("找进击的巨人评分") == "lookup"
 
-    def test_short_message_falls_back_to_llm(self):
-        """短消息不再硬判 chitchat，交由 LLM fallback 分类"""
-        assert classify_intent_rule("嗯") is None
-        assert classify_intent_rule("mygo") is None  # 短作品名不应误判
+    def test_short_message_returns_unknown(self):
+        """短消息不再回退到 LLM fallback——直接返回 unknown 以避免短作品名（EVA/86/K）被 LLM 误判为 chitchat。
+        unknown 意图会绑定工具，LLM 在推理阶段可自行判断是否需要调用。"""
+        assert classify_intent_rule("嗯") == "unknown"
+        assert classify_intent_rule("mygo") == "unknown"  # 短作品名应能搜索
 
     def test_unknown_falls_back_to_none(self):
         assert classify_intent_rule("这个番的画风怎么样和那个比") is None

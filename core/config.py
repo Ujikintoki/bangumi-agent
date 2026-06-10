@@ -90,6 +90,12 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: int = 4096
     """LLM 单次输出最大 Token 数。"""
 
+    LLM_REQUEST_TIMEOUT: float = 60.0
+    """LLM API 请求超时时间（秒）。默认 60 秒，分类器等轻量场景可用 10 秒。
+
+    传递给 httpx 的 ``timeout`` 参数。超时后 httpx 抛出 ``TimeoutException``，
+    由上层 try/except 捕获并降级处理。"""
+
     # ── LLM — Azure 专用 ───────────────────────────────────────
     LLM_AZURE_ENDPOINT: str = Field(
         default="",

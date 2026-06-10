@@ -13,7 +13,12 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from agent.classifier import classify_intent
 from agent.dialogue.prompts import build_dialogue_prompt
-from agent.dialogue.state import DialogueState
+from agent.dialogue.state import _MAX_ITERATIONS, DialogueState
+from agent.guardrails import (
+    check_duplicate_tool_calls,
+    is_terminal_response,
+    strip_tool_call_xml,
+)
 from agent.llm import create_llm
 from agent.memory import manage_memory
 from tools.bgm_tools import get_agent_tools
@@ -58,7 +63,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     if state.get("iterations", 0) == 0:
         user_input = _extract_user_input(state)
         if user_input:
-            classifier_llm = create_llm(temperature=0, max_tokens=10)
+            classifier_llm = create_llm(temperature=0, max_tokens=10, request_timeout=10)
             query_intent, intent_method = await classify_intent(user_input, classifier_llm)
             logger.info(
                 "[Dialogue Intent] query='%s' → intent=%s (method=%s)",
@@ -74,10 +79,14 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     system_content = build_dialogue_prompt()
     messages_for_llm = [SystemMessage(content=system_content)]
 
+    skipped_system = 0
     for m in trimmed_messages:
         if isinstance(m, SystemMessage):
+            skipped_system += 1
             continue
         messages_for_llm.append(m)
+    if skipped_system > 0:
+        logger.debug("dialogue: 跳过 %d 条旧 SystemMessage，使用新 SystemPrompt", skipped_system)
 
     # ── Step 4: LLM 调用 ──────────────────────────────────
     llm = create_llm()
@@ -99,6 +108,21 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
             " (消化态)" if is_digesting else "",
         )
 
+    # ── 重复工具调用检测 ───────────────────────────────────
+    # 检测 LLM 是否连续两轮调用相同工具/参数——如果工具返回空或错误，
+    # LLM 可能陷入无效重试。检测到重复时注入引导指令。
+    dup_feedback = check_duplicate_tool_calls(trimmed_messages)
+    if dup_feedback:
+        logger.info("dialogue: 检测到重复工具调用 → 注入引导指令")
+        messages_for_llm.append(
+            HumanMessage(
+                content=(
+                    f"（系统指令：{dup_feedback}。"
+                    "如果数据确实不存在，直接告诉用户并给出建议，不要继续搜索。）"
+                )
+            )
+        )
+
     try:
         response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)
     except Exception as e:
@@ -109,7 +133,27 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
             "iterations": new_iterations,
         }
 
-    # ── Step 5: 日志 ──────────────────────────────────────
+    # ── Step 5: 终端回复逃逸舱 ─────────────────────────────
+    # 如果当前在消化工具结果，且 LLM 回复表明数据不存在/建议调整搜索等，
+    # 提前终止迭代——不需要等到 _MAX_ITERATIONS 熔断。
+    if is_digesting and response.content and is_terminal_response(response.content):
+        logger.info("dialogue: 终端回复（逃逸舱）→ 强制结束")
+        new_iterations = _MAX_ITERATIONS  # 让路由函数熔断到 END
+
+    # ── Step 6: XML 泄漏防护（chitchat/factual 无工具通道） ──
+    if query_intent in _NO_TOOL_INTENTS and response.content:
+        cleaned, was_stripped = strip_tool_call_xml(response.content)
+        if was_stripped:
+            logger.warning("dialogue: chitchat/factual 回复中检测到 XML 泄漏，已清理")
+            if not cleaned:
+                cleaned = "啧，脑子有点乱，你再说一遍？"
+            response = AIMessage(
+                content=cleaned,
+                response_metadata=getattr(response, "response_metadata", {}),
+                id=getattr(response, "id", None),
+            )
+
+    # ── Step 7: 日志 ──────────────────────────────────────
     tool_calls = (
         list(response.tool_calls)
         if hasattr(response, "tool_calls") and response.tool_calls

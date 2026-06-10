@@ -179,7 +179,11 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
 
     messages = result.get("messages", [])
     return ChatResponse(
-        reply=_extract_final_reply(messages),
+        reply=_extract_final_reply(
+            messages,
+            iterations=result.get("iterations", 0),
+            max_iterations=3,
+        ),
         iterations=result.get("iterations", 0),
         tools_used=_extract_tools_used(messages),
         query_intent=result.get("query_intent", "unknown"),
@@ -215,7 +219,12 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
 
     messages = result.get("messages", [])
     return ChatResponse(
-        reply=_extract_final_reply(messages),
+        reply=_extract_final_reply(
+            messages,
+            error_flag=result.get("error_flag", False),
+            iterations=result.get("iterations", 0),
+            max_iterations=10,
+        ),
         iterations=result.get("iterations", 0),
         tools_used=_extract_tools_used(messages),
         query_intent=result.get("query_intent", "unknown"),
@@ -305,14 +314,24 @@ async def chat_stream(request: ChatRequest):
 # ═══════════════════════════════════════════════════════════════════
 
 
-def _extract_final_reply(messages: list) -> str:
+def _extract_final_reply(
+    messages: list,
+    error_flag: bool = False,
+    iterations: int = 0,
+    max_iterations: int = 10,
+) -> str:
     """从消息历史中提取最终 AI 回复。
 
     查找最后一条有实质内容的 AIMessage。与 Critic 的 ``_get_last_ai_response``
     标准一致：有 content 即视为有效回复，不因附带 tool_calls 而拒绝。
 
+    兜底消息根据失败原因提供区分度更高的提示。
+
     Args:
         messages: 完整的消息历史列表。
+        error_flag: 是否触发了错误降级。
+        iterations: 当前迭代次数（用于超限提示）。
+        max_iterations: 最大迭代次数上限。
 
     Returns:
         最终回复文本。未找到时返回兜底消息。
@@ -320,6 +339,21 @@ def _extract_final_reply(messages: list) -> str:
     for m in reversed(messages):
         if isinstance(m, AIMessage) and m.content:
             return m.content
+
+    # ── 区分化的兜底消息 ────────────────────────────────────
+    if error_flag:
+        return "系统处理超时，请简化查询后重试。"
+
+    if iterations >= max_iterations:
+        return "查询达到最大处理轮次，请尝试更具体的提问方式。"
+
+    # 检查是否有工具执行但无文本回复
+    has_tool_results = any(
+        isinstance(m, ToolMessage) for m in messages
+    )
+    if has_tool_results:
+        return "工具执行完成但未能生成文本回复，请重试或换个方式提问。"
+
     return "抱歉，无法处理您的请求。"
 
 
