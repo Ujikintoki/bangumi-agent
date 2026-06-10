@@ -28,10 +28,41 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 logger = logging.getLogger("bgm-agent.memory")
 
 # ── 全局编码器（cl100k_base 是 GPT-4/DeepSeek/Qwen 的通用编码） ─
-_ENCODER = tiktoken.get_encoding("cl100k_base")
+try:
+    _ENCODER = tiktoken.get_encoding("cl100k_base")
+except Exception:
+    logger.warning(
+        "tiktoken 编码器初始化失败（版本不兼容或编码缺失），"
+        "将回退到 len//2 字符估算。建议: pip install tiktoken>=0.5.0"
+    )
+    _ENCODER = None
 
-# 默认 Token 预算
+# ── Token 预算分配（Phase 5 显式划分） ─
 DEFAULT_MAX_TOKENS = 8000
+"""Research Agent 总 Token 预算。
+
+分配：
+  System Prompt (BASE + intent):  ~1200 tokens
+  L2 记忆注入:                    ≤500 tokens
+  对话历史:                       ~5300 tokens
+  LLM 输出缓冲:                   ~1000 tokens
+"""
+
+DIALOGUE_MAX_TOKENS = 4000
+"""Dialogue Agent 总 Token 预算。
+
+分配：
+  System Prompt (Bangumi娘人格):   ~600 tokens
+  L2 记忆注入:                    ≤300 tokens
+  对话历史:                       ~2500 tokens
+  LLM 输出缓冲:                    ~600 tokens
+"""
+
+L2_MEMORY_BUDGET_TOKENS = 500
+"""L2 记忆注入预留 Token 数（Research Agent）。"""
+
+L2_MEMORY_BUDGET_DIALOGUE = 300
+"""L2 记忆注入预留 Token 数（Dialogue Agent）。"""
 
 # 单条消息最大 Token 数（超出则截断内容，主要针对 ToolMessage 返回的海量 JSON）
 _MAX_SINGLE_MESSAGE_TOKENS = 2000

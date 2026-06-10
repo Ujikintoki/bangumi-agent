@@ -19,7 +19,7 @@ from agent.guardrails import (
     strip_tool_call_xml,
 )
 from agent.llm import create_llm
-from agent.memory import manage_memory
+from agent.memory import DEFAULT_MAX_TOKENS, manage_memory
 from agent.research.prompts import build_system_prompt
 from agent.research.state import _MAX_ITERATIONS, AgentState
 from core.config import get_settings
@@ -72,11 +72,7 @@ async def research_reasoning_node(state: AgentState) -> dict:
 
     new_iterations = state.get("iterations", 0) + 1
 
-    # ── Step 0.5: 记忆截断 ───────────────────────────────────
-    # 在进入 LLM 推理前检查 Token 预算，超限时滑动窗口截断旧消息。
-    # 工具返回数据量最不可控，因此在每轮 reasoning 开头检查。
     messages = state.get("messages", [])
-    trimmed_messages = manage_memory(messages)
 
     # ── Step 1: 意图分类（仅第一轮） ─────────────────────────
     query_intent = state.get("query_intent", "unknown")
@@ -112,12 +108,12 @@ async def research_reasoning_node(state: AgentState) -> dict:
         critic_feedback=critic_feedback,
     )
 
-    # ── Step 3: 构建消息列表 ─────────────────────────────────
+    # ── Step 3: 构建消息列表（不含截断——截断在消化态引导后执行） ──
     messages_for_llm = [SystemMessage(content=system_content)]
 
-    # 追加历史消息（使用截断后的消息，跳过原有的 SystemMessage）
+    # 追加历史消息（跳过原有的 SystemMessage，用新 SystemPrompt 替换）
     skipped_system = 0
-    for m in trimmed_messages:
+    for m in messages:
         if isinstance(m, SystemMessage):
             skipped_system += 1
             continue  # 用新的 SystemMessage 替换
@@ -127,14 +123,11 @@ async def research_reasoning_node(state: AgentState) -> dict:
             "跳过 %d 条旧 SystemMessage，使用新的 SystemPrompt", skipped_system
         )
 
-    # ── 消息状态日志（每次 reasoning 入口，DEBUG 级别） ────
-    _log_message_state(messages_for_llm, new_iterations)
-
     # ── Step 4: LLM 调用 ─────────────────────────────────────
     llm = create_llm()
 
     # 消化态日志：记录当前是否在消化工具结果，方便排查多轮行为
-    is_digesting = trimmed_messages and isinstance(trimmed_messages[-1], ToolMessage)
+    is_digesting = messages and isinstance(messages[-1], ToolMessage)
     if is_digesting:
         logger.debug("research_reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
@@ -172,6 +165,14 @@ async def research_reasoning_node(state: AgentState) -> dict:
                 )
             )
         )
+
+    # ── Step 3.5: 记忆截断（在完整消息列表构建后执行） ──
+    # 在 prompt 构建完成、消化态引导追加之后执行截断，确保
+    # manage_memory 感知完整的 SystemPrompt（含 L2 记忆注入后的实际大小）。
+    messages_for_llm = manage_memory(messages_for_llm, max_tokens=DEFAULT_MAX_TOKENS)
+
+    # ── 消息状态日志（截断后，DEBUG 级别） ────
+    _log_message_state(messages_for_llm, new_iterations)
 
     try:
         response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)

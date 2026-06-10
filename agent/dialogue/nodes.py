@@ -20,7 +20,7 @@ from agent.guardrails import (
     strip_tool_call_xml,
 )
 from agent.llm import create_llm
-from agent.memory import manage_memory
+from agent.memory import DIALOGUE_MAX_TOKENS, manage_memory
 from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.dialogue")
@@ -51,9 +51,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     """
     new_iterations = state.get("iterations", 0) + 1
 
-    # ── Step 1: 记忆截断 ───────────────────────────────────
     messages = state.get("messages", [])
-    trimmed_messages = manage_memory(messages)
 
     # ── Step 2: 意图分类（仅第一轮） ───────────────────────
     query_intent = state.get("query_intent", "unknown")
@@ -74,12 +72,12 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
             query_intent = "unknown"
             intent_method = "rule(empty)"
 
-    # ── Step 3: 构建消息列表 ─────────────────────────────
+    # ── Step 3: 构建消息列表（不含截断——截断在重复检测后执行） ──
     system_content = build_dialogue_prompt()
     messages_for_llm = [SystemMessage(content=system_content)]
 
     skipped_system = 0
-    for m in trimmed_messages:
+    for m in messages:
         if isinstance(m, SystemMessage):
             skipped_system += 1
             continue
@@ -90,7 +88,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     # ── Step 4: LLM 调用 ──────────────────────────────────
     llm = create_llm()
 
-    is_digesting = trimmed_messages and isinstance(trimmed_messages[-1], ToolMessage)
+    is_digesting = messages and isinstance(messages[-1], ToolMessage)
     if is_digesting:
         logger.debug("dialogue_reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
@@ -110,7 +108,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     # ── 重复工具调用检测 ───────────────────────────────────
     # 检测 LLM 是否连续两轮调用相同工具/参数——如果工具返回空或错误，
     # LLM 可能陷入无效重试。检测到重复时注入引导指令。
-    dup_feedback = check_duplicate_tool_calls(trimmed_messages)
+    dup_feedback = check_duplicate_tool_calls(messages)
     if dup_feedback:
         logger.info("dialogue: 检测到重复工具调用 → 注入引导指令")
         messages_for_llm.append(
@@ -121,6 +119,12 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
                 )
             )
         )
+
+    # ── 记忆截断（在完整消息列表构建后执行） ──
+    # 在 prompt 构建和重复检测引导追加之后执行截断，确保
+    # manage_memory 感知完整的 SystemPrompt + 注入指令的实际大小。
+    # Dialogue Agent 预算为 4000 tokens（比 Research 的 8000 更紧）。
+    messages_for_llm = manage_memory(messages_for_llm, max_tokens=DIALOGUE_MAX_TOKENS)
 
     try:
         response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)
