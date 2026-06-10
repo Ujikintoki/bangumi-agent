@@ -1,7 +1,7 @@
 """
-LangGraph Agent 节点函数
+Research Agent 节点函数
 
-- reasoning_node: 接入真实 LLM（function-calling），集成意图分类器、消化态隔离
+- research_reasoning_node: 接入真实 LLM（function-calling），集成意图分类器、消化态隔离
 - critic_node: 双模式自省（规则/LLM），评估输出质量
 """
 
@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from langchain_core.messages import (AIMessage, HumanMessage, SystemMessage,
-                                     ToolMessage)
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from agent.classifier import classify_intent
 from agent.guardrails import (
@@ -37,7 +36,7 @@ _NO_TOOL_INTENTS = frozenset({"chitchat", "factual"})
 # ═══════════════════════════════════════════════════════════════════
 
 
-async def reasoning_node(state: AgentState) -> dict:
+async def research_reasoning_node(state: AgentState) -> dict:
     """推理节点：意图分类 + LLM function-calling 决策。
 
     流程：
@@ -63,7 +62,7 @@ async def reasoning_node(state: AgentState) -> dict:
     """
     # ── Step 0: 兜底模式 ────────────────────────────────────
     if state.get("error_flag", False):
-        logger.warning("reasoning_node: error_flag=True，进入兜底模式")
+        logger.warning("research_reasoning_node: error_flag=True，进入兜底模式")
         return {
             "messages": [AIMessage(content="抱歉，系统当前繁忙，请稍后再试。")],
             "iterations": state.get("iterations", 0),
@@ -90,8 +89,12 @@ async def reasoning_node(state: AgentState) -> dict:
         user_input = _extract_user_input(state)
         if user_input:
             # 使用轻量 LLM 做 fallback 分类（temperature=0, max_tokens=10）
-            classifier_llm = create_llm(temperature=0, max_tokens=10, request_timeout=10)
-            query_intent, intent_method = await classify_intent(user_input, classifier_llm)
+            classifier_llm = create_llm(
+                temperature=0, max_tokens=10, request_timeout=10
+            )
+            query_intent, intent_method = await classify_intent(
+                user_input, classifier_llm
+            )
             logger.info(
                 "[Intent] query='%s' → intent=%s (method=%s)",
                 user_input[:80],
@@ -120,7 +123,9 @@ async def reasoning_node(state: AgentState) -> dict:
             continue  # 用新的 SystemMessage 替换
         messages_for_llm.append(m)
     if skipped_system > 0:
-        logger.debug("跳过 %d 条旧 SystemMessage，使用新的 SystemPrompt", skipped_system)
+        logger.debug(
+            "跳过 %d 条旧 SystemMessage，使用新的 SystemPrompt", skipped_system
+        )
 
     # ── 消息状态日志（每次 reasoning 入口，DEBUG 级别） ────
     _log_message_state(messages_for_llm, new_iterations)
@@ -131,7 +136,7 @@ async def reasoning_node(state: AgentState) -> dict:
     # 消化态日志：记录当前是否在消化工具结果，方便排查多轮行为
     is_digesting = trimmed_messages and isinstance(trimmed_messages[-1], ToolMessage)
     if is_digesting:
-        logger.debug("reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
+        logger.debug("research_reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
     # chitchat / factual 不绑定工具——节省 token，防止"你好"也调搜索
     # lookup / discovery / realtime 始终绑定工具——模型自主判断何时停止调用，
@@ -140,18 +145,18 @@ async def reasoning_node(state: AgentState) -> dict:
     # 循环保护由 Critic（重复调用检测）+ _MAX_ITERATIONS 熔断负责。
     if query_intent in _NO_TOOL_INTENTS:
         llm_to_use = llm
-        logger.debug("reasoning_node: intent=%s → 不绑定工具", query_intent)
+        logger.debug("research_reasoning_node: intent=%s → 不绑定工具", query_intent)
     else:
         tools = get_agent_tools()
         llm_to_use = llm.bind_tools(tools)
         if is_digesting:
             logger.debug(
-                "reasoning_node: 消化态 → 仍然绑定 %d 个工具，模型自主判断是否需要后续调用",
+                "research_reasoning_node: 消化态 → 仍然绑定 %d 个工具，模型自主判断是否需要后续调用",
                 len(tools),
             )
         else:
             logger.debug(
-                "reasoning_node: intent=%s → 绑定 %d 个工具", query_intent, len(tools)
+                "research_reasoning_node: intent=%s → 绑定 %d 个工具", query_intent, len(tools)
             )
 
     # ── 消化态引导指令 ────────────────────────────────────
@@ -171,7 +176,7 @@ async def reasoning_node(state: AgentState) -> dict:
     try:
         response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)
     except Exception as e:
-        logger.exception("reasoning_node: LLM 调用失败")
+        logger.exception("research_reasoning_node: LLM 调用失败")
         # 保留 state 中已有的 critic_feedback：它来自上一轮 Critic 的评估，
         # 丢弃会让下一轮 REVISE 失去方向，浪费一个修正轮次。
         return {
@@ -187,9 +192,7 @@ async def reasoning_node(state: AgentState) -> dict:
     if is_digesting and response.content:
         cleaned, was_stripped = strip_tool_call_xml(response.content)
         if was_stripped:
-            logger.warning(
-                "reasoning_node: 消化态检测到泄露的工具调用 XML，已自动清理"
-            )
+            logger.warning("research_reasoning_node: 消化态检测到泄露的工具调用 XML，已自动清理")
             if not cleaned:
                 # XML 是全部内容 → 替换为兜底回复
                 cleaned = (
@@ -197,7 +200,7 @@ async def reasoning_node(state: AgentState) -> dict:
                     "请尝试换个方式提问，或提供更具体的信息。"
                 )
                 logger.warning(
-                    "reasoning_node: 消化态 XML 剥离后内容为空，使用兜底回复"
+                    "research_reasoning_node: 消化态 XML 剥离后内容为空，使用兜底回复"
                 )
             response = AIMessage(
                 content=cleaned,
@@ -312,9 +315,11 @@ def _critic_node_rule(state: AgentState) -> dict:
     for i, m in enumerate(messages):
         if isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls:
             _last_tc_idx = i
-    has_tool_msgs = any(
-        isinstance(m, ToolMessage) for m in messages[_last_tc_idx + 1:]
-    ) if _last_tc_idx >= 0 else False
+    has_tool_msgs = (
+        any(isinstance(m, ToolMessage) for m in messages[_last_tc_idx + 1 :])
+        if _last_tc_idx >= 0
+        else False
+    )
 
     # 找到最后一条有实质内容的 AI 回复（排除纯 tool_call 的 AIMessage）
     last_ai = _get_last_ai_response(messages)
@@ -329,7 +334,7 @@ def _critic_node_rule(state: AgentState) -> dict:
 
     # ── 检查 0.5: XML 工具调用泄漏 ──────────────────────────
     # DeepSeek 等模型在消化态解绑工具后可能在 .content 中输出原始
-    # <function_calls> XML。reasoning_node 有第一/二道防线（注入指令 +
+    # <function_calls> XML。research_reasoning_node 有第一/二道防线（注入指令 +
     # 剥离），此处作为第三道防线确保无漏网之鱼。
     if last_ai and TOOL_CALL_XML_RESIDUE.search(last_ai.content):
         logger.warning("critic(rule): 检测到回复中包含工具调用 XML 残骸 → REVISE")
@@ -395,6 +400,7 @@ def _critic_node_rule(state: AgentState) -> dict:
 # ═══════════════════════════════════════════════════════════════════
 # LLM 版 Critic（三元维度 + 逃逸舱 + 定向反馈）
 # ═══════════════════════════════════════════════════════════════════
+
 
 async def _critic_node_llm(state: AgentState) -> dict:
     """LLM 版 Critic：三元维度评估 + 逃逸舱 + 定向反馈。
@@ -507,12 +513,18 @@ def _log_message_state(messages: list, iteration: int) -> None:
             name = getattr(m, "name", "?")
             logger.debug(
                 "  [%d] %s name=%s tc_id=%s content=%s",
-                i, mtype, name, tc_id, content if isinstance(content, str) else str(content),
+                i,
+                mtype,
+                name,
+                tc_id,
+                content if isinstance(content, str) else str(content),
             )
         elif isinstance(m, AIMessage):
             tcs = getattr(m, "tool_calls", []) or []
             tc_names = [tc.get("name", "?") for tc in tcs]
-            logger.debug("  [%d] %s tool_calls=%s preview=%s", i, mtype, tc_names, preview)
+            logger.debug(
+                "  [%d] %s tool_calls=%s preview=%s", i, mtype, tc_names, preview
+            )
         else:
             logger.debug("  [%d] %s preview=%s", i, mtype, preview)
 
@@ -528,8 +540,3 @@ def _get_last_ai_response(messages: list) -> "AIMessage | None":
         if isinstance(m, AIMessage) and m.content:
             return m
     return None
-
-
-
-
-

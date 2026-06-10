@@ -14,7 +14,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from agent.research.graph import build_graph
 from agent.memory import estimate_tokens
-from agent.research.nodes import _get_last_ai_response, reasoning_node
+from agent.research.nodes import _get_last_ai_response, research_reasoning_node
 from test.conftest import MOCK_TOOLS, make_mock_llm, make_state
 
 import pytest
@@ -86,7 +86,7 @@ class TestGraphIntegration:
 
 
 class TestCriticFeedbackPropagation:
-    """验证 critic_feedback 确实注入到下一轮 reasoning_node 的 LLM 调用"""
+    """验证 critic_feedback 确实注入到下一轮 research_reasoning_node 的 LLM 调用"""
 
     @patch("agent.research.nodes.create_llm")
     @patch("agent.research.nodes.get_agent_tools")
@@ -106,7 +106,7 @@ class TestCriticFeedbackPropagation:
             query_intent="lookup", iterations=1,
             critic_feedback="缺少评分 | 调用 get_detail | 缺失评分",
         )
-        await reasoning_node(state)
+        await research_reasoning_node(state)
 
         # 验证 LLM.invoke 调用时 prompt 中包含 critic_feedback
         invoke_call = mock_llm.ainvoke.call_args
@@ -122,7 +122,7 @@ class TestMemoryGraphIntegration:
     """验证 memory 截断与 graph 协同"""
 
     async def test_memory_truncation_before_llm_call(self):
-        """长消息历史在 reasoning_node 内被截断后再发给 LLM"""
+        """长消息历史在 research_reasoning_node 内被截断后再发给 LLM"""
         # 构建一条超长的 HumanMessage 触发截断
         long_content = "长文本" * 2000  # ~8000 chars → ~2000 tokens
         messages = [
@@ -131,13 +131,13 @@ class TestMemoryGraphIntegration:
         ]
         state = make_state(messages=messages, query_intent="chitchat")
 
-        # 手动调用 reasoning_node（mock create_llm 避免真实 LLM 调用）
+        # 手动调用 research_reasoning_node（mock create_llm 避免真实 LLM 调用）
         with patch("agent.research.nodes.create_llm") as mock_create_llm:
             mock_llm = make_mock_llm(content="你好！")
             mock_create_llm.return_value = mock_llm
-            result = await reasoning_node(state)
+            result = await research_reasoning_node(state)
 
-        # 验证 reasoning_node 正常完成（不因超长消息崩溃）
+        # 验证 research_reasoning_node 正常完成（不因超长消息崩溃）
         assert result["iterations"] == 1
 
     async def test_trimmed_messages_still_contain_system(self):

@@ -1,5 +1,5 @@
 """
-LangGraph 图谱编排 — 标准 ReAct 拓扑
+Research Agent 图谱编排 — 标准 ReAct 拓扑
 
 核心拓扑
 ========
@@ -7,27 +7,27 @@ LangGraph 图谱编排 — 标准 ReAct 拓扑
                    START
                      │
                      ▼
-              reasoning_node ◄──────────────┐
-                     │         (消化工具结果) │
-                     ▼                      │
-              ┌──────┼──────────┐           │
-              │      │          │           │
-         tool_node   │     chitchat         │
-              │      │     (快速通道)        │
-              │  critic_node    │           │
-              │      │          │           │
-              │      ▼          ▼           │
-              │  (PASS?超限?)   END          │
-              │   ┌──┴──┐                   │
-              │   │     │                   │
-              │  END  reasoning (REVISE) ───┘
+              research_reasoning_node ◄──────────────┐
+                     │         (消化工具结果)          │
+                     ▼                               │
+              ┌──────┼──────────┐                    │
+              │      │          │                    │
+         tool_node   │     chitchat                  │
+              │      │     (快速通道)                 │
+              │  critic_node    │                    │
+              │      │          │                    │
+              │      ▼          ▼                    │
+              │  (PASS?超限?)   END                  │
+              │   ┌──┴──┐                            │
+              │   │     │                            │
+              │  END  research_reasoning (REVISE) ───┘
               │
-              └──→ reasoning（消化工具结果，消化态禁工具绑定）
+              └──→ research_reasoning（消化工具结果，消化态禁工具绑定）
 
 决策矩阵
 ========
 
-route_after_reasoning（原生消息路由，读 messages[-1]）:
+route_after_research_reasoning（原生消息路由，读 messages[-1]）:
     - AIMessage.tool_calls 非空 → tool_node → reasoning_node（消化结果）
     - intent = chitchat         → END（快速通道）
     - 其他无工具调用            → critic_node
@@ -47,11 +47,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from agent.guardrails import format_tool_error
-from agent.research.nodes import critic_node, reasoning_node
+from agent.research.nodes import critic_node, research_reasoning_node
 from agent.research.state import _MAX_ITERATIONS, AgentState
 from tools.bgm_tools import get_agent_tools
 
-logger = logging.getLogger("bgm-agent.graph")
+logger = logging.getLogger("bgm-agent.research.graph")
 
 # 快速通道意图：纯闲聊跳过 Critic，直接结束。
 _FAST_PATH_INTENTS = frozenset({"chitchat"})
@@ -60,10 +60,10 @@ _FAST_PATH_INTENTS = frozenset({"chitchat"})
 # ── 条件路由: reasoning → tool / critic / END ──────────────
 
 
-def route_after_reasoning(
+def route_after_research_reasoning(
     state: AgentState,
 ) -> Literal["tool_node", "critic_node", "__end__"]:
-    """reasoning_node 后的条件边（原生消息路由）。
+    """research_reasoning_node 后的条件边（原生消息路由）。
 
     直接读取 ``state["messages"][-1]`` 的 ``tool_calls`` 属性判定路由，
     不依赖冗余的 ``last_tool_calls`` 状态字段。
@@ -90,18 +90,21 @@ def route_after_reasoning(
     )
     if has_tool_calls:
         logger.debug(
-            "route_after_reasoning: tool_calls=%s → tool_node",
+            "route_after_research_reasoning: tool_calls=%s → tool_node",
             [tc.get("name", "?") for tc in last_msg.tool_calls],
         )
         return "tool_node"
 
     query_intent = state.get("query_intent", "unknown")
     if query_intent in _FAST_PATH_INTENTS:
-        logger.debug("route_after_reasoning: intent=%s → 快速通道 END", query_intent)
+        logger.debug(
+            "route_after_research_reasoning: intent=%s → 快速通道 END", query_intent
+        )
         return END
 
     logger.debug(
-        "route_after_reasoning: intent=%s 无工具调用 → critic_node", query_intent
+        "route_after_research_reasoning: intent=%s 无工具调用 → critic_node",
+        query_intent,
     )
     return "critic_node"
 
@@ -115,7 +118,7 @@ def route_after_critic(state: AgentState) -> Literal["reasoning_node", "__end__"
     决策矩阵：
 
         +----------------+----------------+----------------+
-        | critic_status  | iterations < 5 | iterations >= 5|
+        | critic_status  | iterations < 10| iterations >= 10|
         +================+================+================+
         | PASS           | → END          | → END          |
         +----------------+----------------+----------------+
@@ -162,7 +165,7 @@ def build_graph(tools: list | None = None) -> StateGraph:
     graph = StateGraph(AgentState)
 
     # ── 注册节点 ──────────────────────────────────────────
-    graph.add_node("reasoning_node", reasoning_node)
+    graph.add_node("reasoning_node", research_reasoning_node)
     graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=format_tool_error))
     graph.add_node("critic_node", critic_node)
 
@@ -173,7 +176,7 @@ def build_graph(tools: list | None = None) -> StateGraph:
     # ── 条件边 1: reasoning → tool / critic / END ──────────
     graph.add_conditional_edges(
         "reasoning_node",
-        route_after_reasoning,
+        route_after_research_reasoning,
         {
             "tool_node": "tool_node",
             "critic_node": "critic_node",

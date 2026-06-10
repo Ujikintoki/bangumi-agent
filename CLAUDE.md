@@ -92,7 +92,7 @@ agent/
 └── dialogue/        # 对话式 agent（Phase 4 — 快 > 准，30-150 字，<2s）
     ├── state.py     # DialogueState（5 字段，无 critic，_MAX_ITERATIONS=3）
     ├── graph.py     # 2 节点拓扑: reasoning → (条件) tool/END, tool → reasoning(固定边)
-    ├── nodes.py     # dialogue_reasoning_node（极简推理，无消化态引导/XML安全网/critic）
+    ├── nodes.py     # dialogue_reasoning_node（极简推理，无消化态引导/Critic；含 XML 泄漏防护）
     └── prompts.py   # Bangumi娘人格 prompt（腹黑萝莉，黑色幽默）
 ```
 

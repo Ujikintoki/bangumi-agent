@@ -10,7 +10,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END
 
-from agent.research.graph import route_after_critic, route_after_reasoning
+from agent.research.graph import route_after_critic, route_after_research_reasoning
 from agent.research.nodes import _extract_user_input
 from agent.research.state import _MAX_ITERATIONS
 from test.conftest import make_state
@@ -50,7 +50,7 @@ class TestRouteAfterReasoning:
                 AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
             ],
         )
-        assert route_after_reasoning(state) == "tool_node"
+        assert route_after_research_reasoning(state) == "tool_node"
 
     def test_routes_to_critic_when_no_tool_calls(self):
         """AIMessage 无 tool_calls + lookup intent → critic_node"""
@@ -62,12 +62,12 @@ class TestRouteAfterReasoning:
             ],
             query_intent="lookup",
         )
-        assert route_after_reasoning(state) == "critic_node"
+        assert route_after_research_reasoning(state) == "critic_node"
 
     def test_routes_to_critic_when_empty_messages(self):
         """空消息列表 → critic_node（防御性处理）"""
         state = make_state(messages=[])
-        assert route_after_reasoning(state) == "critic_node"
+        assert route_after_research_reasoning(state) == "critic_node"
 
     def test_chitchat_fast_path_to_end(self):
         """chitchat 无工具调用 → 快速通道直达 END"""
@@ -79,7 +79,7 @@ class TestRouteAfterReasoning:
             ],
             query_intent="chitchat",
         )
-        assert route_after_reasoning(state) == END
+        assert route_after_research_reasoning(state) == END
 
     def test_factual_still_goes_to_critic(self):
         """factual 不走快速通道 → critic_node"""
@@ -91,7 +91,7 @@ class TestRouteAfterReasoning:
             ],
             query_intent="factual",
         )
-        assert route_after_reasoning(state) == "critic_node"
+        assert route_after_research_reasoning(state) == "critic_node"
 
     def test_tool_calls_override_fast_path(self):
         """即使 chitchat 意图，有 tool_calls 时仍然走 tool_node"""
@@ -103,7 +103,7 @@ class TestRouteAfterReasoning:
             ],
             query_intent="chitchat",
         )
-        assert route_after_reasoning(state) == "tool_node"
+        assert route_after_research_reasoning(state) == "tool_node"
 
     def test_tool_calls_routes_to_tool_for_lookup(self):
         """lookup intent + AIMessage 含 tool_calls → tool_node"""
@@ -115,7 +115,7 @@ class TestRouteAfterReasoning:
             ],
             query_intent="lookup",
         )
-        assert route_after_reasoning(state) == "tool_node"
+        assert route_after_research_reasoning(state) == "tool_node"
 
 
 class TestRouteAfterCritic:

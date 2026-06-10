@@ -1,5 +1,5 @@
 """
-系统提示词模块
+Research Agent 系统提示词模块
 
 包含：
 - BASE_SYSTEM_PROMPT: 所有查询共享的基础 prompt
@@ -259,9 +259,7 @@ def build_system_prompt(
             )
 
         parts.append(
-            "\n## ⚠️ 上一轮回复需要改进\n"
-            f"{safe_feedback}\n"
-            "请针对以上问题修正你的回复。"
+            f"\n## ⚠️ 上一轮回复需要改进\n{safe_feedback}\n请针对以上问题修正你的回复。"
         )
 
     return "\n".join(parts)

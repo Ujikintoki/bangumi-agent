@@ -2,7 +2,7 @@
 Dialogue Agent 节点函数
 
 dialogue_reasoning_node：极简推理节点——记忆截断 → 意图分类 → LLM 调用。
-无 Critic、无消化态引导指令、无 XML 安全网——拓扑保证工具始终绑定。
+无 Critic、无消化态引导指令。
 """
 
 from __future__ import annotations
@@ -40,7 +40,6 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
 
     不需要的东西（vs Research）：
         - 消化态引导指令——模型自己会停
-        - XML 泄漏安全网——工具始终绑定，不会泄漏到 .content
         - error_flag 兜底——没有 Critic 触发 error_flag
         - critic_feedback 消费——没有 Critic
 
@@ -140,11 +139,22 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         logger.info("dialogue: 终端回复（逃逸舱）→ 强制结束")
         new_iterations = _MAX_ITERATIONS  # 让路由函数熔断到 END
 
-    # ── Step 6: XML 泄漏防护（chitchat/factual 无工具通道） ──
-    if query_intent in _NO_TOOL_INTENTS and response.content:
+    # ── Step 6: XML 泄漏防护 ──────────────────────────────
+    # 两种情况会触发 XML 泄漏：
+    # 1. chitchat/factual 无工具通道 — DeepSeek 在无 function-calling 通道时
+    #    将 <function_calls> 喷到 .content
+    # 2. 消化态 — 工具已绑定但模型仍可能在 .content 中输出 XML 标签
+    needs_xml_guard = (
+        query_intent in _NO_TOOL_INTENTS  # 无工具通道
+        or is_digesting                    # 消化态
+    )
+    if needs_xml_guard and response.content:
         cleaned, was_stripped = strip_tool_call_xml(response.content)
         if was_stripped:
-            logger.warning("dialogue: chitchat/factual 回复中检测到 XML 泄漏，已清理")
+            logger.warning(
+                "dialogue: %s 回复中检测到 XML 泄漏，已清理",
+                "chitchat/factual" if query_intent in _NO_TOOL_INTENTS else "消化态",
+            )
             if not cleaned:
                 cleaned = "啧，脑子有点乱，你再说一遍？"
             response = AIMessage(

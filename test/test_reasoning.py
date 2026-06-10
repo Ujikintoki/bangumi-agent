@@ -1,5 +1,5 @@
 """
-reasoning_node 测试（mock LLM）
+research_reasoning_node 测试（mock LLM）
 
 验证意图分类、bind_tools 开关、消化态隔离、critic_feedback 注入、LLM 异常处理。
 可独立运行: python -m pytest test/test_reasoning.py -v
@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from agent.research.nodes import reasoning_node
+from agent.research.nodes import research_reasoning_node
 from test.conftest import make_mock_llm, make_state
 
 import pytest
@@ -19,14 +19,14 @@ import pytest
 pytestmark = pytest.mark.asyncio
 
 # ═══════════════════════════════════════════════════════════════════
-# 说明：reasoning_node 调用 create_llm() 两次（分类器 + 主 LLM）。
+# 说明：research_reasoning_node 调用 create_llm() 两次（分类器 + 主 LLM）。
 # 为避免分类器 mock 干扰，需要预置 query_intent（跳过分类步骤）
 # 的测试将 query_intent + iterations≥1 作为前置条件。
 # ═══════════════════════════════════════════════════════════════════
 
 
 def _extract_tool_calls_from_result(result: dict) -> list[dict]:
-    """从 reasoning_node 返回的 messages 中提取 tool_calls。"""
+    """从 research_reasoning_node 返回的 messages 中提取 tool_calls。"""
     for msg in result.get("messages", []):
         if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
             return list(msg.tool_calls)
@@ -34,7 +34,7 @@ def _extract_tool_calls_from_result(result: dict) -> list[dict]:
 
 
 class TestReasoningNode:
-    """reasoning_node — mock LLM"""
+    """research_reasoning_node — mock LLM"""
 
     @patch("agent.research.nodes.create_llm")
     async def test_chitchat_does_not_bind_tools(self, mock_create_llm):
@@ -44,7 +44,7 @@ class TestReasoningNode:
 
         from langchain_core.messages import SystemMessage, HumanMessage
         state = make_state(messages=[SystemMessage(content="..."), HumanMessage(content="你好")])
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
 
         mock.bind_tools.assert_not_called()
         assert _extract_tool_calls_from_result(result) == []
@@ -58,7 +58,7 @@ class TestReasoningNode:
 
         from langchain_core.messages import SystemMessage, HumanMessage
         state = make_state(messages=[SystemMessage(content="..."), HumanMessage(content="什么是三集定律")])
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
 
         mock.bind_tools.assert_not_called()
         assert result["query_intent"] == "factual"
@@ -75,7 +75,7 @@ class TestReasoningNode:
         mock_create_llm.return_value = mock
 
         state = make_state(query_intent="lookup", iterations=1)
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
 
         mock.bind_tools.assert_called_once()
         tool_calls = _extract_tool_calls_from_result(result)
@@ -94,7 +94,7 @@ class TestReasoningNode:
         mock_create_llm.return_value = mock
 
         state = make_state(query_intent="discovery", iterations=1)
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
         mock.bind_tools.assert_called_once()
 
     @patch("agent.research.nodes.create_llm")
@@ -103,13 +103,13 @@ class TestReasoningNode:
         mock_create_llm.return_value = mock
 
         state = make_state(query_intent="factual", iterations=1)
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
         assert _extract_tool_calls_from_result(result) == []
 
     @patch("agent.research.nodes.create_llm")
     async def test_error_flag_returns_fallback(self, mock_create_llm):
         state = make_state(error_flag=True)
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
         assert _extract_tool_calls_from_result(result) == []
         assert "抱歉" in str(result["messages"][0].content)
 
@@ -119,7 +119,7 @@ class TestReasoningNode:
         mock_create_llm.return_value = mock
 
         state = make_state(query_intent="chitchat", iterations=0)
-        assert (await reasoning_node(state))["iterations"] == 1
+        assert (await research_reasoning_node(state))["iterations"] == 1
 
     @patch("agent.research.nodes.create_llm")
     @patch("agent.research.nodes.get_agent_tools")
@@ -133,7 +133,7 @@ class TestReasoningNode:
             query_intent="lookup", iterations=1,
             critic_feedback="缺少评分 | 调用 get_detail | 缺失评分",
         )
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
         assert result["critic_feedback"] == ""
 
     @patch("agent.research.nodes.create_llm")
@@ -142,7 +142,7 @@ class TestReasoningNode:
         mock_create_llm.return_value = mock
 
         state = make_state(query_intent="lookup", iterations=1)
-        assert (await reasoning_node(state))["query_intent"] == "lookup"
+        assert (await research_reasoning_node(state))["query_intent"] == "lookup"
 
     @patch("agent.research.nodes.create_llm")
     async def test_handles_llm_call_failure(self, mock_create_llm):
@@ -151,7 +151,7 @@ class TestReasoningNode:
         mock_create_llm.return_value = mock
 
         state = make_state(query_intent="lookup", iterations=1)
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
         assert "暂时不可用" in str(result["messages"][0].content)
 
     # ── 消化态测试：验证消化态仍绑定工具（允许串行调用） ──
@@ -181,7 +181,7 @@ class TestReasoningNode:
             query_intent="lookup",
             iterations=1,
         )
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
 
         # 消化态下 lookup 仍绑定工具——模型自主判断是否需要后续调用
         mock_get_tools.assert_called_once()
@@ -206,7 +206,7 @@ class TestReasoningNode:
             query_intent="chitchat",
             iterations=1,
         )
-        result = await reasoning_node(state)
+        result = await research_reasoning_node(state)
         mock.bind_tools.assert_not_called()
         assert _extract_tool_calls_from_result(result) == []
         assert result["query_intent"] == "chitchat"

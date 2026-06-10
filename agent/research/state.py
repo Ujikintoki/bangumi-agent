@@ -1,5 +1,5 @@
 """
-LangGraph Agent 状态定义
+Research Agent 状态定义
 
 使用 TypedDict 定义 AgentState，配合 Annotated[list, operator.add]
 实现节点间消息的自动合并（追加而非覆盖），避免跨节点消息丢失。
