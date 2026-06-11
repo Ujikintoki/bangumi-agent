@@ -101,11 +101,41 @@ async def research_reasoning_node(state: AgentState) -> dict:
             query_intent = "unknown"
             intent_method = "rule(empty)"
 
+    # ── Step 1.5: 记忆召回（仅首轮） ──────────────────────
+    # L2/L3 记忆在首轮推理前召回并注入 System Prompt。后续轮次
+    # （工具消化、Critic REVISE）跳过——记忆已在首轮消费，无需
+    # 重复注入浪费 embedding API 和 token 预算。
+    memory_context = ""
+    if state.get("iterations", 0) == 0:
+        user_id = state.get("user_id", "anonymous")
+        user_query = _extract_user_input(state)
+        if user_id != "anonymous" and user_query:
+            try:
+                from agent.memory_manager import get_memory_manager
+
+                mm = get_memory_manager()
+                memory_context = await mm.recall_for_prompt(
+                    user_id=user_id,
+                    query=user_query,
+                    max_tokens=500,
+                )
+                if memory_context:
+                    logger.info(
+                        "[Memory] 召回 %d 字 (user=%s)",
+                        len(memory_context),
+                        user_id,
+                    )
+            except Exception:
+                logger.warning(
+                    "[Memory] 召回异常 (user=%s)", user_id, exc_info=True
+                )
+
     # ── Step 2: 构建 System Prompt ───────────────────────────
     critic_feedback = state.get("critic_feedback", "")
     system_content = build_system_prompt(
         intent=query_intent,
         critic_feedback=critic_feedback,
+        memory_context=memory_context,
     )
 
     # ── Step 3: 构建消息列表（不含截断——截断在消化态引导后执行） ──

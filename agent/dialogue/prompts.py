@@ -70,13 +70,22 @@ DIALOGUE_SYSTEM_PROMPT = """---
 # ═══════════════════════════════════════════════════════════════════
 
 
-def build_dialogue_prompt() -> str:
+def build_dialogue_prompt(memory_context: str = "") -> str:
     """返回 Dialogue Agent 的完整 System Prompt。
 
     Dialogue Agent 不需要 intent 变体——所有意图共用同一个
     Bangumi娘人格 prompt。模型根据人格自行调整回复风格。
 
+    memory_context 是 [Core Agent concern]——用户记忆信息（L2 语义
+    召回 + L3 用户画像），在人格 prompt 之后注入，仅首轮且 intent
+    为 lookup/discovery 时非空。
+
+    Args:
+        memory_context: L2/L3 记忆召回的格式化文本。默认为空字符串。
+
     Returns:
         完整 System Prompt 字符串。
     """
+    if memory_context:
+        return DIALOGUE_SYSTEM_PROMPT + "\n\n" + memory_context
     return DIALOGUE_SYSTEM_PROMPT

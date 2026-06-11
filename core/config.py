@@ -132,8 +132,12 @@ class Settings(BaseSettings):
     MEMORY_RECALL_THRESHOLD: float = 0.5
     """语义检索的余弦距离阈值。超过此值的 session 摘要被视为不相关并丢弃。"""
 
-    MEMORY_MIN_SESSIONS_FOR_PROFILE: int = 3
-    """开始注入用户画像的最低 session 数（冷启动保护）。"""
+    MEMORY_MIN_SESSIONS_FOR_PROFILE: int = 5
+    """开始注入用户画像的最低 session 数（冷启动保护）。
+
+    设为较高值 (5) 是因为 L3 用户画像的边际收益有限——对于以
+    吐槽/查询/闲聊为主的对话伴侣型 Agent，用户偏好画像远不如
+    L1 同 session 滑动窗口和 L2 跨 session 语义召回有用。"""
 
     # ── Critic 模式 ───────────────────────────────────────────
     CRITIC_MODE: str = "rule"

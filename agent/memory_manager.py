@@ -739,46 +739,32 @@ class MemoryManager:
         if not prefs:
             return ""
 
+        # Phase 5.3: L3 画像是补充信息——权重低于 L1/L2
+        # 输出精简，不做统计数字展示，避免模型过度依赖画像
         parts: list[str] = []
 
-        # 偏好类型 top-3
+        # 偏好类型 top-2（精简——给方向感即可）
         genres = prefs.get("favorite_genres", [])
         if genres:
             top_genres = [
-                g["genre"] for g in genres[:3] if g.get("genre")
+                g["genre"] for g in genres[:2] if g.get("genre")
             ]
             if top_genres:
-                parts.append(f"喜欢{'/'.join(top_genres)}类型")
+                parts.append(f"偏好{'/'.join(top_genres)}类作品")
 
-        # 实体亲和 top-3
+        # 实体亲和 top-2（精简）
         affinities = prefs.get("entity_affinities", {})
         if affinities:
             top_entities = sorted(
                 affinities.values(),
                 key=lambda e: e.get("interest_score", 0),
                 reverse=True,
-            )[:3]
+            )[:2]
             entity_names = [
                 e["name"] for e in top_entities if e.get("name")
             ]
             if entity_names:
                 parts.append(f"关注{'/'.join(entity_names)}")
-
-        # 活跃度
-        activity = prefs.get("activity_profile", {})
-        total = activity.get("total_sessions", profile.total_sessions or 0)
-        if total:
-            qtypes = activity.get("query_types", {})
-            dominant = max(qtypes, key=lambda k: qtypes[k]) if qtypes else ""
-            type_labels = {
-                "discovery": "发现推荐",
-                "lookup": "精确查询",
-                "chitchat": "闲聊",
-                "factual": "常识问答",
-            }
-            dominant_label = type_labels.get(dominant, dominant)
-            if dominant_label:
-                parts.append(f"以{dominant_label}类查询为主（共{total}次对话）")
 
         return "，".join(parts) if parts else ""
 

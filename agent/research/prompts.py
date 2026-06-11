@@ -219,22 +219,32 @@ CRITIC_SYSTEM_PROMPT = """你是 Bangumi 助手的输出质量控制专家。按
 def build_system_prompt(
     intent: str,
     critic_feedback: str = "",
+    memory_context: str = "",
 ) -> str:
     """拼接完整 System Prompt。
 
     拼接顺序：
         1. BASE_SYSTEM_PROMPT（基础能力 + 回答风格）
-        2. INTENT_PROMPTS[intent]（意图特定策略）
-        3. critic_feedback 区块（如果非空）
+        2. memory_context（[Core Agent concern] 用户记忆——L2/L3 语义召回结果。
+           属于 Core 层关注点（"对谁说话"），未来 rendering layer 分离后
+           仍在此位置注入，不随 Rendering 层移动。）
+        3. INTENT_PROMPTS[intent]（意图特定策略）
+        4. critic_feedback 区块（如果非空）
 
     Args:
         intent: 查询意图，如 "lookup"、"discovery" 等。
         critic_feedback: Critic 的定向反馈。空字符串表示无反馈。
+        memory_context: L2/L3 记忆召回的格式化文本。仅首轮非空，后续
+            迭代传入空字符串。
 
     Returns:
         完整的 System Prompt 字符串。
     """
     parts = [BASE_SYSTEM_PROMPT]
+
+    # 用户记忆注入（首轮，Core Agent concern）
+    if memory_context:
+        parts.append(memory_context)
 
     # 意图特定策略
     intent_prompt = INTENT_PROMPTS.get(intent, INTENT_PROMPTS["unknown"])

@@ -72,8 +72,42 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
             query_intent = "unknown"
             intent_method = "rule(empty)"
 
+    # ── Step 2.5: 记忆召回（仅首轮 + 仅 lookup/discovery） ──
+    # Dialogue Agent 流量中闲聊占比高，盲召回浪费 embedding API。
+    # 仅对确实需要数据的 lookup/discovery 做语义召回。
+    # chitchat/factual 跳过——"你好"/"什么是三集定律"不需要历史记忆。
+    memory_context = ""
+    if (
+        state.get("iterations", 0) == 0
+        and query_intent in ("lookup", "discovery")
+    ):
+        user_id = state.get("user_id", "anonymous")
+        user_query = _extract_user_input(state)
+        if user_id != "anonymous" and user_query:
+            try:
+                from agent.memory_manager import get_memory_manager
+
+                mm = get_memory_manager()
+                memory_context = await mm.recall_for_prompt(
+                    user_id=user_id,
+                    query=user_query,
+                    max_tokens=300,
+                )
+                if memory_context:
+                    logger.info(
+                        "[Memory] Dialogue 召回 %d 字 (user=%s)",
+                        len(memory_context),
+                        user_id,
+                    )
+            except Exception:
+                logger.warning(
+                    "[Memory] Dialogue 召回异常 (user=%s)",
+                    user_id,
+                    exc_info=True,
+                )
+
     # ── Step 3: 构建消息列表（不含截断——截断在重复检测后执行） ──
-    system_content = build_dialogue_prompt()
+    system_content = build_dialogue_prompt(memory_context=memory_context)
     messages_for_llm = [SystemMessage(content=system_content)]
 
     skipped_system = 0
