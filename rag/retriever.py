@@ -30,7 +30,7 @@ from sqlalchemy import cast as sa_cast
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Session, select
 
-from database.models import BangumiChunk, RagEntity
+from database.rag_tables import BangumiChunk, RagEntity
 
 logger = logging.getLogger("bgm-agent.retriever")
 
@@ -109,7 +109,7 @@ class RagEntityRetriever:
         zhipu_api_key: str = "",
         zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4",
     ) -> None:
-        from rag.utils import init_zhipu_client
+        from clients.zhipu_client import init_zhipu_client
 
         self.engine = engine
         self.client, init_error = init_zhipu_client(zhipu_api_key, zhipu_base_url)
@@ -351,24 +351,12 @@ class BangumiRetriever:
             zhipu_api_key: 智谱 API 密钥，默认空字符串以支持尚未缴费的开发阶段。
             zhipu_base_url: 智谱 API 基础 URL。
         """
+        from clients.zhipu_client import init_zhipu_client
+
         self.engine = engine
-
-        try:
-            from zai import ZhipuAiClient
-
-            self.client: ZhipuAiClient = ZhipuAiClient(
-                api_key=zhipu_api_key, base_url=zhipu_base_url
-            )
-            logger.info("检索器 ZhipuAiClient 初始化成功")
-        except ImportError:
-            self.client = None  # type: ignore[assignment]
-            logger.warning(
-                "zai-sdk 未安装，检索器 embedding 功能不可用。"
-                "请执行: pip install zai-sdk"
-            )
-        except Exception as exc:
-            self.client = None  # type: ignore[assignment]
-            logger.error("检索器客户端初始化失败: %s", exc)
+        self.client, init_error = init_zhipu_client(zhipu_api_key, zhipu_base_url)
+        if init_error:
+            logger.warning("BangumiRetriever: %s", init_error)
 
     # ── 公开方法 ──────────────────────────────────────────────
 

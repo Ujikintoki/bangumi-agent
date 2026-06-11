@@ -13,6 +13,10 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from core.config import get_settings
 
+# 注册记忆系统 ORM 模型到 SQLModel.metadata
+# （create_all 通过元类自动发现，import 即注册）
+from database.memory_tables import PublicMemory, SessionMemory, UserProfile  # noqa: F401
+
 # ── Engine 初始化 ──────────────────────────────────────────────
 # 拉取配置中的数据库 URL，允许通过环境变量覆盖
 settings = get_settings()
@@ -74,6 +78,38 @@ def init_db() -> None:
         """
         CREATE INDEX IF NOT EXISTS ix_rag_entities_chunk_text_trgm
             ON rag_entities USING gin (chunk_text gin_trgm_ops);
+        """,
+        # ── Phase 5 记忆系统索引 ──────────────────────────
+        # HNSW 向量索引 — session_memories 语义检索
+        """
+        CREATE INDEX IF NOT EXISTS ix_session_memories_embedding
+            ON session_memories USING hnsw (embedding vector_cosine_ops);
+        """,
+        # B-tree 复合索引 — 按用户 ID + 创建时间降序检索最近 session
+        """
+        CREATE INDEX IF NOT EXISTS ix_session_memories_user_created
+            ON session_memories (user_id, created_at DESC);
+        """,
+        # B-tree 索引 — user_profiles 按 user_id 快速查找
+        """
+        CREATE INDEX IF NOT EXISTS ix_user_profiles_user_id
+            ON user_profiles (user_id);
+        """,
+        # B-tree 部分索引 — user_profiles 按最后活跃时间降序
+        """
+        CREATE INDEX IF NOT EXISTS ix_user_profiles_last_active
+            ON user_profiles (last_active_at DESC);
+        """,
+        # HNSW 向量索引 — public_memories 语义检索（Phase 6 用）
+        """
+        CREATE INDEX IF NOT EXISTS ix_public_memories_embedding
+            ON public_memories USING hnsw (embedding vector_cosine_ops);
+        """,
+        # B-tree 部分索引 — public_memories 活跃条目按时间降序
+        """
+        CREATE INDEX IF NOT EXISTS ix_public_memories_active
+            ON public_memories (is_active, created_at DESC)
+            WHERE is_active = TRUE;
         """,
     ]
 

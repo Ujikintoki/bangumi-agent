@@ -1,11 +1,22 @@
-"""Bangumi API 异步客户端。
+"""外部 API 客户端。
 
-统一导出 BangumiClient，底层基于 httpx + p1 private API，
-提供搜索、详情、日历、热门趋势、讨论、评论、用户画像等全部业务方法。
+提供：
+- BangumiClient: Bangumi API 业务客户端（搜索、详情、日历、热门趋势、讨论、评论、用户画像等）
+- Zhipu 客户端: 智谱 Embedding 客户端初始化与单例管理（RAG 和记忆系统共享）
 """
 
 from clients.client import BangumiClient
+from clients.zhipu_client import (  # noqa: F401
+    embed_batch,
+    embed_single,
+    get_zhipu_client,
+    init_zhipu_client,
+)
 
 __all__ = [
     "BangumiClient",
+    "init_zhipu_client",
+    "get_zhipu_client",
+    "embed_single",
+    "embed_batch",
 ]

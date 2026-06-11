@@ -27,7 +27,7 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select
 
-from database.models import (
+from database.rag_tables import (
     BangumiChunk,
     CharacterCast,
     CharacterMeta,
@@ -128,7 +128,7 @@ class RagEntityIngestor:
         zhipu_api_key: str = "",
         zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4",
     ) -> None:
-        from rag.utils import init_zhipu_client
+        from clients.zhipu_client import init_zhipu_client
 
         self.engine = engine
         self.client, init_error = init_zhipu_client(zhipu_api_key, zhipu_base_url)
@@ -511,25 +511,12 @@ class BangumiIngestor:
             zhipu_api_key: 智谱 API 密钥。通过环境变量 ``ZHIPU_API_KEY`` 注入。
             zhipu_base_url: 智谱 API 基础 URL，默认使用官方地址。
         """
+        from clients.zhipu_client import init_zhipu_client
+
         self.engine = engine
-
-        # ── 智谱客户端初始化 ──────────────────────────────────
-        # 延迟导入以避免 zai-sdk 未安装时阻塞整个模块的加载
-        try:
-            from zai import ZhipuAiClient
-
-            self.client: ZhipuAiClient = ZhipuAiClient(
-                api_key=zhipu_api_key, base_url=zhipu_base_url
-            )
-            logger.info("智谱 ZhipuAiClient 初始化成功")
-        except ImportError:
-            self.client = None  # type: ignore[assignment]
-            logger.warning(
-                "zai-sdk 未安装，embedding 功能不可用。请执行: pip install zai-sdk"
-            )
-        except Exception as exc:
-            self.client = None  # type: ignore[assignment]
-            logger.error("智谱客户端初始化失败: %s", exc)
+        self.client, init_error = init_zhipu_client(zhipu_api_key, zhipu_base_url)
+        if init_error:
+            logger.warning("BangumiIngestor: %s", init_error)
 
     def ingest_chunks(self, chunks_data: list[dict[str, Any]]) -> int:
         """将预处理后的文本块批量向量化并写入数据库。

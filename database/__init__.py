@@ -12,7 +12,7 @@
 """
 
 from database.engine import engine, get_session, init_db
-from database.models import (
+from database.rag_tables import (
     BangumiChunk,
     CharacterCast,
     CharacterMeta,

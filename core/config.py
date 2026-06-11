@@ -119,6 +119,22 @@ class Settings(BaseSettings):
     允许为 Critic 使用更便宜的小模型以降低评估成本。
     """
 
+    # ── 记忆系统配置 ──────────────────────────────────────────
+    MEMORY_ENABLED: bool = True
+    """是否启用 L2 记忆系统。关闭后所有记忆操作变为 no-op，Agent 退化回无记忆模式。"""
+
+    MEMORY_MAX_INJECT_TOKENS: int = 500
+    """注入 System Prompt 的记忆文本最大 Token 数。Research 用 500，Dialogue 用 300。"""
+
+    MEMORY_RECALL_TOP_K: int = 5
+    """语义检索召回的候选 session 摘要数。"""
+
+    MEMORY_RECALL_THRESHOLD: float = 0.5
+    """语义检索的余弦距离阈值。超过此值的 session 摘要被视为不相关并丢弃。"""
+
+    MEMORY_MIN_SESSIONS_FOR_PROFILE: int = 3
+    """开始注入用户画像的最低 session 数（冷启动保护）。"""
+
     # ── Critic 模式 ───────────────────────────────────────────
     CRITIC_MODE: str = "rule"
     """Critic 评估模式：``"rule"``（零 Token 规则版，默认）或 ``"llm"``（LLM 定向反馈）。
