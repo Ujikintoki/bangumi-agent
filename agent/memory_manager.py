@@ -115,6 +115,7 @@ class MemoryManager:
 
         # ── Step 1-2: embedding + 语义检索 ─────────────────
         query_embedding = await self._embed_text(query)
+        semantic_hit_count = 0
         if query_embedding is not None:
             try:
                 raw_sessions = await self._search_similar_sessions(
@@ -125,14 +126,21 @@ class MemoryManager:
                 for sm, distance in raw_sessions:
                     if distance <= settings.MEMORY_RECALL_THRESHOLD:
                         sessions.append(sm)
+                semantic_hit_count = len(sessions)
             except RuntimeError as exc:
                 logger.warning("语义检索失败 (user=%s): %s", user_id, exc)
         else:
             logger.warning("embedding 失败，回退到时效排序 (user=%s)", user_id)
-            # 回退：按创建时间降序取最近 session
+
+        # ── Step 2.5: recency fallback — 短追问兜底 ──────
+        # 短追问/代词引用（如"班友们如何评价？"）的 embedding 与长摘要
+        # 余弦距离往往 >0.5，纯语义检索会漏掉。用最近 session 补齐，
+        # 确保上下文连续性——用户追问上一轮聊的作品时不被"遗忘"。
+        if len(sessions) < settings.MEMORY_RECALL_TOP_K:
             try:
                 from database.memory_tables import SessionMemory
 
+                semantic_ids: set = {sm.id for sm in sessions}
                 with Session(self._engine) as session:
                     stmt = (
                         select(SessionMemory)
@@ -140,7 +148,24 @@ class MemoryManager:
                         .order_by(SessionMemory.created_at.desc())
                         .limit(settings.MEMORY_RECALL_TOP_K)
                     )
-                    sessions = list(session.exec(stmt).all())
+                    recent_sessions = list(session.exec(stmt).all())
+
+                added = 0
+                for sm in recent_sessions:
+                    if sm.id not in semantic_ids:
+                        sessions.append(sm)
+                        semantic_ids.add(sm.id)
+                        added += 1
+                        if len(sessions) >= settings.MEMORY_RECALL_TOP_K:
+                            break
+
+                if added > 0:
+                    logger.info(
+                        "[Memory] recency fallback 补齐 %d 条 (语义命中 %d, user=%s)",
+                        added,
+                        semantic_hit_count,
+                        user_id,
+                    )
             except Exception as exc:
                 logger.warning("时效排序检索失败 (user=%s): %s", user_id, exc)
 

@@ -6,8 +6,11 @@ rag_entities 表高性能索引的创建，以及 SQLModel Session 的生命周�
 """
 
 from collections.abc import Generator
+import logging
 
 from sqlalchemy import text
+
+logger = logging.getLogger("bgm-agent.database")
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -114,14 +117,19 @@ def init_db() -> None:
     ]
 
     try:
-        with engine.connect() as conn:
-            for idx_ddl in _INDEX_DDL_STATEMENTS:
-                conn.execute(text(idx_ddl))
-            conn.commit()
-    except (OperationalError, ProgrammingError):
-        # 索引创建失败不阻塞启动（如 pgvector/hnsw 不可用时），
-        # 实际生产环境应由运维确保扩展已安装
-        raise
+        for idx_ddl in _INDEX_DDL_STATEMENTS:
+            # 每条索引独立事务——HNSW 等维度超限失败不影响其他索引
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(idx_ddl))
+                    conn.commit()
+            except (OperationalError, ProgrammingError) as idx_exc:
+                logger.warning(
+                    "索引创建跳过: %s",
+                    str(idx_exc).split("\n")[0][:120],
+                )
+    except Exception:
+        logger.warning("索引创建块异常——索引缺失不影响基本功能")
 
 
 def get_session() -> Generator[Session, None, None]:

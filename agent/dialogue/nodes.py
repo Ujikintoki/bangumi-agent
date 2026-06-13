@@ -72,15 +72,13 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
             query_intent = "unknown"
             intent_method = "rule(empty)"
 
-    # ── Step 2.5: 记忆召回（仅首轮 + 仅 lookup/discovery） ──
-    # Dialogue Agent 流量中闲聊占比高，盲召回浪费 embedding API。
-    # 仅对确实需要数据的 lookup/discovery 做语义召回。
-    # chitchat/factual 跳过——"你好"/"什么是三集定律"不需要历史记忆。
+    # ── Step 2.5: 记忆召回（仅首轮） ──────────────────
+    # 始终在首轮召回记忆，不按 intent 过滤。
+    # "你怎么看？" 被分类器判为 chitchat，但实际是上下文追问——
+    # 分类器只看当前消息，无法感知指代依赖。recency fallback
+    # 确保短追问也能找回上一轮的话题。
     memory_context = ""
-    if (
-        state.get("iterations", 0) == 0
-        and query_intent in ("lookup", "discovery")
-    ):
+    if state.get("iterations", 0) == 0:
         user_id = state.get("user_id", "anonymous")
         user_query = _extract_user_input(state)
         if user_id != "anonymous" and user_query:

@@ -5,6 +5,7 @@ FastAPI 应用启动入口
 提供健康检查、Agent 对话和流式输出端点。
 """
 
+import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -23,6 +24,7 @@ from agent.research.graph import agent_app
 from agent.research.prompts import BASE_SYSTEM_PROMPT
 from agent.research.state import AgentState
 from core.config import get_settings
+from database.engine import init_db
 
 settings = get_settings()
 
@@ -95,6 +97,7 @@ class ChatResponse(BaseModel):
 async def lifespan(app: FastAPI):
     """管理应用的生命周期。"""
     logger.info("🚀 系统启动 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
+    init_db()
     print(f"[lifespan] {settings.PROJECT_NAME} v{settings.VERSION} 启动成功")
     yield
     logger.info("🛑 系统关闭 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
@@ -177,6 +180,9 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
             query_intent="unknown",
         )
 
+    # ── L2 记忆写入（fire-and-forget，不阻塞响应） ──
+    asyncio.create_task(_remember_session(result, request))
+
     messages = result.get("messages", [])
     return ChatResponse(
         reply=_extract_final_reply(
@@ -216,6 +222,9 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
             tools_used=[],
             query_intent="unknown",
         )
+
+    # ── L2 记忆写入（fire-and-forget，不阻塞响应） ──
+    asyncio.create_task(_remember_session(result, request))
 
     messages = result.get("messages", [])
     return ChatResponse(
@@ -371,3 +380,61 @@ def _extract_tools_used(messages: list) -> list[str]:
         if isinstance(m, ToolMessage) and hasattr(m, "name") and m.name:
             tools.append(m.name)
     return list(dict.fromkeys(tools))
+
+
+# ═══════════════════════════════════════════════════════════════════
+# L2 记忆写入（fire-and-forget）
+# ═══════════════════════════════════════════════════════════════════
+
+
+async def _remember_session(
+    result: dict,
+    request: ChatRequest,
+) -> None:
+    """Fire-and-forget: 写入 L2 session 摘要 + 增量更新用户画像。
+
+    Agent 返回结果后，在后台异步执行 LLM 摘要 → embedding →
+    INSERT session_memories + UPSERT user_profiles。不阻塞
+    HTTP 响应——用户感知延迟为零。
+
+    注意：流式端点 ``POST /chat/stream`` 未接入记忆写入。
+    ``astream()`` 逐个 yield 节点事件，无干净的"最终结果点"，
+    强行接入会在 ``[DONE]`` 前卡 ~1s。后续可考虑收集完整事件后
+    在生成器末尾调度。
+
+    Args:
+        result: agent_graph.ainvoke() 的完整返回 dict。
+        request: 原始 ChatRequest（含 session_id, user_id）。
+    """
+    try:
+        from agent.memory_manager import get_memory_manager
+
+        mm = get_memory_manager()
+        messages: list = result.get("messages", [])
+        if not messages:
+            return
+
+        final_reply = _extract_final_reply(
+            messages,
+            error_flag=result.get("error_flag", False),
+            iterations=result.get("iterations", 0),
+            max_iterations=10,
+        )
+
+        query_intent = result.get("query_intent", "unknown")
+
+        await mm.remember_session(
+            session_id=request.session_id,
+            user_id=request.user_id,
+            messages=messages,
+            final_reply=final_reply,
+            query_intent=query_intent,
+        )
+    except Exception:
+        logger.warning(
+            "[Memory] remember_session fire-and-forget 异常 "
+            "(user=%s, session=%s)",
+            request.user_id,
+            request.session_id,
+            exc_info=True,
+        )
