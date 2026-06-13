@@ -21,6 +21,7 @@ from agent.guardrails import (
 )
 from agent.llm import create_llm
 from agent.memory import DIALOGUE_MAX_TOKENS, manage_memory
+from core.config import get_settings
 from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.dialogue")
@@ -89,7 +90,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
                 memory_context = await mm.recall_for_prompt(
                     user_id=user_id,
                     query=user_query,
-                    max_tokens=300,
+                    max_tokens=get_settings().MEMORY_DIALOGUE_MAX_INJECT_TOKENS,
                 )
                 if memory_context:
                     logger.info(

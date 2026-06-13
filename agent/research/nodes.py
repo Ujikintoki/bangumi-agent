@@ -117,7 +117,7 @@ async def research_reasoning_node(state: AgentState) -> dict:
                 memory_context = await mm.recall_for_prompt(
                     user_id=user_id,
                     query=user_query,
-                    max_tokens=500,
+                    max_tokens=get_settings().MEMORY_MAX_INJECT_TOKENS,
                 )
                 if memory_context:
                     logger.info(

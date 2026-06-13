@@ -92,9 +92,11 @@ class MemoryManager:
         执行顺序：
             1. 向量化用户查询
             2. 语义检索 session_memories（cosine distance）
-            3. 距离阈值过滤
-            4. 读取 user_profiles
-            5. 格式化注入文本（≤ max_tokens）
+            3. 主阈值过滤（≤0.5）→ 计算组合分数（语义 + 时间衰减）
+            4. 不足 TOP_K 时：recency fallback + 松弛锚定过滤（≤0.70）
+            5. 按 combined_score 降序排序，取 top-K
+            6. 读取 user_profiles
+            7. 格式化注入文本（≤ max_tokens）
 
         Args:
             user_id: 用户标识。
@@ -110,12 +112,11 @@ class MemoryManager:
         if user_id == "anonymous" or not settings.MEMORY_ENABLED:
             return ""
 
-        sessions: list = []
+        scored: list[tuple] = []  # [(SessionMemory, combined_score), ...]
         profile: Optional[Any] = None
 
         # ── Step 1-2: embedding + 语义检索 ─────────────────
         query_embedding = await self._embed_text(query)
-        semantic_hit_count = 0
         if query_embedding is not None:
             try:
                 raw_sessions = await self._search_similar_sessions(
@@ -125,56 +126,104 @@ class MemoryManager:
                 )
                 for sm, distance in raw_sessions:
                     if distance <= settings.MEMORY_RECALL_THRESHOLD:
-                        sessions.append(sm)
-                semantic_hit_count = len(sessions)
+                        combined = self._compute_combined_score(
+                            distance,
+                            sm.created_at,
+                            settings.MEMORY_TIME_DECAY_HALF_LIFE_DAYS,
+                        )
+                        scored.append((sm, combined))
             except RuntimeError as exc:
                 logger.warning("语义检索失败 (user=%s): %s", user_id, exc)
         else:
             logger.warning("embedding 失败，回退到时效排序 (user=%s)", user_id)
 
-        # ── Step 2.5: recency fallback — 短追问兜底 ──────
-        # 短追问/代词引用（如"班友们如何评价？"）的 embedding 与长摘要
-        # 余弦距离往往 >0.5，纯语义检索会漏掉。用最近 session 补齐，
-        # 确保上下文连续性——用户追问上一轮聊的作品时不被"遗忘"。
-        if len(sessions) < settings.MEMORY_RECALL_TOP_K:
+        semantic_hit_count = len(scored)
+
+        # ── Step 2.5: recency fallback + 最小语义锚定 ──────
+        # 语义检索结果不足 TOP_K 时，从最近 session 中补齐。
+        # 与之前无条件注入不同，现在每条候选都计算 cosine_distance，
+        # 只有 ≤ MEMORY_RECENCY_FALLBACK_THRESHOLD (0.70) 的才注入——
+        # 确保"高达→轻音少女"这种完全不相关的近期记忆不会成为噪音。
+        if len(scored) < settings.MEMORY_RECALL_TOP_K:
             try:
                 from database.memory_tables import SessionMemory
 
-                semantic_ids: set = {sm.id for sm in sessions}
-                with Session(self._engine) as session:
-                    stmt = (
-                        select(SessionMemory)
-                        .where(SessionMemory.user_id == user_id)
-                        .order_by(SessionMemory.created_at.desc())
-                        .limit(settings.MEMORY_RECALL_TOP_K)
-                    )
-                    recent_sessions = list(session.exec(stmt).all())
+                seen_ids: set = {sm.id for sm, _ in scored}
+                remaining = settings.MEMORY_RECALL_TOP_K - len(scored)
 
-                added = 0
-                for sm in recent_sessions:
-                    if sm.id not in semantic_ids:
-                        sessions.append(sm)
-                        semantic_ids.add(sm.id)
-                        added += 1
-                        if len(sessions) >= settings.MEMORY_RECALL_TOP_K:
-                            break
+                with Session(self._engine) as db_session:
+                    if query_embedding is not None:
+                        # 锚定分支：计算余弦距离，过滤 ≤ 松弛阈值
+                        dist_expr = SessionMemory.embedding.cosine_distance(
+                            query_embedding
+                        ).label("cosine_dist")
+                        stmt = (
+                            select(SessionMemory, dist_expr)
+                            .where(SessionMemory.user_id == user_id)
+                            .where(SessionMemory.embedding.isnot(None))
+                            .order_by(SessionMemory.created_at.desc())
+                            .limit(remaining * 2)  # 超额获取以应对阈值过滤
+                        )
+                        for sm, cos_dist in db_session.execute(stmt).fetchall():
+                            if sm.id in seen_ids:
+                                continue
+                            if (
+                                cos_dist
+                                <= settings.MEMORY_RECENCY_FALLBACK_THRESHOLD
+                            ):
+                                combined = self._compute_combined_score(
+                                    cos_dist,
+                                    sm.created_at,
+                                    settings.MEMORY_TIME_DECAY_HALF_LIFE_DAYS,
+                                )
+                                scored.append((sm, combined))
+                                seen_ids.add(sm.id)
+                                if len(scored) >= settings.MEMORY_RECALL_TOP_K:
+                                    break
+                    else:
+                        # 纯时效回退（embedding API 不可用，无锚定）
+                        stmt = (
+                            select(SessionMemory)
+                            .where(SessionMemory.user_id == user_id)
+                            .order_by(SessionMemory.created_at.desc())
+                            .limit(remaining)
+                        )
+                        for sm in db_session.exec(stmt).all():
+                            if sm.id in seen_ids:
+                                continue
+                            # 假设完美语义匹配，仅时间衰减
+                            combined = self._compute_combined_score(
+                                0.0,
+                                sm.created_at,
+                                settings.MEMORY_TIME_DECAY_HALF_LIFE_DAYS,
+                            )
+                            scored.append((sm, combined))
+                            seen_ids.add(sm.id)
+                            if len(scored) >= settings.MEMORY_RECALL_TOP_K:
+                                break
 
-                if added > 0:
+                fallback_added = len(scored) - semantic_hit_count
+                if fallback_added > 0:
                     logger.info(
-                        "[Memory] recency fallback 补齐 %d 条 (语义命中 %d, user=%s)",
-                        added,
+                        "[Memory] recency fallback 补齐 %d 条 "
+                        "(语义命中 %d, user=%s)",
+                        fallback_added,
                         semantic_hit_count,
                         user_id,
                     )
             except Exception as exc:
-                logger.warning("时效排序检索失败 (user=%s): %s", user_id, exc)
+                logger.warning("时效检索失败 (user=%s): %s", user_id, exc)
+
+        # ── Step 2.75: 按 combined_score 降序排序，取 top-K ─
+        scored.sort(key=lambda x: x[1], reverse=True)
+        sessions = [sm for sm, _ in scored[: settings.MEMORY_RECALL_TOP_K]]
 
         # ── Step 3: 读取用户画像 ─────────────────────────
         try:
             from database.memory_tables import UserProfile
 
-            with Session(self._engine) as session:
-                profile = session.exec(
+            with Session(self._engine) as db_session:
+                profile = db_session.exec(
                     select(UserProfile).where(UserProfile.user_id == user_id)
                 ).first()
         except Exception as exc:
@@ -679,6 +728,54 @@ class MemoryManager:
         return prefs
 
     # ═══════════════════════════════════════════════════════════════════
+    # 内部方法 — 组合评分（时间衰减 + 语义相似度）
+    # ═══════════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _compute_combined_score(
+        cosine_distance: float,
+        created_at: datetime,
+        half_life_days: int = 14,
+    ) -> float:
+        """计算记忆的组合相关性分数。
+
+        公式：
+            combined_score = (1 - cosine_distance) × 0.5^(days_ago / half_life_days)
+
+        其中：
+            - 1 - cosine_distance 是语义相似度（0 = 不相似，1 = 完全相同）
+            - 时间衰减因子确保近期记忆在排序中天然压制远期记忆，
+              即使用户当前查询的语义向量更"像"那个旧的
+
+        Args:
+            cosine_distance: pgvector 余弦距离（0.0 = 完全相同，1.0 = 完全不相关）。
+            created_at: 会话创建时间（naive UTC 或 aware）。
+            half_life_days: 指数衰减的半衰期（天）。默认 14。
+
+        Returns:
+            [0, 1] 范围内的浮点数，越高表示越相关。
+
+        Edge cases:
+            - half_life_days ≤ 0 → 自动 clamp 到 1（防止除零）
+            - created_at 无时区 → 视为 UTC
+            - created_at 在未来 → days_ago clamp 到 0（衰减 = 1.0）
+        """
+        similarity = 1.0 - cosine_distance
+
+        now = datetime.now(timezone.utc)
+        created = created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+
+        seconds_ago = max(0.0, (now - created).total_seconds())
+        days_ago = seconds_ago / 86400.0
+
+        safe_half_life = float(max(1, half_life_days))
+        decay = 0.5 ** (days_ago / safe_half_life)
+
+        return similarity * decay
+
+    # ═══════════════════════════════════════════════════════════════════
     # 内部方法 — 格式化注入文本
     # ═══════════════════════════════════════════════════════════════════
 
@@ -691,7 +788,7 @@ class MemoryManager:
         """将召回的 session 摘要 + 用户画像格式化为 System Prompt 注入文本。
 
         Args:
-            sessions: SessionMemory 列表（已按相关度排序）。
+            sessions: SessionMemory 列表（已按 combined_score 降序排序）。
             profile: UserProfile 实例或 None。
             max_tokens: 最大 Token 数。
 

@@ -186,3 +186,143 @@ class TestManageMemory:
         messages = [HumanMessage(content="Hi")]
         result = manage_memory(messages)  # 使用默认 8000
         assert result is messages  # 远未超限
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# L2 MemoryManager._compute_combined_score 单元测试
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestComputeCombinedScore:
+    """_compute_combined_score — 时间衰减 + 语义相似度组合评分"""
+
+    @staticmethod
+    def _make_dt(days_ago: float):
+        """构造指定天数前的 aware datetime。"""
+        from datetime import datetime, timedelta, timezone
+
+        return datetime.now(timezone.utc) - timedelta(days=days_ago)
+
+    def test_perfect_match_today(self):
+        """完美语义匹配 + 今天 → 分数 ≈ 1.0"""
+        from agent.memory_manager import MemoryManager
+
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=0.0,
+            created_at=self._make_dt(0),
+            half_life_days=14,
+        )
+        assert 0.99 <= score <= 1.0, f"期望 ~1.0，实际 {score}"
+
+    def test_threshold_match_today(self):
+        """阈值边缘匹配 + 今天 → 分数 ≈ 0.5"""
+        from agent.memory_manager import MemoryManager
+
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=0.5,
+            created_at=self._make_dt(0),
+            half_life_days=14,
+        )
+        assert 0.49 <= score <= 0.51, f"期望 ~0.5，实际 {score}"
+
+    def test_perfect_match_one_half_life(self):
+        """完美语义 + 恰好一个半衰期 → 分数 ≈ 0.5"""
+        from agent.memory_manager import MemoryManager
+
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=0.0,
+            created_at=self._make_dt(14),
+            half_life_days=14,
+        )
+        assert 0.49 <= score <= 0.51, f"期望 ~0.5，实际 {score}"
+
+    def test_threshold_match_one_half_life(self):
+        """阈值匹配 + 一个半衰期 → 分数 ≈ 0.25"""
+        from agent.memory_manager import MemoryManager
+
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=0.5,
+            created_at=self._make_dt(14),
+            half_life_days=14,
+        )
+        assert 0.24 <= score <= 0.26, f"期望 ~0.25，实际 {score}"
+
+    def test_old_memory_decayed(self):
+        """60 天前的语义匹配 → 衰减明显"""
+        from agent.memory_manager import MemoryManager
+
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=0.45,
+            created_at=self._make_dt(60),
+            half_life_days=14,
+        )
+        # similarity=0.55, decay=0.5^(60/14)=0.5^4.29≈0.051, score≈0.028
+        assert score < 0.10, f"60 天前应大幅衰减，实际 {score}"
+
+    def test_recent_beats_old(self):
+        """近期略差匹配 > 远期略好匹配（核心断言）"""
+        from agent.memory_manager import MemoryManager
+
+        score_recent = MemoryManager._compute_combined_score(
+            cosine_distance=0.48,  # 较差语义
+            created_at=self._make_dt(2),  # 2 天前
+            half_life_days=14,
+        )
+        score_old = MemoryManager._compute_combined_score(
+            cosine_distance=0.45,  # 较好语义
+            created_at=self._make_dt(60),  # 60 天前
+            half_life_days=14,
+        )
+        assert score_recent > score_old, (
+            f"近期应胜出: recent={score_recent:.4f}, old={score_old:.4f}"
+        )
+
+    def test_naive_utc_handled(self):
+        """naive datetime 自动视为 UTC"""
+        from datetime import datetime
+
+        from agent.memory_manager import MemoryManager
+
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=0.0,
+            created_at=datetime.utcnow(),  # naive
+            half_life_days=14,
+        )
+        assert 0.99 <= score <= 1.0, f"naive UTC 应正确处理，实际 {score}"
+
+    def test_zero_half_life_clamped(self):
+        """half_life_days=0 → clamp 到 1，不触发除零"""
+        from agent.memory_manager import MemoryManager
+
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=0.0,
+            created_at=self._make_dt(1),
+            half_life_days=0,
+        )
+        # half_life=1: decay=0.5^(1/1)=0.5, similarity=1.0 → score=0.5
+        assert 0.49 <= score <= 0.51, f"half_life=0 应 clamp 到 1，实际 {score}"
+
+    def test_future_date_clamped(self):
+        """未来时间戳 → days_ago clamp 到 0，不产生负衰减"""
+        from datetime import datetime, timedelta, timezone
+
+        from agent.memory_manager import MemoryManager
+
+        future = datetime.now(timezone.utc) + timedelta(days=1)
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=0.0,
+            created_at=future,
+            half_life_days=14,
+        )
+        assert 0.99 <= score <= 1.0, f"未来时间应 clamp 到 0 天，实际 {score}"
+
+    def test_completely_irrelevant(self):
+        """cosine_distance=1.0 → similarity=0 → 分数恒为 0"""
+        from agent.memory_manager import MemoryManager
+
+        score = MemoryManager._compute_combined_score(
+            cosine_distance=1.0,
+            created_at=self._make_dt(0),
+            half_life_days=14,
+        )
+        assert score == 0.0, f"完全不相关应为 0，实际 {score}"

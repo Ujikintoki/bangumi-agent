@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A **Stateful AI Agent** for the [Bangumi](https://bgm.tv) ecosystem — natural-language understanding, multi-tool orchestration, and long-term memory for anime/manga/music/game discovery. Built as a FastAPI microservice with LangGraph ReAct agent, PostgreSQL + pgvector RAG, and Zhipu embedding-3.
 
+Phase 5 三层记忆系统已落地：L1 同 session 滑动窗口 + L2 跨 session 语义召回（双通道：语义 + 时效回退，时间衰减 + 最小语义锚定）+ L3 用户画像增量更新。
+
 ## Commands
 
 ```bash
@@ -116,9 +118,10 @@ agent/
 ```
 POST /chat → agent_app.invoke(initial_state)
   → reasoning_node:
-      manage_memory (两层截断: 单条 ToolMessage 内容 + 列表滑动窗口)
+      manage_memory (L1 两层截断)
       → classify_intent (规则/LLM, 仅首轮)
-      → build_system_prompt (BASE + intent 变体)
+      → memory_manager.recall_for_prompt (L2 语义召回 + recency fallback + 时间衰减, 仅首轮)
+      → build_system_prompt (BASE + memory_context + intent 变体 + critic_feedback)
       → LLM invoke (绑定工具: lookup/discovery/realtime, 解绑: chitchat/factual/消化态)
       → AIMessage(tool_calls=[...])
   → route_after_reasoning: 原生路由 —
@@ -164,18 +167,41 @@ All three entity types (Subject, Character, Person) share one `rag_entities` tab
 - ✅ **`last_tool_calls` 冗余字段** — 已从 State 删除，路由改为原生 `messages[-1].tool_calls`
 - ✅ **`search_bangumi_subject` / `get_bangumi_subject_detail` 裸返 JSON** — 改为结构化文本输出
 
-### 当前已知问题（2026-06-09）
+### Phase 5 — 已完成 (2026-06-13)
+
+三层记忆系统全线贯通：
+
+| 层级 | 实现 | 存储 |
+|------|------|------|
+| L1 短记忆 | `agent/memory.py` — 滑动窗口 + 两层截断 | 内存 |
+| L2 长记忆 | `agent/memory_manager.py` — 跨 session 语义召回 | PostgreSQL + pgvector |
+| L3 用户画像 | `agent/memory_manager.py` — 增量更新偏好/亲和度 | PostgreSQL JSONB |
+
+**召回策略（双通道）：**
+1. **语义通道**：query embedding → pgvector cosine_distance ≤ 0.5 → 组合分数排序（`similarity × 0.5^(days/14)`）
+2. **时效回退**：语义不足 TOP_K 时补齐最近 session，cosine_distance ≤ 0.70 锚定过滤
+3. 合并 → combined_score 降序 → 取 top-K → 格式化注入 System Prompt
+
+**写入策略**：fire-and-forget（`asyncio.create_task`），LLM 摘要 → embedding → INSERT session_memories + UPSERT user_profiles。异常静默降级，不阻塞主流程。
+
+**配置**：`MEMORY_ENABLED`、`MEMORY_RECALL_TOP_K=5`、`MEMORY_RECALL_THRESHOLD=0.5`、`MEMORY_TIME_DECAY_HALF_LIFE_DAYS=14`、`MEMORY_RECENCY_FALLBACK_THRESHOLD=0.70`、`MEMORY_MIN_SESSIONS_FOR_PROFILE=5`
+
+**测试**：`test/test_memory.py` (L1, 21 tests) + `test/test_memory_manager.py` (L2/L3, 15 tests) + `test/test_memory.py::TestComputeCombinedScore` (10 tests)
+
+**详细文档**：`docs/memory/` — 架构、实现、配置、测试、调试综合手册
+
+### 当前已知问题（2026-06-13）
 
 **🟡 中等：**
 
-1. **流式端点仅节点级**：`/chat/stream` 推送节点完成事件，非逐 token 流。LLM 慢时用户感知无改善
-2. **session_id / user_id 存而未用**：标注 "Layer 2/3 预留" 但无持久化，每次 /chat 无状态
-3. **Critic 仍含 `< 20 字` 硬阈值**：尽管有逃逸舱（`_is_terminal_response` 12 条正则），仍可能误伤合法短回复
-4. **ToolNode 无数据降噪**：直接使用 LangGraph 内置 ToolNode，无 JSON 清洗/投影层
+1. **流式端点仅节点级**：`/chat/stream` 推送节点完成事件，非逐 token 流
+2. **Critic 仍含 `< 20 字` 硬阈值**：尽管有逃逸舱，仍可能误伤合法短回复
+3. **ToolNode 无数据降噪**：直接使用 LangGraph 内置 ToolNode，无 JSON 清洗/投影层
 
 **ℹ️ 轻微：**
 
-5. **`_extract_final_reply` 兜底无区分度**：异常/超限/工具失败统一返回相同兜底消息
+4. **`_extract_final_reply` 兜底无区分度**：异常/超限/工具失败统一返回相同兜底消息
+5. **记忆写入的摘要 LLM 无独立超时配置**：复用 `create_llm(request_timeout=10)`，极端慢模型可能拖长 fire-and-forget 任务
 
 ### 技术债
 

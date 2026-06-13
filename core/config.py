@@ -139,6 +139,28 @@ class Settings(BaseSettings):
     吐槽/查询/闲聊为主的对话伴侣型 Agent，用户偏好画像远不如
     L1 同 session 滑动窗口和 L2 跨 session 语义召回有用。"""
 
+    MEMORY_TIME_DECAY_HALF_LIFE_DAYS: int = 14
+    """时间衰减半衰期（天）。
+
+    记忆相关性分数每 N 天衰减一半。公式：
+    ``combined_score = (1 - cosine_distance) * 0.5^(days_ago / half_life)``
+
+    默认 14 天：1 天 → 0.95，7 天 → 0.71，14 天 → 0.50，30 天 → 0.23。
+    设为更高值以保留更久远的记忆，更低值则更强调近期对话。"""
+
+    MEMORY_RECENCY_FALLBACK_THRESHOLD: float = 0.70
+    """Recency fallback 的松弛余弦距离阈值。
+
+    比 MEMORY_RECALL_THRESHOLD (0.50) 宽松——回退记忆是近期对话，
+    允许较弱的语义匹配。同时确保完全不相关的近期记忆（>0.70）
+    不会被注入。仅当 query embedding 可用时生效。"""
+
+    MEMORY_DIALOGUE_MAX_INJECT_TOKENS: int = 300
+    """Dialogue Agent 的记忆注入 Token 预算上限。
+
+    Research Agent 使用 MEMORY_MAX_INJECT_TOKENS (500)；
+    Dialogue 消息长度较短，使用 300 的较紧预算。"""
+
     # ── Critic 模式 ───────────────────────────────────────────
     CRITIC_MODE: str = "rule"
     """Critic 评估模式：``"rule"``（零 Token 规则版，默认）或 ``"llm"``（LLM 定向反馈）。
