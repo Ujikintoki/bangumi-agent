@@ -186,11 +186,11 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
             query_intent="unknown",
         )
 
-    # ── L1 Session 缓存：保存本轮消息（Dialogue 最多 10 条） ──
+    # ── L1 Session 缓存：保存本轮消息（Dialogue 最多 20 条） ──
     await session_cache.store(
         request.session_id,
         result.get("messages", []),
-        max_messages=10,
+        max_messages=20,
     )
 
     # ── L2 记忆写入（fire-and-forget，不阻塞响应） ──
@@ -201,7 +201,7 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
         reply=_extract_final_reply(
             messages,
             iterations=result.get("iterations", 0),
-            max_iterations=3,
+            max_iterations=4,
         ),
         iterations=result.get("iterations", 0),
         tools_used=_extract_tools_used(messages),
@@ -241,11 +241,11 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
             query_intent="unknown",
         )
 
-    # ── L1 Session 缓存：保存本轮消息（Research 最多 20 条） ──
+    # ── L1 Session 缓存：保存本轮消息（Research 最多 30 条） ──
     await session_cache.store(
         request.session_id,
         result.get("messages", []),
-        max_messages=20,
+        max_messages=30,
     )
 
     # ── L2 记忆写入（fire-and-forget，不阻塞响应） ──
@@ -257,7 +257,7 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
             messages,
             error_flag=result.get("error_flag", False),
             iterations=result.get("iterations", 0),
-            max_iterations=10,
+            max_iterations=12,
         ),
         iterations=result.get("iterations", 0),
         tools_used=_extract_tools_used(messages),

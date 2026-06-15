@@ -45,6 +45,6 @@ class DialogueState(TypedDict):
 
 # ── Agent 全局常量 ────────────────────────────────────────────────────
 
-_MAX_ITERATIONS = 3
-"""最大 ReAct 迭代轮次。Dialogue Agent 追求速度，3 轮足够完成
-search → detail 的串行依赖链。"""
+_MAX_ITERATIONS = 4
+"""最大 ReAct 迭代轮次。Dialogue Agent 追求速度，4 轮足够完成
+search → detail 的串行依赖链并留有重试余量。"""

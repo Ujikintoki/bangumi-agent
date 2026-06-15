@@ -23,7 +23,7 @@ from agent.memory import DEFAULT_MAX_TOKENS, manage_memory
 from agent.research.prompts import build_system_prompt
 from agent.research.state import _MAX_ITERATIONS, AgentState
 from core.config import get_settings
-from tools.bgm_tools import get_agent_tools
+from tools.bgm_tools import get_agent_tools, set_tool_intent
 
 logger = logging.getLogger("bgm-agent.nodes")
 
@@ -271,6 +271,10 @@ async def research_reasoning_node(state: AgentState) -> dict:
         new_iterations,
         [tc.get("name", "?") for tc in last_tool_calls],
     )
+
+    # ── 注入意图上下文（contextvars 传播到 ToolNode → 工具函数）──
+    # lookup → 全量输出; discovery → 极简输出; 其余 → 默认全量
+    set_tool_intent(query_intent)
 
     return {
         "messages": [response],

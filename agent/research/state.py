@@ -67,5 +67,5 @@ class AgentState(TypedDict):
 
 # ── Agent 全局常量 ────────────────────────────────────────────────────
 
-_MAX_ITERATIONS = 10
+_MAX_ITERATIONS = 12
 """最大 ReAct 迭代轮次。graph 条件边和 critic 节点都引用此值做熔断。"""

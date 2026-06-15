@@ -123,8 +123,8 @@ class Settings(BaseSettings):
     MEMORY_ENABLED: bool = True
     """是否启用 L2 记忆系统。关闭后所有记忆操作变为 no-op，Agent 退化回无记忆模式。"""
 
-    MEMORY_MAX_INJECT_TOKENS: int = 500
-    """注入 System Prompt 的记忆文本最大 Token 数。Research 用 500，Dialogue 用 300。"""
+    MEMORY_MAX_INJECT_TOKENS: int = 700
+    """注入 System Prompt 的记忆文本最大 Token 数。Research 用 700，Dialogue 用 300。"""
 
     MEMORY_RECALL_TOP_K: int = 5
     """语义检索召回的候选 session 摘要数。"""
@@ -148,7 +148,7 @@ class Settings(BaseSettings):
     默认 14 天：1 天 → 0.95，7 天 → 0.71，14 天 → 0.50，30 天 → 0.23。
     设为更高值以保留更久远的记忆，更低值则更强调近期对话。"""
 
-    MEMORY_RECENCY_FALLBACK_THRESHOLD: float = 0.70
+    MEMORY_RECENCY_FALLBACK_THRESHOLD: float = 0.60
     """Recency fallback 的松弛余弦距离阈值。
 
     比 MEMORY_RECALL_THRESHOLD (0.50) 宽松——回退记忆是近期对话，
@@ -158,7 +158,7 @@ class Settings(BaseSettings):
     MEMORY_DIALOGUE_MAX_INJECT_TOKENS: int = 300
     """Dialogue Agent 的记忆注入 Token 预算上限。
 
-    Research Agent 使用 MEMORY_MAX_INJECT_TOKENS (500)；
+    Research Agent 使用 MEMORY_MAX_INJECT_TOKENS (700)；
     Dialogue 消息长度较短，使用 300 的较紧预算。"""
 
     # ── Critic 模式 ───────────────────────────────────────────

@@ -15,6 +15,7 @@ AI Agent 工具函数层
 
 from __future__ import annotations
 
+import contextvars
 import logging
 from typing import Any, Optional
 
@@ -40,6 +41,27 @@ from schemas.tools_input import (
 )
 
 logger = logging.getLogger("bgm-agent.tools")
+
+# ═══════════════════════════════════════════════════════════════════
+# Intent 上下文（contextvars 传递，不改 ToolNode/Graph 拓扑）
+# ═══════════════════════════════════════════════════════════════════
+
+_tool_intent: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "tool_intent", default="unknown"
+)
+"""当前推理轮次的意图分类，由 reasoning_node 设置后自动传播到 ToolNode → 工具函数。
+lookup → 全量输出; discovery → 极简输出; 其余 → 默认全量。"""
+
+
+def set_tool_intent(intent: str) -> None:
+    """设置当前工具调用的意图上下文（reasoning_node 在返回前调用）。"""
+    _tool_intent.set(intent)
+
+
+def _get_intent() -> str:
+    """读取当前意图（工具函数内部使用，不暴露给 LLM Schema）。"""
+    return _tool_intent.get()
+
 
 # ═══════════════════════════════════════════════════════════════════
 # 常量
@@ -71,6 +93,7 @@ def _format_search_results(
     total: int,
     keyword: str,
     entity_type: str,
+    intent: str = "unknown",
 ) -> str:
     """将搜索结果格式化为易读文本，避免裸 JSON 进入 LLM 上下文。
 
@@ -78,6 +101,8 @@ def _format_search_results(
     - subject: 评分、排名、类型图标
     - character: 角色类型、NSFW 标记
     - person: 职业
+
+    discovery 模式下缩短引导语，减少 token 噪音。
     """
     if not results:
         return (
@@ -122,11 +147,15 @@ def _format_search_results(
         else:
             lines.append(f"{i}. {display}  [ID: {item_id}]")
 
-    lines.append(
-        f"\n── 使用详情工具（get_bangumi_subject_detail / get_entity_comments"
-        f"{' / get_subject_characters' if entity_type == 'subject' else ''}）"
-        f"获取完整信息 ──"
-    )
+    # discovery 模式：引导语缩短（~8 tokens vs ~25 tokens）
+    if intent == "discovery":
+        lines.append("\n── 使用详情工具获取更多信息 ──")
+    else:
+        lines.append(
+            f"\n── 使用详情工具（get_bangumi_subject_detail / get_entity_comments"
+            f"{' / get_subject_characters' if entity_type == 'subject' else ''}）"
+            f"获取完整信息 ──"
+        )
     return "\n".join(lines)
 
 
@@ -195,8 +224,19 @@ def _compute_subject_signals(
     return signals
 
 
-def _format_subject_detail(detail: dict) -> str:
-    """将条目详情格式化为易读文本，避免裸 JSON 进入 LLM 上下文。"""
+def _format_subject_detail(detail: dict, intent: str = "unknown") -> str:
+    """将条目详情格式化为易读文本，按意图分化输出。
+
+    - **discovery**：极简模式（~45 tokens/部）——仅保留比较筛选必需字段
+    - **其余 intent**：全量模式——评分分布、收藏、信号、简介、标签
+    """
+    if intent == "discovery":
+        return _format_subject_detail_discovery(detail)
+    return _format_subject_detail_full(detail)
+
+
+def _format_subject_detail_full(detail: dict) -> str:
+    """全量条目详情（lookup/factual/realtime 等精确场景）。"""
     name = detail.get("name_cn") or detail.get("name", "未知")
     orig_name = detail.get("name", "")
     display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
@@ -269,6 +309,46 @@ def _format_subject_detail(detail: dict) -> str:
     subject_id = detail.get("id", 0)
     lines.append(f"\n── 条目 {subject_id} 详情 ──")
     return "\n".join(lines)
+
+
+def _format_subject_detail_discovery(detail: dict) -> str:
+    """发现模式条目详情：极简一行，仅保留比较和筛选必需字段。
+
+    输出格式（~45 tokens/部）：::
+
+        进击的巨人 | ★8.5 | #2 | 动画 25集 | id:8 [机战,科幻,热血]
+
+    刻意砍掉的字段及理由：
+    - 原文名：比较阶段用中文名够用
+    - 评分分布/收藏分布/派生信号：比较阶段不需要统计细节
+    - 简介：top-3 标签已提供类型线索，无需百字长文
+    - 评分人数：5 部横向对比的绝对数字信息密度低
+    """
+    name = detail.get("name_cn") or detail.get("name", "??")
+    score = detail.get("score", 0)
+    rank = detail.get("rank", 0)
+    type_name = detail.get("type", "")
+    eps = detail.get("eps", 0)
+    item_id = detail.get("id", 0)
+
+    # top-3 标签作为类型/风格线索
+    tags = detail.get("tags", [])
+    tag_str = ""
+    if tags:
+        top_tags = [t["name"] for t in tags[:3] if t.get("name")]
+        if top_tags:
+            tag_str = f" [{'/'.join(top_tags)}]"
+
+    parts: list[str] = [name]
+    if score:
+        parts.append(f"★{score:.1f}")
+    if rank:
+        parts.append(f"#{rank}")
+    fmt = f"{type_name} {eps}集" if eps else type_name
+    parts.append(fmt)
+    parts.append(f"id:{item_id}")
+
+    return " | ".join(parts) + tag_str
 
 
 def _format_character_detail(detail: dict) -> str:
@@ -403,7 +483,8 @@ async def search_bangumi_subject(
             f"请尝试更换关键词或调整搜索条件。"
         )
 
-    return _format_search_results(results, total, keyword, entity_type)
+    intent = _get_intent()
+    return _format_search_results(results, total, keyword, entity_type, intent=intent)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -444,7 +525,8 @@ async def get_bangumi_subject_detail(subject_id: int) -> str:
     if "_error" in result:
         return f"系统提示：获取条目详情失败。{result['_error']}"
 
-    return _format_subject_detail(result)
+    intent = _get_intent()
+    return _format_subject_detail(result, intent=intent)
 
 
 # ═══════════════════════════════════════════════════════════════════

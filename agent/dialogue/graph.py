@@ -24,7 +24,7 @@ Dialogue Agent 图谱编排 — 2 节点 ReAct 拓扑
 ========
 
 route_after_dialogue_reasoning（原生消息路由）:
-    - iterations >= 3         → END（熔断）
+    - iterations >= 4         → END（熔断）
     - AIMessage.tool_calls 非空 → tool_node
     - 其他                     → END
 

@@ -118,7 +118,7 @@ def route_after_critic(state: AgentState) -> Literal["reasoning_node", "__end__"
     决策矩阵：
 
         +----------------+----------------+----------------+
-        | critic_status  | iterations < 10| iterations >= 10|
+        | critic_status  | iterations < 12| iterations >= 12|
         +================+================+================+
         | PASS           | → END          | → END          |
         +----------------+----------------+----------------+

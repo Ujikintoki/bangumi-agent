@@ -129,7 +129,7 @@ class TestRouteAfterCritic:
         assert route_after_critic(make_state(critic_status="REVISE", iterations=_MAX_ITERATIONS)) == END
 
     def test_circuit_breaker_beyond_max(self):
-        assert route_after_critic(make_state(critic_status="REVISE", iterations=10)) == END
+        assert route_after_critic(make_state(critic_status="REVISE", iterations=_MAX_ITERATIONS + 1)) == END
 
 
 class TestExtractUserInput:

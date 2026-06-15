@@ -43,8 +43,8 @@ DEFAULT_MAX_TOKENS = 8000
 
 分配：
   System Prompt (BASE + intent):  ~1200 tokens
-  L2 记忆注入:                    ≤500 tokens
-  对话历史:                       ~5300 tokens
+  L2 记忆注入:                    ≤700 tokens
+  对话历史:                       ~5100 tokens
   LLM 输出缓冲:                   ~1000 tokens
 """
 
@@ -58,7 +58,7 @@ DIALOGUE_MAX_TOKENS = 4000
   LLM 输出缓冲:                    ~600 tokens
 """
 
-L2_MEMORY_BUDGET_TOKENS = 500
+L2_MEMORY_BUDGET_TOKENS = 700
 """L2 记忆注入预留 Token 数（Research Agent）。"""
 
 L2_MEMORY_BUDGET_DIALOGUE = 300

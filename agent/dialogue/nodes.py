@@ -22,7 +22,7 @@ from agent.guardrails import (
 from agent.llm import create_llm
 from agent.memory import DIALOGUE_MAX_TOKENS, manage_memory
 from core.config import get_settings
-from tools.bgm_tools import get_agent_tools
+from tools.bgm_tools import get_agent_tools, set_tool_intent
 
 logger = logging.getLogger("bgm-agent.dialogue")
 
@@ -224,6 +224,9 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         new_iterations,
         [tc.get("name", "?") for tc in tool_calls],
     )
+
+    # ── 注入意图上下文（contextvars 传播到 ToolNode → 工具函数）──
+    set_tool_intent(query_intent)
 
     return {
         "messages": [response],
