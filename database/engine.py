@@ -162,6 +162,53 @@ def init_db() -> None:
     except Exception:
         logger.warning("索引创建块异常——索引缺失不影响基本功能")
 
+    # ── Phase 5 Bug Fix: session_memories 去重 + 唯一约束（Bug 1）──
+    # 同一 session 多次写入产生重复行，污染 pgvector 检索空间。
+    # 去重后施加复合唯一约束，之后 UPSERT 会工作。
+    _SESSION_MEMORY_DEDUP_MIGRATIONS = [
+        # 删除重复行，每 (user_id, session_id) 只保留最新一条
+        """
+        DELETE FROM session_memories sm
+        USING (
+            SELECT id,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY user_id, session_id
+                       ORDER BY created_at DESC
+                   ) AS rn
+            FROM session_memories
+        ) dedup
+        WHERE sm.id = dedup.id AND dedup.rn > 1
+        """,
+        # 添加复合唯一约束（幂等——已存在则跳过）
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'uq_session_memories_user_session'
+            ) THEN
+                ALTER TABLE session_memories
+                ADD CONSTRAINT uq_session_memories_user_session
+                UNIQUE (user_id, session_id);
+            END IF;
+        END $$;
+        """,
+    ]
+
+    try:
+        for mig_ddl in _SESSION_MEMORY_DEDUP_MIGRATIONS:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(mig_ddl))
+                    conn.commit()
+            except (OperationalError, ProgrammingError) as mig_exc:
+                logger.debug(
+                    "session_memories 迁移步骤跳过: %s",
+                    str(mig_exc).split("\n")[0][:120],
+                )
+    except Exception:
+        logger.debug("session_memories 迁移块异常——非关键路径")
+
 
 def get_session() -> Generator[Session, None, None]:
     """FastAPI 依赖注入用的 Session 生成器。

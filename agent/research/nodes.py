@@ -101,12 +101,13 @@ async def research_reasoning_node(state: AgentState) -> dict:
             query_intent = "unknown"
             intent_method = "rule(empty)"
 
-    # ── Step 1.5: 记忆召回（仅首轮） ──────────────────────
+    # ── Step 1.5: 记忆召回（仅首轮，chitchat/factual 跳过）──
     # L2/L3 记忆在首轮推理前召回并注入 System Prompt。后续轮次
     # （工具消化、Critic REVISE）跳过——记忆已在首轮消费，无需
     # 重复注入浪费 embedding API 和 token 预算。
+    # chitchat/factual 由 L1 滑动窗口兜底，不触发 L2 召回。
     memory_context = ""
-    if state.get("iterations", 0) == 0:
+    if state.get("iterations", 0) == 0 and query_intent not in _NO_TOOL_INTENTS:
         user_id = state.get("user_id", "anonymous")
         user_query = _extract_user_input(state)
         if user_id != "anonymous" and user_query:
@@ -189,9 +190,7 @@ async def research_reasoning_node(state: AgentState) -> dict:
         messages_for_llm.append(
             HumanMessage(
                 content=(
-                    "（系统指令：以上是工具返回的数据。请综合这些信息回答用户的问题。"
-                    "如果当前数据足以回答，直接生成文字回复；"
-                    "如果确实需要更多数据，可以继续调用必要的工具。）"
+                    "（系统指令：工具数据已返回。数据充分则直接回复；不足可继续调用工具。）"
                 )
             )
         )
@@ -216,6 +215,26 @@ async def research_reasoning_node(state: AgentState) -> dict:
             "iterations": new_iterations,
             "critic_feedback": state.get("critic_feedback", ""),
         }
+
+    # ── chitchat/factual XML 泄漏自纠正 ──────────────────────
+    # chitchat/factual 不绑工具，但 L1 上下文可能暗示需要工具
+    # （如历史中有推荐列表，"具体说说第一部" 判 chitchat）。
+    # 检测到 LLM 生成 <function_calls> → 自动绑工具重试，而非清空回复。
+    if query_intent in _NO_TOOL_INTENTS and response.content:
+        _, was_stripped = strip_tool_call_xml(response.content)
+        if was_stripped:
+            logger.info(
+                "research: chitchat/factual 检测到工具意图 → 自动绑工具重试"
+            )
+            tools = get_agent_tools()
+            llm_with_tools = llm.bind_tools(tools)
+            try:
+                response = await llm_with_tools.ainvoke(messages_for_llm)
+            except Exception:
+                logger.exception("research: chitchat 自纠正重试失败")
+                response = AIMessage(
+                    content="抱歉，处理请求时遇到问题，请换个方式问问？"
+                )
 
     # ── 消化态 XML 泄漏安全网 ──────────────────────────────
     # 第二道防线：即使注入指令后模型仍然在 content 中输出 XML 工具调用，

@@ -21,28 +21,32 @@ from agent.memory_manager import MemoryManager, get_memory_manager
 
 
 class TestExtractKeyEntities:
-    """_extract_key_entities — 正则实体提取"""
+    """_extract_key_entities — 已废弃（Bug 3 修复）
 
-    def test_chinese_brackets(self):
+    原正则提取（「」""）已被 _summarize_session 的 LLM JSON 输出替代。
+    方法保留仅为向后兼容，所有输入返回空列表。
+    """
+
+    def test_chinese_brackets_deprecated(self):
+        """废弃方法：中文书名号不再提取，返回 []"""
         entities = MemoryManager._extract_key_entities(
             "用户询问了「高达Seed」和「星际牛仔」的评分"
         )
-        names = {e["name"] for e in entities}
-        assert "高达Seed" in names
-        assert "星际牛仔" in names
+        assert entities == []
 
-    def test_chinese_quotes(self):
+    def test_chinese_quotes_deprecated(self):
+        """废弃方法：中文引号不再提取，返回 []"""
         entities = MemoryManager._extract_key_entities(
             '用户对"进击的巨人"表现出强烈兴趣'
         )
-        names = {e["name"] for e in entities}
-        assert "进击的巨人" in names
+        assert entities == []
 
-    def test_deduplication(self):
+    def test_deduplication_deprecated(self):
+        """废弃方法：去重逻辑不再适用，返回 []"""
         entities = MemoryManager._extract_key_entities(
             "用户提到了「高达Seed」，对「高达Seed」评价很高"
         )
-        assert len(entities) == 1
+        assert entities == []
 
     def test_empty_summary(self):
         assert MemoryManager._extract_key_entities("") == []

@@ -23,6 +23,7 @@ from agent.dialogue.state import DialogueState
 from agent.research.graph import agent_app
 from agent.research.prompts import BASE_SYSTEM_PROMPT
 from agent.research.state import AgentState
+from agent.session_cache import get_session_cache
 from core.config import get_settings
 from database.engine import init_db
 
@@ -158,9 +159,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
     """Dialogue Agent 内部处理。"""
+    # ── L1 Session 缓存：恢复同 session 前序消息 ──
+    session_cache = get_session_cache()
+    cached = await session_cache.load(request.session_id)
+
     initial_state: DialogueState = {
         "messages": [
             SystemMessage(content=DIALOGUE_SYSTEM_PROMPT),
+            *cached,  # 前序对话（不含 SystemMessage）
             HumanMessage(content=request.message),
         ],
         "iterations": 0,
@@ -180,6 +186,13 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
             query_intent="unknown",
         )
 
+    # ── L1 Session 缓存：保存本轮消息（Dialogue 最多 10 条） ──
+    await session_cache.store(
+        request.session_id,
+        result.get("messages", []),
+        max_messages=10,
+    )
+
     # ── L2 记忆写入（fire-and-forget，不阻塞响应） ──
     asyncio.create_task(_remember_session(result, request))
 
@@ -198,9 +211,14 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
 
 async def _chat_research(request: ChatRequest) -> ChatResponse:
     """Research Agent 内部处理。"""
+    # ── L1 Session 缓存：恢复同 session 前序消息 ──
+    session_cache = get_session_cache()
+    cached = await session_cache.load(request.session_id)
+
     initial_state: AgentState = {
         "messages": [
             SystemMessage(content=BASE_SYSTEM_PROMPT),
+            *cached,  # 前序对话（不含 SystemMessage）
             HumanMessage(content=request.message),
         ],
         "iterations": 0,
@@ -222,6 +240,13 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
             tools_used=[],
             query_intent="unknown",
         )
+
+    # ── L1 Session 缓存：保存本轮消息（Research 最多 20 条） ──
+    await session_cache.store(
+        request.session_id,
+        result.get("messages", []),
+        max_messages=20,
+    )
 
     # ── L2 记忆写入（fire-and-forget，不阻塞响应） ──
     asyncio.create_task(_remember_session(result, request))

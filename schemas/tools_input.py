@@ -33,8 +33,8 @@ class SearchBangumiInput(BaseModel):
     limit: int = Field(
         default=5,
         ge=1,
-        le=10,
-        description="返回结果的最大条数。单条结果时 LLM 可直接使用；多条时需要 LLM 根据 name/nameCN/type "
+        le=8,
+        description="返回结果的最大条数，1-8。单条结果时 LLM 可直接使用；多条时需要 LLM 根据 name/nameCN/type "
         "推断用户意图选择最匹配的一项",
     )
     subject_type: Optional[int] = Field(
@@ -93,7 +93,7 @@ class GetCalendarInput(BaseModel):
     limit_per_day: int = Field(
         default=10,
         ge=1,
-        le=50,
+        le=15,
         description="每天最多返回的番剧条目数量",
     )
 
@@ -112,9 +112,9 @@ class GetEpisodeDiscussionInput(BaseModel):
         "或从 search_bangumi 定位条目后按集数查找",
     )
     comments_limit: int = Field(
-        default=30,
+        default=15,
         ge=1,
-        le=200,
+        le=40,
         description="吐槽箱评论的最大拉取条数。越多评论越能反映社区整体情绪，但也会增加 Token 消耗",
     )
 
@@ -133,9 +133,9 @@ class GetUserProfileInput(BaseModel):
         description="Bangumi 用户名（唯一标识），例如 UID 或自定义用户名，可从用户主页 URL 中获得",
     )
     collections_limit: int = Field(
-        default=50,
+        default=20,
         ge=1,
-        le=200,
+        le=40,
         description="收藏条目拉取的最大数量，用于评分分析和类型分布统计",
     )
     include_blogs: bool = Field(
@@ -171,9 +171,9 @@ class GetSubjectDiscussionInput(BaseModel):
         "reviews=长篇评测（深度分析），topics=讨论帖（社区热点），episodes=剧集列表（帮助定位单集）",
     )
     limit: int = Field(
-        default=10,
+        default=8,
         ge=1,
-        le=50,
+        le=15,
         description="每个数据维度最多拉取的条数",
     )
 
@@ -198,7 +198,7 @@ class GetTrendingInput(BaseModel):
     limit: int = Field(
         default=10,
         ge=1,
-        le=30,
+        le=12,
         description="每个维度返回的最大条数",
     )
 
@@ -221,9 +221,9 @@ class GetEntityCommentsInput(BaseModel):
         ge=1,
     )
     limit: int = Field(
-        default=20,
+        default=10,
         ge=1,
-        le=100,
+        le=25,
         description="拉取的评论最大条数。每条评论正文截断 200 字，保留用户昵称、时间、反应数和回复数",
     )
 
@@ -343,8 +343,8 @@ class UserTimelineInput(BaseModel):
         description="Bangumi 用户名（个人主页 URL 中的用户名部分），如 'deepseek_jiang'",
     )
     limit: int = Field(
-        default=20,
+        default=10,
         ge=1,
-        le=50,
+        le=20,
         description="返回动态条数上限",
     )

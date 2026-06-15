@@ -24,7 +24,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column
+from sqlalchemy import Column, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -52,6 +52,13 @@ class SessionMemory(SQLModel, table=True):
     """
 
     __tablename__ = "session_memories"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "session_id",
+            name="uq_session_memories_user_session",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     """UUID 主键，分布式友好。"""

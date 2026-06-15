@@ -65,7 +65,7 @@ L2_MEMORY_BUDGET_DIALOGUE = 300
 """L2 记忆注入预留 Token 数（Dialogue Agent）。"""
 
 # 单条消息最大 Token 数（超出则截断内容，主要针对 ToolMessage 返回的海量 JSON）
-_MAX_SINGLE_MESSAGE_TOKENS = 2000
+_MAX_SINGLE_MESSAGE_TOKENS = 1500
 
 # 截断标记
 _TRUNCATION_MARKER = "\n\n...[内容已截断]"
@@ -210,6 +210,70 @@ def _truncate_oversized_messages(
     return result if changed else messages
 
 
+def _remove_orphaned_tool_messages(
+    messages: list[BaseMessage],
+) -> list[BaseMessage]:
+    """移除孤儿 ToolMessage —— 其配对 AIMessage(tool_calls) 已被截断丢弃。
+
+    当滑动窗口丢弃旧的 AIMessage(tool_calls) 时，其触发的 ToolMessage
+    仍留在列表中。这些孤儿 ToolMessage 既浪费 token 预算，又可能在
+    DeepSeek 等严格 API 上触发 400 BadRequestError：
+    "Messages with role 'tool' must be a response to a preceding
+    message with 'tool_calls'."
+
+    同时移除无 content、无 tool_calls 的空 AIMessage（纯 tool_call 壳，
+    其配对的 ToolMessage 都已被丢弃时再无意义）。
+
+    Args:
+        messages: 待清理的消息列表。
+
+    Returns:
+        清理后的消息列表。
+    """
+    # 收集所有 AIMessage 中声明的 tool_call id
+    valid_call_ids: set[str] = set()
+    for m in messages:
+        if isinstance(m, AIMessage):
+            tcs = getattr(m, "tool_calls", None) or []
+            for tc in tcs:
+                if isinstance(tc, dict) and "id" in tc:
+                    valid_call_ids.add(tc["id"])
+
+    result: list[BaseMessage] = []
+    removed_orphans = 0
+    removed_empty_ai = 0
+
+    for m in messages:
+        if isinstance(m, ToolMessage):
+            tc_id = getattr(m, "tool_call_id", "")
+            if tc_id and tc_id not in valid_call_ids:
+                removed_orphans += 1
+                logger.debug(
+                    "memory: 移除孤儿 ToolMessage (tool_call_id=%s, name=%s)",
+                    tc_id,
+                    getattr(m, "name", "?"),
+                )
+                continue
+        elif isinstance(m, AIMessage):
+            has_content = bool(getattr(m, "content", ""))
+            has_tool_calls = bool(getattr(m, "tool_calls", None))
+            if not has_content and not has_tool_calls:
+                removed_empty_ai += 1
+                logger.debug("memory: 移除空 AIMessage（无 content 无 tool_calls）")
+                continue
+
+        result.append(m)
+
+    if removed_orphans or removed_empty_ai:
+        logger.info(
+            "memory: 清理孤儿消息 — ToolMessage=%d, 空 AIMessage=%d",
+            removed_orphans,
+            removed_empty_ai,
+        )
+
+    return result
+
+
 def trim_messages(
     messages: list[BaseMessage],
     max_tokens: int = DEFAULT_MAX_TOKENS,
@@ -269,7 +333,12 @@ def trim_messages(
             max_tokens,
         )
 
-    return system_msgs + kept
+    # ── 清理孤儿消息 ──────────────────────────────────────
+    # 滑动窗口可能丢弃了 AIMessage(tool_calls) 但保留了其
+    # 配对 ToolMessage → 孤儿消息既浪费 token 又触发 API 400 错误
+    result = system_msgs + kept
+    result = _remove_orphaned_tool_messages(result)
+    return result
 
 
 def manage_memory(

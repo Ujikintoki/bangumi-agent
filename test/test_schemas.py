@@ -114,11 +114,11 @@ class TestGetCalendarInput:
 
     def test_limit_boundaries(self):
         assert GetCalendarInput(limit_per_day=1).limit_per_day == 1
-        assert GetCalendarInput(limit_per_day=50).limit_per_day == 50
+        assert GetCalendarInput(limit_per_day=15).limit_per_day == 15
         with pytest.raises(ValidationError):
             GetCalendarInput(limit_per_day=0)
         with pytest.raises(ValidationError):
-            GetCalendarInput(limit_per_day=51)
+            GetCalendarInput(limit_per_day=16)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -155,17 +155,17 @@ class TestGetTrendingInput:
 
 class TestGetEpisodeDiscussionInput:
     def test_valid(self):
-        e = GetEpisodeDiscussionInput(episode_id=1023497, comments_limit=50)
+        e = GetEpisodeDiscussionInput(episode_id=1023497, comments_limit=30)
         assert e.episode_id == 1023497
-        assert e.comments_limit == 50
+        assert e.comments_limit == 30
 
     def test_defaults(self):
         e = GetEpisodeDiscussionInput(episode_id=1)
-        assert e.comments_limit == 30
+        assert e.comments_limit == 15
 
     def test_limit_boundaries(self):
         assert GetEpisodeDiscussionInput(episode_id=1, comments_limit=1).comments_limit == 1
-        assert GetEpisodeDiscussionInput(episode_id=1, comments_limit=200).comments_limit == 200
+        assert GetEpisodeDiscussionInput(episode_id=1, comments_limit=40).comments_limit == 40
         with pytest.raises(ValidationError):
             GetEpisodeDiscussionInput(episode_id=1, comments_limit=0)
 
@@ -180,7 +180,7 @@ class TestGetSubjectDiscussionInput:
         s = GetSubjectDiscussionInput(subject_id=8)
         assert s.subject_id == 8
         assert s.data_types == ["comments", "reviews"]
-        assert s.limit == 10
+        assert s.limit == 8
 
     def test_custom_data_types(self):
         s = GetSubjectDiscussionInput(
@@ -217,7 +217,7 @@ class TestGetEntityCommentsInput:
 
     def test_default_limit(self):
         e = GetEntityCommentsInput(entity_type="character", entity_id=1)
-        assert e.limit == 20
+        assert e.limit == 10
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -244,7 +244,7 @@ class TestGetUserProfileInput:
     def test_defaults(self):
         u = GetUserProfileInput(username="testuser")
         assert u.username == "testuser"
-        assert u.collections_limit == 50
+        assert u.collections_limit == 20
         assert u.include_blogs is True
         assert u.include_characters is False
         assert u.include_persons is False
@@ -252,12 +252,12 @@ class TestGetUserProfileInput:
     def test_all_flags(self):
         u = GetUserProfileInput(
             username="test",
-            collections_limit=100,
+            collections_limit=30,
             include_blogs=False,
             include_characters=True,
             include_persons=True,
         )
-        assert u.collections_limit == 100
+        assert u.collections_limit == 30
         assert u.include_blogs is False
         assert u.include_characters is True
 
@@ -320,12 +320,12 @@ class TestUserTimelineInput:
     def test_defaults(self):
         u = UserTimelineInput(username="testuser")
         assert u.username == "testuser"
-        assert u.limit == 20
+        assert u.limit == 10
 
     def test_limit_boundaries(self):
         assert UserTimelineInput(username="t", limit=1).limit == 1
-        assert UserTimelineInput(username="t", limit=50).limit == 50
+        assert UserTimelineInput(username="t", limit=20).limit == 20
         with pytest.raises(ValidationError):
             UserTimelineInput(username="t", limit=0)
         with pytest.raises(ValidationError):
-            UserTimelineInput(username="t", limit=51)
+            UserTimelineInput(username="t", limit=21)

@@ -12,8 +12,8 @@ L3 公共记忆留有 Phase 6 桩。
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -28,18 +28,28 @@ logger = logging.getLogger("bgm-agent.memory_manager")
 # 摘要 Prompt
 # ═══════════════════════════════════════════════════════════════════════════
 
-SUMMARIZE_PROMPT = """你是 Bangumi 助手的记忆编码器。请将以下对话历史压缩为一段不超过200字的摘要。
+SUMMARIZE_PROMPT_V2 = """你是 Bangumi 助手的记忆编码器。请将以下对话历史压缩为一段不超过200字的摘要，并提取对话中涉及的关键实体。
 
-摘要应包含：
-1. 用户的核心问题或需求
-2. 你给出的关键回答、推荐的作品
-3. 用户表现出的偏好信号（喜欢/不喜欢什么、评分倾向等）
-4. 涉及的关键实体（作品名、角色名、声优名等）
+**必须**以以下 JSON 格式输出（不要包含 Markdown 代码块标记或其他文字）：
+{{
+    "summary": "摘要文本（不超过200字，包含用户核心问题、关键回答、偏好信号）",
+    "entities": [
+        "作品名1",
+        "角色名1",
+        "声优名1"
+    ]
+}}
+
+要求：
+1. 摘要使用简体中文，不超过200字
+2. entities 列出对话中出现的所有关键实体名（作品名、角色名、声优名）
+3. 实体名使用最常用的中文名（如《进击的巨人》而非 Attack on Titan）
+4. 如对话中没有关键实体，entities 输出空数组 []
 
 对话历史：
 {conversation_history}
 
-请直接输出摘要文本，不要包含"摘要："等前缀。使用简体中文。"""
+JSON 输出："""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -76,6 +86,32 @@ class MemoryManager:
         self._engine = engine
         self._zhipu_api_key = zhipu_api_key
         self._llm_model = llm_model
+
+        # ── 用户画像写锁（per-user serialization，Bug 2 修复）──
+        # fire-and-forget 任务并发写入同一用户画像时，asyncio.Lock
+        # 将 Read-Modify-Write 串行化，防止 total_sessions 计数
+        # 和偏好得分被并发任务静默覆盖丢失。
+        self._profile_locks: dict[str, asyncio.Lock] = {}
+        self._profile_locks_guard: asyncio.Lock = asyncio.Lock()
+
+    async def _acquire_profile_lock(self, user_id: str) -> asyncio.Lock:
+        """获取或创建 per-user 画像写锁。
+
+        同一 user_id 的并发 fire-and-forget 任务通过此锁串行化，
+        防止 Read-Modify-Write 模式下 total_sessions 计数丢失。
+
+        不同 user_id 之间无竞争——锁粒度最小化。
+
+        Args:
+            user_id: 用户标识。
+
+        Returns:
+            对应用户的 asyncio.Lock 实例。
+        """
+        async with self._profile_locks_guard:
+            if user_id not in self._profile_locks:
+                self._profile_locks[user_id] = asyncio.Lock()
+            return self._profile_locks[user_id]
 
     # ═══════════════════════════════════════════════════════════════════
     # 核心 API
@@ -268,16 +304,15 @@ class MemoryManager:
             return
 
         try:
-            # ── Step 1: 摘要 ────────────────────────────
-            summary = await self._summarize_session(messages, final_reply)
+            # ── Step 1: 摘要 + 实体提取（合并为一次 LLM 调用）───
+            summary, entities = await self._summarize_session(
+                messages, final_reply
+            )
             if not summary:
                 logger.warning(
                     "摘要为空，跳过记忆 (session=%s, user=%s)", session_id, user_id
                 )
                 return
-
-            # ── Step 2: 提取实体 ─────────────────────────
-            entities = self._extract_key_entities(summary)
 
             # ── Step 3: embedding ───────────────────────
             embedding = await self._embed_text(summary)
@@ -298,22 +333,41 @@ class MemoryManager:
                 )
             )
 
-            # ── Step 5: INSERT session_memories ─────────
+            # ── Step 5: UPSERT session_memories ──────────
+            # 同一 (user_id, session_id) 只维护一条记录——每轮对话
+            # 覆盖更新而非追加新行，防止向量空间污染（Bug 1 修复）。
             try:
+                import uuid as _uuid
                 from database.memory_tables import SessionMemory
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
 
                 with Session(self._engine) as session:
-                    sm = SessionMemory(
+                    insert_stmt = pg_insert(SessionMemory).values(
+                        id=_uuid.uuid4(),
                         session_id=session_id,
                         user_id=user_id,
                         summary_text=summary,
-                        embedding=embedding,  # None 也可接受
+                        embedding=embedding,
                         key_entities=entities,
                         intent_distribution={query_intent: 1} if query_intent else {},
                         tools_used=tools_used,
                         message_count=message_count,
                     )
-                    session.add(sm)
+
+                    upsert_stmt = insert_stmt.on_conflict_do_update(
+                        constraint="uq_session_memories_user_session",
+                        set_=dict(
+                            summary_text=insert_stmt.excluded.summary_text,
+                            embedding=insert_stmt.excluded.embedding,
+                            key_entities=insert_stmt.excluded.key_entities,
+                            intent_distribution=insert_stmt.excluded.intent_distribution,
+                            tools_used=insert_stmt.excluded.tools_used,
+                            message_count=insert_stmt.excluded.message_count,
+                            # created_at 不更新——保留首次写入时间戳
+                        ),
+                    )
+
+                    session.execute(upsert_stmt)
                     session.commit()
             except SQLAlchemyError as exc:
                 logger.warning(
@@ -402,42 +456,91 @@ class MemoryManager:
         self,
         messages: list,
         final_reply: str,
-    ) -> str:
-        """使用 LLM 将对话历史压缩为 ~200 字中文摘要。
+    ) -> tuple[str, list[dict]]:
+        """使用 LLM 将对话历史压缩为 ~200 字中文摘要并提取实体。
+
+        一次 LLM 调用同时完成摘要 + 实体提取——通过 SUMMARIZE_PROMPT_V2
+        强制 JSON 输出，消除正则提取在中文 ACGN 语境下的盲区。
 
         Args:
             messages: Agent Graph 消息列表。
             final_reply: 最终回复文本。
 
         Returns:
-            摘要文本。LLM 失败时回退为 final_reply[:200]。
+            (summary_text, entities) 元组。
+            - summary_text: 摘要文本
+            - entities: ``[{"type": "subject", "name": "EVA"}, ...]``
+            LLM 或 JSON 解析失败时回退为 (final_reply[:200], [])。
         """
+        import json
+
         # 1. 格式化为对话文本并截断
         conversation_text = self._format_conversation_text(messages, final_reply)
 
-        # 2. 调用轻量 LLM
+        # 2. 调用轻量 LLM（强制 JSON 输出）
         try:
             from agent.llm import create_llm
 
             llm = create_llm(
                 temperature=0,
-                max_tokens=300,
+                max_tokens=500,  # 从 300 增加以容纳 JSON wrapper
                 request_timeout=10,
             )
-            prompt = SUMMARIZE_PROMPT.format(conversation_history=conversation_text)
+            prompt = SUMMARIZE_PROMPT_V2.format(
+                conversation_history=conversation_text
+            )
             response = await llm.ainvoke(prompt)
-            summary = (
+            raw = (
                 response.content.strip()
                 if hasattr(response, "content")
                 else str(response).strip()
             )
-            if summary:
-                return summary
+
+            if raw:
+                # 尝试解析 JSON
+                try:
+                    # 清洗：LLM 可能无视线索直接输出 {...}
+                    # 也可能包在 ```json ... ``` 中（容错）
+                    if raw.startswith("```"):
+                        lines = raw.split("\n")
+                        json_start = next(
+                            (i for i, l in enumerate(lines) if l.strip() in ("{", "```json")),
+                            -1,
+                        )
+                        json_end = next(
+                            (i for i, l in enumerate(lines) if l.strip() == "```"),
+                            len(lines),
+                        )
+                        if json_start >= 0:
+                            raw = "\n".join(lines[json_start:json_end])
+
+                    parsed = json.loads(raw)
+                    summary = parsed.get("summary", "").strip()
+                    entities_raw: list[str] = parsed.get("entities", [])
+
+                    # 实体归一化为下游期望的 dict 格式
+                    entities = [
+                        {"type": "subject", "name": name.strip()}
+                        for name in entities_raw
+                        if name and isinstance(name, str) and name.strip()
+                    ]
+
+                    if summary:
+                        return (summary, entities)
+                except (json.JSONDecodeError, TypeError, AttributeError) as parse_exc:
+                    logger.warning(
+                        "摘要 JSON 解析失败，回退为纯文本: %s", parse_exc
+                    )
+                    # 尝试当作纯文本摘要使用
+                    if len(raw) > 10:
+                        return (raw[:500], [])
+
         except Exception as exc:
             logger.warning("会话摘要 LLM 调用失败: %s", exc)
 
         # 3. Fallback
-        return final_reply[:200] if final_reply else "（摘要生成失败）"
+        fallback = final_reply[:200] if final_reply else "（摘要生成失败）"
+        return (fallback, [])
 
     @staticmethod
     def _format_conversation_text(
@@ -504,42 +607,19 @@ class MemoryManager:
 
     @staticmethod
     def _extract_key_entities(summary: str) -> list[dict]:
-        """从摘要文本中提取关键实体名。
+        """已废弃——由 _summarize_session 的 JSON 输出替代。
 
-        当前使用轻量正则匹配引号内的实体名（「」""）。
-        Phase 5 初期有意保持简单，后续可升级为 LLM 提取或 NER。
+        保留此方法仅为向后兼容。新代码应从 _summarize_session
+        的返回值中直接获取 entities。
 
         Args:
-            summary: LLM 生成的中文摘要。
+            summary: LLM 生成的中文摘要（未使用）。
 
         Returns:
-            实体列表，格式 ``[{"type": "subject", "name": "高达Seed"}, ...]``。
+            空列表。
         """
-        entities: list[dict] = []
-        seen: set[str] = set()
-
-        # 匹配中文书名号「」
-        for match in re.finditer(r"「([^」]{2,30})」", summary):
-            name = match.group(1)
-            if name not in seen:
-                seen.add(name)
-                entities.append({"type": "subject", "name": name})
-
-        # 匹配中文双引号 "" （非贪婪，避免跨句匹配）
-        for match in re.finditer(r"“([^”]{2,30})”", summary):
-            name = match.group(1)
-            if name not in seen:
-                seen.add(name)
-                entities.append({"type": "subject", "name": name})
-
-        # 匹配英文双引号 ""
-        for match in re.finditer(r'"([^"]{2,30})"', summary):
-            name = match.group(1)
-            if name not in seen:
-                seen.add(name)
-                entities.append({"type": "subject", "name": name})
-
-        return entities
+        logger.debug("_extract_key_entities 已废弃，返回空列表")
+        return []
 
     # ═══════════════════════════════════════════════════════════════════
     # 内部方法 — 用户画像
@@ -552,7 +632,10 @@ class MemoryManager:
         intent_dist: str,
         entities: list[dict],
     ) -> None:
-        """增量更新用户画像。
+        """增量更新用户画像（per-user 锁保护下执行）。
+
+        Bug 2 修复：通过 per-user asyncio.Lock 将 Read-Modify-Write
+        流程串行化，防止并发 fire-and-forget 任务静默覆盖更新。
 
         Args:
             user_id: 用户标识。
@@ -560,60 +643,62 @@ class MemoryManager:
             intent_dist: 本轮意图类型。
             entities: 提取的关键实体列表。
         """
-        try:
-            from database.memory_tables import UserProfile
+        lock = await self._acquire_profile_lock(user_id)
+        async with lock:
+            try:
+                from database.memory_tables import UserProfile
 
-            now = datetime.now(timezone.utc)
+                now = datetime.now(timezone.utc)
 
-            with Session(self._engine) as session:
-                existing = session.exec(
-                    select(UserProfile).where(UserProfile.user_id == user_id)
-                ).first()
+                with Session(self._engine) as session:
+                    existing = session.exec(
+                        select(UserProfile).where(UserProfile.user_id == user_id)
+                    ).first()
 
-                if existing is None:
-                    # 新用户：创建初始画像
-                    profile = UserProfile(user_id=user_id)
-                    profile.preferences_json = self._build_initial_preferences(
-                        intent_dist, entities
-                    )
-                    profile.total_sessions = 1
-                    profile.avg_session_length = 1.0
-                    profile.dominant_intent = intent_dist
-                    profile.last_active_at = now
-                    profile.updated_at = now
-                    session.add(profile)
-                else:
-                    # 已有画像：增量更新
-                    prefs = existing.preferences_json or {}
-                    prefs = self._update_genres(prefs, entities)
-                    prefs = self._update_affinities(prefs, entities)
+                    if existing is None:
+                        # 新用户：创建初始画像
+                        profile = UserProfile(user_id=user_id)
+                        profile.preferences_json = self._build_initial_preferences(
+                            intent_dist, entities
+                        )
+                        profile.total_sessions = 1
+                        profile.avg_session_length = 1.0
+                        profile.dominant_intent = intent_dist
+                        profile.last_active_at = now
+                        profile.updated_at = now
+                        session.add(profile)
+                    else:
+                        # 已有画像：增量更新
+                        prefs = existing.preferences_json or {}
+                        prefs = self._update_genres(prefs, entities)
+                        prefs = self._update_affinities(prefs, entities)
 
-                    # 更新 activity_profile
-                    activity = prefs.get("activity_profile", {})
-                    qtypes: dict = activity.get("query_types", {})
-                    intent_name = (
-                        intent_dist if isinstance(intent_dist, str) else "unknown"
-                    )
-                    qtypes[intent_name] = qtypes.get(intent_name, 0) + 1
-                    activity["query_types"] = qtypes
-                    activity["total_sessions"] = existing.total_sessions + 1
-                    prefs["activity_profile"] = activity
+                        # 更新 activity_profile
+                        activity = prefs.get("activity_profile", {})
+                        qtypes: dict = activity.get("query_types", {})
+                        intent_name = (
+                            intent_dist if isinstance(intent_dist, str) else "unknown"
+                        )
+                        qtypes[intent_name] = qtypes.get(intent_name, 0) + 1
+                        activity["query_types"] = qtypes
+                        activity["total_sessions"] = existing.total_sessions + 1
+                        prefs["activity_profile"] = activity
 
-                    existing.preferences_json = prefs
-                    existing.total_sessions += 1
-                    existing.avg_session_length = (
-                        0.8 * existing.avg_session_length + 0.2
-                    )
-                    existing.dominant_intent = max(
-                        qtypes, key=lambda k: qtypes[k]
-                    )
-                    existing.last_active_at = now
-                    existing.updated_at = now
+                        existing.preferences_json = prefs
+                        existing.total_sessions += 1
+                        existing.avg_session_length = (
+                            0.8 * existing.avg_session_length + 0.2
+                        )
+                        existing.dominant_intent = max(
+                            qtypes, key=lambda k: qtypes[k]
+                        )
+                        existing.last_active_at = now
+                        existing.updated_at = now
 
-                session.commit()
+                    session.commit()
 
-        except Exception as exc:
-            logger.warning("画像更新失败 (user=%s): %s", user_id, exc)
+            except Exception as exc:
+                logger.warning("画像更新失败 (user=%s): %s", user_id, exc)
 
     @staticmethod
     def _build_initial_preferences(

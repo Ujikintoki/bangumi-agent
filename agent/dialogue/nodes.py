@@ -73,13 +73,11 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
             query_intent = "unknown"
             intent_method = "rule(empty)"
 
-    # ── Step 2.5: 记忆召回（仅首轮） ──────────────────
-    # 始终在首轮召回记忆，不按 intent 过滤。
-    # "你怎么看？" 被分类器判为 chitchat，但实际是上下文追问——
-    # 分类器只看当前消息，无法感知指代依赖。recency fallback
-    # 确保短追问也能找回上一轮的话题。
+    # ── Step 2.5: 记忆召回（仅首轮，chitchat/factual 跳过）──
+    # chitchat/factual 不需要 L2 跨会话记忆——"早上好"不应
+    # 召回上周的机战番。短追问的指代由 L1 滑动窗口兜底。
     memory_context = ""
-    if state.get("iterations", 0) == 0:
+    if state.get("iterations", 0) == 0 and query_intent not in _NO_TOOL_INTENTS:
         user_id = state.get("user_id", "anonymous")
         user_query = _extract_user_input(state)
         if user_id != "anonymous" and user_query:
@@ -177,10 +175,9 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         new_iterations = _MAX_ITERATIONS  # 让路由函数熔断到 END
 
     # ── Step 6: XML 泄漏防护 ──────────────────────────────
-    # 两种情况会触发 XML 泄漏：
-    # 1. chitchat/factual 无工具通道 — DeepSeek 在无 function-calling 通道时
-    #    将 <function_calls> 喷到 .content
-    # 2. 消化态 — 工具已绑定但模型仍可能在 .content 中输出 XML 标签
+    # 两种情况：
+    # 1. chitchat/factual 无工具通道 → 检测到工具意图后绑工具重试
+    # 2. 消化态 → 工具已绑定，仍泄漏则清理解
     needs_xml_guard = (
         query_intent in _NO_TOOL_INTENTS  # 无工具通道
         or is_digesting                    # 消化态
@@ -188,17 +185,31 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     if needs_xml_guard and response.content:
         cleaned, was_stripped = strip_tool_call_xml(response.content)
         if was_stripped:
-            logger.warning(
-                "dialogue: %s 回复中检测到 XML 泄漏，已清理",
-                "chitchat/factual" if query_intent in _NO_TOOL_INTENTS else "消化态",
-            )
-            if not cleaned:
-                cleaned = "啧，脑子有点乱，你再说一遍？"
-            response = AIMessage(
-                content=cleaned,
-                response_metadata=getattr(response, "response_metadata", {}),
-                id=getattr(response, "id", None),
-            )
+            if query_intent in _NO_TOOL_INTENTS:
+                # chitchat/factual 无工具通道：LLM 想调工具 →
+                # 自动绑工具重试，而非丢弃为兜底文案
+                logger.info("dialogue: chitchat/factual 检测到工具意图 → 自动绑工具重试")
+                tools = get_agent_tools()
+                llm_with_tools = llm.bind_tools(tools)
+                try:
+                    response = await llm_with_tools.ainvoke(messages_for_llm)
+                except Exception:
+                    logger.exception("dialogue: chitchat 自纠正重试失败")
+                    response = AIMessage(
+                        content="啧，脑子有点乱，你再说一遍？"
+                    )
+            else:
+                # 消化态：工具已绑定却仍泄漏 → 清理
+                logger.warning(
+                    "dialogue: 消化态回复中检测到 XML 泄漏，已清理"
+                )
+                if not cleaned:
+                    cleaned = "啧，脑子有点乱，你再说一遍？"
+                response = AIMessage(
+                    content=cleaned,
+                    response_metadata=getattr(response, "response_metadata", {}),
+                    id=getattr(response, "id", None),
+                )
 
     # ── Step 7: 日志 ──────────────────────────────────────
     tool_calls = (
