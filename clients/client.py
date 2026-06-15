@@ -530,6 +530,44 @@ class BangumiClient(BaseClient):
         return sanitizers.sanitize_subject_detail(raw)
 
     # ═══════════════════════════════════════════════════════════
+    # 角色/人物详情
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_character_detail(self, character_id: int) -> dict:
+        """获取角色完整详情（p1 API）。
+
+        GET /p1/characters/{characterID}
+
+        Args:
+            character_id: Bangumi 角色 ID。
+
+        Returns:
+            清洗后的角色详情字典（含 summary、info、nsfw、collects 等），
+            或 ``{"_error": ...}``。
+        """
+        raw = await self._get(f"/p1/characters/{character_id}")
+        if "_error" in raw:
+            return raw
+        return sanitizers.sanitize_character_detail(raw)
+
+    async def get_person_detail(self, person_id: int) -> dict:
+        """获取人物完整详情（p1 API）。
+
+        GET /p1/persons/{personID}
+
+        Args:
+            person_id: Bangumi 人物 ID。
+
+        Returns:
+            清洗后的人物详情字典（含 summary、info、nsfw、career、collects 等），
+            或 ``{"_error": ...}``。
+        """
+        raw = await self._get(f"/p1/persons/{person_id}")
+        if "_error" in raw:
+            return raw
+        return sanitizers.sanitize_person_detail(raw)
+
+    # ═══════════════════════════════════════════════════════════
     # 用户时光机
     # ═══════════════════════════════════════════════════════════
 

@@ -311,11 +311,12 @@ class RagEntityIngestor:
                         score=item.get("score", 0.0),
                         rank=item.get("rank", 0),
                         rating_total=item.get("rating_total", 0),
+                        rating_count=item.get("rating_count", []),
+                        collection=item.get("collection", {}),
                         date=item.get("date"),
                         year=item.get("year"),
                         platform=item.get("platform", ""),
                         eps=item.get("eps", 0),
-                        nsfw=item.get("nsfw", False),
                         tags=item.get("tags", []),
                     )
                     entity = RagEntity(
@@ -323,6 +324,7 @@ class RagEntityIngestor:
                         entity_type="subject",
                         name=item.get("name", ""),
                         name_cn=item.get("name_cn"),
+                        nsfw=item.get("nsfw", False),
                         chunk_text=_build_subject_chunk_text(
                             item.get("name_cn", "") or "", item["chunk_text"]
                         ),
@@ -386,6 +388,8 @@ class RagEntityIngestor:
                     meta = CharacterMeta(
                         role=item.get("role", 0),
                         collects=item.get("collects", 0),
+                        summary=item.get("summary"),
+                        info=item.get("info"),
                         casts=casts,
                     )
                     entity = RagEntity(
@@ -393,6 +397,7 @@ class RagEntityIngestor:
                         entity_type="character",
                         name=item.get("name", ""),
                         name_cn=item.get("name_cn"),
+                        nsfw=item.get("nsfw", False),
                         chunk_text=_build_character_chunk_text(
                             item.get("name_cn", "") or "",
                             item.get("subject_name", "") or "",
@@ -454,6 +459,8 @@ class RagEntityIngestor:
                         career=item.get("career", []),
                         type=item.get("type", 0),
                         collects=item.get("collects", 0),
+                        summary=item.get("summary"),
+                        info=item.get("info"),
                         works=works,
                     )
                     entity = RagEntity(
@@ -461,6 +468,7 @@ class RagEntityIngestor:
                         entity_type="person",
                         name=item.get("name", ""),
                         name_cn=item.get("name_cn"),
+                        nsfw=item.get("nsfw", False),
                         chunk_text=_build_person_chunk_text(
                             item.get("name_cn", "") or "", item["chunk_text"]
                         ),

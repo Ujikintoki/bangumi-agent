@@ -25,8 +25,10 @@ from core.config import get_settings
 from schemas.tools_input import (
     GetBlogInput,
     GetCalendarInput,
+    GetCharacterDetailInput,
     GetEntityCommentsInput,
     GetEpisodeDiscussionInput,
+    GetPersonDetailInput,
     GetSubjectCharactersInput,
     GetSubjectDetailInput,
     GetSubjectDiscussionInput,
@@ -128,6 +130,71 @@ def _format_search_results(
     return "\n".join(lines)
 
 
+def _compute_subject_signals(
+    rating_count: list[int],
+    collection: dict,
+    score: float = 0,
+) -> list[str]:
+    """从评分分布和收藏分布计算派生信号，供 LLM 做推荐判断。
+
+    不硬编码"过誉/冷门"标签——只算数字+自然语言描述，让 LLM 结合语境判断。
+
+    Args:
+        rating_count: 10 档评分分布 [1分人数, ..., 10分人数]。
+        collection: 5 种收藏状态分布 {1: 想看, 2: 看过, 3: 在看, 4: 搁置, 5: 抛弃}。
+        score: 条目均分，用于计算热度评分比。
+
+    Returns:
+        人类可读的信号摘要列表。
+    """
+    signals: list[str] = []
+    total_ratings = sum(rating_count)
+    if total_ratings <= 0:
+        return signals
+
+    # 1. 完成率 = 看过 / (看过+抛弃+搁置)
+    看过 = collection.get(2, 0)
+    抛弃 = collection.get(5, 0)
+    搁置 = collection.get(4, 0)
+    total_completed = 看过 + 抛弃 + 搁置
+    if total_completed > 100:
+        rate = 看过 / total_completed
+        if rate >= 0.85:
+            signals.append(f"完成率 {rate:.0%}（高——大多坚持看完）")
+        elif rate >= 0.60:
+            signals.append(f"完成率 {rate:.0%}（正常）")
+        elif rate >= 0.35:
+            signals.append(f"完成率 {rate:.0%}（偏低——较多中途弃番）")
+        else:
+            signals.append(f"完成率 {rate:.0%}（低——弃番率高）")
+
+    # 2. 口碑集中度 = 最高三档占比
+    top3 = sum(rating_count[-3:])
+    top3_ratio = top3 / total_ratings
+    if top3_ratio >= 0.75:
+        signals.append(f"口碑集中度 {top3_ratio:.0%}（一致好评）")
+    elif top3_ratio >= 0.50:
+        signals.append(f"口碑集中度 {top3_ratio:.0%}（正常分布）")
+    elif top3_ratio >= 0.35:
+        signals.append(f"口碑集中度 {top3_ratio:.0%}（两极化——争议较大）")
+    else:
+        signals.append(f"口碑集中度 {top3_ratio:.0%}（严重两极化）")
+
+    # 3. 热度评分比 = total_ratings / (score * 1000)
+    if score > 0:
+        ratio = total_ratings / (score * 1000)
+        if ratio < 0.3:
+            signals.append(f"🔥评分比 {ratio:.1f}（冷门高分——评分高但少人评）")
+        elif ratio < 1.0:
+            signals.append(f"🔥评分比 {ratio:.1f}（小众精品）")
+        elif ratio < 3.0:
+            signals.append(f"🔥评分比 {ratio:.1f}（正常热度匹配）")
+        else:
+            signals.append(f"🔥评分比 {ratio:.1f}（热门——高曝光高评价）")
+
+    return signals
+
+
 def _format_subject_detail(detail: dict) -> str:
     """将条目详情格式化为易读文本，避免裸 JSON 进入 LLM 上下文。"""
     name = detail.get("name_cn") or detail.get("name", "未知")
@@ -149,6 +216,30 @@ def _format_subject_detail(detail: dict) -> str:
         meta.append(f"{total_ratings} 人评")
     if meta:
         lines.append(f"{' | '.join(meta)}")
+
+    # ── 评分分布（判断口碑是否两极化）──────────────────────
+    rating_count = detail.get("rating_count", [])
+    if rating_count and sum(rating_count) > 0:
+        compact = " ".join(
+            f"{i+1}分:{c}" for i, c in enumerate(rating_count) if c > 0
+        )
+        lines.append(f"评分分布：{compact}")
+
+    # ── 收藏分布（识别冷门神作 vs 过誉热门）─────────────────
+    collection = detail.get("collection", {})
+    if collection:
+        labels = {1: "想看", 2: "看过", 3: "在看", 4: "搁置", 5: "抛弃"}
+        parts = [f"{labels.get(int(k), k)}:{v}" for k, v in sorted(collection.items())]
+        lines.append(f"收藏分布：{' | '.join(parts)}")
+
+    # ── 派生信号（完成率 / 口碑集中度 / 热度评分比）────────
+    signals = _compute_subject_signals(
+        rating_count=rating_count if rating_count else [],
+        collection=collection if collection else {},
+        score=score,
+    )
+    if signals:
+        lines.append(f"📊 信号：{'；'.join(signals)}")
 
     # ── 类型/集数行 ──────────────────────────────────────────
     type_name = detail.get("type", "")
@@ -177,6 +268,76 @@ def _format_subject_detail(detail: dict) -> str:
 
     subject_id = detail.get("id", 0)
     lines.append(f"\n── 条目 {subject_id} 详情 ──")
+    return "\n".join(lines)
+
+
+def _format_character_detail(detail: dict) -> str:
+    """将角色详情格式化为易读文本，避免裸 JSON 进入 LLM 上下文。"""
+    name = detail.get("name_cn") or detail.get("name", "未知角色")
+    orig_name = detail.get("name", "")
+    display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
+
+    lines: list[str] = [f"🧑 {display}"]
+
+    # ── 基本信息 ──────────────────────────────────────────────
+    role = detail.get("role", "")
+    nsfw_tag = " 🔞" if detail.get("nsfw") else ""
+    info = detail.get("info", "")
+    meta: list[str] = []
+    if role:
+        meta.append(f"类型: {role}")
+    collects = detail.get("collects", 0)
+    if collects:
+        meta.append(f"{collects} 人收藏")
+    if meta:
+        lines.append(f"{' | '.join(meta)}{nsfw_tag}")
+    if info:
+        lines.append(f"简介：{info}")
+
+    # ── 详细背景 ────────────────────────────────────────────────
+    summary = detail.get("summary", "")
+    if summary:
+        lines.append(f"\n背景：{summary}")
+
+    character_id = detail.get("id", 0)
+    lines.append(f"\n── 角色 {character_id} 详情 ──")
+    return "\n".join(lines)
+
+
+def _format_person_detail(detail: dict) -> str:
+    """将人物详情格式化为易读文本，避免裸 JSON 进入 LLM 上下文。"""
+    name = detail.get("name_cn") or detail.get("name", "未知人物")
+    orig_name = detail.get("name", "")
+    display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
+
+    lines: list[str] = [f"🎤 {display}"]
+
+    # ── 基本信息 ──────────────────────────────────────────────
+    person_type = detail.get("type", "")
+    career = detail.get("career", "")
+    nsfw_tag = " 🔞" if detail.get("nsfw") else ""
+    meta: list[str] = []
+    if person_type:
+        meta.append(f"类型: {person_type}")
+    if career:
+        meta.append(f"职业: {career}")
+    collects = detail.get("collects", 0)
+    if collects:
+        meta.append(f"{collects} 人收藏")
+    if meta:
+        lines.append(f"{' | '.join(meta)}{nsfw_tag}")
+
+    info = detail.get("info", "")
+    if info:
+        lines.append(f"简介：{info}")
+
+    # ── 详细背景 ────────────────────────────────────────────────
+    summary = detail.get("summary", "")
+    if summary:
+        lines.append(f"\n背景：{summary}")
+
+    person_id = detail.get("id", 0)
+    lines.append(f"\n── 人物 {person_id} 详情 ──")
     return "\n".join(lines)
 
 
@@ -284,6 +445,69 @@ async def get_bangumi_subject_detail(subject_id: int) -> str:
         return f"系统提示：获取条目详情失败。{result['_error']}"
 
     return _format_subject_detail(result)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 角色/人物详情
+# ═══════════════════════════════════════════════════════════════════
+
+
+@tool(args_schema=GetCharacterDetailInput)
+async def get_character_detail(character_id: int) -> str:
+    """获取 Bangumi 虚拟角色的完整详细信息（JSON 格式字符串）。
+
+    当用户想了解某个角色的完整设定、背景故事、收藏热度时调用此工具。
+    通常在 ``search_bangumi_subject(entity_type="character")`` 定位角色后使用。
+
+    典型场景：
+    - "阿尔托莉雅这个角色有什么背景故事？"
+    - "帮我看看角色 12345 的详细信息"
+    - "这个角色在 Bangumi 上有多受欢迎？"
+    - "了解一下这个角色的设定"
+
+    Args:
+        character_id: 角色 ID，可通过 search_bangumi_subject(keyword=角色名, entity_type="character") 搜索获得。
+
+    Returns:
+        JSON 格式字符串。成功时包含角色简介、背景故事、收藏数等完整信息；
+        失败时返回自然语言错误提示。
+    """
+    async with BangumiClient() as client:
+        result = await client.get_character_detail(character_id=character_id)
+
+    if "_error" in result:
+        return f"系统提示：获取角色详情失败。{result['_error']}"
+
+    return _format_character_detail(result)
+
+
+@tool(args_schema=GetPersonDetailInput)
+async def get_person_detail(person_id: int) -> str:
+    """获取 Bangumi 现实人物（声优、导演、作者等）的完整详细信息。
+
+    当用户想了解某位声优/导演/作者的职业背景、代表作列表时调用此工具。
+    通常在 ``search_bangumi_subject(entity_type="person")`` 定位人物后使用。
+
+    典型场景：
+    - "花泽香菜的个人简介和代表作？"
+    - "新房昭之导演过哪些知名作品？"
+    - "帮我看看人物 12345 的详细信息"
+    - "这位声优配过哪些代表作？"
+
+    Args:
+        person_id: 人物 ID，可通过 search_bangumi_subject(keyword=人物名, entity_type="person") 搜索获得。
+
+    Returns:
+        JSON 格式字符串。成功时包含人物简介、职业标签、代表作列表、收藏数等；
+        失败时返回自然语言错误提示。
+    """
+    async with BangumiClient() as client:
+        result = await client.get_person_detail(person_id=person_id)
+
+    if "_error" in result:
+        return f"系统提示：获取人物详情失败。{result['_error']}"
+
+    return _format_person_detail(result)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1210,6 +1434,22 @@ def search_local_bangumi(
                 platform = meta.get("platform", "")
                 if platform:
                     heat_str += f" | {platform}"
+                # 收藏分布 + 派生信号
+                collection = meta.get("collection", {})
+                rating_count = meta.get("rating_count", [])
+                if isinstance(collection, dict) and collection:
+                    labels = {1: "想看", 2: "看过", 3: "在看", 4: "搁置", 5: "抛弃"}
+                    coll_parts = [f"{labels.get(int(k), k)}:{v}" for k, v in sorted(collection.items()) if v]
+                    if coll_parts:
+                        heat_str += f" | {' | '.join(coll_parts)}"
+                if isinstance(rating_count, list) and rating_count:
+                    sigs = _compute_subject_signals(
+                        rating_count=rating_count,
+                        collection=collection if isinstance(collection, dict) else {},
+                        score=score,
+                    )
+                    if sigs:
+                        heat_str += f" | 📊 {'；'.join(sigs)}"
                 tags = meta.get("tags", [])
                 if isinstance(tags, list) and tags:
                     tag_names = [
@@ -1277,9 +1517,10 @@ def get_agent_tools() -> list:
     """根据当前配置动态返回 Agent 可用工具列表。
 
     工具注册策略：
-    - **无条件注册**（无需 Access Token，9 个）：``search_bangumi_subject``、
-      ``get_bangumi_subject_detail``、``get_calendar``、``get_trending_topics``、
-      ``get_episode_comments``、``get_subject_discussion``、``get_entity_comments``、
+    - **无条件注册**（无需 Access Token，11 个）：``search_bangumi_subject``、
+      ``get_bangumi_subject_detail``、``get_character_detail``、``get_person_detail``、
+      ``get_calendar``、``get_trending_topics``、``get_episode_comments``、
+      ``get_subject_discussion``、``get_entity_comments``、
       ``get_subject_characters``、``search_local_bangumi``。
     - **条件注册**（需要 ``BANGUMI_ACCESS_TOKEN``，3 个）：``get_user_timeline``、
       ``get_user_profile``、``get_blog``。
@@ -1297,6 +1538,8 @@ def get_agent_tools() -> list:
     tools: list = [
         search_bangumi_subject,
         get_bangumi_subject_detail,
+        get_character_detail,
+        get_person_detail,
         get_calendar,
         get_trending_topics,
         get_episode_comments,

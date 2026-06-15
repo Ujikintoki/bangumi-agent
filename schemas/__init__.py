@@ -6,8 +6,10 @@
 from schemas.tools_input import (
     GetBlogInput,
     GetCalendarInput,
+    GetCharacterDetailInput,
     GetEntityCommentsInput,
     GetEpisodeDiscussionInput,
+    GetPersonDetailInput,
     GetSubjectCharactersInput,
     GetSubjectDetailInput,
     GetSubjectDiscussionInput,
@@ -21,10 +23,12 @@ from schemas.tools_input import (
 __all__ = [
     "SearchBangumiInput",
     "GetCalendarInput",
+    "GetCharacterDetailInput",
     "GetTrendingInput",
     "GetEpisodeDiscussionInput",
     "GetSubjectDiscussionInput",
     "GetEntityCommentsInput",
+    "GetPersonDetailInput",
     "GetUserProfileInput",
     "GetBlogInput",
     "GetSubjectDetailInput",

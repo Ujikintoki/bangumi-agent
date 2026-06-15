@@ -1,6 +1,21 @@
 # 开发路线图
 
-> 最后更新: 2026-06-13 | 当前阶段: Phase 5 完成，Phase 5.5 待启动
+> 最后更新: 2026-06-14 | 当前阶段: Phase 5 完成，Phase 5.5 待启动
+
+---
+
+## 当前状态快照
+
+| 指标 | 值 |
+|------|-----|
+| 总测试数 | 494 |
+| 记忆相关测试 | 60 (L1: 45, L2/L3: 15) |
+| Agent 数 | 2 (Research + Dialogue) |
+| 工具数 | 12 |
+| 工具链深度 | 2-3 (search → detail → characters/comments) |
+| 记忆层级 | 3 (L1 滑动窗口, L2 语义召回, L3 用户画像) |
+| 配置项 | 10 个 MEMORY_* 配置 |
+| 文档 | 8 个（ROADMAP + Phase 5 设计 + 6 个 memory 手册） |
 
 ---
 
@@ -10,74 +25,85 @@
 Phase 4 (done)       Phase 5 (done)         Phase 5.5               Phase 6
 双 Agent              三层记忆              Output Boundary          更多工具
                        │                     │                        │
-  research        session 记忆          prompt 人格剥离          group topics
-  + dialogue      长记忆 + 摘要           render() 共享             web_search
-  + 12 tools      公共记忆               AGENT_DEFAULTS            发帖辅助
+  research        双通道语义召回          prompt 人格剥离          group topics
+  + dialogue      时间衰减排序            render() 共享             web_search
+  + 12 tools      锚定回退               AGENT_DEFAULTS            发帖辅助
                        │                     │                        │
-                  session_id/user_id     agent × style             记忆层受益
-                  从空转变持久化          四象限可用                 输出边界受益
+                  L2: session 记忆        agent × style             记忆层受益
+                  L3: 用户画像            四象限可用                 输出边界受益
 ```
 
 **依赖关系**：记忆层 →（Output Boundary、更多工具并行）
 
 ---
 
-## Phase 5: 三层记忆系统
+## Phase 5: 三层记忆系统 ✅ 已完成
 
-### 目标
-让 `session_id` 和 `user_id` 从"预留字段"变成真正工作的持久化层。每次 `/chat` 不再是金鱼记忆。
+> 详细设计方案见 [`docs/design/phase5-memory-system-design.md`](phase5-memory-system-design.md)（1194 行）  
+> 综合手册见 [`docs/memory/`](../memory/README.md)（6 文件）  
+> 实现文件：`agent/memory.py` (L1) + `agent/memory_manager.py` (L2/L3, 931 行)  
+> 数据库：`database/memory_tables.py` (223 行, 3 张表)  
+> 配置：`core/config.py` 中 10 个 MEMORY_* 项
 
-### 三层记忆设计
+### 已完成 vs 原始计划差异
 
-| 层级 | 存储内容 | 生命周期 | 实现方式 |
-|------|---------|---------|---------|
-| **L1 短记忆** | 当前 session 的对话历史 | 单 session | ✅ 已有 — `manage_memory()` 滑动窗口 + 两层截断 |
-| **L2 长记忆** | 用户偏好、评分倾向、历史查询摘要 | 跨 session，按 user_id | **新增** — PostgreSQL 表 + LLM 定期摘要写入 |
-| **L3 公共记忆** | 从 group/topics 蒸馏的社区共识、热门趋势快照 | 全局共享 | **新增** — RAG 写入 pipeline + 定期 batch 分析 |
+| 项目 | 原始计划 | 实际实现 |
+|------|---------|---------|
+| L2 召回策略 | 单一语义通道 | **双通道**：语义 (cos ≤ 0.50) + 时效回退 (cos ≤ 0.70 锚定) |
+| L2 排序 | cosine 距离 | **时间衰减**：`combined_score = (1-cos_dist) × 0.5^(days/14)` |
+| user_profiles 字段 | `avg_rating` | `avg_session_length`（更准确的活跃度指标） |
+| user_profiles 冗余列 | 2 个 | 4 个：`total_sessions`, `avg_session_length`, `dominant_intent`, `last_active_at` |
+| public_memories 字段 | 4 个基础字段 | 10 个字段：含 `heat_score`, `tags`, `expires_at`, `is_active` 等 Phase 6 预留 |
+| 配置项 | 8 个 | 10 个：增加了 `MEMORY_TIME_DECAY_HALF_LIFE_DAYS`, `MEMORY_RECENCY_FALLBACK_THRESHOLD`, `MEMORY_DIALOGUE_MAX_INJECT_TOKENS` |
+| 记忆注入预算 | 不分 Agent 统一 | Research 500, Dialogue 300（独立配置） |
+| L1 测试 | `test/test_memory.py` 仅 L1 测试 | 拆分：`test/test_memory.py` (31) + `test/test_phase5_l1.py` (14) |
+| `POST /chat/history` 端点 | 计划（可选） | 未实现 — 可通过 DB 直接查询替代 |
+| Dialogue 记忆召回 | 未提及 | 已集成，chitchat 也召回（recency fallback 保证追问连续性） |
+| 公共模块 | 无 | `agent/guardrails.py` — 共享 `is_terminal_response`, `strip_tool_call_xml`, `check_duplicate_tool_calls`, `format_tool_error` |
+| Zhipu 客户端 | 无独立文件 | `clients/zhipu_client.py` — embedding 基础设施 |
+| RAG 表重构 | 未计划 | 旧 `models.py` 拆分 → `rag_tables.py` (298 行)，旧表重命名为 `rag_entities` |
 
-### Step 分解
+### L2 召回策略：双通道 + 时间衰减
 
-#### Step 5.1: 数据库表设计
-- **新建文件**: `database/memory_tables.py`
-- session_memories 表: `(id, session_id, user_id, summary_text, embedding, created_at, updated_at)`
-- user_profiles 表: `(id, user_id, preferences_json, avg_rating, favorite_genres, last_active_at)`
-- public_memories 表: `(id, topic, summary_text, embedding, source_type, created_at)` — 预留 Phase 6 使用
-- **写 migration SQL**，确保 pgvector HNSW 索引同步创建
-- **不删除**现有 `rag_entities` 表
+**通道 1: 语义通道**
+```
+pgvector cosine_distance(query_embedding, session_embedding)
+  → 过滤: distance ≤ 0.5 (MEMORY_RECALL_THRESHOLD)
+  → 评分: combined_score = (1 - distance) × 0.5^(days_ago / 14)
+```
 
-#### Step 5.2: 记忆管理器
-- **新建文件**: `agent/memory_manager.py`（与现有 `memory.py` 配合，不替换）
-- `remember_session()`: session 结束时，LLM 将对话摘要为 200 字短文 → 写入 session_memories + 生成 embedding
-- `recall_session()`: 新对话开始时，根据当前用户输入做语义检索最近的 session 摘要 → 注入 System Prompt
-- `update_user_profile()`: 根据评分/收藏行为增量更新用户偏好
-- `remember_public()`: 写入公共记忆（Phase 6 时 group 分析结果调用）
+**通道 2: 时效回退**（语义命中不足 TOP_K 时触发）
+```
+按 created_at DESC 取最近 session
+  → 计算 cosine_distance
+  → 锚定过滤: distance ≤ 0.70 (MEMORY_RECENCY_FALLBACK_THRESHOLD)
+  → 评分: combined_score = (1 - distance) × 0.5^(days_ago / 14)
+```
 
-#### Step 5.3: Agent 集成
-- **修改文件**: `agent/research/nodes.py`, `agent/dialogue/nodes.py`
-- reasoning_node 首轮推理时:
-  1. 调用 `recall_session(user_id, user_message)` → 获取相关历史摘要
-  2. 将摘要注入 System Prompt（格式: `"## 用户历史\n用户之前关注过：..."`）
-- Agent 返回最终回复后（在 main.py 响应返回前）:
-  3. 调用 `remember_session(session_id, user_id, messages, final_reply)` → 写入摘要
+**关键设计**：回退通道有"最小语义锚定"——即使是最新 session，cosine distance > 0.70 也不会注入。embedding API 不可用时回退到纯时效排序。
 
-#### Step 5.4: main.py 管道
-- **修改文件**: `main.py`
-- `/chat` 响应返回后异步触发 `remember_session()`（不阻塞用户响应）
-- 新增 `POST /chat/history` 端点（可选）: 查询用户历史摘要
+### 优雅降级矩阵
 
-#### Step 5.5: 测试
-- **新建文件**: `test/test_memory_manager.py`
-- 测试: session 摘要写入/召回、用户偏好更新、跨 session 记忆连续性
+| 故障点 | 降级行为 | 用户体验 |
+|--------|---------|---------|
+| embedding API 超时/失败 | embedding=None，回退纯时效排序 | 近期记忆仍可用 |
+| 语义检索 DB 异常 | RuntimeError 捕获，scored=[] | 无记忆，agent 正常回复 |
+| 摘要 LLM 失败 | 回退 `final_reply[:200]` | 摘要质量略降 |
+| session_memory INSERT 失败 | SQLAlchemyError 捕获，skip 画像更新 | 本轮不记，下轮不受影响 |
+| 画像更新失败 | 异常捕获，仅 WARNING 日志 | 画像保持旧状态 |
+| `MEMORY_ENABLED=False` | recall/remember 全部返回 no-op | Agent 退化回无记忆模式 |
+| `user_id="anonymous"` | recall/remember 全部返回 no-op | 匿名用户不触发记忆 |
 
-### Phase 5 完成标准
+### Phase 5 完成标准 ✅
 - ✅ session_id 不同 → 记忆隔离
 - ✅ user_id 相同 → 跨 session 语义召回历史摘要
 - ✅ 双通道召回：语义 (cos ≤ 0.5) + 时效回退 (cos ≤ 0.70，最小语义锚定)
 - ✅ 时间衰减排序：`combined_score = (1-cos_dist) × 0.5^(days/14)`
 - ✅ 用户画像增量更新（偏好类型、实体亲和度、行为特征）
 - ✅ Fire-and-forget 写入，异常静默降级
-- ✅ 不影响现有测试（486 passed, 8 pre-existing 失败）
-- ✅ 完整设计文档：`docs/design/phase5-memory-system-design.md`
+- ✅ Research + Dialogue 双 Agent 记忆集成
+- ✅ 494 tests 通过
+- ✅ 完整设计文档 + 6 文件记忆手册
 
 ---
 
@@ -125,7 +151,7 @@ Phase 4 (done)       Phase 5 (done)         Phase 5.5               Phase 6
 - `agent_type` 和 `output_style` 完全正交
 - research + bangumi、dialogue + neutral 等四个象限均可用
 - 渲染层不编造数据：输出中的评分/排名/名称全部来自中性输入
-- 不影响现有 438 tests
+- 不影响现有 494 tests
 
 ---
 
@@ -158,47 +184,64 @@ Phase 4 (done)       Phase 5 (done)         Phase 5.5               Phase 6
 
 ### Step 总结
 - Step 6.1-6.4: 新增 4 个工具（Client + Tool + Schema 三位一体）
-- Step 6.5: 记忆层受益 — group 分析结果走 `remember_public()` 写入公共记忆
+- Step 6.5: 记忆层受益 — group 分析结果走 `remember_public()` 写入公共记忆（`public_memories` 表已建，索引已就绪）
 - Step 6.6: 输出边界受益 — 润色/吐槽内容自动走 `render(style="bangumi")` 人格化
 - Step 6.7: 测试更新
 
 ---
 
-## 紧急修复（可在任意 Phase 间穿插执行）
+## 紧急修复状态
 
-这些是 [2026-06-10 边缘审计](./audit-2026-06-10.md) 发现的问题，不依赖任何 Phase，可随时修。
+> 以下问题在 [2026-06-10 边缘审计](./audit-2026-06-10.md) 中发现，部分已在 `a46b72c` 中修复。标注状态反映当前代码。
 
-### P0 — 可能导致崩溃
+### ✅ 已修复
 
-| # | 问题 | 修复位置 | 改动量 |
-|---|------|---------|--------|
-| P0-1 | LLM 调用无超时 | `agent/llm.py` — `create_llm()` 加 `request_timeout=60` | 1 行 |
-| P0-2 | 分类器对短作品名误判 ("EVA", "K", "86") | `agent/classifier.py` — 短名优先走 LLM fallback，fallback 结果不为 chitchat 时强制绑定工具 | ~5 行 |
-
-### P1 — Dialogue 防御机制补全
-
-| # | 问题 | 修复位置 | 改动量 |
-|---|------|---------|--------|
-| P1-1 | Dialogue 无重复工具调用检测 | 从 `research/nodes.py` 移植 `_check_duplicate_tool_calls()` 到 `dialogue/nodes.py` | ~30 行 |
-| P1-2 | Dialogue 无逃逸舱（终端回复检测） | 从 `research/nodes.py` 移植 `_is_terminal_response()` + 12 条正则 | ~20 行 |
-| P1-3 | Dialogue chitchat/factual 不绑工具但无 XML 安全网 | `dialogue/nodes.py` 加 `_strip_tool_call_xml()` 调用 | ~5 行 |
-
-### P2 — 健壮性加固
-
-| # | 问题 | 修复位置 | 改动量 |
-|---|------|---------|--------|
-| P2-1 | messages 为空时路由读 `messages[-1]` 崩溃 | `graph.py` — 加空列表检查 | ~3 行 |
-| P2-2 | `_extract_final_reply` 兜底无区分度 | `main.py` — 按异常类型返回不同兜底 | ~10 行 |
-| P2-3 | Critic `< 20 字` 硬阈值边缘误伤 | `research/nodes.py` — 将阈值从 20 降至 12，或加更多逃逸舱模式 | ~3 行 |
-| P2-4 | tiktoken `encode()` 无 try/except | `agent/memory.py` — 加异常捕获 + 降级为 `len//4` 估算 | ~8 行 |
-
-### P3 — 性能/技术债
-
-| # | 问题 | 修复位置 |
+| # | 问题 | 修复方式 |
 |---|------|---------|
-| P3-1 | RAG retriever 每次调用重建 | `tools/bgm_tools.py` — 单例化或连接复用 |
-| P3-2 | `create_llm()` 每次调用新建实例 | `agent/llm.py` — 加模块级缓存 |
-| P3-3 | ToolNode `handle_tool_errors=True` 泄漏堆栈 | `graph.py` — 自定义 error handler 过滤堆栈 |
+| P0-1 | LLM 调用无超时 | `core/config.py` 新增 `LLM_REQUEST_TIMEOUT=60.0`，`agent/llm.py` 的 `create_llm()` 支持 `request_timeout` 参数 |
+| P1-1 | Dialogue 无重复工具调用检测 | `agent/guardrails.py` 共享 `check_duplicate_tool_calls()`，Dialogue 已导入使用 |
+| P1-2 | Dialogue 无逃逸舱 | `agent/guardrails.py` 共享 `is_terminal_response()`（12 条正则），Dialogue 消化态检测后调用 |
+| P1-3 | Dialogue chitchat/factual 无 XML 安全网 | `agent/guardrails.py` 共享 `strip_tool_call_xml()`，Dialogue 回复前调用 |
+| P2-2 | `_extract_final_reply` 兜底无区分度 | `main.py` 按异常类型返回不同兜底消息（超限/空回复/工具错误/通用异常） |
+| P2-4 | tiktoken `encode()` 无 try/except | `agent/memory.py` 的 `count_tokens()` 含 try/except + 降级为 `len//4` 估算 |
+| P3-3 | ToolNode `handle_tool_errors=True` 泄漏堆栈 | 改为 `handle_tool_errors=format_tool_error`（`agent/guardrails.py`），仅保留错误摘要 |
+
+### 🟡 仍待修复
+
+| # | 问题 | 修复位置 | 改动量 | 优先级 |
+|---|------|---------|--------|--------|
+| P0-2 | 分类器对短作品名误判 ("EVA", "K", "86") | `agent/classifier.py` — 短名优先走 LLM fallback | ~5 行 | 中 |
+| P2-1 | messages 为空时路由读 `messages[-1]` 崩溃 | `graph.py` — 加空列表检查 | ~3 行 | 低 |
+| P2-3 | Critic `< 20 字` 硬阈值边缘误伤 | `research/nodes.py` — 将阈值从 20 降至 12 | ~3 行 | 低 |
+| P3-1 | RAG retriever 每次调用重建 | `tools/bgm_tools.py` — 单例化或连接复用 | ~10 行 | 低 |
+| P3-2 | `create_llm()` 每次调用新建实例 | `agent/llm.py` — 加模块级缓存 | ~5 行 | 低 |
+
+### ℹ️ 已知次要问题（非紧急修复列表）
+
+| # | 问题 |
+|---|------|
+| - | 流式端点 `/chat/stream` 仅节点级，非逐 token 流 |
+| - | `user_profiles` 表注释与配置不一致：docstring 说 `total_sessions >= 3` 注入画像，但 `MEMORY_MIN_SESSIONS_FOR_PROFILE` 默认为 5 |
+| - | 记忆写入的摘要 LLM 无独立超时配置，复用 `request_timeout=10` |
+
+---
+
+## 涉及文件索引
+
+| 文件 | 阶段 | 角色 |
+|------|------|------|
+| `agent/memory.py` | Phase 5 | L1 短记忆 — 滑动窗口 + 两层截断 |
+| `agent/memory_manager.py` | Phase 5 | L2/L3 长记忆 — 召回 + 写入 + 画像 (931 行) |
+| `agent/guardrails.py` | Phase 5 穿插 | 共享防御模块 — 终端检测 + XML 清洗 + 重复检测 + 错误格式化 |
+| `database/memory_tables.py` | Phase 5 | ORM 模型 — session_memories + user_profiles + public_memories |
+| `database/rag_tables.py` | Phase 5 穿插 | 重构拆分 — 旧 `models.py` 中 RAG 表移至此 |
+| `clients/zhipu_client.py` | Phase 5 | 智谱 embedding 客户端 |
+| `core/config.py` | Phase 5 | 10 个 MEMORY_* + LLM_REQUEST_TIMEOUT 配置 |
+| `main.py` | Phase 5 | Fire-and-forget 写入调度 + 区分化兜底消息 |
+| `agent/research/nodes.py` | Phase 5 | L2 记忆召回集成（首轮注入 System Prompt） |
+| `agent/dialogue/nodes.py` | Phase 5 | L2 记忆召回集成 + 防御机制补全 |
+| `agent/dialogue/prompts.py` | Phase 5.5 待改 | Bangumi娘人格（待剥离至 personality 模块） |
+| `agent/research/prompts.py` | Phase 5.5 待改 | 风格指令（待精简） |
 
 ---
 
@@ -207,9 +250,15 @@ Phase 4 (done)       Phase 5 (done)         Phase 5.5               Phase 6
 | 文档 | 内容 |
 |------|------|
 | [`CLAUDE.md`](../../CLAUDE.md) | 项目架构、命令、约定、当前状态 |
-| [`docs/design/personality-rendering-layer.md`](personality-rendering-layer.md) | Output Boundary 设计规范 v2 — 六边形架构、render() 共享、四象限 |
+| [`docs/design/phase5-memory-system-design.md`](phase5-memory-system-design.md) | Phase 5 完整设计方案（1194 行） |
+| [`docs/design/personality-rendering-layer.md`](personality-rendering-layer.md) | Output Boundary 设计规范 — 六边形架构、render() 共享、四象限 |
 | [`docs/design/ROADMAP.md`](ROADMAP.md) | 本文档 — 路线图 & 任务分解 |
-| [`docs/memory/`](../memory/README.md) | 记忆系统综合手册 — 架构、实现、配置、测试、调试 |
+| [`docs/memory/README.md`](../memory/README.md) | 记忆系统综合手册入口 |
+| [`docs/memory/architecture.md`](../memory/architecture.md) | 三层记忆架构、数据流、模块关系 |
+| [`docs/memory/implementation.md`](../memory/implementation.md) | 核心算法、代码路径、关键函数 |
+| [`docs/memory/configuration.md`](../memory/configuration.md) | 配置项详解、调优指南 |
+| [`docs/memory/testing.md`](../memory/testing.md) | 测试覆盖、运行方法、扩写指南 |
+| [`docs/memory/debugging.md`](../memory/debugging.md) | 日志关键字、常见问题排查 |
 
 ---
 
@@ -217,14 +266,14 @@ Phase 4 (done)       Phase 5 (done)         Phase 5.5               Phase 6
 
 在新的 Claude Code session 中，用以下提示启动工作：
 
-**启动 Phase 5:**
-> 阅读 `CLAUDE.md` 和 `docs/design/ROADMAP.md`，开始 Phase 5.1 数据库表设计。
+**继续 Phase 5 维护：**
+> 阅读 `docs/memory/README.md`，根据 `docs/design/ROADMAP.md` 了解当前状态和待修复项。
 
-**启动 Phase 5.5:**
+**启动 Phase 5.5：**
 > 阅读 `docs/design/personality-rendering-layer.md`，按 Step 5.5.1 开始新建 `agent/personality/` 模块。
 
-**执行紧急修复:**
-> 阅读 `docs/design/ROADMAP.md` 的紧急修复章节，先修 P0-1（LLM 超时）和 P0-2（短名误判）。
+**修复剩余问题：**
+> 阅读 `docs/design/ROADMAP.md` 的 🟡 仍待修复节，先修 P0-2（短名误判）。
 
-**了解项目全貌:**
+**了解项目全貌：**
 > 阅读 `CLAUDE.md`，然后读取 `docs/design/` 目录下所有设计文档。

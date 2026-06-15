@@ -79,14 +79,19 @@ TOOL_DEPENDENCY_CONSTRAINT = """
    - get_subject_discussion
    - get_episode_comments
 
-2. **绝对不要**将这些工具与 search_bangumi_subject 在同一轮中并行调用。
-   错误示例：同时调用 search(name="巨人") + get_detail(subject_id=???)
-   正确做法：第一轮 search → 拿到 subject_id → 第二轮 detail/characters/comments
+2. 以下工具需要 character_id / person_id 参数，**必须先通过 search_bangumi_subject 获取**：
+   - get_character_detail（需要 character_id，先用 search(entity_type="character") 搜索）
+   - get_person_detail（需要 person_id，先用 search(entity_type="person") 搜索）
 
-3. 可以安全并行调用的组合：
+3. **绝对不要**将这些工具与 search_bangumi_subject 在同一轮中并行调用。
+   错误示例：同时调用 search(name="花泽香菜") + get_person_detail(person_id=???)
+   正确做法：第一轮 search → 拿到 id → 第二轮 detail
+
+4. 可以安全并行调用的组合：
    - search_local_bangumi + get_trending_topics（互不依赖）
    - get_calendar + get_trending_topics（时效数据，互不依赖）
-   - 多个不同关键词的 search_bangumi_subject 同时进行"""
+   - 多个不同关键词的 search_bangumi_subject 同时进行
+   - 多个不同 ID 的 get_character_detail 同时调用（互不依赖）"""
 
 # ═══════════════════════════════════════════════════════════════════
 # 意图特定 Prompt 变体
@@ -111,11 +116,14 @@ INTENT_PROMPTS: dict[str, str] = {
 
 策略：
 1. 先用 search_bangumi_subject 定位条目 ID（如果用户没给具体名称，用最可能的关键词搜索）
+   - 搜索角色/人物时，使用对应的 entity_type（character / person）
 2. 拿到 subject_id 后，根据需要调用：
    - get_bangumi_subject_detail → 评分、简介、标签
    - get_subject_characters → 角色和声优
    - get_episode_comments / get_subject_discussion → 评论和讨论
-3. 综合信息后，给出结构化回复
+3. 拿到 character_id 后，可调用 get_character_detail 获取角色完整背景故事
+4. 拿到 person_id 后，可调用 get_person_detail 获取人物的职业背景、代表作
+5. 综合信息后，给出结构化回复
 
 ## ⚠️ 名称消歧与退出条件（必须遵守）
 

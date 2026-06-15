@@ -191,11 +191,9 @@ class RagEntityRetriever:
                     logger.debug("实体类型前置过滤: %s", entity_type)
 
                 # ── 安全护栏: nsfw ──────────────────────────
-                # subject 实体的 meta_info 中包含 nsfw 布尔字段；
-                # character / person 无此字段，`@>` 匹配永远为 false，
-                # 因此 NOT false = true 对其无影响（安全兜底正确）。
-                if exclude_nsfw and entity_type in ("subject", "all"):
-                    stmt = stmt.where(~RagEntity.meta_info.contains({"nsfw": True}))
+                # nsfw 已提升为列级字段，所有实体类型共用 B-Tree 索引。
+                if exclude_nsfw:
+                    stmt = stmt.where(RagEntity.nsfw == False)
                     logger.debug("安全护栏: 排除 nsfw=True")
 
                 stmt = stmt.order_by(distance_expr).limit(candidate_limit)

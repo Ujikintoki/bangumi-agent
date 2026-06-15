@@ -98,6 +98,12 @@ class RagEntity(SQLModel, table=True):
         description="实体中文名称",
     )
 
+    nsfw: bool = Field(
+        default=False,
+        index=True,
+        description="是否 R18 内容。所有实体类型共用，默认 False。",
+    )
+
     chunk_text: str = Field(
         description="文本块原始内容（分块后的片段，非完整摘要）",
     )
@@ -139,6 +145,14 @@ class SubjectMeta(BaseModel):
     score: float = PydanticField(default=0.0, description="条目评分")
     rank: int = PydanticField(default=0, description="全站排名（越小越靠前，0=未上榜）")
     rating_total: int = PydanticField(default=0, description="评分人数（热度信号）")
+    rating_count: list[int] = PydanticField(
+        default_factory=lambda: [0] * 10,
+        description="10 档评分分布 [1分人数, ..., 10分人数]，用于判断口碑一致性 vs 两极化",
+    )
+    collection: dict[int, int] = PydanticField(
+        default_factory=dict,
+        description="5 种收藏状态分布 {1(想看): N, 2(看过): N, 3(在看): N, 4(搁置): N, 5(抛弃): N}",
+    )
     date: Optional[str] = PydanticField(
         default=None, description="播出/发售日期 YYYY-MM-DD"
     )
@@ -149,7 +163,6 @@ class SubjectMeta(BaseModel):
         default="", description="播出平台类型，如 TV / Movie / OVA / Web / 书籍 等"
     )
     eps: int = PydanticField(default=0, description="总集数/话数")
-    nsfw: bool = PydanticField(default=False, description="是否 R18 内容")
     tags: list[dict] = PydanticField(
         default_factory=list,
         description="社区标签列表，格式 [{name: str, count: int}, ...]",
@@ -190,6 +203,12 @@ class CharacterMeta(BaseModel):
 
     role: int = PydanticField(default=0, description="角色类型编号")
     collects: int = PydanticField(default=0, description="收藏数")
+    summary: Optional[str] = PydanticField(
+        default=None, description="角色简介/背景故事，来自完整角色详情 API"
+    )
+    info: Optional[str] = PydanticField(
+        default=None, description="一句话简介，来自搜索结果或详情 API"
+    )
     casts: list[CharacterCast] = PydanticField(
         default_factory=list,
         description="出演作品列表",
@@ -233,6 +252,12 @@ class PersonMeta(BaseModel):
     )
     type: int = PydanticField(default=0, description="人物类型编号")
     collects: int = PydanticField(default=0, description="收藏数")
+    summary: Optional[str] = PydanticField(
+        default=None, description="人物简介，来自完整人物详情 API"
+    )
+    info: Optional[str] = PydanticField(
+        default=None, description="一句话简介，来自搜索结果或详情 API"
+    )
     works: list[PersonWork] = PydanticField(
         default_factory=list,
         description="代表作列表",

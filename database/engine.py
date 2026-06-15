@@ -65,6 +65,32 @@ def init_db() -> None:
     except OperationalError:
         raise
 
+    # ── Phase 5.4 迁移: nsfw JSONB → 列级字段（2026-06-14）───
+    # 为已有数据库添加 nsfw 列并回填历史数据
+    _MIGRATION_DDL = [
+        # 添加列（幂等——新库由 create_all 创建，旧库由此补充）
+        """
+        ALTER TABLE rag_entities ADD COLUMN IF NOT EXISTS nsfw
+            BOOLEAN NOT NULL DEFAULT FALSE
+        """,
+        # 将历史 meta_info 中的 nsfw 标记回填到新列
+        """
+        UPDATE rag_entities
+            SET nsfw = TRUE
+            WHERE meta_info @> '{"nsfw": true}' AND nsfw = FALSE
+        """,
+    ]
+    try:
+        for mig_ddl in _MIGRATION_DDL:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(mig_ddl))
+                    conn.commit()
+            except (OperationalError, ProgrammingError) as mig_exc:
+                logger.debug("迁移步骤跳过: %s", str(mig_exc).split("\n")[0][:120])
+    except Exception:
+        logger.debug("迁移块异常——非关键路径")
+
     # ── 高性能索引创建（幂等 DDL）──────────────────────────────
     _INDEX_DDL_STATEMENTS = [
         # HNSW 向量余弦距离索引 — 加速语义检索的向量最近邻查询
@@ -81,6 +107,11 @@ def init_db() -> None:
         """
         CREATE INDEX IF NOT EXISTS ix_rag_entities_chunk_text_trgm
             ON rag_entities USING gin (chunk_text gin_trgm_ops);
+        """,
+        # B-Tree 索引 — 加速 nsfw 安全护栏过滤（100% 热路径）
+        """
+        CREATE INDEX IF NOT EXISTS ix_rag_entities_nsfw
+            ON rag_entities (nsfw);
         """,
         # ── Phase 5 记忆系统索引 ──────────────────────────
         # HNSW 向量索引 — session_memories 语义检索

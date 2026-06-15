@@ -243,6 +243,47 @@ class GetSubjectDetailInput(BaseModel):
     )
 
 
+class GetCharacterDetailInput(BaseModel):
+    """
+    【角色详情工具】获取 Bangumi 虚拟角色的完整详细信息。
+
+    在 search_bangumi_subject(entity_type="character") 定位到目标角色后调用，
+    获取角色简介、背景故事、出演作品、收藏数等完整数据。
+    与 get_subject_characters（列出条目下所有角色）不同，此工具关注单个角色的深度信息。
+
+    典型场景：
+    - "阿尔托莉雅这个角色的背景故事是什么？"
+    - "帮我看看编号 12345 这个角色的详细信息"
+    - "这个角色在 Bangumi 上有多受欢迎？"
+    """
+
+    character_id: int = Field(
+        ...,
+        description="Bangumi 角色 ID，可通过 search_bangumi_subject(keyword=角色名, entity_type='character') 搜索获得",
+        ge=1,
+    )
+
+
+class GetPersonDetailInput(BaseModel):
+    """
+    【人物详情工具】获取 Bangumi 现实人物（声优、导演、作者等）的完整详细信息。
+
+    在 search_bangumi_subject(entity_type="person") 定位到目标人物后调用，
+    获取人物简介、职业标签、代表作列表、收藏数等完整数据。
+
+    典型场景：
+    - "花泽香菜配过哪些代表作？"
+    - "新房昭之的个人简介和代表作有哪些？"
+    - "帮我看看这位声优的详细资料"
+    """
+
+    person_id: int = Field(
+        ...,
+        description="Bangumi 人物 ID，可通过 search_bangumi_subject(keyword=人物名, entity_type='person') 搜索获得",
+        ge=1,
+    )
+
+
 class GetSubjectCharactersInput(BaseModel):
     """
     【条目角色工具】获取一部作品的全部登场角色及其声优/演员信息。

@@ -381,7 +381,8 @@ class TestIngestionE2E:
         assert meta["rank"] == 42
         assert meta["year"] == 2024
         assert meta["platform"] == "TV"
-        assert meta["nsfw"] is False
+        # nsfw 已提升为 RagEntity 列级字段，不再存在于 meta_info
+        # nsfw 过滤由 test_nsfw_exclusion 独立测试
         assert len(meta["tags"]) == 2
         assert float(meta["score"]) > 0
 

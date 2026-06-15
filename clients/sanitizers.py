@@ -146,6 +146,7 @@ def sanitize_subject_detail(raw: dict) -> dict:
     """条目详情瘦身 → 白名单字段提取 + meta_info 摘要。"""
     rating = raw.get("rating", {}) or {}
     images = raw.get("images", {}) or {}
+    collection_raw = raw.get("collection", {}) or {}
     return {
         "id": raw.get("id", 0),
         "name": raw.get("name", ""),
@@ -155,11 +156,15 @@ def sanitize_subject_detail(raw: dict) -> dict:
         "score": rating.get("score", 0),
         "rank": rating.get("rank", 0),
         "total_rating_count": rating.get("total", 0),
+        "rating_count": rating.get("count", [0] * 10),
         "eps": raw.get("eps", 0),
         "tags": [
             {"name": t.get("name", ""), "count": t.get("count", 0)}
             for t in (raw.get("tags", []) or [])[:10]
         ],
+        "collection": {
+            int(k): v for k, v in collection_raw.items()
+        } if collection_raw else {},
         "image": (images.get("common") or images.get("medium") or ""),
     }
 
@@ -439,6 +444,51 @@ def sanitize_entity_comments(raw: list[dict], limit: int, entity_type: str) -> d
         "entity_name": entity_name,
         "comments": comments,
         "comment_count": len(comments),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 角色 / 人物详情清洗
+# ═══════════════════════════════════════════════════════════════════
+
+
+def sanitize_character_detail(raw: dict) -> dict:
+    """角色详情响应清洗 → 白名单字段提取 + 文本截断。
+
+    API GET /p1/characters/{id} 返回完整 Character schema。
+    """
+    images = raw.get("images", {}) or {}
+    return {
+        "id": raw.get("id", 0),
+        "name": raw.get("name", ""),
+        "name_cn": raw.get("nameCN", ""),
+        "role": _CHARACTER_ROLES.get(raw.get("role", 0), "未知"),
+        "summary": _truncate(raw.get("summary", "") or "", 500),
+        "info": raw.get("info", ""),
+        "nsfw": raw.get("nsfw", False),
+        "collects": raw.get("collects", 0),
+        "image": (images.get("common") or images.get("medium") or ""),
+    }
+
+
+def sanitize_person_detail(raw: dict) -> dict:
+    """人物详情响应清洗 → 白名单字段提取 + 文本截断。
+
+    API GET /p1/persons/{id} 返回完整 Person schema。
+    """
+    images = raw.get("images", {}) or {}
+    career_raw = raw.get("career", [])
+    return {
+        "id": raw.get("id", 0),
+        "name": raw.get("name", ""),
+        "name_cn": raw.get("nameCN", ""),
+        "type": {1: "个人", 2: "公司", 3: "组合"}.get(raw.get("type", 0), "未知"),
+        "career": ", ".join(career_raw) if isinstance(career_raw, list) else (career_raw or ""),
+        "summary": _truncate(raw.get("summary", "") or "", 500),
+        "info": raw.get("info", ""),
+        "nsfw": raw.get("nsfw", False),
+        "collects": raw.get("collects", 0),
+        "image": (images.get("common") or images.get("medium") or ""),
     }
 
 

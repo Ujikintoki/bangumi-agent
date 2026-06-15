@@ -297,7 +297,8 @@ class TestRAGDataIntegrity:
             id=test_id, entity_type="subject", name="Test Entity",
             chunk_text="A test chunk for integration testing.",
             embedding=[0.1] * 2048,
-            meta_info=SubjectMeta(nsfw=False).model_dump(),
+            nsfw=False,
+            meta_info=SubjectMeta().model_dump(),
         )
         db_session.add(entity)
         db_session.commit()
