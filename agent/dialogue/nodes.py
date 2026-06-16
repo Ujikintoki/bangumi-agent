@@ -73,11 +73,11 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
             query_intent = "unknown"
             intent_method = "rule(empty)"
 
-    # ── Step 2.5: 记忆召回（仅首轮，chitchat/factual 跳过）──
+    # ── Step 2.5: 记忆召回（state 缓存，仅首次触发）─────
     # chitchat/factual 不需要 L2 跨会话记忆——"早上好"不应
     # 召回上周的机战番。短追问的指代由 L1 滑动窗口兜底。
-    memory_context = ""
-    if state.get("iterations", 0) == 0 and query_intent not in _NO_TOOL_INTENTS:
+    memory_context = state.get("_memory_context", "")
+    if not memory_context and query_intent not in _NO_TOOL_INTENTS:
         user_id = state.get("user_id", "anonymous")
         user_query = _extract_user_input(state)
         if user_id != "anonymous" and user_query:
@@ -165,6 +165,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
             "messages": [AIMessage(content=f"啧，脑子短路了。{e}")],
             "query_intent": query_intent,
             "iterations": new_iterations,
+            "_memory_context": memory_context,
         }
 
     # ── Step 5: 终端回复逃逸舱 ─────────────────────────────
@@ -232,6 +233,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         "messages": [response],
         "iterations": new_iterations,
         "query_intent": query_intent,
+        "_memory_context": memory_context,
     }
 
 

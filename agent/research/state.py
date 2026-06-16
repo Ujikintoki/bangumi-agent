@@ -64,6 +64,11 @@ class AgentState(TypedDict):
     error_flag: bool
     """降级标记，默认 False。置 True 时 reasoning_node 进入兜底模式。"""
 
+    _memory_context: str
+    """首轮 L2 记忆召回缓存。空字符串表示未召回或无需召回。
+    设置后在同一 graph 调用的后续轮次（工具消化、REVISE 重入）中复用，
+    避免重复 embedding + pgvector 检索。由 reasoning_node 首轮填充。"""
+
 
 # ── Agent 全局常量 ────────────────────────────────────────────────────
 

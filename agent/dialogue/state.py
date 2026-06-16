@@ -42,6 +42,10 @@ class DialogueState(TypedDict):
     user_id: str
     """用户 ID（Layer 3 预留）。"""
 
+    _memory_context: str
+    """首轮 L2 记忆召回缓存。空字符串表示未召回或无需召回。
+    设置后在同一 graph 调用的后续轮次中复用，避免重复检索。"""
+
 
 # ── Agent 全局常量 ────────────────────────────────────────────────────
 

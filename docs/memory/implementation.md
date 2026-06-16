@@ -21,8 +21,8 @@
 | `remember_session` | `(session_id, user_id, messages, final_reply, query_intent) -> None` | **写入入口**: 摘要 + 存储 |
 | `_compute_combined_score` | `(cosine_distance, created_at, half_life_days) -> float` | 时间衰减评分 |
 | `_search_similar_sessions` | `(user_id, embedding, limit) -> list` | pgvector 语义检索 |
-| `_summarize_session` | `(messages, final_reply) -> str` | LLM 摘要生成 |
-| `_extract_key_entities` | `(summary) -> list[dict]` | 正则实体提取 |
+| `_summarize_session` | `(messages, final_reply) -> tuple[str, list[dict]]` | LLM 摘要 + 实体联合提取（JSON 输出） |
+| `_extract_key_entities` | `(summary) -> list[dict]` | ⛔ 已废弃 — 实体提取已合并到 `_summarize_session` (LLM JSON 联合输出) |
 | `_update_user_profile` | `(user_id, summary, intent, entities) -> None` | 增量画像更新 |
 | `_format_memory_context` | `(sessions, profile, max_tokens) -> str` | 格式化注入文本 |
 | `_format_profile_summary` | `(profile) -> str` | 画像摘要文本 |
@@ -97,9 +97,9 @@ combined_score = similarity * decay
 └──────────────────────────────────────────────┘
 ```
 
-### 3. 会话摘要生成
+### 3. 会话摘要生成（含实体提取）
 
-**文件**: `agent/memory_manager.py:401-440`
+**文件**: `agent/memory_manager.py:455-540`
 
 ```
 输入: messages (完整对话) + final_reply (最终回复)
@@ -108,19 +108,22 @@ _format_conversation_text: 过滤 SystemMessage + ToolMessage
   → "用户: ...\n助手: ..." 纯文本
   → token 截断到 3000
   ↓
-LLM (temperature=0, max_tokens=300, timeout=10s)
-  → SUMMARIZE_PROMPT 模板填充
+LLM (temperature=0, max_tokens=500, timeout=10s)
+  → SUMMARIZE_PROMPT_V2 模板填充（要求 JSON 输出）
   ↓
-成功 → 返回 200 字中文摘要
-失败 → 回退为 final_reply[:200]
+成功 → 解析 JSON → 返回 (summary, entities) 元组
+失败 → 回退为 (final_reply[:200], [])
 ```
 
-**过滤策略**:
-- HumanMessage → `"用户: {content}"`
-- AIMessage (有 content) → `"助手: {content}"`
-- AIMessage (仅 tool_calls, 无 content) → 跳过
-- ToolMessage → 跳过（JSON 数据噪音）
-- SystemMessage → 跳过（人格 prompt 不参与摘要）
+**联合输出格式** (`SUMMARIZE_PROMPT_V2`):
+```json
+{
+    "summary": "用户询问了类似星际牛仔的作品，助手推荐了混沌武士、黑之契约者。用户对混沌武士表现出兴趣。",
+    "entities": ["星际牛仔", "混沌武士", "黑之契约者"]
+}
+```
+
+**设计要点**: 实体提取不再使用独立的正则步骤——LLM 在一次调用中同时完成摘要和实体识别，消除了正则在中文 ACGN 语境下的盲区（日文原名无引号、英文名混排、中文名无书名号等）。
 
 ### 4. 用户画像增量更新
 
@@ -143,16 +146,24 @@ genre_hints = {
 }
 ```
 
-### 5. 实体提取
+### 5. 实体提取（已废弃的正则方法）
 
-**文件**: `agent/memory_manager.py:505-542`
+**文件**: `agent/memory_manager.py:608-622`
+
+> **⛔ 已废弃 (2026-06-16)**：`_extract_key_entities()` 方法已废弃，始终返回空列表 `[]`。
+> 实体提取逻辑已合并到 `_summarize_session()` 的一次 LLM 调用中（见 §3 会话摘要生成）。
+> 保留此方法仅为向后兼容——旧测试验证其返回 `[]` 的行为。
+
+**原正则实现（仅供历史参考）**:
 
 正则匹配三类引号内的文本（2-30 字符），自动去重：
 - 中文书名号: `「...」`
 - 中文双引号: `"..."`  
 - 英文双引号: `"..."`
 
-当前为轻量正则实现。Phase 5 有意保持简单，后续可升级为 LLM 提取或 NER。
+**废弃原因**：正则在中文 ACGN 语境下存在大量盲区——日文原名无引号（`進撃の巨人`）、中文名无书名号（`高达SEED`）、英文名混排（`Violet Evergarden`）等。LLM JSON 联合输出（`SUMMARIZE_PROMPT_V2`）从根源上解决了这一问题。
+
+> **历史对比**：Phase 5 初期采用正则提取作为轻量实现（Bug 3）。在实际测试中发现召回质量受实体缺失严重影响，2026-06-13 修复为 LLM JSON 联合输出。正则方法保留为桩函数以维持接口兼容。
 
 ---
 

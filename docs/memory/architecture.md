@@ -201,13 +201,19 @@ main.py 响应返回后:
 dialogue_reasoning_node (首轮 iterations==0):
   ├── manage_memory (L1 截断)
   ├── classify_intent
-  ├── memory_manager.recall_for_prompt (L2 + L3 召回)  ← 仅首轮
+  ├── memory_manager.recall_for_prompt (L2 + L3 召回)  ← 仅首轮，跳过 chitchat/factual
   ├── build_dialogue_prompt (含 memory_context)
   └── LLM invoke
 ```
 
 **设计决策**: 记忆召回仅在首轮执行。后续轮次（工具消化、Critic REVISE）跳过——记忆已在首轮消费，重复注入浪费 embedding API 和 token 预算。
 
-### 为什么 dialogue 全意图召回？
+### 为什么 Dialogue Agent 跳过 chitchat/factual？
 
-Research Agent 按意图过滤记忆召回，但 Dialogue Agent 不区分意图——即使是 chitchat 也召回。原因：分类器只看当前消息，"你怎么看？"被判为 chitchat，但实际是上下文追问。recency fallback 确保短追问也能找回上一轮的话题。
+Research Agent 和 Dialogue Agent **均**按意图过滤记忆召回——`query_intent in {"chitchat", "factual"}` 时跳过 L2 语义检索。原因：
+
+1. **chitchat 不需要跨会话记忆**："早上好"、"今天天气怎么样"等寒暄与用户的历史话题无关，召回上周的机战番记忆反而是噪音。
+2. **短追问的指代由 L1 滑动窗口兜底**：同 session 内的追问（"你怎么看？"）——即使被分类器误判为 chitchat——通过 L1 同 session 消息窗口即可解析，无需跨 session 语义召回。
+3. **节省 embedding API 和 token 预算**：Dialogue Agent 总预算仅 4000 tokens，避免每次寒暄都消耗一次 embedding 调用 + 300 tokens 注入。
+
+> **历史对比**：此前本文档声称 "Dialogue Agent 不区分意图——即使是 chitchat 也召回"，理由是 recency fallback 可确保短追问找回上一轮话题。在实际测试中发现，分类器对短追问（"你怎么看？"）的判定准确率足够高，且 L1 同 session 窗口已覆盖这一场景，跨 session 召回对 chitchat 的边际收益为零。2026-06-16 修正文档以匹配实际代码行为。

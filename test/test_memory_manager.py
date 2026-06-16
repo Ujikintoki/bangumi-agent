@@ -220,3 +220,207 @@ class TestSessionMemoryDB:
             mm.recall_for_prompt(user_id="anonymous", query="测试查询")
         )
         assert result == ""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 画像更新逻辑单元测试
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestUpdateGenres:
+    """_update_genres() — 从实体名关键词推断类型频率"""
+
+    def test_empty_entities_preserves_prefs(self):
+        """空 entities 时 prefs 不变"""
+        prefs = {"favorite_genres": [{"genre": "机战", "count": 3}]}
+        result = MemoryManager._update_genres(prefs, [])
+        assert result == prefs
+
+    def test_new_entity_adds_genre(self):
+        """新实体匹配关键词 → 新增类型条目"""
+        prefs = {}
+        entities = [{"type": "subject", "name": "高达SEED"}]
+        result = MemoryManager._update_genres(prefs, entities)
+        assert len(result["favorite_genres"]) == 1
+        assert result["favorite_genres"][0] == {"genre": "机战", "count": 1}
+
+    def test_existing_genre_increments_count(self):
+        """已有类型 → count 累加"""
+        prefs = {"favorite_genres": [{"genre": "机战", "count": 3}]}
+        entities = [{"type": "subject", "name": "高达W"}]
+        result = MemoryManager._update_genres(prefs, entities)
+        assert result["favorite_genres"][0] == {"genre": "机战", "count": 4}
+
+    def test_multiple_entities_same_genre(self):
+        """多个实体同一类型 → count 累加多次"""
+        prefs = {}
+        entities = [
+            {"name": "高达SEED"},
+            {"name": "高达00"},
+            {"name": "机器人笔记"},
+        ]
+        result = MemoryManager._update_genres(prefs, entities)
+        assert result["favorite_genres"][0] == {"genre": "机战", "count": 3}
+
+    def test_first_keyword_match_wins(self):
+        """"高达机器人" 同时匹配"高达"和"机器人" → 只取第一个匹配"""
+        prefs = {}
+        entities = [{"name": "高达机器人"}]
+        result = MemoryManager._update_genres(prefs, entities)
+        # "高达" 在 genre_hints 中优先于 "机器人"，break 后不再匹配
+        assert result["favorite_genres"][0] == {"genre": "机战", "count": 1}
+        assert len(result["favorite_genres"]) == 1
+
+    def test_unmatched_entity_no_change(self):
+        """无匹配关键词的实体不产生新条目"""
+        prefs = {"favorite_genres": [{"genre": "科幻", "count": 1}]}
+        entities = [{"name": "进击的巨人"}]  # 不在关键词表中
+        result = MemoryManager._update_genres(prefs, entities)
+        assert result["favorite_genres"] == [{"genre": "科幻", "count": 1}]
+
+    def test_top10_truncation(self):
+        """超过 10 个类型时截断最低 count。
+
+        已有 10 个类型（count 10..1），新增 "机战" count=1。
+        排序稳定性保证"机战"排在已有 type1 之后，被 [:10] 截出。"""
+        prefs = {
+            "favorite_genres": [
+                {"genre": f"type{i}", "count": i} for i in range(10, 0, -1)
+            ]
+        }
+        entities = [{"name": "高达SEED"}]  # → "机战" count=1
+        result = MemoryManager._update_genres(prefs, entities)
+        assert len(result["favorite_genres"]) == 10
+        # 机战 count=1 与 type1 count=1 同分，排序稳定性保持 type1 在前
+        # → 机战排在 type1 之后，被 [:10] 截出
+        genres_in_result = {g["genre"] for g in result["favorite_genres"]}
+        assert "机战" not in genres_in_result  # 被截出
+        assert "type1" in genres_in_result
+
+    def test_no_favorite_genres_key(self):
+        """prefs 无 favorite_genres key → 正常处理"""
+        prefs = {}
+        entities = [{"name": "高达SEED"}]
+        result = MemoryManager._update_genres(prefs, entities)
+        assert "favorite_genres" in result
+        assert result["favorite_genres"][0] == {"genre": "机战", "count": 1}
+
+    def test_skips_malformed_genre_entry(self):
+        """已有 genre dict 无 'genre' key → 过滤不掉崩溃"""
+        prefs = {"favorite_genres": [
+            {"count": 5},  # 畸形：缺 genre key
+            {"genre": "机战", "count": 3},
+        ]}
+        entities = [{"name": "高达SEED"}]
+        result = MemoryManager._update_genres(prefs, entities)
+        # 畸形条目被丢弃，机战 count 正确累加
+        genres = {g["genre"]: g["count"] for g in result["favorite_genres"] if "genre" in g}
+        assert genres["机战"] == 4
+
+    def test_case_insensitive_keyword_match(self):
+        """关键词匹配不区分大小写"""
+        prefs = {}
+        entities = [{"name": "高达seed"}]
+        result = MemoryManager._update_genres(prefs, entities)
+        assert result["favorite_genres"][0] == {"genre": "机战", "count": 1}
+
+
+class TestUpdateAffinities:
+    """_update_affinities() — 实体亲和度 EMA 更新"""
+
+    def test_empty_entities_preserves_prefs(self):
+        """空 entities 时 prefs 不变"""
+        prefs = {"entity_affinities": {"高达SEED": {"name": "高达SEED", "type": "subject", "interest_score": 0.5}}}
+        entities: list[dict] = []
+        result = MemoryManager._update_affinities(prefs, entities)
+        assert result == prefs
+
+    def test_new_entity_initial_score(self):
+        """新实体 → interest_score=0.5, type 默认为 subject"""
+        prefs = {}
+        entities = [{"name": "高达SEED"}]
+        result = MemoryManager._update_affinities(prefs, entities)
+        assert result["entity_affinities"]["高达SEED"] == {
+            "name": "高达SEED",
+            "type": "subject",
+            "interest_score": 0.5,
+        }
+
+    def test_existing_entity_ema_update(self):
+        """已有实体 → EMA: 0.9 × old + 0.1"""
+        prefs = {"entity_affinities": {"高达SEED": {"name": "高达SEED", "type": "subject", "interest_score": 0.5}}}
+        entities = [{"name": "高达SEED"}]
+        result = MemoryManager._update_affinities(prefs, entities)
+        # 0.9 × 0.5 + 0.1 = 0.55
+        assert result["entity_affinities"]["高达SEED"]["interest_score"] == 0.55
+
+    def test_ema_converges_toward_one(self):
+        """多次 EMA 更新 → 分数渐近逼近 1.0"""
+        prefs = {}
+        entity = [{"name": "高达SEED"}]
+        expected = 0.5
+        for _ in range(5):
+            prefs = MemoryManager._update_affinities(prefs, entity)
+            assert prefs["entity_affinities"]["高达SEED"]["interest_score"] == expected
+            expected = 0.9 * expected + 0.1
+        # 5 次更新后: 0.5 → 0.55 → 0.595 → 0.6355 → 0.67195
+        assert 0.67 < prefs["entity_affinities"]["高达SEED"]["interest_score"] < 0.68
+
+    def test_score_capped_at_one(self):
+        """interest_score 已为 1.0 时，EMA 不使其超出（min 封顶）"""
+        prefs = {"entity_affinities": {"高达SEED": {"name": "高达SEED", "type": "subject", "interest_score": 1.0}}}
+        entities = [{"name": "高达SEED"}]
+        result = MemoryManager._update_affinities(prefs, entities)
+        # 0.9*1.0 + 0.1 = 1.0, min(1.0, 1.0) = 1.0
+        assert result["entity_affinities"]["高达SEED"]["interest_score"] == 1.0
+
+    def test_empty_name_skipped(self):
+        """空 entity name → 跳过，不产生条目"""
+        prefs = {}
+        entities = [{"name": "", "type": "subject"}]
+        result = MemoryManager._update_affinities(prefs, entities)
+        assert result == {"entity_affinities": {}}
+
+    def test_missing_type_defaults_to_subject(self):
+        """entity 无 type 字段 → 默认 'subject'"""
+        prefs = {}
+        entities = [{"name": "高达SEED"}]  # 无 type
+        result = MemoryManager._update_affinities(prefs, entities)
+        assert result["entity_affinities"]["高达SEED"]["type"] == "subject"
+
+    def test_top20_truncation(self):
+        """超过 20 个实体时截断最低 score"""
+        prefs = {
+            "entity_affinities": {
+                f"entity{i}": {"name": f"entity{i}", "type": "subject", "interest_score": float(i) / 100}
+                for i in range(20)
+            }
+        }
+        # 新实体 score=0.5，应进入 top-20
+        entities = [{"name": "高达SEED"}]
+        result = MemoryManager._update_affinities(prefs, entities)
+        assert len(result["entity_affinities"]) == 20
+        assert "高达SEED" in result["entity_affinities"]
+        # score=0.01 的 entity1 被截出
+        assert "entity0" not in result["entity_affinities"]
+
+    def test_unaffected_entities_unchanged(self):
+        """未被本轮 entities 命中的旧实体 → score 不变（无全局衰减）"""
+        prefs = {"entity_affinities": {
+            "高达SEED": {"name": "高达SEED", "type": "subject", "interest_score": 0.8},
+            "星际牛仔": {"name": "星际牛仔", "type": "subject", "interest_score": 0.6},
+        }}
+        entities = [{"name": "高达SEED"}]  # 只命中高达SEED
+        result = MemoryManager._update_affinities(prefs, entities)
+        # 高达SEED 被更新
+        assert result["entity_affinities"]["高达SEED"]["interest_score"] > 0.8
+        # 星际牛仔 保持不变（未被命中）
+        assert result["entity_affinities"]["星际牛仔"]["interest_score"] == 0.6
+
+    def test_no_entity_affinities_key(self):
+        """prefs 无 entity_affinities key → 正常处理"""
+        prefs = {}
+        entities = [{"name": "高达SEED"}]
+        result = MemoryManager._update_affinities(prefs, entities)
+        assert "entity_affinities" in result
+        assert result["entity_affinities"]["高达SEED"]["interest_score"] == 0.5

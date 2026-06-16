@@ -173,6 +173,7 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
         "query_intent": "unknown",
         "session_id": request.session_id,
         "user_id": request.user_id,
+        "_memory_context": "",
     }
 
     try:
@@ -228,6 +229,7 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
         "session_id": request.session_id,
         "user_id": request.user_id,
         "error_flag": False,
+        "_memory_context": "",
     }
 
     try:
@@ -422,6 +424,10 @@ async def _remember_session(
     INSERT session_memories + UPSERT user_profiles。不阻塞
     HTTP 响应——用户感知延迟为零。
 
+    整个 remember_session 链路设有 15 秒硬超时。正常链路
+    （摘要 LLM 10s + embedding 0.1s + DB <0.1s）约 10-11 秒，
+    15 秒提供 ~50% 余量，允许轻微响应波动通过。
+
     注意：流式端点 ``POST /chat/stream`` 未接入记忆写入。
     ``astream()`` 逐个 yield 节点事件，无干净的"最终结果点"，
     强行接入会在 ``[DONE]`` 前卡 ~1s。后续可考虑收集完整事件后
@@ -448,12 +454,21 @@ async def _remember_session(
 
         query_intent = result.get("query_intent", "unknown")
 
-        await mm.remember_session(
-            session_id=request.session_id,
-            user_id=request.user_id,
-            messages=messages,
-            final_reply=final_reply,
-            query_intent=query_intent,
+        await asyncio.wait_for(
+            mm.remember_session(
+                session_id=request.session_id,
+                user_id=request.user_id,
+                messages=messages,
+                final_reply=final_reply,
+                query_intent=query_intent,
+            ),
+            timeout=15.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "[Memory] remember_session 超时 (user=%s, session=%s, timeout=15s)",
+            request.user_id,
+            request.session_id,
         )
     except Exception:
         logger.warning(

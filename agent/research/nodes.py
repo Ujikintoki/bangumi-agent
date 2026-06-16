@@ -68,6 +68,7 @@ async def research_reasoning_node(state: AgentState) -> dict:
             "iterations": state.get("iterations", 0),
             "query_intent": state.get("query_intent", "unknown"),
             "critic_feedback": "",
+            "_memory_context": state.get("_memory_context", ""),
         }
 
     new_iterations = state.get("iterations", 0) + 1
@@ -101,13 +102,13 @@ async def research_reasoning_node(state: AgentState) -> dict:
             query_intent = "unknown"
             intent_method = "rule(empty)"
 
-    # ── Step 1.5: 记忆召回（仅首轮，chitchat/factual 跳过）──
+    # ── Step 1.5: 记忆召回（state 缓存，仅首次触发）─────
     # L2/L3 记忆在首轮推理前召回并注入 System Prompt。后续轮次
-    # （工具消化、Critic REVISE）跳过——记忆已在首轮消费，无需
-    # 重复注入浪费 embedding API 和 token 预算。
+    # （工具消化、Critic REVISE）复用 state._memory_context 缓存，
+    # 避免重复 embedding + pgvector 检索。
     # chitchat/factual 由 L1 滑动窗口兜底，不触发 L2 召回。
-    memory_context = ""
-    if state.get("iterations", 0) == 0 and query_intent not in _NO_TOOL_INTENTS:
+    memory_context = state.get("_memory_context", "")
+    if not memory_context and query_intent not in _NO_TOOL_INTENTS:
         user_id = state.get("user_id", "anonymous")
         user_query = _extract_user_input(state)
         if user_id != "anonymous" and user_query:
@@ -214,6 +215,7 @@ async def research_reasoning_node(state: AgentState) -> dict:
             "query_intent": query_intent,
             "iterations": new_iterations,
             "critic_feedback": state.get("critic_feedback", ""),
+            "_memory_context": memory_context,
         }
 
     # ── chitchat/factual XML 泄漏自纠正 ──────────────────────
@@ -281,6 +283,7 @@ async def research_reasoning_node(state: AgentState) -> dict:
         "iterations": new_iterations,
         "query_intent": query_intent,
         "critic_feedback": "",  # 已消费
+        "_memory_context": memory_context,
     }
 
 
