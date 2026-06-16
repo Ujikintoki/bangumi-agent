@@ -582,10 +582,17 @@ class BangumiClient(BaseClient):
 
         Returns:
             包含 ``data`` 列表的字典，或 ``{"_error": ...}``。
+
+        Note:
+            p1 时光机 API 直接返回列表（非 ``{data: [...]}``），
+            此处做归一化包装以保证上层工具的一致性。
         """
         raw = await self._get(
             f"/p1/users/{username}/timeline", params={"limit": limit}
         )
+        # p1 时光机 API 直接返回列表，归一化为 dict
+        if isinstance(raw, list):
+            return {"data": raw}
         return raw
 
     # ═══════════════════════════════════════════════════════════

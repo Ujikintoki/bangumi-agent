@@ -434,7 +434,7 @@ async def search_bangumi_subject(
     subject_type: Optional[int] = None,
     nsfw: Optional[bool] = None,
 ) -> str:
-    """搜索 Bangumi 条目/角色/人物，返回精简结果列表（JSON 格式字符串）。
+    """搜索 Bangumi 条目/角色/人物，返回格式化的自然语言结果列表。
 
     当用户想要查找动画、书籍、音乐、游戏、角色或声优时调用此工具。
     返回结果包含 ID，便于后续调用详情类工具进行深度查询。
@@ -457,8 +457,8 @@ async def search_bangumi_subject(
             留空由 API 默认行为决定。
 
     Returns:
-        JSON 格式字符串。成功时为一个包含 results 数组的对象；
-        失败时返回自然语言错误提示。
+        自然语言格式的搜索结果摘要，含 emoji 标识、评分、排名等关键字段，
+        便于 LLM 直接理解和组织回复。无结果或失败时返回友好的自然语言提示。
     """
     async with BangumiClient() as client:
         result = await client.search(
@@ -494,7 +494,7 @@ async def search_bangumi_subject(
 
 @tool(args_schema=GetSubjectDetailInput)
 async def get_bangumi_subject_detail(subject_id: int) -> str:
-    """获取 Bangumi 单个条目的完整详细信息（JSON 格式字符串）。
+    """获取 Bangumi 单个条目的完整详细信息，返回格式化的自然语言摘要。
 
     当用户需要了解某个条目的完整信息时调用此工具，通常在
     ``search_bangumi_subject`` 之后使用。在用户已明确知道条目 ID
@@ -505,19 +505,20 @@ async def get_bangumi_subject_detail(subject_id: int) -> str:
     - "这部动画有多少集？什么时候播出的？"
     - "查一下这个条目的评分和收藏情况"
 
-    返回的 JSON 中包含该条目的：
-    - 基本信息和评分（name、name_cn、score、rank）
-    - 播出/发售日期
-    - 章节总数、简介、标签
-    - 收藏统计
+    返回的摘要中包含该条目的：
+    - 基本信息和评分（名称、评分、排名、评分人数）
+    - 评分分布和收藏分布
+    - 派生信号（完成率、口碑集中度、热度评分比）
+    - 类型、集数、简介、标签
 
     Args:
         subject_id: 条目 ID，即 Bangumi 条目详情页 URL 中的数字编号。
             例如 ``https://bgm.tv/subject/8`` 对应的 ``subject_id`` 为 ``8``。
 
     Returns:
-        JSON 格式字符串。成功时为一个包含完整条目信息的对象；
-        失败时返回自然语言错误提示。
+        自然语言格式的条目详情摘要。根据当前意图自动切换输出模式：
+        discovery 模式为极简一行（~45 tokens），其余模式为全量详情。
+        失败时返回友好的自然语言错误提示。
     """
     async with BangumiClient() as client:
         result = await client.get_subject_detail(subject_id=subject_id)
@@ -536,7 +537,7 @@ async def get_bangumi_subject_detail(subject_id: int) -> str:
 
 @tool(args_schema=GetCharacterDetailInput)
 async def get_character_detail(character_id: int) -> str:
-    """获取 Bangumi 虚拟角色的完整详细信息（JSON 格式字符串）。
+    """获取 Bangumi 虚拟角色的完整详细信息，返回格式化的自然语言摘要。
 
     当用户想了解某个角色的完整设定、背景故事、收藏热度时调用此工具。
     通常在 ``search_bangumi_subject(entity_type="character")`` 定位角色后使用。
@@ -551,8 +552,9 @@ async def get_character_detail(character_id: int) -> str:
         character_id: 角色 ID，可通过 search_bangumi_subject(keyword=角色名, entity_type="character") 搜索获得。
 
     Returns:
-        JSON 格式字符串。成功时包含角色简介、背景故事、收藏数等完整信息；
-        失败时返回自然语言错误提示。
+        自然语言格式的角色详情摘要，含角色名、类型、NSFW 标记、简介、
+        背景故事、收藏数等关键字段，便于 LLM 直接理解和组织回复。
+        失败时返回友好的自然语言错误提示。
     """
     async with BangumiClient() as client:
         result = await client.get_character_detail(character_id=character_id)
@@ -565,7 +567,7 @@ async def get_character_detail(character_id: int) -> str:
 
 @tool(args_schema=GetPersonDetailInput)
 async def get_person_detail(person_id: int) -> str:
-    """获取 Bangumi 现实人物（声优、导演、作者等）的完整详细信息。
+    """获取 Bangumi 现实人物（声优、导演、作者等）的完整详细信息，返回格式化的自然语言摘要。
 
     当用户想了解某位声优/导演/作者的职业背景、代表作列表时调用此工具。
     通常在 ``search_bangumi_subject(entity_type="person")`` 定位人物后使用。
@@ -580,8 +582,9 @@ async def get_person_detail(person_id: int) -> str:
         person_id: 人物 ID，可通过 search_bangumi_subject(keyword=人物名, entity_type="person") 搜索获得。
 
     Returns:
-        JSON 格式字符串。成功时包含人物简介、职业标签、代表作列表、收藏数等；
-        失败时返回自然语言错误提示。
+        自然语言格式的人物详情摘要，含人物名、类型、职业、NSFW 标记、
+        简介、背景、收藏数等关键字段，便于 LLM 直接理解和组织回复。
+        失败时返回友好的自然语言错误提示。
     """
     async with BangumiClient() as client:
         result = await client.get_person_detail(person_id=person_id)
