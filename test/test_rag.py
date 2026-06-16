@@ -245,22 +245,25 @@ class TestChunkTextBuilders:
 
 class TestExtractHeatSignal:
     def test_subject(self):
-        assert _extract_heat_signal({"rating_total": 9438}, "subject") == 9438
+        import math
+        assert _extract_heat_signal({"rating_total": 9438}, "subject") == pytest.approx(math.log(1 + 9438))
 
     def test_subject_missing_defaults_zero(self):
-        assert _extract_heat_signal({}, "subject") == 0
+        assert _extract_heat_signal({}, "subject") == 0.0
 
     def test_character(self):
-        assert _extract_heat_signal({"collects": 5000}, "character") == 5000
+        import math
+        assert _extract_heat_signal({"collects": 5000}, "character") == pytest.approx(math.log(1 + 5000))
 
     def test_person(self):
-        assert _extract_heat_signal({"collects": 8500}, "person") == 8500
+        import math
+        assert _extract_heat_signal({"collects": 8500}, "person") == pytest.approx(math.log(1 + 8500))
 
     def test_unknown_entity_type(self):
-        assert _extract_heat_signal({"rating_total": 999}, "unknown") == 0
+        assert _extract_heat_signal({"rating_total": 999}, "unknown") == 0.0
 
     def test_non_numeric_handled(self):
-        assert _extract_heat_signal({"rating_total": "abc"}, "subject") == 0
+        assert _extract_heat_signal({"rating_total": "abc"}, "subject") == 0.0
 
 
 # ═══════════════════════════════════════════════════════════════════

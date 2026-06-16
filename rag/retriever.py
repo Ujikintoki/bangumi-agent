@@ -22,6 +22,7 @@ RAG 混合检索模块
 from __future__ import annotations
 
 import logging
+import math
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -73,15 +74,21 @@ class RagSearchResult(BaseModel):
 # ============================================================================
 
 
-def _extract_heat_signal(meta: dict, entity_type: str) -> int:
+def _extract_heat_signal(meta: dict, entity_type: str) -> float:
     """根据实体类型动态提取次级热度信号，用于桶内降序重排。
+
+    热度信号经 **对数归一化**（``log(1 + raw)``）压缩，避免头部热门作品
+    在同语义梯队内对冷门作品形成数量级碾压。
+
+    例：rating_total 从 50000 压缩到 ~10.8，200 压缩到 ~5.3，差距从
+    250 倍缩到 2 倍，让语义优先原则不被热度淹没。
 
     Args:
         meta: RagEntity.meta_info JSONB 内容。
         entity_type: 实体类型。
 
     Returns:
-        热度信号整数值，默认为 0。
+        对数归一化后的热度值（浮点），默认为 0.0。
     """
     if entity_type == "subject":
         val = meta.get("rating_total", 0)
@@ -89,7 +96,8 @@ def _extract_heat_signal(meta: dict, entity_type: str) -> int:
         val = meta.get("collects", 0)
     else:
         val = 0
-    return int(val) if isinstance(val, (int, float)) else 0
+    raw = int(val) if isinstance(val, (int, float)) else 0
+    return math.log(1 + raw)
 
 
 class RagEntityRetriever:
@@ -256,14 +264,28 @@ class RagEntityRetriever:
         for r in within_threshold:
             r.final_score = float(int(r.cosine_distance / semantic_bucket_size))
 
-        final_results = within_threshold[:limit]
+        # ── Step 5.5: MMR 同源去重 ──────────────────────────────
+        # 同梯队内热度高的优先入选，跳过已选结果的同名（name_cn/name）
+        # 实体，防止 TV/OVA/剧场版等同一作品的不同版本刷屏。
+        seen_names: set[str] = set()
+        deduped: list[RagSearchResult] = []
+        for r in within_threshold:
+            dedup_key = (r.name_cn or r.name or "").strip()
+            if dedup_key and dedup_key in seen_names:
+                continue
+            if dedup_key:
+                seen_names.add(dedup_key)
+            deduped.append(r)
+
+        final_results = deduped[:limit]
 
         logger.info(
-            "多态检索完成: query='%s', type=%s, 候选=%d, 最终=%d, "
+            "多态检索完成: query='%s', type=%s, 候选=%d, 去重后=%d, 最终=%d, "
             "top1='%s'(entity=%s, distance=%.4f, bucket=%d)",
             query[:50],
             entity_type,
             len(raw_results),
+            len(deduped),
             len(final_results),
             final_results[0].name if final_results else "N/A",
             final_results[0].entity_type if final_results else "N/A",
@@ -553,11 +575,11 @@ class BangumiRetriever:
         # ── Step 5: 语义阶梯分桶排序 ───────────────────────────
         # 梯队 ID = int(cosine_distance / bucket_size)
         # 第一主键：梯队 ID 升序（语义越近越靠前）
-        # 第二主键：rating_total 降序（同梯队内热度高的优先）
+        # 第二主键：log(1 + rating_total) 降序（对数归一化，防热门碾压）
         within_threshold.sort(
             key=lambda r: (
                 int(r.cosine_distance / semantic_bucket_size),
-                -r.rating_total,
+                -math.log(1 + max(0, r.rating_total)),
             )
         )
 
@@ -565,15 +587,27 @@ class BangumiRetriever:
         for r in within_threshold:
             r.final_score = float(int(r.cosine_distance / semantic_bucket_size))
 
+        # ── Step 5.5: MMR 同源去重 ──────────────────────────────
+        seen_names: set[str] = set()
+        deduped = []
+        for r in within_threshold:
+            dedup_key = (r.name or "").strip()
+            if dedup_key and dedup_key in seen_names:
+                continue
+            if dedup_key:
+                seen_names.add(dedup_key)
+            deduped.append(r)
+
         # 截取 top_k
-        final_results = within_threshold[:top_k]
+        final_results = deduped[:top_k]
 
         logger.info(
-            "分桶排序完成: query='%s', 候选=%d, 阈值保留=%d, 最终=%d, "
+            "分桶排序完成: query='%s', 候选=%d, 阈值保留=%d, 去重后=%d, 最终=%d, "
             "top1='%s'(distance=%.4f, bucket=%d, heat=%d)",
             query[:50],
             len(raw_results),
             len(within_threshold),
+            len(deduped),
             len(final_results),
             final_results[0].name if final_results else "N/A",
             final_results[0].cosine_distance if final_results else 0,
