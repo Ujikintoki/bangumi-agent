@@ -27,6 +27,7 @@ def _make_dialogue_state(**overrides) -> dict:
         "query_intent": "unknown",
         "session_id": "test-session",
         "user_id": "test-user",
+        "output_style": "bangumi",
     }
     defaults.update(overrides)
     return defaults

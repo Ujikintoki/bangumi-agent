@@ -46,6 +46,10 @@ class DialogueState(TypedDict):
     """首轮 L2 记忆召回缓存。空字符串表示未召回或无需召回。
     设置后在同一 graph 调用的后续轮次中复用，避免重复检索。"""
 
+    output_style: str
+    """输出渲染风格：neutral | bangumi。控制 System Prompt 中风格附录的注入。
+    由 main.py 根据用户请求或 agent 默认值设置，透传至 prompt builder。"""
+
 
 # ── Agent 全局常量 ────────────────────────────────────────────────────
 

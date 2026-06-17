@@ -4,13 +4,15 @@ Research Agent 系统提示词模块
 包含：
 - BASE_SYSTEM_PROMPT: 所有查询共享的基础 prompt
 - INTENT_PROMPTS: 意图特定的策略 prompt 变体
-- build_system_prompt(): 拼接基础 prompt + intent 变体 + critic_feedback
+- build_system_prompt(): 拼接基础 prompt + intent 变体 + critic_feedback + style
 - TOOL_DEPENDENCY_CONSTRAINT: 工具依赖约束声明
 """
 
 from __future__ import annotations
 
 import logging
+
+from agent.styles import STYLE_APPENDICES_RESEARCH
 
 logger = logging.getLogger("bgm-agent.prompts")
 
@@ -248,6 +250,7 @@ def build_system_prompt(
     intent: str,
     critic_feedback: str = "",
     memory_context: str = "",
+    output_style: str = "neutral",
 ) -> str:
     """拼接完整 System Prompt。
 
@@ -258,12 +261,15 @@ def build_system_prompt(
            仍在此位置注入，不随 Rendering 层移动。）
         3. INTENT_PROMPTS[intent]（意图特定策略）
         4. critic_feedback 区块（如果非空）
+        5. STYLE_APPENDICES_RESEARCH[output_style]（风格附录，output_style 控制）
 
     Args:
         intent: 查询意图，如 "lookup"、"discovery" 等。
         critic_feedback: Critic 的定向反馈。空字符串表示无反馈。
         memory_context: L2/L3 记忆召回的格式化文本。仅首轮非空，后续
             迭代传入空字符串。
+        output_style: 输出渲染风格（"neutral" | "bangumi"）。
+            默认 "neutral"——不注入任何风格指令。
 
     Returns:
         完整的 System Prompt 字符串。
@@ -299,5 +305,10 @@ def build_system_prompt(
         parts.append(
             f"\n## ⚠️ 上一轮回复需要改进\n{safe_feedback}\n请针对以上问题修正你的回复。"
         )
+
+    # 风格附录（output_style 控制，仅 "neutral" 时为空跳过）
+    style_appendix = STYLE_APPENDICES_RESEARCH.get(output_style, "")
+    if style_appendix:
+        parts.append(style_appendix)
 
     return "\n".join(parts)

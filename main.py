@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from pydantic import BaseModel, Field
 
 from agent.dialogue.graph import dialogue_app
-from agent.dialogue.prompts import DIALOGUE_SYSTEM_PROMPT
+from agent.dialogue.prompts import DIALOGUE_CORE_PROMPT
 from agent.dialogue.state import DialogueState
 from agent.research.graph import agent_app
 from agent.research.prompts import BASE_SYSTEM_PROMPT
@@ -76,6 +76,11 @@ class ChatRequest(BaseModel):
         default="dialogue",
         description="Agent 类型：dialogue（快速对话/Bangumi娘）或 research（深度搜索/中性助手）",
     )
+    output_style: Literal["neutral", "bangumi"] | None = Field(
+        default=None,
+        description="输出风格。None=走 agent 默认值（dialogue→bangumi, research→neutral），"
+        "neutral=中性输出，bangumi=Bangumi娘腹黑吐槽",
+    )
     session_id: str = Field(default="default", description="会话 ID（Layer 2 预留）")
     user_id: str = Field(default="anonymous", description="用户 ID（Layer 3 预留）")
 
@@ -87,6 +92,34 @@ class ChatResponse(BaseModel):
     iterations: int = Field(..., description="ReAct 循环轮数")
     tools_used: list[str] = Field(default_factory=list, description="本轮调用的工具名称")
     query_intent: str = Field(default="unknown", description="查询意图分类结果")
+    output_style: str = Field(default="neutral", description="实际使用的输出渲染风格")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 风格决议
+# ═══════════════════════════════════════════════════════════════════
+
+AGENT_DEFAULT_STYLES: dict[str, str] = {
+    "dialogue": "bangumi",
+    "research": "neutral",
+}
+"""各 agent_type 的默认 output_style。用户显式传 output_style 时覆盖。"""
+
+
+def _resolve_output_style(request: ChatRequest) -> str:
+    """确定实际使用的输出风格。
+
+    优先级：用户显式传值 > agent 默认值。
+
+    Args:
+        request: 用户请求。
+
+    Returns:
+        实际使用的风格 key（"neutral" | "bangumi"）。
+    """
+    if request.output_style is not None:
+        return request.output_style
+    return AGENT_DEFAULT_STYLES.get(request.agent_type, "neutral")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -159,13 +192,15 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
     """Dialogue Agent 内部处理。"""
+    output_style = _resolve_output_style(request)
+
     # ── L1 Session 缓存：恢复同 session 前序消息 ──
     session_cache = get_session_cache()
     cached = await session_cache.load(request.session_id)
 
     initial_state: DialogueState = {
         "messages": [
-            SystemMessage(content=DIALOGUE_SYSTEM_PROMPT),
+            SystemMessage(content=DIALOGUE_CORE_PROMPT),
             *cached,  # 前序对话（不含 SystemMessage）
             HumanMessage(content=request.message),
         ],
@@ -174,6 +209,7 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
         "session_id": request.session_id,
         "user_id": request.user_id,
         "_memory_context": "",
+        "output_style": output_style,
     }
 
     try:
@@ -185,6 +221,7 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
             iterations=0,
             tools_used=[],
             query_intent="unknown",
+            output_style=output_style,
         )
 
     # ── L1 Session 缓存：保存本轮消息（Dialogue 最多 20 条） ──
@@ -207,11 +244,14 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
         iterations=result.get("iterations", 0),
         tools_used=_extract_tools_used(messages),
         query_intent=result.get("query_intent", "unknown"),
+        output_style=output_style,
     )
 
 
 async def _chat_research(request: ChatRequest) -> ChatResponse:
     """Research Agent 内部处理。"""
+    output_style = _resolve_output_style(request)
+
     # ── L1 Session 缓存：恢复同 session 前序消息 ──
     session_cache = get_session_cache()
     cached = await session_cache.load(request.session_id)
@@ -230,6 +270,7 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
         "user_id": request.user_id,
         "error_flag": False,
         "_memory_context": "",
+        "output_style": output_style,
     }
 
     try:
@@ -241,6 +282,7 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
             iterations=0,
             tools_used=[],
             query_intent="unknown",
+            output_style=output_style,
         )
 
     # ── L1 Session 缓存：保存本轮消息（Research 最多 30 条） ──
@@ -264,6 +306,7 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
         iterations=result.get("iterations", 0),
         tools_used=_extract_tools_used(messages),
         query_intent=result.get("query_intent", "unknown"),
+        output_style=output_style,
     )
 
 
@@ -281,16 +324,19 @@ async def chat_stream(request: ChatRequest):
     Returns:
         StreamingResponse: SSE 事件流（text/event-stream）。
     """
+    output_style = _resolve_output_style(request)
+
     if request.agent_type == "dialogue":
         initial_state: DialogueState = {
             "messages": [
-                SystemMessage(content=DIALOGUE_SYSTEM_PROMPT),
+                SystemMessage(content=DIALOGUE_CORE_PROMPT),
                 HumanMessage(content=request.message),
             ],
             "iterations": 0,
             "query_intent": "unknown",
             "session_id": request.session_id,
             "user_id": request.user_id,
+            "output_style": output_style,
         }
         graph_app = dialogue_app
     else:
@@ -306,6 +352,7 @@ async def chat_stream(request: ChatRequest):
             "session_id": request.session_id,
             "user_id": request.user_id,
             "error_flag": False,
+            "output_style": output_style,
         }
         graph_app = agent_app
 

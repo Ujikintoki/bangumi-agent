@@ -104,7 +104,10 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
                 )
 
     # ── Step 3: 构建消息列表（不含截断——截断在重复检测后执行） ──
-    system_content = build_dialogue_prompt(memory_context=memory_context)
+    system_content = build_dialogue_prompt(
+        memory_context=memory_context,
+        output_style=state.get("output_style", "bangumi"),
+    )
     messages_for_llm = [SystemMessage(content=system_content)]
 
     skipped_system = 0

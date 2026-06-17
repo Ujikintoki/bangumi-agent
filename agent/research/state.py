@@ -69,6 +69,10 @@ class AgentState(TypedDict):
     设置后在同一 graph 调用的后续轮次（工具消化、REVISE 重入）中复用，
     避免重复 embedding + pgvector 检索。由 reasoning_node 首轮填充。"""
 
+    output_style: str
+    """输出渲染风格：neutral | bangumi。控制 System Prompt 中风格附录的注入。
+    由 main.py 根据用户请求或 agent 默认值设置，透传至 prompt builder。"""
+
 
 # ── Agent 全局常量 ────────────────────────────────────────────────────
 

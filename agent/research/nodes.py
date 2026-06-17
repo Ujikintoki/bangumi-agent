@@ -138,6 +138,7 @@ async def research_reasoning_node(state: AgentState) -> dict:
         intent=query_intent,
         critic_feedback=critic_feedback,
         memory_context=memory_context,
+        output_style=state.get("output_style", "neutral"),
     )
 
     # ── Step 3: 构建消息列表（不含截断——截断在消化态引导后执行） ──

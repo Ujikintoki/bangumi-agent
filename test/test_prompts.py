@@ -2,13 +2,24 @@
 系统提示词测试
 
 验证 BASE_SYSTEM_PROMPT、INTENT_PROMPTS、build_system_prompt()、
-CRITIC_SYSTEM_PROMPT 完整性。
+CRITIC_SYSTEM_PROMPT、build_dialogue_prompt() 完整性。
+包含 output_style 四象限验证。
 可独立运行: python -m pytest test/test_prompts.py -v
 """
 
 from __future__ import annotations
 
 from agent.classifier import _VALID_INTENTS
+from agent.dialogue.prompts import (
+    DIALOGUE_CORE_PROMPT,
+    build_dialogue_prompt,
+)
+from agent.styles import (
+    BANGUMI_STYLE_APPENDIX,
+    BANGUMI_STYLE_RESEARCH_APPENDIX,
+    STYLE_APPENDICES,
+    STYLE_APPENDICES_RESEARCH,
+)
 from agent.research.prompts import (
     BASE_SYSTEM_PROMPT,
     CRITIC_SYSTEM_PROMPT,
@@ -71,3 +82,51 @@ class TestPrompts:
         discovery = INTENT_PROMPTS["discovery"]
         assert "退出条件" in discovery
         assert "诚实告知" in discovery
+
+    # ── output_style 四象限验证 ──────────────────────────────
+
+    def test_research_neutral_excludes_style(self):
+        """research + neutral: 不应包含 Bangumi娘 人格"""
+        result = build_system_prompt("lookup", output_style="neutral")
+        assert "腹黑" not in result
+        assert "吐槽" not in result
+
+    def test_research_bangumi_includes_style(self):
+        """research + bangumi: 应包含 Bangumi娘 人格（软版本）"""
+        result = build_system_prompt("lookup", output_style="bangumi")
+        assert "腹黑" in result
+        assert "吐槽" in result
+        # 软版本不应包含字数限制
+        assert "30-80 字" not in BANGUMI_STYLE_RESEARCH_APPENDIX
+        assert "150 字" not in BANGUMI_STYLE_RESEARCH_APPENDIX
+        # 软版本应强调数据完整性
+        assert "数据完整性" in BANGUMI_STYLE_RESEARCH_APPENDIX or "不要因为风格" in BANGUMI_STYLE_RESEARCH_APPENDIX
+
+    def test_dialogue_neutral_excludes_persona(self):
+        """dialogue + neutral: 不应包含 Bangumi娘 人格"""
+        result = build_dialogue_prompt(output_style="neutral")
+        assert "腹黑萝莉" not in result
+        assert "毒舌吐槽役" not in result
+        # 但应包含核心能力
+        assert "工具使用策略" in result or "浅层原则" in result
+
+    def test_dialogue_bangumi_includes_persona(self):
+        """dialogue + bangumi: 应包含 Bangumi娘 人格"""
+        result = build_dialogue_prompt(output_style="bangumi")
+        assert "腹黑" in result
+        assert "吐槽" in result
+        assert "30-80 字" in result
+
+    def test_dialogue_core_prompt_has_no_persona(self):
+        """DIALOGUE_CORE_PROMPT 本身不应包含人格内容"""
+        assert "腹黑萝莉" not in DIALOGUE_CORE_PROMPT
+        assert "毒舌吐槽役" not in DIALOGUE_CORE_PROMPT
+        assert "Bangumi娘" not in DIALOGUE_CORE_PROMPT
+
+    def test_style_registry_keys(self):
+        """两个风格注册表都应包含 neutral 和 bangumi"""
+        for registry in (STYLE_APPENDICES, STYLE_APPENDICES_RESEARCH):
+            assert "neutral" in registry
+            assert "bangumi" in registry
+            assert registry["neutral"] == ""
+            assert len(registry["bangumi"]) > 0
