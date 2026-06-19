@@ -540,7 +540,9 @@ async def get_character_detail(character_id: int) -> str:
     """获取 Bangumi 虚拟角色的完整详细信息，返回格式化的自然语言摘要。
 
     当用户想了解某个角色的完整设定、背景故事、收藏热度时调用此工具。
-    通常在 ``search_bangumi_subject(entity_type="character")`` 定位角色后使用。
+    角色 ID 可通过两种方式获得：
+	    1. ``get_subject_characters`` → 输出中的 [角色ID: xxx]（推荐，无需额外搜索）
+	    2. ``search_bangumi_subject(entity_type="character")`` → 输出中的 [ID: xxx]
 
     典型场景：
     - "阿尔托莉雅这个角色有什么背景故事？"
@@ -549,7 +551,7 @@ async def get_character_detail(character_id: int) -> str:
     - "了解一下这个角色的设定"
 
     Args:
-        character_id: 角色 ID，可通过 search_bangumi_subject(keyword=角色名, entity_type="character") 搜索获得。
+        character_id: 角色 ID。优先从 ``get_subject_characters`` 输出中的 [角色ID: xxx] 获取；也可通过 ``search_bangumi_subject(entity_type="character")`` 搜索获得。
 
     Returns:
         自然语言格式的角色详情摘要，含角色名、类型、NSFW 标记、简介、
@@ -570,7 +572,9 @@ async def get_person_detail(person_id: int) -> str:
     """获取 Bangumi 现实人物（声优、导演、作者等）的完整详细信息，返回格式化的自然语言摘要。
 
     当用户想了解某位声优/导演/作者的职业背景、代表作列表时调用此工具。
-    通常在 ``search_bangumi_subject(entity_type="person")`` 定位人物后使用。
+    人物 ID 可通过两种方式获得：
+	    1. ``get_subject_characters`` → 输出中的 [人物ID: xxx]（推荐，无需额外搜索）
+	    2. ``search_bangumi_subject(entity_type="person")`` → 输出中的 [ID: xxx]
 
     典型场景：
     - "花泽香菜的个人简介和代表作？"
@@ -579,7 +583,7 @@ async def get_person_detail(person_id: int) -> str:
     - "这位声优配过哪些代表作？"
 
     Args:
-        person_id: 人物 ID，可通过 search_bangumi_subject(keyword=人物名, entity_type="person") 搜索获得。
+        person_id: 人物 ID。优先从 ``get_subject_characters`` 输出中的 [人物ID: xxx] 获取；也可通过 ``search_bangumi_subject(entity_type="person")`` 搜索获得。
 
     Returns:
         自然语言格式的人物详情摘要，含人物名、类型、职业、NSFW 标记、
@@ -1023,7 +1027,8 @@ async def get_subject_characters(subject_id: int) -> str:
         subject_id: Bangumi 条目 ID，可通过 search_bangumi_subject 搜索名称获得。
 
     Returns:
-        纯文本格式的角色列表，每行包含角色名、角色类型和声优信息。
+        纯文本格式的角色列表，每行含角色名、角色类型、声优信息、
+        角色ID [角色ID: xxx] 和人物ID [人物ID: xxx]。
     """
     async with BangumiClient() as client:
         result = await client.get_subject_characters(subject_id=subject_id)
@@ -1044,17 +1049,25 @@ async def get_subject_characters(subject_id: int) -> str:
 
         casts: list[dict] = ch.get("casts", [])
         if casts:
-            cv_names: list[str] = []
+            cv_parts: list[str] = []
             for cast in casts:
                 person_name = cast.get("person_name_cn") or cast.get("person_name", "")
+                pid = cast.get("person_id", 0)
                 relation = cast.get("relation", "")
                 if person_name:
-                    cv_names.append(f"{person_name}" + (f"（{relation}）" if relation and relation != "CV" else ""))
-            cv_str = "、".join(cv_names) if cv_names else "暂无"
+                    tag = f"{person_name}"
+                    if relation and relation != "CV":
+                        tag += f"（{relation}）"
+                    if pid:
+                        tag += f" [人物ID: {pid}]"
+                    cv_parts.append(tag)
+            cv_str = "、".join(cv_parts) if cv_parts else "暂无"
         else:
             cv_str = "暂无"
 
-        lines.append(f"{i}. {name}（{role_label}）— {cv_str}")
+        char_id = ch.get("character_id", 0)
+        id_part = f" [角色ID: {char_id}]" if char_id else ""
+        lines.append(f"{i}. {name}（{role_label}）— {cv_str}{id_part}")
 
     lines.append(f"\n── 以上为条目 {subject_id} 的全部角色 ──")
     return "\n".join(lines)

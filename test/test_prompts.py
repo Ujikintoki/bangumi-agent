@@ -83,6 +83,41 @@ class TestPrompts:
         assert "退出条件" in discovery
         assert "诚实告知" in discovery
 
+    # ── 对话连续性规则 ─────────────────────────────────────────
+
+    def test_research_has_continuity_rules(self):
+        """BASE_SYSTEM_PROMPT 应包含对话连续性规则"""
+        assert "对话连续性规则" in BASE_SYSTEM_PROMPT
+        assert "话题绑定检测" in BASE_SYSTEM_PROMPT
+
+    def test_research_continuity_anaphora_signals(self):
+        """BASE_SYSTEM_PROMPT 应列出指代信号和边界判定"""
+        assert "明确指代" in BASE_SYSTEM_PROMPT
+        assert "全新话题" in BASE_SYSTEM_PROMPT
+        assert "模糊边界" in BASE_SYSTEM_PROMPT
+        # 判定示例应包含正反例
+        assert "赛马娘有新作吗" in BASE_SYSTEM_PROMPT
+        assert "不提 EVA" in BASE_SYSTEM_PROMPT or "不出现 EVA" in BASE_SYSTEM_PROMPT
+
+    def test_research_continuity_principle(self):
+        """BASE_SYSTEM_PROMPT 应包含保守原则"""
+        assert "宁可少用历史" in BASE_SYSTEM_PROMPT
+        assert "不要错误关联" in BASE_SYSTEM_PROMPT
+        assert "污染无关回答" in BASE_SYSTEM_PROMPT
+
+    def test_research_continuity_intent_persistence(self):
+        """BASE_SYSTEM_PROMPT 应引导意图延续，防止跳到无关意图"""
+        assert "意图延续" in BASE_SYSTEM_PROMPT
+        assert "get_trending_topics" in BASE_SYSTEM_PROMPT  # 反例引用
+
+    def test_dialogue_has_continuity_rules(self):
+        """DIALOGUE_CORE_PROMPT 应包含精简版对话连续性规则"""
+        assert "对话连续性" in DIALOGUE_CORE_PROMPT
+        assert "明确指代" in DIALOGUE_CORE_PROMPT
+        assert "全新话题" in DIALOGUE_CORE_PROMPT
+        assert "不要把旧话题内容混入新回答" in DIALOGUE_CORE_PROMPT
+        assert "宁可问清也不瞎猜" in DIALOGUE_CORE_PROMPT
+
     # ── output_style 四象限验证 ──────────────────────────────
 
     def test_research_neutral_excludes_style(self):
