@@ -399,9 +399,18 @@ class BangumiClient(BaseClient):
                     "sign": (raw.get("sign", "") or "")[:200],
                     "avatar": raw.get("avatar", {}).get("large", "") if raw.get("avatar") else "",
                 }
+                # 提取全量收藏统计（user endpoint 自带，不受 collections limit 影响）
+                result["user_stats"] = raw.get("stats", {})
             elif key == "collections":
-                data = raw if isinstance(raw, list) else (raw.get("data") or [])
-                result["collections"] = sanitizers.sanitize_user_collections(data, limit)
+                if isinstance(raw, list):
+                    data = raw
+                    api_total = len(raw)
+                else:
+                    data = raw.get("data") or []
+                    api_total = raw.get("total", len(data))
+                result["collections"] = sanitizers.sanitize_user_collections(
+                    data, limit, api_total=api_total
+                )
             elif key == "characters":
                 data = raw if isinstance(raw, list) else (raw.get("data") or [])
                 result["characters"] = [

@@ -1147,6 +1147,7 @@ async def get_user_profile(
         lines.append("")
 
     # ── 条目收藏 ──────────────────────────────────────────────
+    user_stats = result.get("user_stats", {})
     collections = result.get("collections", {})
     if isinstance(collections, dict):
         stats = collections.get("collection_stats", {})
@@ -1156,20 +1157,47 @@ async def get_user_profile(
         if stats or coll_list:
             lines.append(f"📂 条目收藏（共 {total} 条）：")
 
-            # 统计摘要
-            type_dist = stats.get("type_distribution", {})
-            if type_dist:
-                dist_str = " | ".join(f"{k}: {v}" for k, v in type_dist.items())
-                lines.append(f"   收藏分布：{dist_str}")
+            # 全量统计摘要（来自 user endpoint，不受 collections_limit 影响）
+            subject_stats = user_stats.get("subject", {})
+            if subject_stats:
+                _COLLECTION_LABELS = {1: "想看", 2: "看过", 3: "在看", 4: "搁置", 5: "抛弃"}
+                _SUBJECT_TYPE_LABELS_NARROW = {2: "动画", 3: "音乐", 1: "书籍", 4: "游戏", 6: "三次元"}
+                for type_key in [2, 3, 1, 4, 6]:  # 动画优先
+                    type_str = str(type_key)
+                    counts = subject_stats.get(type_str, {})
+                    if not counts:
+                        continue
+                    parts = []
+                    for status_key in [3, 2, 1, 4, 5]:  # 在看 → 看过 → 想看 → 搁置 → 抛弃
+                        status_str = str(status_key)
+                        cnt = counts.get(status_str, 0)
+                        if cnt:
+                            parts.append(f"{_COLLECTION_LABELS.get(status_key, status_str)} {cnt}")
+                    if parts:
+                        label = _SUBJECT_TYPE_LABELS_NARROW.get(type_key, f"类型{type_key}")
+                        lines.append(f"   {label}：{' / '.join(parts)}")
+
+            # 角色/人物收藏
+            mono_stats = user_stats.get("mono", {})
+            char_count = mono_stats.get("character", 0)
+            person_count = mono_stats.get("person", 0)
+            if char_count or person_count:
+                parts = []
+                if char_count:
+                    parts.append(f"角色 {char_count}")
+                if person_count:
+                    parts.append(f"人物 {person_count}")
+                lines.append(f"   其他收藏：{' / '.join(parts)}")
+
             avg = stats.get("avg_score")
             if avg is not None:
-                lines.append(f"   平均评分：{avg} / 最高：{stats.get('max_score', '-')} / 最低：{stats.get('min_score', '-')}")
+                lines.append(f"   评分统计（采样）：均 {avg} / 最高 {stats.get('max_score', '-')} / 最低 {stats.get('min_score', '-')}")
 
             # 评分分布
             score_dist = stats.get("score_dist", {})
             if score_dist:
                 sd_str = " | ".join(f"{k}分: {v}部" for k, v in score_dist.items())
-                lines.append(f"   评分分布：{sd_str}")
+                lines.append(f"   评分分布（采样）：{sd_str}")
 
             # 收藏列表摘要
             if coll_list:

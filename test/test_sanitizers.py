@@ -539,7 +539,10 @@ class TestSanitizeUserCollections:
     def test_stats_computed_from_full_data(self, user_collections_data):
         result = sanitize_user_collections(user_collections_data, 30)
         assert result["collection_stats"]["avg_score"] == 7.0
-        assert result["collection_stats"]["type_distribution"]["看过"] == 30
+        # type_distribution 不再由 sanitizer 计算，改由 user endpoint 的 stats 提供
+        # total 用 api_total（本次测试未传=0，fallback 到采样 len）
+        assert result["total"] == 30
+        assert "score_dist" in result["collection_stats"]
 
     def test_empty(self):
         result = sanitize_user_collections([], 10)

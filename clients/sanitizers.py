@@ -497,10 +497,17 @@ def sanitize_person_detail(raw: dict) -> dict:
 # ═══════════════════════════════════════════════════════════════════
 
 
-def sanitize_user_collections(raw: list[dict], limit: int) -> dict:
-    """用户收藏清洗 → 展平 subject 信息 + 聚合统计。
+def sanitize_user_collections(raw: list[dict], limit: int, api_total: int = 0) -> dict:
+    """用户收藏清洗 → 展平 subject 信息 + 评分统计。
 
-    统计基于全量数据（最多 limit 条），展示列表截断至 15 条以节省 token。
+    展示列表截断至 15 条以节省 token。评分统计基于采样数据，
+    全量收藏总数和各状态分布由 user endpoint 的 stats 提供
+    （见 get_user_profile 工具输出中的 user_stats 段落）。
+
+    Args:
+        raw: 收藏条目原始列表
+        limit: 采样条数上限
+        api_total: 收藏 API 返回的真实 total（全量条目数），0=从 raw 推断
     """
     _DISPLAY_CAP = 15
 
@@ -508,7 +515,6 @@ def sanitize_user_collections(raw: list[dict], limit: int) -> dict:
         return {"collections": [], "collection_stats": {}, "total": 0}
 
     collections: list[dict] = []
-    type_dist: dict[str, int] = {}
     scores: list[float] = []
 
     for entry in raw[:limit]:
@@ -517,7 +523,6 @@ def sanitize_user_collections(raw: list[dict], limit: int) -> dict:
         coll_type = _COLLECTION_TYPES.get(entry.get("type", 0), "未知")
         rate = entry.get("rate", 0) or 0
 
-        type_dist[coll_type] = type_dist.get(coll_type, 0) + 1
         if rate > 0:
             scores.append(float(rate))
 
@@ -533,7 +538,7 @@ def sanitize_user_collections(raw: list[dict], limit: int) -> dict:
             }
         )
 
-    stats: dict = {"type_distribution": type_dist}
+    stats: dict = {}
     if scores:
         stats["avg_score"] = round(sum(scores) / len(scores), 2)
         stats["max_score"] = max(scores)
@@ -548,5 +553,5 @@ def sanitize_user_collections(raw: list[dict], limit: int) -> dict:
     return {
         "collections": collections[:_DISPLAY_CAP],
         "collection_stats": stats,
-        "total": len(collections),
+        "total": api_total if api_total > 0 else len(collections),
     }
