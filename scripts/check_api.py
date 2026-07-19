@@ -103,7 +103,7 @@ async def main():
     try:
         from tools.bgm_tools import search_local_bangumi
         t0 = time.time()
-        r = search_local_bangumi.ainvoke({"query": "进击的巨人", "limit": 1})
+        r = await search_local_bangumi.ainvoke({"query": "进击的巨人", "limit": 1})
         elapsed = time.time() - t0
         if "无匹配" in str(r):
             ok("search_local_bangumi", f"{elapsed:.1f}s (DB 通，无此条目数据)")
