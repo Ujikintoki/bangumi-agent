@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from tools.bgm_tools import (
@@ -114,19 +116,25 @@ class TestTokenGating:
     """需要 Token 的 3 个工具在无 Token 时返回引导提示。"""
 
     @pytest.mark.asyncio
-    async def test_user_profile_no_token(self):
+    @patch("tools.bgm_tools.get_settings")
+    async def test_user_profile_no_token(self, mock_get_settings):
+        mock_get_settings.return_value = MagicMock(BANGUMI_ACCESS_TOKEN="")
         result = await get_user_profile.ainvoke({"username": "testuser"})
         assert "系统提示" in result
         assert "bgm.tv/user/testuser" in result
 
     @pytest.mark.asyncio
-    async def test_blog_no_token(self):
+    @patch("tools.bgm_tools.get_settings")
+    async def test_blog_no_token(self, mock_get_settings):
+        mock_get_settings.return_value = MagicMock(BANGUMI_ACCESS_TOKEN="")
         result = await get_blog.ainvoke({"entry_id": 12345})
         assert "系统提示" in result
         assert "bgm.tv/blog/12345" in result
 
     @pytest.mark.asyncio
-    async def test_user_timeline_no_token(self):
+    @patch("tools.bgm_tools.get_settings")
+    async def test_user_timeline_no_token(self, mock_get_settings):
+        mock_get_settings.return_value = MagicMock(BANGUMI_ACCESS_TOKEN="")
         result = await get_user_timeline.ainvoke({"username": "testuser"})
         assert "系统提示" in result
         assert "bgm.tv/user/testuser" in result

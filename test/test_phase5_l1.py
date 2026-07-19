@@ -40,8 +40,13 @@ class TestBudgetConstants:
     def test_dialogue_max_is_4000(self):
         assert DIALOGUE_MAX_TOKENS == 4000
 
-    def test_l2_budget_research_is_500(self):
-        assert L2_MEMORY_BUDGET_TOKENS == 500
+    def test_l2_budget_research_is_700(self):
+        assert L2_MEMORY_BUDGET_TOKENS == 700
+
+    def test_l2_budget_equals_config_default(self):
+        """确保 memory.py 常量与 config.py Settings 默认值一致，防止两处定义漂移。"""
+        from core.config import Settings
+        assert L2_MEMORY_BUDGET_TOKENS == Settings().MEMORY_MAX_INJECT_TOKENS
 
     def test_l2_budget_dialogue_is_300(self):
         assert L2_MEMORY_BUDGET_DIALOGUE == 300

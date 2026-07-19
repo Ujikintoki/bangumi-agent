@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage, HumanMessage
 
 from agent.research.nodes import critic_node
+from agent.research.state import _MAX_ITERATIONS
 from test.conftest import make_mock_llm, make_state
 
 import pytest
@@ -60,9 +61,18 @@ class TestCriticNodeRule:
         assert (await critic_node(state))["critic_status"] == "PASS"
 
     async def test_circuit_breaker(self):
-        for it in (10, 12):
+        """熔断在 iterations >= _MAX_ITERATIONS(=12) 时触发，强制 PASS + error_flag。
+
+        _MAX_ITERATIONS - 2 应正常 PASS（不含 error_flag 键），
+        _MAX_ITERATIONS 应触发熔断（含 error_flag=True）。
+        """
+        for it, expect_breaker in ((_MAX_ITERATIONS - 2, False), (_MAX_ITERATIONS, True)):
             r = await critic_node(make_state(iterations=it))
-            assert r["critic_status"] == "PASS" and r["error_flag"] is True
+            assert r["critic_status"] == "PASS"
+            if expect_breaker:
+                assert r.get("error_flag") is True
+            else:
+                assert "error_flag" not in r
 
     async def test_feedback_uses_pipe_format(self):
         state = make_state(iterations=1, messages=[
@@ -294,7 +304,8 @@ class TestCriticNodeLLM:
     @patch("agent.research.nodes.get_settings")
     @patch("agent.research.nodes.create_llm")
     async def test_circuit_breaker_in_llm_mode(self, mock_llm, mock_settings):
+        """LLM 模式下熔断应在 iterations >= _MAX_ITERATIONS(=12) 时直接 PASS，不调 LLM。"""
         self._set_mode(mock_settings, "llm")
-        r = await critic_node(make_state(iterations=10))
+        r = await critic_node(make_state(iterations=_MAX_ITERATIONS))
         assert r["critic_status"] == "PASS" and r["error_flag"] is True
         mock_llm.assert_not_called()

@@ -13,6 +13,7 @@ from unittest.mock import call, patch
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from agent.research.graph import build_graph
+from agent.research.state import _MAX_ITERATIONS
 from agent.memory import estimate_tokens
 from agent.research.nodes import _get_last_ai_response, research_reasoning_node
 from test.conftest import MOCK_TOOLS, make_mock_llm, make_state
@@ -50,7 +51,7 @@ class TestGraphIntegration:
                 HumanMessage(content="搜巨人"),
                 AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}]),
             ],
-            iterations=9, critic_status="REVISE", query_intent="lookup",
+            iterations=_MAX_ITERATIONS - 1, critic_status="REVISE", query_intent="lookup",
         )
         result = await graph.ainvoke(state)
         assert result.get("error_flag") is True

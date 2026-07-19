@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -78,7 +79,7 @@ class TestChatEndpointReal:
 
     def test_chitchat_no_tools(self):
         """闲聊 → 快速通道 → 不调工具 → 1 轮完成"""
-        r = client.post("/chat", json={"message": "你好"})
+        r = client.post("/chat", json={"message": "你好", "session_id": f"test_chitchat_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
         assert data["query_intent"] == "chitchat"
@@ -89,7 +90,7 @@ class TestChatEndpointReal:
 
     def test_factual_no_tools(self):
         """常识 → 不调工具 → 直接回复"""
-        r = client.post("/chat", json={"message": "什么是三集定律"})
+        r = client.post("/chat", json={"message": "什么是三集定律", "session_id": f"test_factual_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
         assert data["query_intent"] == "factual"
@@ -98,7 +99,7 @@ class TestChatEndpointReal:
 
     def test_lookup_calls_tools(self):
         """精确查找 → 调用搜索工具 → 回复含具体数据"""
-        r = client.post("/chat", json={"message": "进击的巨人"})
+        r = client.post("/chat", json={"message": "进击的巨人", "session_id": f"test_lookup_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
         assert data["query_intent"] == "lookup"
@@ -109,7 +110,7 @@ class TestChatEndpointReal:
 
     def test_discovery_calls_rag(self):
         """发现推荐 → 调用 RAG 搜索"""
-        r = client.post("/chat", json={"message": "推荐类似命运石之门的烧脑番"})
+        r = client.post("/chat", json={"message": "推荐类似命运石之门的烧脑番", "session_id": f"test_discovery_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
         assert data["query_intent"] == "discovery"
@@ -118,7 +119,7 @@ class TestChatEndpointReal:
 
     def test_realtime_calls_tools(self):
         """时效查询 → 调用日历/热门工具"""
-        r = client.post("/chat", json={"message": "今天放什么番"})
+        r = client.post("/chat", json={"message": "今天放什么番", "session_id": f"test_realtime_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
         assert data["query_intent"] == "realtime"
@@ -146,8 +147,8 @@ class TestChatEndpointReal:
             "命运石之门的主角是谁",
         ]
         results = {}
-        for q in queries:
-            r = client.post("/chat", json={"message": q})
+        for i, q in enumerate(queries):
+            r = client.post("/chat", json={"message": q, "session_id": f"test_all_{uuid4().hex[:8]}_{i}"})
             data = r.json()
             results[q] = data
             # 验证基本正确性
