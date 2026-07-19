@@ -441,16 +441,26 @@ def _extract_final_reply(
 
 
 def _extract_tools_used(messages: list) -> list[str]:
-    """从消息历史中提取已调用的工具名称列表（去重保序）。
+    """从消息历史中提取**本轮**调用的工具名称列表（去重保序）。
+
+    策略：定位最后一个 HumanMessage（用户最新输入），只统计其后的 ToolMessage。
+    这解决了 session_cache 注入的旧消息中的 ToolMessage 被误报为"本轮"工具的问题。
 
     Args:
-        messages: 完整的消息历史列表。
+        messages: 完整的消息历史列表（含 session_cache 注入的前序消息）。
 
     Returns:
-        工具名称列表。
+        本轮工具名称列表。
     """
+    # 定位本轮起点：最后一个 HumanMessage 的位置
+    start_idx = 0
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            start_idx = i
+            break
+
     tools = []
-    for m in messages:
+    for m in messages[start_idx:]:
         if isinstance(m, ToolMessage) and hasattr(m, "name") and m.name:
             tools.append(m.name)
     return list(dict.fromkeys(tools))
