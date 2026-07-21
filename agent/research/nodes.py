@@ -27,8 +27,8 @@ from tools.bgm_tools import get_agent_tools, set_tool_intent
 
 logger = logging.getLogger("bgm-agent.nodes")
 
-# 不绑定工具的意图（LLM 直接回复）
-_NO_TOOL_INTENTS = frozenset({"chitchat", "factual"})
+# 不绑定工具的意图（LLM 直接回复，角色人格主导）
+_NO_TOOL_INTENTS = frozenset({"chitchat", "factual", "debate", "emotional"})
 
 
 # ═══════════════════════════════════════════════════════════════════

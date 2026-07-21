@@ -27,7 +27,7 @@ logger = logging.getLogger("bgm-agent.memory_manager")
 # 摘要 Prompt
 # ═══════════════════════════════════════════════════════════════════════════
 
-SUMMARIZE_PROMPT_V2 = """你是 Bangumi 助手的记忆编码器。请将以下对话历史压缩为一段不超过200字的摘要，并提取对话中涉及的关键实体。
+SUMMARIZE_PROMPT_V2 = """你是 Bangumi 助手的记忆编码器。请将以下对话历史压缩为一段不超过200字的摘要，并提取对话中涉及的关键实体和交互风格。
 
 **必须**以以下 JSON 格式输出（不要包含 Markdown 代码块标记或其他文字）：
 {{
@@ -36,7 +36,8 @@ SUMMARIZE_PROMPT_V2 = """你是 Bangumi 助手的记忆编码器。请将以下�
         "作品名1",
         "角色名1",
         "声优名1"
-    ]
+    ],
+    "tone": "casual"
 }}
 
 要求：
@@ -44,6 +45,11 @@ SUMMARIZE_PROMPT_V2 = """你是 Bangumi 助手的记忆编码器。请将以下�
 2. entities 列出对话中出现的所有关键实体名（作品名、角色名、声优名）
 3. 实体名使用最常用的中文名（如《进击的巨人》而非 Attack on Titan）
 4. 如对话中没有关键实体，entities 输出空数组 []
+5. tone 是用户在此次对话中表现出的交互风格，取值为：
+   - "casual": 闲聊/吐槽/轻松讨论
+   - "debate": 争论/质疑/表达强烈观点
+   - "emotional": 有明显的情绪表达（开心、难过、无聊等）
+   - "informational": 纯粹的信息查询
 
 对话历史：
 {conversation_history}
@@ -309,8 +315,8 @@ class MemoryManager:
             return
 
         try:
-            # ── Step 1: 摘要 + 实体提取（合并为一次 LLM 调用）───
-            summary, entities = await self._summarize_session(
+            # ── Step 1: 摘要 + 实体提取 + tone（合并为一次 LLM 调用）───
+            summary, entities, tone = await self._summarize_session(
                 messages, final_reply
             )
             if not summary:
@@ -354,7 +360,7 @@ class MemoryManager:
                         summary_text=summary,
                         embedding=embedding,
                         key_entities=entities,
-                        intent_distribution={query_intent: 1} if query_intent else {},
+                        intent_distribution={query_intent: 1, "_tone": tone} if query_intent else {"_tone": tone},
                         tools_used=tools_used,
                         message_count=message_count,
                     )
@@ -462,10 +468,10 @@ class MemoryManager:
         self,
         messages: list,
         final_reply: str,
-    ) -> tuple[str, list[dict]]:
-        """使用 LLM 将对话历史压缩为 ~200 字中文摘要并提取实体。
+    ) -> tuple[str, list[dict], str]:
+        """使用 LLM 将对话历史压缩为 ~200 字中文摘要并提取实体和交互风格。
 
-        一次 LLM 调用同时完成摘要 + 实体提取——通过 SUMMARIZE_PROMPT_V2
+        一次 LLM 调用同时完成摘要 + 实体提取 + tone 识别——通过 SUMMARIZE_PROMPT_V2
         强制 JSON 输出，消除正则提取在中文 ACGN 语境下的盲区。
 
         Args:
@@ -473,10 +479,11 @@ class MemoryManager:
             final_reply: 最终回复文本。
 
         Returns:
-            (summary_text, entities) 元组。
+            (summary_text, entities, tone) 元组。
             - summary_text: 摘要文本
             - entities: ``[{"type": "subject", "name": "EVA"}, ...]``
-            LLM 或 JSON 解析失败时回退为 (final_reply[:200], [])。
+            - tone: 交互风格（"casual" | "debate" | "emotional" | "informational"）
+            LLM 或 JSON 解析失败时回退为 (final_reply[:200], [], "informational")。
         """
         import json
 
@@ -531,22 +538,26 @@ class MemoryManager:
                         if name and isinstance(name, str) and name.strip()
                     ]
 
+                    tone = parsed.get("tone", "informational")
+                    if tone not in ("casual", "debate", "emotional", "informational"):
+                        tone = "informational"
+
                     if summary:
-                        return (summary, entities)
+                        return (summary, entities, tone)
                 except (json.JSONDecodeError, TypeError, AttributeError) as parse_exc:
                     logger.warning(
                         "摘要 JSON 解析失败，回退为纯文本: %s", parse_exc
                     )
                     # 尝试当作纯文本摘要使用
                     if len(raw) > 10:
-                        return (raw[:500], [])
+                        return (raw[:500], [], "informational")
 
         except Exception as exc:
             logger.warning("会话摘要 LLM 调用失败: %s", exc)
 
         # 3. Fallback
         fallback = final_reply[:200] if final_reply else "（摘要生成失败）"
-        return (fallback, [])
+        return (fallback, [], "informational")
 
     @staticmethod
     def _format_conversation_text(
@@ -913,14 +924,28 @@ class MemoryManager:
                     time_str = f"{days_ago // 30}个月前"
                 parts.append(f"- [{time_str}] {sm.summary_text[:150]}")
 
+        # ── 交互风格侧写（tone profiling）──────────────
+        # 从最近 session 的 intent_distribution 中提取 tone 标签，
+        # 识别用户的交互偏好模式。
+        _tones: list[str] = []
+        for sm in sessions:
+            _id = getattr(sm, "intent_distribution", None) or {}
+            _t = _id.get("_tone", "")
+            if _t in ("casual", "debate", "emotional", "informational"):
+                _tones.append(_t)
+
+        if _tones:
+            _dominant = max(set(_tones), key=_tones.count)
+            if _dominant == "debate" and _tones.count("debate") >= 2:
+                parts.append(
+                    "\n💡 这位用户喜欢争论和被挑衅，你的毒舌力度可以大一点，不用太客气。"
+                )
+            elif _dominant == "emotional" and _tones.count("emotional") >= 2:
+                parts.append(
+                    "\n💡 这位用户经常表达情绪，适当关注情感需求。推荐时可以多一些温度。"
+                )
+
         # ── 用户画像（L3 deprecated — 已移除）────────────────
-        # 保留代码以便未来重新激活：
-        # if profile is not None and (
-        #     (profile.total_sessions or 0) >= settings.MEMORY_MIN_SESSIONS_FOR_PROFILE
-        # ):
-        #     profile_text = self._format_profile_summary(profile)
-        #     if profile_text:
-        #         parts.append(f"\n**用户偏好摘要**：{profile_text}")
 
         if not parts:
             return ""

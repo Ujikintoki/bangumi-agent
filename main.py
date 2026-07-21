@@ -18,10 +18,9 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from pydantic import BaseModel, Field
 
 from agent.dialogue.graph import dialogue_app
-from agent.dialogue.prompts import DIALOGUE_CORE_PROMPT
 from agent.dialogue.state import DialogueState
+from agent.profiles import get_agent_profile
 from agent.research.graph import agent_app
-from agent.research.prompts import BASE_SYSTEM_PROMPT
 from agent.research.state import AgentState
 from agent.session_cache import get_session_cache
 from core.config import get_settings
@@ -198,9 +197,11 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
     session_cache = get_session_cache()
     cached = await session_cache.load(request.session_id)
 
+    # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
+    _seed = get_agent_profile("dialogue").capabilities
     initial_state: DialogueState = {
         "messages": [
-            SystemMessage(content=DIALOGUE_CORE_PROMPT),
+            SystemMessage(content=_seed),
             *cached,  # 前序对话（不含 SystemMessage）
             HumanMessage(content=request.message),
         ],
@@ -256,9 +257,11 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
     session_cache = get_session_cache()
     cached = await session_cache.load(request.session_id)
 
+    # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
+    _seed = get_agent_profile("research").capabilities
     initial_state: AgentState = {
         "messages": [
-            SystemMessage(content=BASE_SYSTEM_PROMPT),
+            SystemMessage(content=_seed),
             *cached,  # 前序对话（不含 SystemMessage）
             HumanMessage(content=request.message),
         ],
@@ -327,9 +330,10 @@ async def chat_stream(request: ChatRequest):
     output_style = _resolve_output_style(request)
 
     if request.agent_type == "dialogue":
+        _seed = get_agent_profile("dialogue").capabilities
         initial_state: DialogueState = {
             "messages": [
-                SystemMessage(content=DIALOGUE_CORE_PROMPT),
+                SystemMessage(content=_seed),
                 HumanMessage(content=request.message),
             ],
             "iterations": 0,
@@ -340,9 +344,10 @@ async def chat_stream(request: ChatRequest):
         }
         graph_app = dialogue_app
     else:
+        _seed = get_agent_profile("research").capabilities
         initial_state: AgentState = {
             "messages": [
-                SystemMessage(content=BASE_SYSTEM_PROMPT),
+                SystemMessage(content=_seed),
                 HumanMessage(content=request.message),
             ],
             "iterations": 0,
