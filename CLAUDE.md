@@ -277,47 +277,78 @@ Profile inference (`_update_genres` / `_update_affinities` / `_format_profile_su
 
 `test/test_memory.py` (L1) + `test/test_memory_manager.py` (L2, 23 L3 tests skipped) + `test/test_phase5_l1.py` (token budgets). Total: ~62 passed, 23 skipped.
 
-## Phase 5.5: Output Style Control ✅ (2026-06-17)
+## Phase 5.5: Output Style Control ✅ (2026-06-17, 重构 2026-07-22)
 
-Prompt appendix injection — zero extra LLM calls, four-quadrant `output_style` control.
+Structured character profiles + unified prompt builder — role-first architecture with intent extension and tone profiling.
 
-**Design decision**: The original ROADMAP planned a post-processing `render()` architecture (hexagonal ports & adapters, separate `agent/personality/` module, second LLM call for style rewriting). This was tested and rejected — the extra LLM call added latency and risked data fabrication. The Lite approach was adopted as the **canonical implementation**.
+**Design decision**: The original ROADMAP planned a post-processing `render()` architecture (hexagonal ports & adapters, separate `agent/personality/` module, second LLM call for style rewriting). This was tested and rejected — the extra LLM call added latency and risked data fabrication.
 
-### Architecture: Prompt Appendix Injection
+The Lite approach (prompt appendix injection, `f644a56`) was the first implementation. The **2026-07-22 refactoring** (`078a803`) completed the architecture: structured dataclasses, role-first assembly order, intent taxonomy extension, and memory tone profiling.
+
+### Architecture: Role-First Prompt Assembly
 
 ```
 build_system_prompt() / build_dialogue_prompt()
-  → BASE/CORE prompt (capabilities + strategy, no persona)
-  → intent variant
-  → L2 memory context
-  → style appendix (from agent/styles.py, "" when neutral)
-  → LLM generates styled output directly — one call, no post-processing
+  → CharacterProfile (who you are — first layer)
+  → AgentProfile.capabilities (what you can do — subordinate to character)
+  → tool behavior + strategy (how you use tools)
+  → tool constraints + data model rules
+  → continuity rules
+  → intent strategy variant (debate/emotional/lookup/...)
+  → memory context + tone hints
+  → critic feedback (Research only)
+  → expression guide + output format
+  → guardrails (word limits, emoji ban, etc.)
+  → last-chance instruction (Dialogue only)
 ```
 
-The model handles "reasoning + styling" in a single inference pass. No separate render LLM, no diff validation needed, no added latency.
+The model handles "being a character + reasoning + styling" in a single inference pass. No separate render LLM, no diff validation, no added latency.
 
-### File: `agent/styles.py` (99 lines)
+### File: `agent/profiles.py` (270 lines) — Canonical Source
 
-Two independent dicts — Dialogue and Research use different appendix strings for the same `"bangumi"` semantic:
+Replaces the old `agent/styles.py`. Structured dataclasses:
 
-| Dict | Used by | `"neutral"` | `"bangumi"` |
-|------|---------|-------------|-------------|
-| `STYLE_APPENDICES` | Dialogue | `""` (zero tokens) | Full persona: 腹黑萝莉, 30-80 char limit, 150 char max with tools |
-| `STYLE_APPENDICES_RESEARCH` | Research | `""` (zero tokens) | Soft version: same persona, **no word limits**, emphasizes data completeness |
+| Class | Purpose | Instances |
+|-------|---------|-----------|
+| `CharacterProfile` | Identity, motivation, expression guide, guardrails, tool behavior | `BANGUMI_CHARACTER`, `NEUTRAL_CHARACTER`, `BANGUMI_RESEARCH_CHARACTER` |
+| `AgentProfile` | Capabilities, tool strategy, output format, default character | `DIALOGUE_PROFILE`, `RESEARCH_PROFILE` |
 
-Dialogue Bangumi appendix has hard constraints (30-80 chars chat, ≤150 chars with tools). Research Bangumi appendix is a soft version — same 腹黑 tone but explicitly instructs "数据完整性和工具调用策略不变，不要因为风格要求而缩减数据或跳过工具调用."
+**Agent-level character variants**: `get_character("bangumi", agent_type="research")` returns `BANGUMI_RESEARCH_CHARACTER` — same persona but **no word limits** + explicit "数据完整性和工具调用策略不变" guardrail. `get_character("bangumi", agent_type="dialogue")` returns `BANGUMI_CHARACTER` — full persona with 30-80 char limit.
 
-### Core/Style Separation
+### File: `agent/prompt_builder.py` (160 lines) — Unified Builder
 
-**Dialogue** (`agent/dialogue/prompts.py`):
-- `DIALOGUE_CORE_PROMPT` — capabilities, tool strategy, output format, continuity rules. **Persona-free** (no "Bangumi娘", no "腹黑萝莉").
-- `BANGUMI_STYLE_APPENDIX` in `agent/styles.py` — persona, tone, word limits.
-- `build_dialogue_prompt(output_style=)` assembles: CORE → style appendix → memory.
+Both agents use the same `build_system_prompt()` function with different parameters. Assembly order enforces role-first hierarchy. Shared rules (continuity, tool-calling-after-tool) live here. Agent-specific rules (data model constraint, tool dependency constraint) are passed in via parameters from `research/prompts.py`.
 
-**Research** (`agent/research/prompts.py`):
-- `BASE_SYSTEM_PROMPT` — capabilities, data model constraints, continuity rules, output format. Contains "回答风格：简洁、具体、可操作" (not fully stripped — see known issues).
-- `BANGUMI_STYLE_RESEARCH_APPENDIX` in `agent/styles.py` — soft persona, no word limits.
-- `build_system_prompt(output_style=)` assembles: BASE → memory → intent variant → critic feedback → style appendix.
+### Core/Style Separation (v3)
+
+**Dialogue** (`agent/dialogue/prompts.py` → thin wrapper):
+- `build_dialogue_prompt(memory_context, output_style)` delegates to `prompt_builder.build_system_prompt()`
+- `DIALOGUE_CORE_PROMPT` deleted — content moved to `DIALOGUE_PROFILE` + `BANGUMI_CHARACTER`
+
+**Research** (`agent/research/prompts.py` → thin wrapper + strategy variants):
+- `build_system_prompt(intent, critic_feedback, memory_context, output_style)` delegates to `prompt_builder.build_system_prompt()`
+- `BASE_SYSTEM_PROMPT` deleted — content moved to `RESEARCH_PROFILE` + `NEUTRAL_CHARACTER`
+- `INTENT_PROMPTS` retained and extended with `debate` and `emotional` strategies
+- `TOOL_DEPENDENCY_CONSTRAINT` and data model constraint passed as parameters to builder
+
+### Intent Taxonomy Extension
+
+Two new intents added to `agent/classifier.py`:
+
+| Intent | Behavior | Strategy |
+|--------|----------|----------|
+| `debate` | No tools bound — character-first response | Express opinion, don't lean on ratings, be provocative not offensive |
+| `emotional` | No tools bound — empathy first | Acknowledge emotion, then recommend; tools are optional |
+
+Both added to `_NO_TOOL_INTENTS` in both dialogue and research nodes. Known deviation: emotional keyword matching needs tuning (observed "失恋了推荐一部番" classified as discovery).
+
+### Memory Tone Profiling
+
+`agent/memory_manager.py` — lightweight interaction style tracking:
+
+- `SUMMARIZE_PROMPT_V2`: LLM extracts `tone` (casual/debate/emotional/informational) alongside summary and entities
+- Stored in `intent_distribution` JSONB field (schema-free, no DB migration)
+- `_format_memory_context()`: when ≥2 recent sessions share same tone, injects hint like "这位用户喜欢争论和被挑衅"
 
 ### Data Flow
 
@@ -325,39 +356,34 @@ Dialogue Bangumi appendix has hard constraints (30-80 chars chat, ≤150 chars w
 POST /chat { output_style: "bangumi" | "neutral" | null }
   → _resolve_output_style(): explicit > AGENT_DEFAULT_STYLES (dialogue→bangumi, research→neutral)
   → state["output_style"] = resolved_style
-  → reasoning_node → build_*_prompt(output_style=...) → style appendix injected
+  → reasoning_node → build_*_prompt(output_style=...)
+  → get_character(output_style, agent_type=...) → CharacterProfile
+  → get_agent_profile(agent_type) → AgentProfile
+  → prompt_builder.build_system_prompt(profile, character, ...)
   → LLM generates styled output
   → ChatResponse { output_style: resolved_style }
 ```
 
-### State Fields
-
-Both `AgentState` (Research) and `DialogueState` have `output_style: str` — set by `main.py` at graph entry, read by prompt builders, returned in response.
-
 ### Key Design Properties
 
-1. **Zero extra latency**: Style is prompt-only; no second LLM call. Compare: original `render()` plan would add ~500ms per response.
-2. **No data fabrication risk**: The model sees raw data AND style instructions simultaneously — it styles while reasoning, rather than rewriting after the fact. No need for diff validation.
-3. **"neutral" = zero token overhead**: Empty string in both dicts; `build_*_prompt()` skips empty appendices.
-4. **Agent-appropriate differentiation**: Dialogue gets tight word limits; Research gets "soft" persona that preserves data completeness.
-5. **Extensible**: Adding a new style requires: (a) write appendix string, (b) register in the appropriate dict. Two keys, not a new module.
+1. **Role-first**: Character identity is the FIRST thing the LLM sees — capabilities are subordinate
+2. **Zero extra latency**: Style is prompt-only; no second LLM call
+3. **No data fabrication risk**: Model sees data AND style simultaneously
+4. **Agent-appropriate variants**: `BANGUMI_RESEARCH_CHARACTER` preserves data completeness; `BANGUMI_CHARACTER` enforces word limits
+5. **Extensible**: New style = new CharacterProfile + register in CHARACTER_REGISTRY; new intent = keywords in classifier + strategy in INTENT_PROMPTS
+6. **No DB migration**: Tone stored in existing `intent_distribution` JSONB
 
 ### Test Coverage
 
-`test/test_prompts.py` — 7 tests covering all four quadrants:
-- `test_research_neutral_excludes_style` — no "腹黑"/"吐槽" in output
-- `test_research_bangumi_includes_style` — has persona, no word limits, has data integrity note
-- `test_dialogue_neutral_excludes_persona` — no persona, has core capabilities
-- `test_dialogue_bangumi_includes_persona` — has persona + word limits
-- `test_dialogue_core_prompt_has_no_persona` — CORE is persona-free
-- `test_style_registry_keys` — both dicts have "neutral"→"" and "bangumi"→non-empty
+`test/test_prompts.py` — 46 tests (up from 7):
+- `TestProfiles` (9 tests): profile integrity, field validation, registry keys, fallback behavior
+- `TestPromptBuilder` (14 tests): assembly order, role-first verification, all four quadrants, memory/critic/last-chance injection
+- `TestBuildDialoguePrompt` (4 tests): thin wrapper correctness
+- `TestBuildResearchPrompt` (7 tests): thin wrapper + debate/emotional strategy verification
+- `TestIntentPrompts` (9 tests): all intents registered, tool constraint inclusion/exclusion, data model rules
+- `TestResearchContinuityRules` (3 tests): continuity rules present in assembled prompt
 
-### Known Deviations from Ideal
-
-1. **`BASE_SYSTEM_PROMPT` still has "回答风格：简洁、具体、可操作"** — a style instruction in the neutral base prompt. Minor; doesn't break functionality but means Research neutral isn't perfectly style-free.
-2. **`DIALOGUE_CORE_PROMPT` has "你是吐槽役，不是论文写手"** — a minor persona leak in the otherwise-persona-free CORE prompt.
-3. **`/chat/stream` doesn't report `output_style`** in SSE events. The style IS resolved and passed to the graph, but streaming clients can't see which style is active.
-4. **Original design doc** (`docs/design/personality-rendering-layer.md`, 347 lines) describes the rejected hexagonal architecture. Kept for historical reference; ROADMAP.md is the authoritative source.
+Full suite: 527 passed, 23 skipped (L3), 0 failed.
 
 ## Phase 6: More Tools & Community Data — Reserved
 
@@ -389,7 +415,7 @@ Both `AgentState` (Research) and `DialogueState` have `output_style: str` — se
 | `CLAUDE.md` | This file — architecture, conventions, current state |
 | `docs/design/ROADMAP.md` | Development roadmap, phase details, fix status |
 | `docs/design/phase5-memory-system-design.md` | Phase 5 full design spec (1194 lines) |
-| `docs/design/personality-rendering-layer.md` | Phase 5.5 original design (render-based approach, not the Lite implementation) |
+| `docs/design/personality-rendering-layer.md` | Phase 5.5 original design (render-based approach, superseded by v3) |
 | `docs/memory/` | Memory system manuals (6 files: architecture, implementation, config, testing, debugging) |
 | `docs/ARCHITECTURE.md` | Legacy architecture doc (2026-05-29, partially outdated) |
 | `README.md` | Project README (badges, quick start — partially outdated) |

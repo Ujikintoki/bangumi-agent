@@ -137,87 +137,106 @@ pgvector cosine_distance(query_embedding, session_embedding)
 
 ---
 
-## Phase 5.5: Output Style Control ✅ 完成（2026-06-17）
+## Phase 5.5: Output Style Control ✅ 完成（2026-06-17 初版，2026-07-22 架构重构）
 
-> **最终方案**：Prompt Appendix 注入（Lite 版），零额外 LLM 调用。  
+> **最终方案**：角色优先 prompt 组装 + 意图体系扩展 + 记忆 tone 侧写。  
 > 原始计划的后处理 `render()` 六边形架构经测试不合理（额外延迟 + 数据编造风险），已废弃。  
 > 废弃的设计文档保留在 [`docs/design/personality-rendering-layer.md`](personality-rendering-layer.md) 供历史参考。
 
-### 实际架构
+### 实际架构（v3，2026-07-22）
 
 ```
 build_system_prompt() / build_dialogue_prompt()
-  → BASE/CORE prompt（能力 + 策略，不含人格）
-  → intent 变体
-  → L2 memory context
-  → style appendix（来自 agent/styles.py，"neutral" 时为空字符串）
-  → LLM 单次推理完成"推理 + 风格化"
+  → CharacterProfile（角色是第一层）
+  → AgentProfile.capabilities（能力是角色的附属）
+  → tool behavior + strategy
+  → tool constraints + data model
+  → continuity rules
+  → intent strategy variant（debate/emotional/lookup/...）
+  → memory context + tone hints
+  → critic feedback（Research only）
+  → expression guide + output format
+  → guardrails（字数、emoji 等硬约束）
+  → last-chance instruction（Dialogue only）
 ```
 
-模型在一次推理中同时完成推理和风格表达。不需要二次 LLM 调用、不需要 diff 校验、不增加延迟。
-
-### 实现文件
+### 实现文件（v3）
 
 | 文件 | 角色 |
 |------|------|
-| `agent/styles.py` (99 行) | 风格定义 canonical source — 两个 dict，两个附录字符串 |
-| `agent/dialogue/prompts.py` | `DIALOGUE_CORE_PROMPT`（去人格化能力描述）+ `build_dialogue_prompt(output_style=)` |
-| `agent/research/prompts.py` | `build_system_prompt(output_style=)` — BASE → memory → intent → critic → style |
-| `main.py` | `ChatRequest.output_style`, `ChatResponse.output_style`, `_resolve_output_style()`, `AGENT_DEFAULT_STYLES` |
-| `agent/research/state.py` | `AgentState.output_style: str` |
-| `agent/dialogue/state.py` | `DialogueState.output_style: str` |
+| `agent/profiles.py` (270 行) | **新建** — CharacterProfile + AgentProfile dataclass，3 个角色实例 + 2 个 Agent 配置 |
+| `agent/prompt_builder.py` (160 行) | **新建** — 统一 13 层 prompt 组装器，两个 Agent 共用 |
+| `agent/styles.py` | **已删除** — 合并到 profiles.py |
+| `agent/dialogue/prompts.py` | **重写** — DIALOGUE_CORE_PROMPT 删除，`build_dialogue_prompt` 变为薄封装 |
+| `agent/research/prompts.py` | **重写** — BASE_SYSTEM_PROMPT 删除，INTENT_PROMPTS 扩展 +debate/emotional，`build_system_prompt` 变为薄封装 |
+| `agent/classifier.py` | **修改** — +2 意图（debate/emotional），15+keywords/patterns，LLM fallback 更新 |
+| `agent/memory_manager.py` | **修改** — SUMMARIZE_PROMPT_V2 +tone，解析 + 存储 + 召回注入 |
+| `agent/dialogue/nodes.py` | **修改** — `_NO_TOOL_INTENTS` +debate/emotional |
+| `agent/research/nodes.py` | **修改** — `_NO_TOOL_INTENTS` +debate/emotional |
+| `main.py` | **修改** — 导入更新，seed SystemMessage 从 profiles 动态获取 |
 
-### 两个风格注册表
+### 结构化角色系统
 
-| Dict | 使用者 | `"neutral"` | `"bangumi"` |
-|------|--------|-------------|-------------|
-| `STYLE_APPENDICES` | Dialogue | `""`（零 token） | 完整人格：腹黑萝莉 + 30-80 字限制 + 150 字工具上限 |
-| `STYLE_APPENDICES_RESEARCH` | Research | `""`（零 token） | 软版本：同人格，**无字数限制**，强调数据完整性 |
+| CharacterProfile | 使用者 | 字数限制 | 数据完整性声明 |
+|------|--------|----------|---------------|
+| `BANGUMI_CHARACTER` | Dialogue（默认） | ✅ 30-80/150 字 | 无 |
+| `NEUTRAL_CHARACTER` | Dialogue/Research | 无 | 无 |
+| `BANGUMI_RESEARCH_CHARACTER` | Research（bangumi 时自动选取） | **无** | ✅ "数据完整性和工具调用策略不变" |
 
-关键差异：Dialogue Bangumi 含硬字数上限（闲聊 30-80，含工具 ≤150），Research Bangumi 无字数限制并显式声明"不要因为风格要求而缩减数据或跳过工具调用"。
+`get_character("bangumi", agent_type="research")` 自动返回 `BANGUMI_RESEARCH_CHARACTER`——同一风格 key，不同 Agent 得到不同变体。
 
-### Core/Style 分离
-
-**Dialogue 侧**：`DIALOGUE_CORE_PROMPT` (53 行) — 纯能力 + 工具策略 + 输出格式 + 对话连续性。不含 "Bangumi娘"、"腹黑萝莉"、"毒舌吐槽役"。人格全部在 `agent/styles.py` 的 `BANGUMI_STYLE_APPENDIX`。
-
-**Research 侧**：`BASE_SYSTEM_PROMPT` — 能力 + 数据模型约束 + 对话连续性 + "回答风格：简洁、具体、可操作"（未完全剥离，已知偏差）。
-
-### 风格决议逻辑
+### 意图体系扩展（8 意图）
 
 ```
-_resolve_output_style():
-  if request.output_style is not None → 用显式值
-  else → AGENT_DEFAULT_STYLES[agent_type]
-    - dialogue → "bangumi"
-    - research → "neutral"
+chitchat    → 不绑工具     factual  → 不绑工具
+debate      → 不绑工具     emotional → 不绑工具   ← 新增
+lookup      → 绑工具       discovery → 绑工具
+realtime    → 绑工具       unknown  → 绑工具
 ```
 
-### 设计决策：为什么 Lite > 完整版
+debate/emotional 默认不绑工具——角色人格主导。如需工具，XML 泄漏自纠正机制自动触发。
 
-| 维度 | Lite（实际） | 完整版 render()（废弃） |
-|------|-------------|----------------------|
-| LLM 调用增量 | **零** | +1 次/响应 (~500ms) |
-| 数据编造风险 | **无** — 模型直接基于数据输出 | 需 diff 校验防止 render 编造评分/排名 |
-| 延迟 | 无额外延迟 | dialogue <2s 预算被挤压 25%+ |
-| 模块复杂度 | 1 文件 99 行 | `agent/personality/` 4 文件 |
-| 四象限 | ✅ 全可用 | ✅ 全可用 |
+### 记忆交互风格侧写
 
-### 测试覆盖
+- LLM 摘要时提取 `tone`（casual/debate/emotional/informational）
+- 存入 `intent_distribution` JSONB（schema-free，无 DB migration）
+- 召回时：≥2 次同一 tone → 注入交互风格提示
 
-`test/test_prompts.py` — 7 个测试：
-- `test_research_neutral_excludes_style` — neutral 无 "腹黑"/"吐槽"
-- `test_research_bangumi_includes_style` — bangumi 有人格 + 无字数限制 + 数据完整性声明
-- `test_dialogue_neutral_excludes_persona` — neutral 无人格，有核心能力
-- `test_dialogue_bangumi_includes_persona` — bangumi 有人格 + 字数限制
-- `test_dialogue_core_prompt_has_no_persona` — CORE 本身不含人格
-- `test_style_registry_keys` — 两个 dict 都有 neutral→"" 和 bangumi→非空
+### 设计决策：为什么 Lite > 完整版 + 为什么需要重构
 
-### 已知偏差
+| 维度 | Lite v1（f644a56） | Lite v3（078a803） |
+|------|-------------------|-------------------|
+| 角色位置 | System Prompt 末尾（附录注入） | **第一行**（角色优先） |
+| 模块结构 | 1 文件 99 行（自由文本 dict） | 2 文件 430 行（结构化 dataclass + builder） |
+| 可扩展性 | 加风格需在两个 dict 各写附录 | 加风格 = 新建 CharacterProfile + 注册 key |
+| 对话向意图 | 无（全检索导向） | debate + emotional |
+| 交互风格记忆 | 无 | tone 侧写 |
+| Research Bangumi | 同一附录（字数限制混入） | 独立 BANGUMI_RESEARCH_CHARACTER |
+| Dialogue 格式 | 硬模板 `⭐评分 —` | 自然表达原则 |
 
-1. `BASE_SYSTEM_PROMPT` 仍含 "回答风格：简洁、具体、可操作" — neutral 模式下的风格残留
-2. `DIALOGUE_CORE_PROMPT` 第 34 行有 "你是吐槽役，不是论文写手" — CORE 中的轻微人格泄漏
-3. `/chat/stream` 不会在 SSE 事件中报告 `output_style`
-4. 原设计文档 `personality-rendering-layer.md` (347 行) 描述的是已废弃的六边形方案
+### 测试覆盖（v3）
+
+`test/test_prompts.py` — 46 个测试：
+- `TestProfiles` (9): profile 完整性、字段验证、注册表、回退
+- `TestPromptBuilder` (14): 组装顺序、角色优先、四象限、memory/critic 注入
+- `TestBuildDialoguePrompt` (4) + `TestBuildResearchPrompt` (7)
+- `TestIntentPrompts` (9): 全意图注册、工具约束含/不含、debate/emotional 策略验证
+- `TestResearchContinuityRules` (3)
+
+全量：527 passed, 23 skipped (L3), 0 failed
+
+### 已完成 vs 计划
+
+| 计划 Step | 实际 |
+|-----------|------|
+| 5.5.1 新建 `agent/personality/` 模块 | ❌ 否决 — 六边形架构不合理 |
+| 5.5.2 请求/响应模型更新 | ✅ `ChatRequest.output_style` + `ChatResponse.output_style` |
+| 5.5.3 main.py 响应管道 | ✅ `_resolve_output_style()` + state 透传 |
+| 5.5.4 剥离 DIALOGUE 人格 | ✅ v3 完全剥离——CORE_PROMPT 已删除 |
+| 5.5.5 精简 BASE 风格指令 | ✅ v3 完全剥离——BASE_SYSTEM_PROMPT 已删除 |
+| 5.5.6 测试更新 | ✅ 46 个 prompt 测试 + 真实 LLM 验证 |
+| 意图体系扩展 | ✅ +debate/emotional（超出原计划） |
+| 记忆 tone 侧写 | ✅ 轻量交互风格追踪（超出原计划） |
 
 ---
 
@@ -306,10 +325,12 @@ _resolve_output_style():
 | `main.py` | Phase 5 | Fire-and-forget 写入调度 + 区分化兜底消息 |
 | `agent/research/nodes.py` | Phase 5 | L2 记忆召回集成（首轮注入 System Prompt） |
 | `agent/dialogue/nodes.py` | Phase 5 | L2 记忆召回集成 + 防御机制补全 |
-| `agent/styles.py` | Phase 5.5 Lite | 风格注册表 — 两个 dict，neutral/bangumi 附录 |
+| `agent/profiles.py` | Phase 5.5 v3 | **新建** — CharacterProfile + AgentProfile dataclass，3 角色 + 2 Agent |
+| `agent/prompt_builder.py` | Phase 5.5 v3 | **新建** — 统一 13 层角色优先 prompt 组装器 |
+| `agent/styles.py` | Phase 5.5 v3 | **已删除** — 合并到 profiles.py |
 | `agent/session_cache.py` | Phase 5 穿插 | 跨 HTTP 消息缓存 — TTL 1h, max 1000 session |
-| `agent/dialogue/prompts.py` | Phase 5.5 Lite 已改 | CORE（能力+策略）+ 从 styles.py 注入人格附录 |
-| `agent/research/prompts.py` | Phase 5.5 Lite 已改 | 风格指令已由 styles.py 附录替代 |
+| `agent/dialogue/prompts.py` | Phase 5.5 v3 | 重写 — CORE_PROMPT 删除，薄封装委托给 prompt_builder |
+| `agent/research/prompts.py` | Phase 5.5 v3 | 重写 — BASE_PROMPT 删除，+debate/emotional 策略，薄封装 |
 
 ---
 
