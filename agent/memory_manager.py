@@ -1,8 +1,7 @@
 """
-Phase 5 L2/L3 记忆管理器
+Phase 5 L2 记忆管理器（L3 用户画像已移除）
 
 L2 长记忆的统一入口：召回（recall） + 记住（remember）。
-L3 公共记忆留有 Phase 6 桩。
 
 设计原则：
     - 异步写（remember），同步读（recall）：写入用 fire-and-forget，召回在推理前同步完成
@@ -58,10 +57,10 @@ JSON 输出："""
 
 
 class MemoryManager:
-    """L2/L3 记忆管理器。
+    """L2 记忆管理器（L3 用户画像已移除）。
 
     生命周期：
-        - 写入：remember_session() → session_memories + user_profiles（异步 fire-and-forget）
+        - 写入：remember_session() → session_memories（异步 fire-and-forget）
         - 读取：recall_for_prompt() → 格式化的记忆文本（同步，注入 System Prompt）
 
     Attributes:
@@ -122,22 +121,25 @@ class MemoryManager:
         user_id: str,
         query: str,
         max_tokens: int = 500,
+        recall_threshold: float | None = None,
     ) -> str:
-        """召回用户历史记忆并格式化为 System Prompt 注入文本。
+        """召回用户历史记忆并格式化为 System Prompt 注入文本（仅 L2）。
 
         执行顺序：
             1. 向量化用户查询
             2. 语义检索 session_memories（cosine distance）
-            3. 主阈值过滤（≤0.5）→ 计算组合分数（语义 + 时间衰减）
-            4. 不足 TOP_K 时：recency fallback + 松弛锚定过滤（≤0.70）
+            3. 主阈值过滤 → 计算组合分数（语义 + 时间衰减）
+            4. 不足 TOP_K 时：recency fallback + 松弛锚定过滤
             5. 按 combined_score 降序排序，取 top-K
-            6. 读取 user_profiles
-            7. 格式化注入文本（≤ max_tokens）
+            6. 格式化注入文本（≤ max_tokens）
 
         Args:
             user_id: 用户标识。
             query: 用户当前查询文本，用于语义匹配。
             max_tokens: 注入文本的最大 Token 数。
+            recall_threshold: 语义检索的余弦距离阈值。
+                None 时使用 MEMORY_RECALL_THRESHOLD (0.5)。
+                Dialogue Agent 传入 0.35 以收紧召回，减少噪音。
 
         Returns:
             格式化的记忆文本，无相关记忆时返回空字符串。
@@ -147,6 +149,9 @@ class MemoryManager:
         # Guard: 匿名用户或记忆关闭
         if user_id == "anonymous" or not settings.MEMORY_ENABLED:
             return ""
+
+        # 使用调用方传入的阈值或全局默认值
+        _threshold = recall_threshold if recall_threshold is not None else settings.MEMORY_RECALL_THRESHOLD
 
         scored: list[tuple] = []  # [(SessionMemory, combined_score), ...]
         profile: Optional[Any] = None
@@ -161,7 +166,7 @@ class MemoryManager:
                     limit=settings.MEMORY_RECALL_TOP_K,
                 )
                 for sm, distance in raw_sessions:
-                    if distance <= settings.MEMORY_RECALL_THRESHOLD:
+                    if distance <= _threshold:
                         combined = self._compute_combined_score(
                             distance,
                             sm.created_at,
@@ -254,16 +259,17 @@ class MemoryManager:
         scored.sort(key=lambda x: x[1], reverse=True)
         sessions = [sm for sm, _ in scored[: settings.MEMORY_RECALL_TOP_K]]
 
-        # ── Step 3: 读取用户画像 ─────────────────────────
-        try:
-            from database.memory_tables import UserProfile
-
-            with Session(self._engine) as db_session:
-                profile = db_session.exec(
-                    select(UserProfile).where(UserProfile.user_id == user_id)
-                ).first()
-        except Exception as exc:
-            logger.warning("画像读取失败 (user=%s): %s", user_id, exc)
+        # ── Step 3: 读取用户画像（L3 deprecated — 已移除） ──
+        # profile 保持 None，_format_memory_context 不再注入画像文本。
+        # 保留以下代码以便未来重新激活：
+        # try:
+        #     from database.memory_tables import UserProfile
+        #     with Session(self._engine) as db_session:
+        #         profile = db_session.exec(
+        #             select(UserProfile).where(UserProfile.user_id == user_id)
+        #         ).first()
+        # except Exception as exc:
+        #     logger.warning("画像读取失败 (user=%s): %s", user_id, exc)
 
         # ── Step 4: 格式化 ──────────────────────────────
         if not sessions and profile is None:
@@ -279,14 +285,13 @@ class MemoryManager:
         final_reply: str,
         query_intent: str,
     ) -> None:
-        """写入 session 摘要并增量更新用户画像。
+        """写入 session 摘要（L3 用户画像已移除）。
 
         执行顺序：
             1. 截断对话历史到 3000 tokens → LLM 生成摘要
             2. 提取关键实体
             3. 生成 embedding
             4. INSERT session_memories
-            5. 更新 user_profiles
 
         所有异常内部捕获，仅记录 WARNING 日志——永不阻塞用户响应。
 
@@ -379,9 +384,10 @@ class MemoryManager:
                 return
 
             # ── Step 6: 更新画像 ────────────────────────
-            await self._update_user_profile(
-                user_id, summary, query_intent, entities
-            )
+            # [L3 deprecated] 用户画像已移除。保留代码以便未来重新激活。
+            # await self._update_user_profile(
+            #     user_id, summary, query_intent, entities
+            # )
 
         except Exception:
             logger.exception(
@@ -632,7 +638,7 @@ class MemoryManager:
         intent_dist: str,
         entities: list[dict],
     ) -> None:
-        """增量更新用户画像（per-user 锁保护下执行）。
+        """[L3 deprecated] 增量更新用户画像。保留代码以便未来重新激活。
 
         Bug 2 修复：通过 per-user asyncio.Lock 将 Read-Modify-Write
         流程串行化，防止并发 fire-and-forget 任务静默覆盖更新。
@@ -705,7 +711,7 @@ class MemoryManager:
         intent_dist: str,
         entities: list[dict],
     ) -> dict:
-        """为新用户构建初始偏好画像。
+        """[L3 deprecated] 为新用户构建初始偏好画像。保留代码以便未来重新激活。
 
         Args:
             intent_dist: 首轮意图类型。
@@ -730,7 +736,7 @@ class MemoryManager:
 
     @staticmethod
     def _update_genres(prefs: dict, entities: list[dict]) -> dict:
-        """增量更新类型频率。
+        """[L3 deprecated] 增量更新类型频率。保留代码以便未来重新激活。
 
         当前 Phase 5 初期做轻量处理：从实体名推断类型关键词，
         按 count 降序截断 top-10。
@@ -774,7 +780,7 @@ class MemoryManager:
 
     @staticmethod
     def _update_affinities(prefs: dict, entities: list[dict]) -> dict:
-        """增量更新实体亲和度（指数移动平均）。
+        """[L3 deprecated] 增量更新实体亲和度（指数移动平均）。保留代码以便未来重新激活。
 
         新实体: interest_score = 0.5
         旧实体: interest_score = 0.9 * old + 0.1
@@ -870,15 +876,17 @@ class MemoryManager:
         profile,
         max_tokens: int = 500,
     ) -> str:
-        """将召回的 session 摘要 + 用户画像格式化为 System Prompt 注入文本。
+        """将召回的 session 摘要格式化为 System Prompt 注入文本（仅 L2）。
+
+        profile 参数保留以兼容调用方，但 L3 画像已移除，不再注入。
 
         Args:
             sessions: SessionMemory 列表（已按 combined_score 降序排序）。
-            profile: UserProfile 实例或 None。
+            profile: [L3 deprecated] 不再使用，保留以兼容调用方。
             max_tokens: 最大 Token 数。
 
         Returns:
-            格式化的记忆文本，空列表且无画像时返回空字符串。
+            格式化的记忆文本，空列表时返回空字符串。
         """
         settings = get_settings()
         parts: list[str] = []
@@ -905,13 +913,14 @@ class MemoryManager:
                     time_str = f"{days_ago // 30}个月前"
                 parts.append(f"- [{time_str}] {sm.summary_text[:150]}")
 
-        # ── 用户画像（冷启动保护）─────────────────────
-        if profile is not None and (
-            (profile.total_sessions or 0) >= settings.MEMORY_MIN_SESSIONS_FOR_PROFILE
-        ):
-            profile_text = self._format_profile_summary(profile)
-            if profile_text:
-                parts.append(f"\n**用户偏好摘要**：{profile_text}")
+        # ── 用户画像（L3 deprecated — 已移除）────────────────
+        # 保留代码以便未来重新激活：
+        # if profile is not None and (
+        #     (profile.total_sessions or 0) >= settings.MEMORY_MIN_SESSIONS_FOR_PROFILE
+        # ):
+        #     profile_text = self._format_profile_summary(profile)
+        #     if profile_text:
+        #         parts.append(f"\n**用户偏好摘要**：{profile_text}")
 
         if not parts:
             return ""
@@ -934,7 +943,7 @@ class MemoryManager:
 
     @staticmethod
     def _format_profile_summary(profile) -> str:
-        """格式化用户画像摘要为简短文本。
+        """[L3 deprecated] 格式化用户画像摘要为简短文本。保留代码以便未来重新激活。
 
         Args:
             profile: UserProfile 实例。

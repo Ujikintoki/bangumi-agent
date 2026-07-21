@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A **Stateful AI Agent** for the [Bangumi](https://bgm.tv) ecosystem — natural-language understanding, multi-tool orchestration, and long-term memory for anime/manga/music/game discovery. Built as a FastAPI microservice with LangGraph ReAct agent, PostgreSQL + pgvector RAG, and Zhipu embedding-3.
 
-Phase 5 三层记忆系统已落地：L1 同 session 滑动窗口 + L2 跨 session 语义召回（双通道：语义 + 时效回退，时间衰减 + 最小语义锚定）+ L3 用户画像增量更新。
+**Current phase**: Phase 5 memory system (L1 + L2 active, L3 deprecated). Phase 5.5 Lite output_style four-quadrant control live. Two agents (Research + Dialogue) sharing a unified `POST /chat` endpoint.
 
 ## Commands
 
@@ -18,12 +18,9 @@ uvicorn main:app --reload --port 8000
 pytest test/ -v
 
 # Run a single test file
-pytest test/test_rag.py -v
+pytest test/test_memory_manager.py -v
 
-# Run a single test function
-pytest test/test_rag.py::TestPreciseFiltering::test_exclude_nsfw_blocks_adult_content -v
-
-# Start PostgreSQL + pgvector (Docker, required for tests and RAG)
+# Start PostgreSQL + pgvector (Docker, required for tests, RAG, and memory)
 docker run -d --name bangumi-pg \
   -e POSTGRES_USER=myuser -e POSTGRES_PASSWORD=mypassword \
   -e POSTGRES_DB=bangumidb -p 5432:5432 pgvector/pgvector:pg16
@@ -31,214 +28,368 @@ docker run -d --name bangumi-pg \
 
 ## Architecture
 
-The system follows a **layered architecture** with strict separation of concerns.
+### Agent topology
 
-### Agent topology (Phase 4 — current)
+Two agents share a unified `POST /chat` endpoint, routed by `agent_type` in the request body (default: `"dialogue"`).
 
+**Research Agent** (3 nodes, `_MAX_ITERATIONS=12`):
 ```
-                        START
-                          │
-                          ▼
-                   reasoning_node
-                   ├─ manage_memory (两层截断: 单条 ToolMessage + 列表滑动窗口)
-                   ├─ classify_intent (规则优先 + LLM fallback, 6 类)
-                   ├─ build_system_prompt (BASE + intent 变体 + critic_feedback)
-                   └─ LLM invoke
-                       ├─ chitchat/factual → 不绑工具
-                       └─ 其余 intent → bind_tools(12 工具，消化态不摘工具)
-                       └─ 其余 intent → bind_tools(12 工具)
-                          │
-                          ▼ (条件边: route_after_reasoning — 原生消息路由)
-               ┌──────────┼──────────┐
-               │          │          │
-        AIMessage.      chitchat    其他无工具
-        tool_calls       无工具
-        非空               │          │
-               │          ▼          ▼
-               │        END       critic_node
-               │      (快速通道)   (rule/llm 双模式)
-               │                     │
-               ▼                     ▼ (条件边: route_after_critic)
-          ToolNode            PASS/超限 → END
-         (LangGraph           REVISE  → reasoning_node (重试)
-          内置)                    │
-               │                   │
-               └──────────┬────────┘
-                          ▼
-                   reasoning_node（固定边: 消化工具结果，如需继续调工具则 model 自主判定）
+START → reasoning_node ←──────────────────┐
+          │                                 │
+          ├─ manage_memory (L1 sliding window)
+          ├─ classify_intent (rule-first + LLM fallback)
+          ├─ L2 memory recall (_memory_context cached)
+          ├─ build_system_prompt (BASE + intent variant + critic_feedback + style appendix)
+          └─ LLM invoke
+               │
+     ┌─────────┼─────────┐
+     │         │         │
+  tool_calls  chitchat  其他无工具
+     │         │         │
+     ▼         ▼         ▼
+  tool_node   END     critic_node
+     │      (fast)    (rule/llm)
+     │         │         │
+     │         │    PASS/over-limit → END
+     │         │    REVISE → reasoning_node
+     └─────────┘
 ```
 
-**关键设计点：**
-- **原生消息路由**：`route_after_reasoning` 直接读 `state["messages"][-1]` 的 `tool_calls` 属性，不依赖冗余状态字段
-- **固定边** `tool_node → reasoning_node`：工具执行后必须回到 reasoning 消化结果，不直接进 critic
-- **消化态引导**：`reasoning_node` 检测到入口最后一条为 ToolMessage 时，注入引导指令让模型优先综合数据输出文本，但不强制解绑工具——允许模型在确实需要更多数据时（如 search → get_detail 串行依赖）继续调用工具。循环保护由 Critic 重复调用检测 + `_MAX_ITERATIONS` 熔断负责。不再强制解绑是 XML 泄漏（DeepSeek 在无工具通道时将 `<function_calls>` 喷到 `.content`）的最终修复
-- chitchat 快速通道：跳过工具和 critic，直达 END
-- `critic_feedback` 定向注入下一轮 System Prompt（`"<缺陷> | <建议> | <缺失>"` 格式）
-- 最大 10 轮迭代熔断（`_MAX_ITERATIONS = 10`，graph 和 critic 双重检查）
-- `error_flag` 优雅降级：置 True 时 reasoning_node 返回兜底消息
+**Dialogue Agent** (2 nodes, `_MAX_ITERATIONS=4`):
+```
+START → dialogue_reasoning_node ←─────────┐
+          │                                 │
+          ├─ manage_memory (L1)
+          ├─ classify_intent
+          ├─ L2 memory recall (tighter threshold 0.35)
+          ├─ build_dialogue_prompt (CORE + style appendix)
+          ├─ last-chance bailout (iter≥3 → unbind tools + inject emergency instruction)
+          └─ LLM invoke
+               │
+         ┌─────┴─────┐
+         │           │
+    tool_calls    无工具/熔断
+         │           │
+         ▼           ▼
+     tool_node      END
+         │
+         └──────────┘
+```
 
-### Agent 目录结构
+Key differences: Dialogue skips Critic, has tighter L2 threshold, and a last-iteration bailout that force-unbinds tools + injects a "respond NOW" instruction to prevent silent circuit-breaker failures.
+
+### Agent directory structure
 
 ```
 agent/
-├── classifier.py    # 两阶段意图分类 (优先级规则 + LLM fallback)
-├── llm.py           # create_llm() 多 Provider 工厂 (Azure/OpenAI/DeepSeek)
-├── memory.py        # 两层截断: 单条 ToolMessage 内容截断 + 列表滑动窗口 (tiktoken cl100k_base)
+├── classifier.py      # Two-stage intent classification (rule priority + LLM fallback)
+├── llm.py             # create_llm() multi-provider factory (Azure/OpenAI/DeepSeek)
+├── memory.py          # L1 short memory — sliding window + tiktoken truncation + orphan cleanup
+├── memory_manager.py  # L2 cross-session semantic recall + L3 deprecated methods
+├── session_cache.py   # Cross-HTTP-request message cache (TTL 1h, max 1000 sessions)
+├── styles.py          # Output style registry — neutral/bangumi appendices for both agents
+├── guardrails.py      # Shared: terminal response detection, XML leak stripping, duplicate tool detection
 │
-├── research/        # 研究助手 agent（当前主力）
-│   ├── state.py     # AgentState TypedDict (8 字段，无 last_tool_calls)
-│   ├── graph.py     # build_graph() + 2 条件边 + 1 固定边 + 快速通道
-│   ├── nodes.py     # reasoning_node (工具始终可用, 消化态仅引导), critic_node (rule/llm 双模式)
-│   └── prompts.py   # BASE + 5 个 intent 变体 + CRITIC_SYSTEM_PROMPT
+├── research/          # Research Agent (deep search, Critic quality control)
+│   ├── state.py       # AgentState — 10 fields (_MAX_ITERATIONS=12)
+│   ├── graph.py       # 3-node topology with conditional edges
+│   ├── nodes.py       # reasoning_node + critic_node
+│   └── prompts.py     # BASE + 5 intent variants + CRITIC_SYSTEM_PROMPT
 │
-└── dialogue/        # 对话式 agent（Phase 4 — 快 > 准，30-150 字，<2s）
-    ├── state.py     # DialogueState（5 字段，无 critic，_MAX_ITERATIONS=3）
-    ├── graph.py     # 2 节点拓扑: reasoning → (条件) tool/END, tool → reasoning(固定边)
-    ├── nodes.py     # dialogue_reasoning_node（极简推理，无消化态引导/Critic；含 XML 泄漏防护）
-    └── prompts.py   # Bangumi娘人格 prompt（腹黑萝莉，黑色幽默）
+└── dialogue/          # Dialogue Agent (fast chat, no Critic, Bangumi娘 persona)
+    ├── state.py       # DialogueState — 7 fields (_MAX_ITERATIONS=4)
+    ├── graph.py       # 2-node topology
+    ├── nodes.py       # dialogue_reasoning_node + last-chance bailout
+    └── prompts.py     # DIALOGUE_CORE_PROMPT (persona-free) + build_dialogue_prompt()
 ```
 
-共用层：`tools/`, `rag/`, `clients/`, `core/config.py`, `agent/llm.py`, `agent/memory.py`, `agent/classifier.py`
+Shared layers: `tools/`, `rag/`, `clients/`, `core/config.py`, `database/`
 
 ### Layer responsibilities
 
 | Layer | Module | Role |
 |-------|--------|------|
-| Entry | `main.py` | FastAPI app, CORS, health check, POST `/chat` + `/chat/dialogue` + `/chat/stream` |
+| Entry | `main.py` | FastAPI app, CORS, `POST /chat` (unified, `agent_type` routing), `/chat/stream` (SSE), `_resolve_output_style()` |
 | Config | `core/config.py` | pydantic-settings from `.env`, `@lru_cache` singleton |
-| Agent | `agent/research/` | LangGraph StateGraph: reasoning → (条件) tool/critic/END, tool → reasoning (固定边), 消化态解绑工具. 最大 10 轮强制终止 |
-| Tools | `tools/bgm_tools.py` | LangChain `@tool` functions with Pydantic `args_schema`. Returns natural-language strings to the LLM |
+| Agent | `agent/research/` + `agent/dialogue/` | LangGraph StateGraph: reasoning → tool → (critic for research) → END. 12/4 max iterations |
+| Tools | `tools/bgm_tools.py` | 14 LangChain `@tool` functions with Pydantic `args_schema`. Returns natural-language strings |
 | Client | `clients/` | `BaseClient` (httpx, retry, auth) → `BangumiClient` (business methods) → `sanitizers` (field whitelisting, type coercion) |
-| RAG | `rag/` | `text_processor.py` (tiktoken sliding-window chunking) → `ingestion.py` (batch embedding + DB write) → `retriever.py` (hybrid vector + JSONB filter search) |
-| Database | `database/` | SQLModel + pgvector. `engine.py` manages connection pool and DDL (HNSW + GIN trigram indexes) |
-| Schemas | `schemas/tools_input.py` | Pydantic v2 input contracts for every tool — the "type contract" between LLM and tool functions |
+| RAG | `rag/` | `text_processor.py` → `ingestion.py` → `retriever.py` (hybrid vector + JSONB filter). DB currently empty |
+| Database | `database/` | SQLModel + pgvector. `engine.py` (connection pool, DDL), `models.py` (RagEntity), `memory_tables.py` (SessionMemory, UserProfile, PublicMemory) |
+| Schemas | `schemas/tools_input.py` | Pydantic v2 input contracts — the type contract between LLM and tool functions |
 
-### Data flow for a search query
+### Request/Response model
 
-```
-POST /chat → agent_app.invoke(initial_state)
-  → reasoning_node:
-      manage_memory (L1 两层截断)
-      → classify_intent (规则/LLM, 仅首轮)
-      → memory_manager.recall_for_prompt (L2 语义召回 + recency fallback + 时间衰减, 仅首轮)
-      → build_system_prompt (BASE + memory_context + intent 变体 + critic_feedback)
-      → LLM invoke (绑定工具: lookup/discovery/realtime, 解绑: chitchat/factual/消化态)
-      → AIMessage(tool_calls=[...])
-  → route_after_reasoning: 原生路由 —
-      AIMessage.tool_calls 非空 → tool_node
-      chitchat → END (快速通道)
-      其他 → critic_node
-  → ToolNode: 并发执行工具调用 (RAG 检索 + Bangumi API)
-      → ToolMessage(content=格式化文本)
-  → reasoning_node (固定边): 消化态 — 解绑工具，强制 LLM 输出文本回复
-      → AIMessage(content=文本回复)
-  → critic_node: rule/llm 评估 → PASS/REVISE
-  → PASS → END, REVISE → reasoning_node (重新绑定工具, 注入 critic_feedback)
-```
+`POST /chat` accepts `ChatRequest`:
 
-### RAG architecture — single-table polymorphism
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `message` | `str` | (required) | User message |
+| `agent_type` | `"dialogue" \| "research"` | `"dialogue"` | Which agent to use |
+| `output_style` | `"neutral" \| "bangumi" \| None` | `None` | `None` = agent default (dialogue→bangumi, research→neutral) |
+| `session_id` | `str` | `"default"` | Session ID for L1 session cache + L2 memory |
+| `user_id` | `str` | `"anonymous"` | User ID for L2 cross-session recall |
 
-All three entity types (Subject, Character, Person) share one `rag_entities` table with a prefixed primary key (`subject_10`, `character_5`, `person_3`). The `entity_type` column + JSONB `meta_info` distinguish entity-specific fields. Retrieval pipeline: scalar pre-filter (`entity_type = ?`) → vector cosine distance → distance threshold cutoff (0.65) → semantic bucket sort with entity-type-specific heat signals (rating_total for subjects, collects for characters/persons).
+`ChatResponse` returns: `reply`, `iterations`, `tools_used`, `query_intent`, `output_style`.
 
 ## Key conventions
 
 - **Async-first**: all network I/O uses `async/await`. HTTP client is `httpx.AsyncClient`.
-- **Error handling**: API failures return `{"_error": "..."}` dicts — never throw. Callers check `"_error" in result` and propagate gracefully. BaseClient retries on 429/502/503/TimeoutException with exponential backoff (max 3 attempts).
-- **Sanitizer pattern**: pure functions that whitelist fields, coerce magic numbers to human-readable labels, hard-truncate text, and filter noise (<4 char comments, pure numbers/dates). No self, no side effects.
-- **Agent state** (`agent/research/state.py`): TypedDict with 8 fields — `messages` (Annotated[list[BaseMessage], operator.add]), `iterations`, `critic_status` (PENDING/PASS/REVISE), `critic_feedback`, `query_intent` (chitchat/factual/lookup/discovery/realtime/unknown), `session_id`, `user_id`, `error_flag`. 路由由原生消息属性 (`messages[-1].tool_calls`) 驱动，不依赖冗余状态字段。`_MAX_ITERATIONS = 10`。
-- **Token input schemas** (`schemas/tools_input.py`): every tool's parameters are defined as Pydantic BaseModel subclasses with Field descriptions written for LLM consumption.
-- **`.env`** is at project root, loaded by `core/config.py`. Key variables: `DATABASE_URL`, `BANGUMI_APP_ID`, `BANGUMI_APP_SECRET`, `ZHIPU_API_KEY`, `EMBEDDING_DIMENSION` (default 2048).
+- **Error handling**: API failures return `{"_error": "..."}` dicts — never throw. BaseClient retries on 429/502/503/TimeoutException with exponential backoff (max 3 attempts).
+- **Sanitizer pattern**: pure functions that whitelist fields, coerce magic numbers to human-readable labels, hard-truncate text, and filter noise. No self, no side effects.
+- **AgentState** (`agent/research/state.py`): TypedDict with 10 fields — `messages`, `iterations`, `critic_status`, `critic_feedback`, `query_intent`, `session_id`, `user_id`, `error_flag`, `_memory_context`, `output_style`. `_MAX_ITERATIONS = 12`.
+- **DialogueState** (`agent/dialogue/state.py`): TypedDict with 7 fields — same minus `critic_status`, `critic_feedback`, `error_flag`. `_MAX_ITERATIONS = 4`.
+- **Routing** is driven by native message properties (`messages[-1].tool_calls`), not redundant state fields.
+- **`output_style`** control: `agent/styles.py` holds two dicts (`STYLE_APPENDICES` for dialogue, `STYLE_APPENDICES_RESEARCH` for research). `"neutral"` maps to `""` (zero token overhead). Style appendix is appended to System Prompt — no separate rendering LLM call.
+- **`.env`** at project root, loaded by `core/config.py`. Key variables: `DATABASE_URL`, `BANGUMI_APP_ID`, `BANGUMI_APP_SECRET`, `ZHIPU_API_KEY`, `DEEPSEEK_API_KEY`, `EMBEDDING_DIMENSION` (default 2048).
 
-## Current state and known issues
-
-### Phase 3 — 已完成 (2026-06-06)
-
-全部 9 个 Step 完成，438 tests 通过。LLM + 工具 + Critic + 记忆 + 端点全线贯通。
-
-### 2026-06-09 架构重构（已完成）
-
-以下 2026-06-07 review 发现的问题已修复：
-
-- ✅ **critic_feedback 异常时丢弃** — `reasoning_node` 异常 handler 现在保留 `state.get("critic_feedback", "")`
-- ✅ **超大 ToolMessage 无截断** — 两层截断：单条 >2000 tokens 内容截断 + 列表滑动窗口（`agent/memory.py`）
-- ✅ **`_MAX_ITERATIONS` 重复定义** — 统一定义在 `agent/research/state.py:70` (=10)
-- ✅ **prompt 注入风险** — `classifier.py` 对用户输入做 `{`→`{{` `}`→`}}` 转义
-- ✅ **消化步仍绑定工具** — 消化态检测 `is_digesting` 后解绑全部工具，强制 LLM 输出文本
-- ✅ **`last_tool_calls` 冗余字段** — 已从 State 删除，路由改为原生 `messages[-1].tool_calls`
-- ✅ **`search_bangumi_subject` / `get_bangumi_subject_detail` 裸返 JSON** — 改为结构化文本输出
-
-### Phase 5 — 已完成 (2026-06-13)
-
-三层记忆系统全线贯通：
-
-| 层级 | 实现 | 存储 |
-|------|------|------|
-| L1 短记忆 | `agent/memory.py` — 滑动窗口 + 两层截断 | 内存 |
-| L2 长记忆 | `agent/memory_manager.py` — 跨 session 语义召回 | PostgreSQL + pgvector |
-| L3 用户画像 | `agent/memory_manager.py` — 增量更新偏好/亲和度 | PostgreSQL JSONB |
-
-**召回策略（双通道）：**
-1. **语义通道**：query embedding → pgvector cosine_distance ≤ 0.5 → 组合分数排序（`similarity × 0.5^(days/14)`）
-2. **时效回退**：语义不足 TOP_K 时补齐最近 session，cosine_distance ≤ 0.70 锚定过滤
-3. 合并 → combined_score 降序 → 取 top-K → 格式化注入 System Prompt
-
-**写入策略**：fire-and-forget（`asyncio.create_task`），LLM 摘要 → embedding → INSERT session_memories + UPSERT user_profiles。异常静默降级，不阻塞主流程。
-
-**配置**：`MEMORY_ENABLED`、`MEMORY_RECALL_TOP_K=5`、`MEMORY_RECALL_THRESHOLD=0.5`、`MEMORY_TIME_DECAY_HALF_LIFE_DAYS=14`、`MEMORY_RECENCY_FALLBACK_THRESHOLD=0.70`、`MEMORY_MIN_SESSIONS_FOR_PROFILE=5`
-
-**测试**：`test/test_memory.py` (L1, 21 tests) + `test/test_memory_manager.py` (L2/L3, 15 tests) + `test/test_memory.py::TestComputeCombinedScore` (10 tests)
-
-**详细文档**：`docs/memory/` — 架构、实现、配置、测试、调试综合手册
-
-### 当前已知问题（2026-06-13）
-
-**🟡 中等：**
-
-1. **流式端点仅节点级**：`/chat/stream` 推送节点完成事件，非逐 token 流
-2. **Critic 仍含 `< 20 字` 硬阈值**：尽管有逃逸舱，仍可能误伤合法短回复
-3. **ToolNode 无数据降噪**：直接使用 LangGraph 内置 ToolNode，无 JSON 清洗/投影层
-
-**ℹ️ 轻微：**
-
-4. **`_extract_final_reply` 兜底无区分度**：异常/超限/工具失败统一返回相同兜底消息
-5. **记忆写入的摘要 LLM 无独立超时配置**：复用 `create_llm(request_timeout=10)`，极端慢模型可能拖长 fire-and-forget 任务
-
-### 技术债
-
-- **Client 层重复**: `clients/` 含 `bgm_client.py`(原始) + `client.py`/`base.py`/`sanitizers.py`(新版) + `docs/tmp/bgm_client.py`(第三个副本)。`tools/bgm_tools.py` 从 `docs/tmp/` 导入绕过了 client 层。
-- **RAG v0/v1 共存**: 旧 `BangumiChunk` 系列 (deprecated) 与新 `RagEntity` 系列并存，旧表仍在测试中被引用。
-
-### Phase 4 — 已完成 (2026-06-09)
-
-双 Agent 架构落地：
+## Phase 4: Dual Agent Architecture ✅ (2026-06-09)
 
 | | Research Agent | Dialogue Agent |
 |---|---|---|
-| 端点 | `POST /chat` | `POST /chat/dialogue` |
-| 定位 | 深度研究助手 | 快速对话（Bangumi娘人格） |
-| 节点数 | 3 (reasoning, tool, critic) | 2 (reasoning, tool) |
-| Max 迭代 | 10 | 3 |
-| 回复长度 | 不限 | 30-80 字（闲聊）/ ≤150 字（工具查询） |
-| 工具链 | search→detail→characters→comments | search → (可选 detail) |
-| LLM 调用 | 2-5 次 | 1-2 次 |
-| Critic | rule/llm 双模式 | 无 |
-| 人格 | 中性助手 | Bangumi娘（腹黑萝莉，黑色幽默） |
-| 文件位置 | `agent/research/` | `agent/dialogue/` |
+| Endpoint | `POST /chat` (`agent_type="research"`) | `POST /chat` (`agent_type="dialogue"`, default) |
+| Purpose | Deep research assistant | Fast chat (Bangumi娘 persona) |
+| Topology | 3 nodes (reasoning, tool, critic) | 2 nodes (reasoning, tool) |
+| Max iterations | 12 | 4 |
+| Response length | Unlimited | 30-80 chars (chat) / ≤150 chars (with tools) |
+| Tool chain depth | search → detail → characters → comments | search → (optional detail) |
+| LLM calls | 2-8 | 1-3 |
+| Critic | rule/llm dual-mode | None |
+| Default persona | Neutral (bangumi optional) | Bangumi娘 (neutral optional) |
+| Last-iteration protection | Critic REVISE + circuit breaker | Force-unbind tools + emergency instruction |
+| Files | `agent/research/` | `agent/dialogue/` |
 
-### Dialogue Agent 数据流
+### Research Agent Data Flow
 
 ```
-POST /chat/dialogue → dialogue_app.ainvoke(initial_state)
+POST /chat (agent_type="research")
+  → reasoning_node:
+      manage_memory (L1) → classify_intent (round 1 only)
+      → L2 memory recall (_memory_context cached)
+      → build_system_prompt (BASE + memory + intent + critic_feedback + style)
+      → LLM invoke (chitchat/factual: no tools; others: 14 tools bound)
+      → AIMessage
+  → route_after_reasoning:
+      tool_calls → tool_node → reasoning_node (fixed edge)
+      chitchat → END (fast path)
+      other → critic_node → PASS/over-limit → END, REVISE → reasoning_node
+```
+
+### Dialogue Agent Data Flow
+
+```
+POST /chat (agent_type="dialogue")
   → dialogue_reasoning_node:
-      manage_memory (两层截断)
-      → classify_intent (规则/LLM, 仅首轮)
-      → build_dialogue_prompt (Bangumi娘人格)
-      → LLM invoke (chitchat/factual 不绑工具，其余绑工具)
-      → AIMessage(tool_calls=[...])
-  → route_after_dialogue_reasoning: 原生路由 —
-      iterations >= 3 → END (熔断)
-      AIMessage.tool_calls 非空 → tool_node → dialogue_reasoning_node
-      其他 → END
+      manage_memory (L1) → classify_intent (round 1 only)
+      → L2 memory recall (threshold 0.35, _memory_context cached)
+      → build_dialogue_prompt (CORE + style appendix)
+      → last-chance check (iter≥3 → unbind tools + inject emergency instruction)
+      → LLM invoke
+      → AIMessage
+  → route_after_dialogue_reasoning:
+      iter ≥ 4 → END (circuit breaker)
+      tool_calls → tool_node → dialogue_reasoning_node
+      other → END
 ```
 
-共用层：`tools/`、`rag/`、`clients/`、`agent/llm.py`、`agent/memory.py`、`agent/classifier.py`。
+## Phase 5: Memory System ✅ (2026-07-21)
+
+L1 + L2 active. L3 user profile deprecated (2026-07-20) — code preserved, call sites commented out, DB tables intact.
+
+### L1: Short Memory — Sliding Window
+
+`agent/memory.py` (380 lines). Called at the start of every reasoning_node entry.
+
+1. **Single-message truncation**: ToolMessage > 1500 tokens → truncate content (don't drop entirely)
+2. **Token budget check**: tiktoken `cl100k_base` exact encoding (NOT `len//4` estimation — Chinese + JSON underestimates by 30-50%)
+3. **Sliding window**: SystemMessage always preserved. Old messages dropped from head. Tail-first traversal.
+4. **Orphan cleanup**: `_remove_orphaned_tool_messages()` — discards ToolMessages whose paired AIMessage was trimmed (prevents DeepSeek 400 BadRequest)
+
+Token budgets: Research 8000, Dialogue 4000.
+
+### L2: Cross-Session Semantic Memory
+
+`agent/memory_manager.py` (1015 lines) + `agent/session_cache.py` (194 lines) + `database/memory_tables.py`.
+
+**Write path** (fire-and-forget, `asyncio.create_task`, 15s hard timeout):
+
+```
+Conversation (Human + AI, skip Tool/System)
+  → truncate to 3000 tokens
+  → DeepSeek generates ~200-char JSON summary {"summary": "...", "entities": [...]}
+  → Zhipu embedding-3 vectorize (2048d)
+  → UPSERT session_memories (one row per user+session, prevents vector space pollution)
+  → ~~_update_user_profile()~~ [L3 deprecated, skipped]
+```
+
+**Recall path** (dual-channel + time decay):
+
+```
+User query → Zhipu embedding-3 → 2048d vector
+  │
+  ├─ Channel 1 (semantic): pgvector cosine_distance ≤ threshold
+  │    Score: combined_score = (1 - distance) × 0.5^(days/14)
+  │
+  └─ Channel 2 (recency fallback): triggered when semantic hits < TOP_K
+       Fetch recent sessions by created_at DESC
+       → Anchor filter: distance ≤ 0.60 (minimum semantic anchor)
+       → Same time-decay scoring
+
+→ Sort by combined_score DESC → top-5 → format → inject into System Prompt
+  "## 用户历史\n- [3 days ago] User asked about EVA ratings…"
+```
+
+**Agent differentiation**:
+
+| | Research | Dialogue |
+|---|---|---|
+| Injection budget | 700 tokens | 300 tokens |
+| Semantic threshold | cos ≤ 0.50 | cos ≤ 0.35 |
+| Skipped intents | chitchat, factual | chitchat, factual |
+| Last-iteration protection | Critic REVISE | Force-unbind tools + emergency instruction |
+
+**Graceful degradation** (7 failure points, all handled):
+embedding API timeout → recency-only ranking; DB error → scored=[]; summary LLM failure → `final_reply[:200]`; INSERT failure → skip silently; `MEMORY_ENABLED=False` → no-op; `user_id="anonymous"` → no-op.
+
+### L3: User Profile — Deprecated (2026-07-20)
+
+Profile inference (`_update_genres` / `_update_affinities` / `_format_profile_summary`) had negligible value for an entertainment-focused agent — anime discussion preferences don't guide future answers, and L2 semantic recall already provides cross-session continuity. All L3 methods preserved with `[L3 deprecated]` docstrings. DB tables not dropped. Can be reactivated by uncommenting call sites.
+
+### Session Cache
+
+`session_cache.py` — bridges HTTP statelessness for L1. Same `session_id` across multiple `POST /chat` calls: prior messages injected into `state["messages"]` from in-memory cache so L1 sliding window has data to manage. In-memory only, TTL 1h, max 1000 sessions. SystemMessages excluded (rebuilt every round with fresh L2 memory + critic feedback).
+
+### Memory Configuration
+
+| Config key | Value | Notes |
+|---|---|---|
+| `MEMORY_ENABLED` | `True` | Master kill switch |
+| `MEMORY_RECALL_TOP_K` | `5` | Max sessions to recall |
+| `MEMORY_RECALL_THRESHOLD` | `0.5` | Research semantic threshold |
+| `MEMORY_DIALOGUE_RECALL_THRESHOLD` | `0.35` | Dialogue semantic threshold (tighter) |
+| `MEMORY_TIME_DECAY_HALF_LIFE_DAYS` | `14` | Time decay half-life |
+| `MEMORY_RECENCY_FALLBACK_THRESHOLD` | `0.60` | Recency fallback anchor |
+| `MEMORY_MAX_INJECT_TOKENS` | `700` | Research L2 injection budget |
+| `MEMORY_DIALOGUE_MAX_INJECT_TOKENS` | `300` | Dialogue L2 injection budget |
+| `MEMORY_MIN_SESSIONS_FOR_PROFILE` | `5` | [L3 deprecated] |
+
+### Memory Tests
+
+`test/test_memory.py` (L1) + `test/test_memory_manager.py` (L2, 23 L3 tests skipped) + `test/test_phase5_l1.py` (token budgets). Total: ~62 passed, 23 skipped.
+
+## Phase 5.5: Output Style Control ✅ (2026-06-17)
+
+Prompt appendix injection — zero extra LLM calls, four-quadrant `output_style` control.
+
+**Design decision**: The original ROADMAP planned a post-processing `render()` architecture (hexagonal ports & adapters, separate `agent/personality/` module, second LLM call for style rewriting). This was tested and rejected — the extra LLM call added latency and risked data fabrication. The Lite approach was adopted as the **canonical implementation**.
+
+### Architecture: Prompt Appendix Injection
+
+```
+build_system_prompt() / build_dialogue_prompt()
+  → BASE/CORE prompt (capabilities + strategy, no persona)
+  → intent variant
+  → L2 memory context
+  → style appendix (from agent/styles.py, "" when neutral)
+  → LLM generates styled output directly — one call, no post-processing
+```
+
+The model handles "reasoning + styling" in a single inference pass. No separate render LLM, no diff validation needed, no added latency.
+
+### File: `agent/styles.py` (99 lines)
+
+Two independent dicts — Dialogue and Research use different appendix strings for the same `"bangumi"` semantic:
+
+| Dict | Used by | `"neutral"` | `"bangumi"` |
+|------|---------|-------------|-------------|
+| `STYLE_APPENDICES` | Dialogue | `""` (zero tokens) | Full persona: 腹黑萝莉, 30-80 char limit, 150 char max with tools |
+| `STYLE_APPENDICES_RESEARCH` | Research | `""` (zero tokens) | Soft version: same persona, **no word limits**, emphasizes data completeness |
+
+Dialogue Bangumi appendix has hard constraints (30-80 chars chat, ≤150 chars with tools). Research Bangumi appendix is a soft version — same 腹黑 tone but explicitly instructs "数据完整性和工具调用策略不变，不要因为风格要求而缩减数据或跳过工具调用."
+
+### Core/Style Separation
+
+**Dialogue** (`agent/dialogue/prompts.py`):
+- `DIALOGUE_CORE_PROMPT` — capabilities, tool strategy, output format, continuity rules. **Persona-free** (no "Bangumi娘", no "腹黑萝莉").
+- `BANGUMI_STYLE_APPENDIX` in `agent/styles.py` — persona, tone, word limits.
+- `build_dialogue_prompt(output_style=)` assembles: CORE → style appendix → memory.
+
+**Research** (`agent/research/prompts.py`):
+- `BASE_SYSTEM_PROMPT` — capabilities, data model constraints, continuity rules, output format. Contains "回答风格：简洁、具体、可操作" (not fully stripped — see known issues).
+- `BANGUMI_STYLE_RESEARCH_APPENDIX` in `agent/styles.py` — soft persona, no word limits.
+- `build_system_prompt(output_style=)` assembles: BASE → memory → intent variant → critic feedback → style appendix.
+
+### Data Flow
+
+```
+POST /chat { output_style: "bangumi" | "neutral" | null }
+  → _resolve_output_style(): explicit > AGENT_DEFAULT_STYLES (dialogue→bangumi, research→neutral)
+  → state["output_style"] = resolved_style
+  → reasoning_node → build_*_prompt(output_style=...) → style appendix injected
+  → LLM generates styled output
+  → ChatResponse { output_style: resolved_style }
+```
+
+### State Fields
+
+Both `AgentState` (Research) and `DialogueState` have `output_style: str` — set by `main.py` at graph entry, read by prompt builders, returned in response.
+
+### Key Design Properties
+
+1. **Zero extra latency**: Style is prompt-only; no second LLM call. Compare: original `render()` plan would add ~500ms per response.
+2. **No data fabrication risk**: The model sees raw data AND style instructions simultaneously — it styles while reasoning, rather than rewriting after the fact. No need for diff validation.
+3. **"neutral" = zero token overhead**: Empty string in both dicts; `build_*_prompt()` skips empty appendices.
+4. **Agent-appropriate differentiation**: Dialogue gets tight word limits; Research gets "soft" persona that preserves data completeness.
+5. **Extensible**: Adding a new style requires: (a) write appendix string, (b) register in the appropriate dict. Two keys, not a new module.
+
+### Test Coverage
+
+`test/test_prompts.py` — 7 tests covering all four quadrants:
+- `test_research_neutral_excludes_style` — no "腹黑"/"吐槽" in output
+- `test_research_bangumi_includes_style` — has persona, no word limits, has data integrity note
+- `test_dialogue_neutral_excludes_persona` — no persona, has core capabilities
+- `test_dialogue_bangumi_includes_persona` — has persona + word limits
+- `test_dialogue_core_prompt_has_no_persona` — CORE is persona-free
+- `test_style_registry_keys` — both dicts have "neutral"→"" and "bangumi"→non-empty
+
+### Known Deviations from Ideal
+
+1. **`BASE_SYSTEM_PROMPT` still has "回答风格：简洁、具体、可操作"** — a style instruction in the neutral base prompt. Minor; doesn't break functionality but means Research neutral isn't perfectly style-free.
+2. **`DIALOGUE_CORE_PROMPT` has "你是吐槽役，不是论文写手"** — a minor persona leak in the otherwise-persona-free CORE prompt.
+3. **`/chat/stream` doesn't report `output_style`** in SSE events. The style IS resolved and passed to the graph, but streaming clients can't see which style is active.
+4. **Original design doc** (`docs/design/personality-rendering-layer.md`, 347 lines) describes the rejected hexagonal architecture. Kept for historical reference; ROADMAP.md is the authoritative source.
+
+## Phase 6: More Tools & Community Data — Reserved
+
+> Planned: `get_group_topics`, `web_search`, `polish_text`, community sentiment analysis. Memory system benefits from public memories (`public_memories` table already created). Not started.
+
+## Current Known Issues (2026-07-21)
+
+**🟡 Medium:**
+
+1. **Streaming endpoint is node-level only**: `/chat/stream` pushes node-completion events, not token-by-token streaming
+2. **Critic `< 20 chars` hard threshold**: Despite escape hatch, may still reject legitimate short responses
+3. **`_memory_context` empty-string caching**: When `recall_for_prompt()` returns `""`, subsequent reasoning node entries re-trigger embedding calls because `""` is falsy. Low impact (~2-3 extra calls/request for new users). Fix: use a sentinel value (~3 lines)
+
+**ℹ️ Minor:**
+
+4. **Summary LLM has no independent timeout**: Reuses `create_llm(request_timeout=10)`. Very slow models could extend fire-and-forget task duration
+5. **`session_memories` doesn't track `agent_type`**: Recall can't distinguish dialogue vs research sessions
+
+## Technical Debt
+
+- **RAG v0/v1 coexistence**: Deprecated `BangumiChunk` series coexists with new `RagEntity` series. Old tables still referenced in tests. DB is empty — clean removal is low-risk
+- **`create_llm()` no caching**: Creates a new `ChatOpenAI` instance on every call. Minor overhead but listed as P3-2 in ROADMAP
+- **HNSW index creation fails** on 2048d vectors (pgvector limit is 2000d). Logged as WARNING, falls through gracefully. Consider reducing embedding dimension or using IVFFlat
+
+## Documentation Index
+
+| Document | Content |
+|----------|---------|
+| `CLAUDE.md` | This file — architecture, conventions, current state |
+| `docs/design/ROADMAP.md` | Development roadmap, phase details, fix status |
+| `docs/design/phase5-memory-system-design.md` | Phase 5 full design spec (1194 lines) |
+| `docs/design/personality-rendering-layer.md` | Phase 5.5 original design (render-based approach, not the Lite implementation) |
+| `docs/memory/` | Memory system manuals (6 files: architecture, implementation, config, testing, debugging) |
+| `docs/ARCHITECTURE.md` | Legacy architecture doc (2026-05-29, partially outdated) |
+| `README.md` | Project README (badges, quick start — partially outdated) |

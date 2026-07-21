@@ -112,7 +112,8 @@ class TestFormatMemoryContext:
         result = MemoryManager._format_memory_context(mm, [], None, max_tokens=500)
         assert result == ""
 
-    def test_includes_profile_when_present(self):
+    def test_profile_ignored_when_present(self):
+        """L3 已移除——传入 profile 不应注入画像文本。"""
         profile = MagicMock()
         profile.preferences_json = {
             "favorite_genres": [{"genre": "机战", "count": 5}],
@@ -120,19 +121,21 @@ class TestFormatMemoryContext:
         }
         profile.total_sessions = 10
 
-        # _format_memory_context 是实例方法，调用 self._format_profile_summary。
-        # 用 MagicMock 作 self 并 patch _format_profile_summary 返回实际文本
         mm_mock = MagicMock()
         mm_mock._format_profile_summary = lambda p: MemoryManager._format_profile_summary(p)
 
         result = MemoryManager._format_memory_context(
             mm_mock, [], profile, max_tokens=500
         )
-        assert "机战" in result
+        # L3 deprecated: 即使传入 profile，也不应注入"机战""用户偏好摘要"等画像文本
+        assert "机战" not in result
+        assert "用户偏好摘要" not in result
+        assert result == ""
 
 
+@pytest.mark.skip(reason="L3 user profile deprecated")
 class TestFormatProfileSummary:
-    """_format_profile_summary — 画像摘要文本"""
+    """_format_profile_summary — 画像摘要文本 [L3 deprecated]"""
 
     def test_genres_and_affinities(self):
         profile = MagicMock()
@@ -227,8 +230,9 @@ class TestSessionMemoryDB:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skip(reason="L3 user profile deprecated")
 class TestUpdateGenres:
-    """_update_genres() — 从实体名关键词推断类型频率"""
+    """_update_genres() — 从实体名关键词推断类型频率 [L3 deprecated]"""
 
     def test_empty_entities_preserves_prefs(self):
         """空 entities 时 prefs 不变"""
@@ -325,8 +329,9 @@ class TestUpdateGenres:
         assert result["favorite_genres"][0] == {"genre": "机战", "count": 1}
 
 
+@pytest.mark.skip(reason="L3 user profile deprecated")
 class TestUpdateAffinities:
-    """_update_affinities() — 实体亲和度 EMA 更新"""
+    """_update_affinities() — 实体亲和度 EMA 更新 [L3 deprecated]"""
 
     def test_empty_entities_preserves_prefs(self):
         """空 entities 时 prefs 不变"""

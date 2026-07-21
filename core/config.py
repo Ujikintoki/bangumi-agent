@@ -130,14 +130,16 @@ class Settings(BaseSettings):
     """语义检索召回的候选 session 摘要数。"""
 
     MEMORY_RECALL_THRESHOLD: float = 0.5
-    """语义检索的余弦距离阈值。超过此值的 session 摘要被视为不相关并丢弃。"""
+    """语义检索的余弦距离阈值（Research Agent 用）。
+    超过此值的 session 摘要被视为不相关并丢弃。"""
+
+    MEMORY_DIALOGUE_RECALL_THRESHOLD: float = 0.35
+    """Dialogue Agent 专用的语义检索余弦距离阈值。
+    比 Research 的 0.5 更严格——dialogue 对话跳跃性大，
+    旧记忆更容易成为噪音，只有高度语义相关的才注入。"""
 
     MEMORY_MIN_SESSIONS_FOR_PROFILE: int = 5
-    """开始注入用户画像的最低 session 数（冷启动保护）。
-
-    设为较高值 (5) 是因为 L3 用户画像的边际收益有限——对于以
-    吐槽/查询/闲聊为主的对话伴侣型 Agent，用户偏好画像远不如
-    L1 同 session 滑动窗口和 L2 跨 session 语义召回有用。"""
+    """[L3 deprecated] 画像已移除，此项保留以备未来重新激活。"""
 
     MEMORY_TIME_DECAY_HALF_LIFE_DAYS: int = 14
     """时间衰减半衰期（天）。

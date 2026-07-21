@@ -29,6 +29,13 @@ logger = logging.getLogger("bgm-agent.dialogue")
 # 不绑定工具的意图（LLM 直接回复）
 _NO_TOOL_INTENTS = frozenset({"chitchat", "factual"})
 
+# 最后一轮强制回复指令（注入 System Prompt 末尾）
+_LAST_CHANCE_INSTRUCTION = """## ⚠️ 最后一轮——必须现在回复
+
+你已经没有更多轮次了。**绝对禁止**调用任何工具。
+基于已经获取的数据直接回复用户，不要追求"完整"。
+如果确实没有任何有用数据，诚实告诉用户并换个方式提问。"""
+
 
 async def dialogue_reasoning_node(state: DialogueState) -> dict:
     """Dialogue 推理节点：意图分类 + LLM function-calling 决策。
@@ -89,6 +96,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
                     user_id=user_id,
                     query=user_query,
                     max_tokens=get_settings().MEMORY_DIALOGUE_MAX_INJECT_TOKENS,
+                    recall_threshold=get_settings().MEMORY_DIALOGUE_RECALL_THRESHOLD,
                 )
                 if memory_context:
                     logger.info(
@@ -103,11 +111,24 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
                     exc_info=True,
                 )
 
-    # ── Step 3: 构建消息列表（不含截断——截断在重复检测后执行） ──
+    # ── Step 3: 构建消息列表 ──
     system_content = build_dialogue_prompt(
         memory_context=memory_context,
         output_style=state.get("output_style", "bangumi"),
     )
+
+    # ── Step 3.5: 最后一轮强制回复 ───────────────────────────
+    # 当迭代达到 _MAX_ITERATIONS - 1 时，这是最后一轮机会。
+    # 注入紧急指令 + 解绑工具，防止模型继续调工具导致熔断无回复。
+    is_last_chance = new_iterations >= _MAX_ITERATIONS - 1
+    if is_last_chance and query_intent not in _NO_TOOL_INTENTS:
+        logger.info(
+            "dialogue: 最后一轮 (iter=%d/%d) → 注入强制回复指令",
+            new_iterations,
+            _MAX_ITERATIONS,
+        )
+        system_content += "\n\n" + _LAST_CHANCE_INSTRUCTION
+
     messages_for_llm = [SystemMessage(content=system_content)]
 
     skipped_system = 0
@@ -129,6 +150,10 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     if query_intent in _NO_TOOL_INTENTS:
         llm_to_use = llm
         logger.debug("dialogue_reasoning_node: intent=%s → 不绑定工具", query_intent)
+    elif is_last_chance:
+        # 最后一轮强制解绑工具 —— injection above tells the LLM why
+        llm_to_use = llm
+        logger.info("dialogue_reasoning_node: 最后一轮 → 强制解绑工具")
     else:
         tools = get_agent_tools()
         llm_to_use = llm.bind_tools(tools)

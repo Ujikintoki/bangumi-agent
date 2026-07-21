@@ -475,11 +475,10 @@ async def _remember_session(
     result: dict,
     request: ChatRequest,
 ) -> None:
-    """Fire-and-forget: 写入 L2 session 摘要 + 增量更新用户画像。
+    """Fire-and-forget: 写入 L2 session 摘要。
 
     Agent 返回结果后，在后台异步执行 LLM 摘要 → embedding →
-    INSERT session_memories + UPSERT user_profiles。不阻塞
-    HTTP 响应——用户感知延迟为零。
+    INSERT session_memories。不阻塞 HTTP 响应——用户感知延迟为零。
 
     整个 remember_session 链路设有 15 秒硬超时。正常链路
     （摘要 LLM 10s + embedding 0.1s + DB <0.1s）约 10-11 秒，

@@ -1,6 +1,14 @@
 # Output Boundary — 输出边界渲染层 (设计规范 v2)
 
-## 1. 核心思想
+> ⚠️ **DEPRECATED — 此方案未采用。**  
+> 本文档描述的后处理 `render()` 六边形架构经测试不合理（额外 LLM 延迟 + 数据编造风险），**未投入实现**。  
+> 实际采用的方案为 **Prompt Appendix 注入**（`agent/styles.py`，零额外 LLM 调用）。  
+> 权威文档：[CLAUDE.md](../../CLAUDE.md) Phase 5.5 节 + [ROADMAP.md](ROADMAP.md) Phase 5.5 节。  
+> 本文档保留仅供历史参考。
+
+---
+
+## 1. 核心思想（废弃）
 
 > **推理（Reasoning）与表达（Expression）解耦。采用六边形架构（Ports & Adapters），
 > 将输出风格化视为独立的 output boundary，与 Agent 核心领域逻辑完全分离。**
