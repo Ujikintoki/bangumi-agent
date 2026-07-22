@@ -24,3 +24,15 @@ test/mock_data/
 docs/tmp/
 docs/phase3/
 test/AI.js
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+
+# ── Coverage & Linting ───────────────────────────────────
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Claude Code ──────────────────────────────────────────
+.claude/
