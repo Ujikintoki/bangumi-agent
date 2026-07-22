@@ -37,30 +37,41 @@ class TestReasoningNode:
     """research_reasoning_node — mock LLM"""
 
     @patch("agent.research.nodes.create_llm")
-    async def test_chitchat_does_not_bind_tools(self, mock_create_llm):
-        """chitchat（规则命中） → 不绑定工具"""
+    @patch("agent.research.nodes.get_agent_tools")
+    async def test_chitchat_still_binds_tools(self, mock_get_tools, mock_create_llm):
+        """chitchat → 仍绑定工具，LLM 自主决定是否调用"""
+        mock_get_tools.return_value = []
         mock = make_mock_llm(content="你好！有什么可以帮你的？")
         mock_create_llm.return_value = mock
 
         from langchain_core.messages import SystemMessage, HumanMessage
-        state = make_state(messages=[SystemMessage(content="..."), HumanMessage(content="你好")])
+        # iterations=1 跳过分类——本测试验证工具绑定行为，不验证分类
+        state = make_state(
+            messages=[SystemMessage(content="..."), HumanMessage(content="你好")],
+            query_intent="chitchat", iterations=1,
+        )
         result = await research_reasoning_node(state)
 
-        mock.bind_tools.assert_not_called()
+        mock.bind_tools.assert_called_once()
         assert _extract_tool_calls_from_result(result) == []
         assert result["query_intent"] == "chitchat"
 
     @patch("agent.research.nodes.create_llm")
-    async def test_factual_does_not_bind_tools(self, mock_create_llm):
-        """factual → 不绑定工具"""
+    @patch("agent.research.nodes.get_agent_tools")
+    async def test_factual_still_binds_tools(self, mock_get_tools, mock_create_llm):
+        """factual → 仍绑定工具，LLM 自主决定"""
+        mock_get_tools.return_value = []
         mock = make_mock_llm(content="三集定律是指...")
         mock_create_llm.return_value = mock
 
         from langchain_core.messages import SystemMessage, HumanMessage
-        state = make_state(messages=[SystemMessage(content="..."), HumanMessage(content="什么是三集定律")])
+        state = make_state(
+            messages=[SystemMessage(content="..."), HumanMessage(content="什么是三集定律")],
+            query_intent="factual", iterations=1,
+        )
         result = await research_reasoning_node(state)
 
-        mock.bind_tools.assert_not_called()
+        mock.bind_tools.assert_called_once()
         assert result["query_intent"] == "factual"
 
     @patch("agent.research.nodes.create_llm")
@@ -190,8 +201,10 @@ class TestReasoningNode:
         assert _extract_tool_calls_from_result(result) == []
 
     @patch("agent.research.nodes.create_llm")
-    async def test_digestion_mode_chitchat_still_skips_tools(self, mock_create_llm):
-        """消化态 + chitchat → 仍不绑定工具（chitchat 任何情况下都不绑）"""
+    @patch("agent.research.nodes.get_agent_tools")
+    async def test_digestion_mode_chitchat_still_binds_tools(self, mock_get_tools, mock_create_llm):
+        """消化态 + chitchat → 仍绑定工具（所有 intent 始终绑工具）"""
+        mock_get_tools.return_value = []
         mock = make_mock_llm(content="你好！有什么可以帮你的？")
         mock_create_llm.return_value = mock
 
@@ -207,6 +220,6 @@ class TestReasoningNode:
             iterations=1,
         )
         result = await research_reasoning_node(state)
-        mock.bind_tools.assert_not_called()
+        mock.bind_tools.assert_called_once()
         assert _extract_tool_calls_from_result(result) == []
         assert result["query_intent"] == "chitchat"

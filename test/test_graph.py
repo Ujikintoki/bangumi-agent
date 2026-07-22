@@ -36,7 +36,11 @@ class TestGraphIntegration:
     async def test_chitchat_fast_path_skips_critic(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="你好！")
         graph = build_graph(tools=MOCK_TOOLS)
-        state = make_state(messages=[SystemMessage(content="..."), HumanMessage(content="你好")])
+        # iterations=1 跳过分类——本测试验证路由行为，不验证分类
+        state = make_state(
+            messages=[SystemMessage(content="..."), HumanMessage(content="你好")],
+            query_intent="chitchat", iterations=1,
+        )
         result = await graph.ainvoke(state)
         assert result.get("critic_status") == "PENDING"  # critic 从未被调用
         assert result.get("query_intent") == "chitchat"
@@ -189,9 +193,17 @@ class TestStateLifecycle:
 
         await _test()
 
-    async def test_critic_status_transitions(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_critic_status_transitions(self, mock_get_settings):
         """critic_status 正常流转: PENDING → REVISE → PASS"""
         from agent.research.nodes import critic_node
+        from unittest.mock import MagicMock
+
+        s = MagicMock()
+        s.CRITIC_MODE = "rule"
+        s.LLM_CRITIC_MODEL = ""
+        s.LLM_MODEL = "test"
+        mock_get_settings.return_value = s
 
         # REVISE: 工具返回但无有效回复
         state1 = make_state(iterations=1, messages=[

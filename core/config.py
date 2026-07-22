@@ -164,11 +164,11 @@ class Settings(BaseSettings):
     Dialogue 消息长度较短，使用 300 的较紧预算。"""
 
     # ── Critic 模式 ───────────────────────────────────────────
-    CRITIC_MODE: str = "rule"
-    """Critic 评估模式：``"rule"``（零 Token 规则版，默认）或 ``"llm"``（LLM 定向反馈）。
+    CRITIC_MODE: str = "llm"
+    """Critic 评估模式：``"llm"``（LLM 定向反馈，默认）或 ``"rule"``（零 Token 规则版）。
 
-    推荐先用规则版验证流程，确认 ReAct 循环和 feedback 注入机制正确后，
-    切换到 LLM 版获得更精准的评估。"""
+    LLM 版让模型自行评估完整性、具体性、工具利用三个维度，消除了规则版的
+    硬编码阈值（``< 10 chars`` 等）。规则版保留作为 fallback 选项。"""
 
     # ── 智谱 AI 配置 ──────────────────────────────────────────
     ZHIPU_API_KEY: str = ""

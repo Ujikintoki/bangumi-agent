@@ -11,15 +11,20 @@ import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.classifier import _NO_TOOL_INTENTS, classify_intent
 from agent.guardrails import (
     TOOL_CALL_XML_RESIDUE,
     check_duplicate_tool_calls,
     is_terminal_response,
-    strip_tool_call_xml,
 )
 from agent.llm import create_llm
 from agent.memory import DEFAULT_MAX_TOKENS, manage_memory
+from agent.reasoning_core import (
+    build_message_list,
+    classify_intent_step,
+    extract_user_input,
+    guard_xml_leak,
+    recall_memory_step,
+)
 from agent.research.prompts import build_system_prompt
 from agent.research.state import _MAX_ITERATIONS, AgentState
 from core.config import get_settings
@@ -73,61 +78,18 @@ async def research_reasoning_node(state: AgentState) -> dict:
     messages = state.get("messages", [])
 
     # ── Step 1: 意图分类（仅第一轮） ─────────────────────────
-    query_intent = state.get("query_intent", "unknown")
-    intent_method = "cached"
-
-    # 仅首轮推理时执行意图分类；后续轮次（如 tool 后的消化步）
-    # 复用首轮结果，避免 LLM 非确定性导致同一查询被反复重分类为不同意图。
-    if state.get("iterations", 0) == 0:
-        # 提取用户原始输入
-        user_input = _extract_user_input(state)
-        if user_input:
-            # 使用轻量 LLM 做 fallback 分类（temperature=0, max_tokens=10）
-            classifier_llm = create_llm(
-                temperature=0, max_tokens=10, request_timeout=10
-            )
-            query_intent, intent_method = await classify_intent(
-                user_input, classifier_llm
-            )
-            logger.info(
-                "[Intent] query='%s' → intent=%s (method=%s)",
-                user_input[:80],
-                query_intent,
-                intent_method,
-            )
-        else:
-            query_intent = "unknown"
-            intent_method = "rule(empty)"
+    query_intent, intent_method, did_classify = await classify_intent_step(state)
+    if did_classify:
+        user_input = extract_user_input(state)
+        logger.info(
+            "[Intent] query='%s' → intent=%s (method=%s)",
+            user_input[:80], query_intent, intent_method,
+        )
 
     # ── Step 1.5: 记忆召回（state 缓存，仅首次触发）─────
-    # L2/L3 记忆在首轮推理前召回并注入 System Prompt。后续轮次
-    # （工具消化、Critic REVISE）复用 state._memory_context 缓存，
-    # 避免重复 embedding + pgvector 检索。
-    # chitchat/factual 由 L1 滑动窗口兜底，不触发 L2 召回。
-    memory_context = state.get("_memory_context", "")
-    if not memory_context and query_intent not in _NO_TOOL_INTENTS:
-        user_id = state.get("user_id", "anonymous")
-        user_query = _extract_user_input(state)
-        if user_id != "anonymous" and user_query:
-            try:
-                from agent.memory_manager import get_memory_manager
-
-                mm = get_memory_manager()
-                memory_context = await mm.recall_for_prompt(
-                    user_id=user_id,
-                    query=user_query,
-                    max_tokens=get_settings().MEMORY_MAX_INJECT_TOKENS,
-                )
-                if memory_context:
-                    logger.info(
-                        "[Memory] 召回 %d 字 (user=%s)",
-                        len(memory_context),
-                        user_id,
-                    )
-            except Exception:
-                logger.warning(
-                    "[Memory] 召回异常 (user=%s)", user_id, exc_info=True
-                )
+    memory_context = await recall_memory_step(
+        state, max_tokens=get_settings().MEMORY_MAX_INJECT_TOKENS,
+    )
 
     # ── Step 2: 构建 System Prompt ───────────────────────────
     critic_feedback = state.get("critic_feedback", "")
@@ -139,19 +101,7 @@ async def research_reasoning_node(state: AgentState) -> dict:
     )
 
     # ── Step 3: 构建消息列表（不含截断——截断在消化态引导后执行） ──
-    messages_for_llm = [SystemMessage(content=system_content)]
-
-    # 追加历史消息（跳过原有的 SystemMessage，用新 SystemPrompt 替换）
-    skipped_system = 0
-    for m in messages:
-        if isinstance(m, SystemMessage):
-            skipped_system += 1
-            continue  # 用新的 SystemMessage 替换
-        messages_for_llm.append(m)
-    if skipped_system > 0:
-        logger.debug(
-            "跳过 %d 条旧 SystemMessage，使用新的 SystemPrompt", skipped_system
-        )
+    messages_for_llm = build_message_list(messages, system_content)
 
     # ── Step 4: LLM 调用 ─────────────────────────────────────
     llm = create_llm()
@@ -161,26 +111,18 @@ async def research_reasoning_node(state: AgentState) -> dict:
     if is_digesting:
         logger.debug("research_reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
-    # chitchat / factual 不绑定工具——节省 token，防止"你好"也调搜索
-    # lookup / discovery / realtime 始终绑定工具——模型自主判断何时停止调用，
-    # 而非每一轮工具执行后强制消化。强制消化是 XML 泄漏的根因（DeepSeek 等
-    # function-calling 微调模型想继续调工具但通道被封 → 溢写到 .content）。
+    # 始终绑定工具——LLM 自主判断是否需要调用。
+    # query_intent 仅影响 System Prompt 策略描述（"尽量不调工具" vs "建议搜索"），
+    # 不影响工具可用性。LLM 在"你好"时自然跳过搜索，"你好，EVA评分？"时自主搜索。
     # 循环保护由 Critic（重复调用检测）+ _MAX_ITERATIONS 熔断负责。
-    if query_intent in _NO_TOOL_INTENTS:
-        llm_to_use = llm
-        logger.debug("research_reasoning_node: intent=%s → 不绑定工具", query_intent)
-    else:
-        tools = get_agent_tools()
-        llm_to_use = llm.bind_tools(tools)
-        if is_digesting:
-            logger.debug(
-                "research_reasoning_node: 消化态 → 仍然绑定 %d 个工具，模型自主判断是否需要后续调用",
-                len(tools),
-            )
-        else:
-            logger.debug(
-                "research_reasoning_node: intent=%s → 绑定 %d 个工具", query_intent, len(tools)
-            )
+    tools = get_agent_tools()
+    llm_to_use = llm.bind_tools(tools)
+    logger.debug(
+        "research_reasoning_node: intent=%s → 绑定 %d 个工具%s",
+        query_intent,
+        len(tools),
+        " (消化态，模型自主判断)" if is_digesting else "",
+    )
 
     # ── 消化态引导指令 ────────────────────────────────────
     # 工具结果回来后，引导模型优先综合数据输出文本回复，同时允许必要时
@@ -216,47 +158,13 @@ async def research_reasoning_node(state: AgentState) -> dict:
             "_memory_context": memory_context,
         }
 
-    # ── chitchat/factual XML 泄漏自纠正 ──────────────────────
-    # chitchat/factual 不绑工具，但 L1 上下文可能暗示需要工具
-    # （如历史中有推荐列表，"具体说说第一部" 判 chitchat）。
-    # 检测到 LLM 生成 <function_calls> → 自动绑工具重试，而非清空回复。
-    if query_intent in _NO_TOOL_INTENTS and response.content:
-        _, was_stripped = strip_tool_call_xml(response.content)
-        if was_stripped:
-            logger.info(
-                "research: chitchat/factual 检测到工具意图 → 自动绑工具重试"
-            )
-            tools = get_agent_tools()
-            llm_with_tools = llm.bind_tools(tools)
-            try:
-                response = await llm_with_tools.ainvoke(messages_for_llm)
-            except Exception:
-                logger.exception("research: chitchat 自纠正重试失败")
-                response = AIMessage(
-                    content="抱歉，处理请求时遇到问题，请换个方式问问？"
-                )
-
     # ── 消化态 XML 泄漏安全网 ──────────────────────────────
-    # 第二道防线：即使注入指令后模型仍然在 content 中输出 XML 工具调用，
-    # 检测并剥离这些标签。防止脏数据进入路由器和 Critic。
-    if is_digesting and response.content:
-        cleaned, was_stripped = strip_tool_call_xml(response.content)
-        if was_stripped:
-            logger.warning("research_reasoning_node: 消化态检测到泄露的工具调用 XML，已自动清理")
-            if not cleaned:
-                # XML 是全部内容 → 替换为兜底回复
-                cleaned = (
-                    "抱歉，我无法正确处理工具返回的数据。"
-                    "请尝试换个方式提问，或提供更具体的信息。"
-                )
-                logger.warning(
-                    "research_reasoning_node: 消化态 XML 剥离后内容为空，使用兜底回复"
-                )
-            response = AIMessage(
-                content=cleaned,
-                response_metadata=getattr(response, "response_metadata", {}),
-                id=getattr(response, "id", None),
-            )
+    response = guard_xml_leak(
+        response,
+        is_digesting=is_digesting,
+        fallback_text="抱歉，我无法正确处理工具返回的数据。请尝试换个方式提问，或提供更具体的信息。",
+        log=logger,
+    )
 
     # ── Step 5: 提取 tool_calls（仅用于日志） ──────────────
     last_tool_calls = (
@@ -285,26 +193,9 @@ async def research_reasoning_node(state: AgentState) -> dict:
     }
 
 
-# ═══════════════════════════════════════════════════════════════════
-
-
-def _extract_user_input(state: AgentState) -> str:
-    """从消息历史中提取用户原始输入。
-
-    查找最后一条 HumanMessage，跳过 SystemMessage 和 AI 消息。
-    用于意图分类器——只需要用户的原始问题，不需要对话上下文。
-
-    Args:
-        state: 当前 Agent 全局状态。
-
-    Returns:
-        用户原始输入文本。未找到时返回空字符串。
-    """
-    messages = state.get("messages", [])
-    for m in reversed(messages):
-        if isinstance(m, HumanMessage):
-            return m.content if hasattr(m, "content") else str(m)
-    return ""
+# _extract_user_input 已迁移至 agent/reasoning_core.py → extract_user_input。
+# 保留别名以兼容 test/test_state.py 的旧 import 路径。
+_extract_user_input = extract_user_input
 
 
 # ═══════════════════════════════════════════════════════════════════

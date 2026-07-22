@@ -11,16 +11,21 @@ import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.classifier import _NO_TOOL_INTENTS, classify_intent
 from agent.dialogue.prompts import build_dialogue_prompt
 from agent.dialogue.state import _MAX_ITERATIONS, DialogueState
 from agent.guardrails import (
     check_duplicate_tool_calls,
     is_terminal_response,
-    strip_tool_call_xml,
 )
 from agent.llm import create_llm
 from agent.memory import DIALOGUE_MAX_TOKENS, manage_memory
+from agent.reasoning_core import (
+    build_message_list,
+    classify_intent_step,
+    extract_user_input,
+    guard_xml_leak,
+    recall_memory_step,
+)
 from core.config import get_settings
 from tools.bgm_tools import get_agent_tools, set_tool_agent_type, set_tool_intent
 
@@ -44,7 +49,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         1. 记忆截断（manage_memory，同 Research）
         2. 意图分类（仅首轮，复用 classify_intent）
         3. 构建 System Prompt（Bangumi娘人格）
-        4. LLM 调用：chitchat/factual 不绑工具，其余绑工具并让模型自主判断
+        4. LLM 调用：始终绑定工具，LLM 自主判断是否调用
 
     不需要的东西（vs Research）：
         - 消化态引导指令——模型自己会停
@@ -62,54 +67,20 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     messages = state.get("messages", [])
 
     # ── Step 2: 意图分类（仅第一轮） ───────────────────────
-    query_intent = state.get("query_intent", "unknown")
-    intent_method = "cached"
-
-    if state.get("iterations", 0) == 0:
-        user_input = _extract_user_input(state)
-        if user_input:
-            classifier_llm = create_llm(temperature=0, max_tokens=10, request_timeout=10)
-            query_intent, intent_method = await classify_intent(user_input, classifier_llm)
-            logger.info(
-                "[Dialogue Intent] query='%s' → intent=%s (method=%s)",
-                user_input[:80],
-                query_intent,
-                intent_method,
-            )
-        else:
-            query_intent = "unknown"
-            intent_method = "rule(empty)"
+    query_intent, intent_method, did_classify = await classify_intent_step(state)
+    if did_classify:
+        user_input = extract_user_input(state)
+        logger.info(
+            "[Dialogue Intent] query='%s' → intent=%s (method=%s)",
+            user_input[:80], query_intent, intent_method,
+        )
 
     # ── Step 2.5: 记忆召回（state 缓存，仅首次触发）─────
-    # chitchat/factual 不需要 L2 跨会话记忆——"早上好"不应
-    # 召回上周的机战番。短追问的指代由 L1 滑动窗口兜底。
-    memory_context = state.get("_memory_context", "")
-    if not memory_context and query_intent not in _NO_TOOL_INTENTS:
-        user_id = state.get("user_id", "anonymous")
-        user_query = _extract_user_input(state)
-        if user_id != "anonymous" and user_query:
-            try:
-                from agent.memory_manager import get_memory_manager
-
-                mm = get_memory_manager()
-                memory_context = await mm.recall_for_prompt(
-                    user_id=user_id,
-                    query=user_query,
-                    max_tokens=get_settings().MEMORY_DIALOGUE_MAX_INJECT_TOKENS,
-                    recall_threshold=get_settings().MEMORY_DIALOGUE_RECALL_THRESHOLD,
-                )
-                if memory_context:
-                    logger.info(
-                        "[Memory] Dialogue 召回 %d 字 (user=%s)",
-                        len(memory_context),
-                        user_id,
-                    )
-            except Exception:
-                logger.warning(
-                    "[Memory] Dialogue 召回异常 (user=%s)",
-                    user_id,
-                    exc_info=True,
-                )
+    memory_context = await recall_memory_step(
+        state,
+        max_tokens=get_settings().MEMORY_DIALOGUE_MAX_INJECT_TOKENS,
+        recall_threshold=get_settings().MEMORY_DIALOGUE_RECALL_THRESHOLD,
+    )
 
     # ── Step 3: 构建消息列表 ──
     system_content = build_dialogue_prompt(
@@ -121,7 +92,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     # 当迭代达到 _MAX_ITERATIONS - 1 时，这是最后一轮机会。
     # 注入紧急指令 + 解绑工具，防止模型继续调工具导致熔断无回复。
     is_last_chance = new_iterations >= _MAX_ITERATIONS - 1
-    if is_last_chance and query_intent not in _NO_TOOL_INTENTS:
+    if is_last_chance:
         logger.info(
             "dialogue: 最后一轮 (iter=%d/%d) → 注入强制回复指令",
             new_iterations,
@@ -129,16 +100,7 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         )
         system_content += "\n\n" + _LAST_CHANCE_INSTRUCTION
 
-    messages_for_llm = [SystemMessage(content=system_content)]
-
-    skipped_system = 0
-    for m in messages:
-        if isinstance(m, SystemMessage):
-            skipped_system += 1
-            continue
-        messages_for_llm.append(m)
-    if skipped_system > 0:
-        logger.debug("dialogue: 跳过 %d 条旧 SystemMessage，使用新 SystemPrompt", skipped_system)
+    messages_for_llm = build_message_list(messages, system_content)
 
     # ── Step 4: LLM 调用 ──────────────────────────────────
     llm = create_llm()
@@ -147,11 +109,9 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     if is_digesting:
         logger.debug("dialogue_reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
-    if query_intent in _NO_TOOL_INTENTS:
-        llm_to_use = llm
-        logger.debug("dialogue_reasoning_node: intent=%s → 不绑定工具", query_intent)
-    elif is_last_chance:
-        # 最后一轮强制解绑工具 —— injection above tells the LLM why
+    # 始终绑定工具——LLM 自主判断是否需要调用（除非最后一轮强制解绑）。
+    # query_intent 仅影响 System Prompt 策略描述，不影响工具可用性。
+    if is_last_chance:
         llm_to_use = llm
         logger.info("dialogue_reasoning_node: 最后一轮 → 强制解绑工具")
     else:
@@ -203,42 +163,13 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         logger.info("dialogue: 终端回复（逃逸舱）→ 强制结束")
         new_iterations = _MAX_ITERATIONS  # 让路由函数熔断到 END
 
-    # ── Step 6: XML 泄漏防护 ──────────────────────────────
-    # 两种情况：
-    # 1. chitchat/factual 无工具通道 → 检测到工具意图后绑工具重试
-    # 2. 消化态 → 工具已绑定，仍泄漏则清理解
-    needs_xml_guard = (
-        query_intent in _NO_TOOL_INTENTS  # 无工具通道
-        or is_digesting                    # 消化态
+    # ── Step 6: XML 泄漏防护（仅消化态）──────────────────
+    response = guard_xml_leak(
+        response,
+        is_digesting=is_digesting,
+        fallback_text="啧，脑子有点乱，你再说一遍？",
+        log=logger,
     )
-    if needs_xml_guard and response.content:
-        cleaned, was_stripped = strip_tool_call_xml(response.content)
-        if was_stripped:
-            if query_intent in _NO_TOOL_INTENTS:
-                # chitchat/factual 无工具通道：LLM 想调工具 →
-                # 自动绑工具重试，而非丢弃为兜底文案
-                logger.info("dialogue: chitchat/factual 检测到工具意图 → 自动绑工具重试")
-                tools = get_agent_tools()
-                llm_with_tools = llm.bind_tools(tools)
-                try:
-                    response = await llm_with_tools.ainvoke(messages_for_llm)
-                except Exception:
-                    logger.exception("dialogue: chitchat 自纠正重试失败")
-                    response = AIMessage(
-                        content="啧，脑子有点乱，你再说一遍？"
-                    )
-            else:
-                # 消化态：工具已绑定却仍泄漏 → 清理
-                logger.warning(
-                    "dialogue: 消化态回复中检测到 XML 泄漏，已清理"
-                )
-                if not cleaned:
-                    cleaned = "啧，脑子有点乱，你再说一遍？"
-                response = AIMessage(
-                    content=cleaned,
-                    response_metadata=getattr(response, "response_metadata", {}),
-                    id=getattr(response, "id", None),
-                )
 
     # ── Step 7: 日志 ──────────────────────────────────────
     tool_calls = (
@@ -266,10 +197,4 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
     }
 
 
-def _extract_user_input(state: DialogueState) -> str:
-    """从消息历史中提取用户原始输入。"""
-    messages = state.get("messages", [])
-    for m in reversed(messages):
-        if isinstance(m, HumanMessage):
-            return m.content if hasattr(m, "content") else str(m)
-    return ""
+# _extract_user_input 已迁移至 agent/reasoning_core.py → extract_user_input。

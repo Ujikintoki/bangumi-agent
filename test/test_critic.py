@@ -21,7 +21,15 @@ pytestmark = pytest.mark.asyncio
 
 
 class TestCriticNodeRule:
-    """规则版 Critic（默认）：零 Token 结构化检查"""
+    """规则版 Critic：零 Token 结构化检查"""
+
+    @staticmethod
+    def _set_rule_mode(mock_get_settings):
+        s = MagicMock()
+        s.CRITIC_MODE = "rule"
+        s.LLM_CRITIC_MODEL = ""
+        s.LLM_MODEL = "test"
+        mock_get_settings.return_value = s
 
     async def test_revise_when_tools_returned_but_no_ai_response(self):
         state = make_state(iterations=1, messages=[
@@ -33,7 +41,9 @@ class TestCriticNodeRule:
         assert result["critic_status"] == "REVISE"
         assert "回复缺失" in result.get("critic_feedback", "")
 
-    async def test_revise_when_reply_too_short(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_revise_when_reply_too_short(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         state = make_state(iterations=1, messages=[
             SystemMessage(content="..."), HumanMessage(content="搜巨人"),
             AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
@@ -51,7 +61,9 @@ class TestCriticNodeRule:
         ])
         assert (await critic_node(state))["critic_status"] == "PASS"
 
-    async def test_pass_for_normal_reply(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_pass_for_normal_reply(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         state = make_state(iterations=2, messages=[
             SystemMessage(content="..."), HumanMessage(content="搜巨人"),
             AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
@@ -60,7 +72,9 @@ class TestCriticNodeRule:
         ])
         assert (await critic_node(state))["critic_status"] == "PASS"
 
-    async def test_circuit_breaker(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_circuit_breaker(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         """熔断在 iterations >= _MAX_ITERATIONS(=12) 时触发，强制 PASS + error_flag。
 
         _MAX_ITERATIONS - 2 应正常 PASS（不含 error_flag 键），
@@ -85,7 +99,9 @@ class TestCriticNodeRule:
 
     # ── 逃逸舱：语义终端回复识别 ──────────────────────────
 
-    async def test_pass_for_honest_not_found(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_pass_for_honest_not_found(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         """搜索空结果 + 诚实告知 → PASS（不因字数少而 REVISE）"""
         state = make_state(iterations=2, messages=[
             SystemMessage(content="..."), HumanMessage(content="查上伊娜牡丹"),
@@ -98,7 +114,9 @@ class TestCriticNodeRule:
             f"诚实告知'未找到'应被逃逸舱保护为 PASS，实际: {result.get('critic_feedback')}"
         )
 
-    async def test_pass_for_clarification(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_pass_for_clarification(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         """追问用户澄清意图 → PASS"""
         state = make_state(iterations=2, messages=[
             SystemMessage(content="..."), HumanMessage(content="评分多少"),
@@ -111,7 +129,9 @@ class TestCriticNodeRule:
             f"追问用户应被逃逸舱保护为 PASS，实际: {result.get('critic_feedback')}"
         )
 
-    async def test_pass_for_character_no_rating_explanation(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_pass_for_character_no_rating_explanation(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         """说明角色没有评分 → PASS"""
         state = make_state(iterations=2, messages=[
             SystemMessage(content="..."), HumanMessage(content="上伊那牡丹的评分"),
@@ -140,7 +160,9 @@ class TestCriticNodeRule:
 
     # ── 重复工具调用检测 ──────────────────────────────────
 
-    async def test_revise_on_duplicate_tool_calls(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_revise_on_duplicate_tool_calls(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         """连续两轮调用相同工具且参数一致 → REVISE"""
         state = make_state(iterations=3, messages=[
             SystemMessage(content="..."), HumanMessage(content="今天有什么番"),
@@ -156,7 +178,9 @@ class TestCriticNodeRule:
         )
         assert "重复调用" in result.get("critic_feedback", "")
 
-    async def test_pass_when_different_tool_calls(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_pass_when_different_tool_calls(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         """连续两轮调用不同工具 → 不触发重复检测"""
         state = make_state(iterations=3, messages=[
             SystemMessage(content="..."), HumanMessage(content="今天有什么番"),
@@ -171,7 +195,9 @@ class TestCriticNodeRule:
             f"不同工具调用不应触发重复检测，实际: {result.get('critic_feedback')}"
         )
 
-    async def test_duplicate_detection_skips_single_tool_round(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_duplicate_detection_skips_single_tool_round(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         """只有一轮工具调用 → 不触发重复检测（正常 PASS）"""
         state = make_state(iterations=2, messages=[
             SystemMessage(content="..."), HumanMessage(content="今天有什么番"),
@@ -186,7 +212,9 @@ class TestCriticNodeRule:
 
     # ── Critic 窗口缩窄测试 ──────────────────────────────────
 
-    async def test_has_tool_msgs_scoped_to_current_iteration(self):
+    @patch("agent.research.nodes.get_settings")
+    async def test_has_tool_msgs_scoped_to_current_iteration(self, mock_settings):
+        self._set_rule_mode(mock_settings)
         """历史有 ToolMessage 但当前轮无工具 → has_tool_msgs 应为 False
 
         模拟场景：第一轮调了工具并 PASS，第二轮 REVISE 后 reasoning 直接回答

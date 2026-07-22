@@ -1,7 +1,7 @@
 """
-意图分类器测试
+意图分类器测试 — LLM 单阶段分类
 
-覆盖规则层（优先级队列）、LLM fallback、两阶段入口 classify_intent。
+覆盖 classify_intent_llm、classify_intent 入口。
 可独立运行: python -m pytest test/test_classifier.py -v
 """
 
@@ -13,87 +13,17 @@ import pytest
 from langchain_openai import ChatOpenAI
 
 from agent.classifier import (
-    INTENT_RULES,
     _VALID_INTENTS,
     classify_intent,
     classify_intent_llm,
-    classify_intent_rule,
 )
 from test.conftest import make_mock_llm
 
 pytestmark = pytest.mark.asyncio
 
 
-class TestIntentClassifierRule:
-    """规则层 — 优先级队列验证"""
-
-    @pytest.mark.parametrize("message,expected", [
-        ("你好", "chitchat"), ("谢谢你的帮助", "chitchat"), ("嗨", "chitchat"),
-        ("hello", "chitchat"), ("晚安", "chitchat"),
-    ])
-    def test_classify_chitchat(self, message, expected):
-        assert classify_intent_rule(message) == expected
-
-    @pytest.mark.parametrize("message,expected", [
-        ("什么是三集定律", "factual"), ("解释一下作画崩坏", "factual"),
-    ])
-    def test_classify_factual(self, message, expected):
-        assert classify_intent_rule(message) == expected
-
-    def test_factual_falls_back_to_llm_for_ambiguous(self):
-        assert classify_intent_rule("顶上战争是哪两方") is None
-
-    @pytest.mark.parametrize("message,expected", [
-        ("找进击的巨人评分", "lookup"), ("查命运石之门声优", "lookup"),
-        ("搜索鬼灭之刃的评论", "lookup"), ("查一下这个番的信息", "lookup"),
-    ])
-    def test_classify_lookup(self, message, expected):
-        assert classify_intent_rule(message) == expected
-
-    @pytest.mark.parametrize("message,expected", [
-        ("类似命运石之门的烧脑番", "discovery"), ("推荐几部好看的机战番", "discovery"),
-        ("还有什么类似的作品", "discovery"), ("评分最高的冷门番", "discovery"),
-        ("有哪些好看的番", "discovery"),
-    ])
-    def test_classify_discovery(self, message, expected):
-        assert classify_intent_rule(message) == expected
-
-    @pytest.mark.parametrize("message,expected", [
-        ("今天放什么番", "realtime"), ("本周新番排期", "realtime"),
-        ("最近什么番比较火", "realtime"), ("这季度有什么好看的", "realtime"),
-    ])
-    def test_classify_realtime(self, message, expected):
-        assert classify_intent_rule(message) == expected
-
-    def test_priority_queue(self):
-        """复合意图不被简单意图的关键词劫持"""
-        assert classify_intent_rule("找类似命运石之门的番") == "discovery"
-        assert classify_intent_rule("帮忙找和进击的巨人差不多的番") == "discovery"
-        assert classify_intent_rule("推荐冷门机战番") == "discovery"
-        assert classify_intent_rule("最近放什么新番") == "realtime"
-        assert classify_intent_rule("最近评分最高的番") == "discovery"
-        assert classify_intent_rule("找进击的巨人评分") == "lookup"
-
-    def test_short_message_returns_unknown(self):
-        """短消息不再回退到 LLM fallback——直接返回 unknown 以避免短作品名（EVA/86/K）被 LLM 误判为 chitchat。
-        unknown 意图会绑定工具，LLM 在推理阶段可自行判断是否需要调用。"""
-        assert classify_intent_rule("嗯") == "unknown"
-        assert classify_intent_rule("mygo") == "unknown"  # 短作品名应能搜索
-
-    def test_unknown_falls_back_to_none(self):
-        assert classify_intent_rule("这个番的画风怎么样和那个比") is None
-
-    def test_empty_message(self):
-        assert classify_intent_rule("") == "chitchat"
-
-    def test_intent_rules_is_ordered_list(self):
-        assert isinstance(INTENT_RULES, list)
-        first = [i for i, _ in INTENT_RULES[:2]]
-        assert "discovery" in first and "realtime" in first
-
-
 class TestIntentClassifierLLM:
-    """LLM fallback 分类"""
+    """LLM 分类核心函数"""
 
     async def test_returns_valid_intent(self):
         assert await classify_intent_llm("推荐类似巨人的番", make_mock_llm(content="discovery")) == "discovery"
@@ -109,25 +39,55 @@ class TestIntentClassifierLLM:
     async def test_extracts_first_word_only(self):
         assert await classify_intent_llm("找巨人", make_mock_llm(content="lookup  \n extra")) == "lookup"
 
+    async def test_short_anime_title_handled_by_prompt(self):
+        """短作品名（"EVA"）——LLM 应判 unknown 或 lookup，而非 chitchat"""
+        result = await classify_intent_llm("EVA", make_mock_llm(content="unknown"))
+        assert result in ("unknown", "lookup")
+
+    async def test_compound_query_not_misclassified_as_chitchat(self):
+        """混合查询（寒暄+数据）——LLM 应判为数据查询意图"""
+        result = await classify_intent_llm(
+            "你好，EVA评分怎么样？", make_mock_llm(content="lookup")
+        )
+        assert result != "chitchat"
+
 
 class TestClassifyIntent:
-    """两阶段入口"""
+    """入口函数 — LLM 单阶段"""
 
-    async def test_rule_wins_when_matched(self):
-        mock = make_mock_llm()
+    async def test_llm_classifies_discovery(self):
+        mock = make_mock_llm(content="discovery")
         intent, method = await classify_intent("推荐几部好看的番", mock)
-        assert intent == "discovery" and method == "rule"
-        mock.ainvoke.assert_not_called()
+        assert intent == "discovery"
+        assert method == "llm"
 
-    async def test_llm_fallback(self):
-        intent, method = await classify_intent("这个番和那个番比怎么样", make_mock_llm(content="lookup"))
-        assert intent == "lookup" and method == "llm"
+    async def test_llm_classifies_lookup(self):
+        mock = make_mock_llm(content="lookup")
+        intent, method = await classify_intent("这个番和那个番比怎么样", mock)
+        assert intent == "lookup"
+        assert method == "llm"
 
     async def test_returns_unknown_when_no_llm(self):
-        # 注意：避免含 "hi"/"hello" 等英文关键词的输入
         intent, method = await classify_intent("花开伊吕波和taritari哪个更感人", None)
-        assert intent == "unknown" and method.startswith("rule")
+        assert intent == "unknown"
+        assert method == "llm"
 
     async def test_empty_message(self):
         intent, method = await classify_intent("", None)
-        assert intent == "chitchat" and "empty" in method
+        assert intent == "chitchat"
+        assert method == "llm"
+
+    async def test_chitchat_classified_by_llm(self):
+        """纯寒暄走 LLM 分类，method 为 llm"""
+        mock = make_mock_llm(content="chitchat")
+        intent, method = await classify_intent("你好", mock)
+        assert intent == "chitchat"
+        assert method == "llm"
+
+
+class TestValidIntents:
+    """_VALID_INTENTS 完整性"""
+
+    def test_all_expected_intents_present(self):
+        expected = {"chitchat", "factual", "lookup", "discovery", "realtime", "debate", "emotional", "unknown"}
+        assert _VALID_INTENTS == expected

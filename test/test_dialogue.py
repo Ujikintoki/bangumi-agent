@@ -46,28 +46,32 @@ class TestDialogueReasoningNode:
     """dialogue_reasoning_node — mock LLM"""
 
     @patch("agent.dialogue.nodes.create_llm")
-    async def test_chitchat_does_not_bind_tools(self, mock_create_llm):
-        """chitchat → 不绑定工具，直接文本回复"""
+    @patch("agent.dialogue.nodes.get_agent_tools")
+    async def test_chitchat_still_binds_tools(self, mock_get_tools, mock_create_llm):
+        """chitchat → 仍绑定工具，LLM 自主决定是否调用"""
+        mock_get_tools.return_value = [Mock(name="search"), Mock(name="detail")]
         mock = make_mock_llm(content="哼，终于想起我了？")
         mock_create_llm.return_value = mock
 
         state = _make_dialogue_state(query_intent="chitchat", iterations=1)
         result = await dialogue_reasoning_node(state)
 
-        mock.bind_tools.assert_not_called()
+        mock.bind_tools.assert_called_once()
         assert _extract_tool_calls_from_result(result) == []
         assert "哼" in str(result["messages"][0].content)
 
     @patch("agent.dialogue.nodes.create_llm")
-    async def test_factual_does_not_bind_tools(self, mock_create_llm):
-        """factual → 不绑定工具"""
+    @patch("agent.dialogue.nodes.get_agent_tools")
+    async def test_factual_still_binds_tools(self, mock_get_tools, mock_create_llm):
+        """factual → 仍绑定工具，LLM 自主决定"""
+        mock_get_tools.return_value = [Mock(name="search")]
         mock = make_mock_llm(content="三集定律？不就是前3集定生死的老梗嘛。")
         mock_create_llm.return_value = mock
 
         state = _make_dialogue_state(query_intent="factual", iterations=1)
         result = await dialogue_reasoning_node(state)
 
-        mock.bind_tools.assert_not_called()
+        mock.bind_tools.assert_called_once()
 
     @patch("agent.dialogue.nodes.create_llm")
     @patch("agent.dialogue.nodes.get_agent_tools")
@@ -159,8 +163,10 @@ class TestDialogueReasoningNode:
         assert _extract_tool_calls_from_result(result) == []
 
     @patch("agent.dialogue.nodes.create_llm")
-    async def test_digestion_chitchat_skips_tools(self, mock_create_llm):
-        """消化态 + chitchat → 仍不绑工具"""
+    @patch("agent.dialogue.nodes.get_agent_tools")
+    async def test_digestion_chitchat_still_binds_tools(self, mock_get_tools, mock_create_llm):
+        """消化态 + chitchat → 仍绑定工具（所有 intent 始终绑工具）"""
+        mock_get_tools.return_value = [Mock(name="search")]
         mock = make_mock_llm(content="又来找我干嘛？")
         mock_create_llm.return_value = mock
 
@@ -176,7 +182,7 @@ class TestDialogueReasoningNode:
         )
         await dialogue_reasoning_node(state)
 
-        mock.bind_tools.assert_not_called()
+        mock.bind_tools.assert_called_once()
 
 
 class TestDialogueRouting:
