@@ -5,10 +5,37 @@
     1. 规则层（优先级列表）：关键词 + 正则 → 覆盖 ~80% 常见查询，零延迟
     2. LLM fallback：轻量 prompt → 处理规则无法匹配的模糊边界
 
-输出: query_intent ∈ {chitchat, factual, lookup, discovery, realtime, unknown}
+==== 意图总览（8 个）====
 
-关键设计：使用优先级列表（list[tuple]）而非无序字典，
-复合意图（discovery, realtime）必须先于简单意图（lookup, factual）求值。
+| intent     | 优先级 | 绑工具 | 说明 | strategy |
+|------------|--------|--------|------|----------|
+| discovery  | 1      | ✅     | 推荐、探索、类似作品 | research/prompts.py INTENT_PROMPTS |
+| realtime   | 1      | ✅     | 时效数据：热门、排期 | research/prompts.py INTENT_PROMPTS |
+| debate     | 2      | ❌     | 争论、质疑、观点表达 | research/prompts.py INTENT_PROMPTS |
+| emotional  | 2      | ❌     | 情绪表达：开心/难过/无聊 | research/prompts.py INTENT_PROMPTS |
+| lookup     | 3      | ✅     | 精确查找：评分、角色、声优 | research/prompts.py INTENT_PROMPTS |
+| factual    | 4      | ❌     | 常识问答（不需要实时数据） | research/prompts.py INTENT_PROMPTS |
+| chitchat   | 5      | ❌     | 寒暄、感谢、纯社交 | research/prompts.py INTENT_PROMPTS |
+| unknown    | —      | ✅     | LLM fallback 兜底 | research/prompts.py INTENT_PROMPTS |
+
+==== 新增/修改意图步骤 ====
+
+1. 在 INTENT_RULES 加关键词/patterns（本文件，~第30行）
+   → 关键词选型原则写在注释里
+2. 在 _VALID_INTENTS 加 intent key（本文件，~第256行）
+3. 在 INTENT_CLASSIFIER_PROMPT 加 LLM fallback 描述（本文件，~第235行）
+4. 在 _NO_TOOL_INTENTS 决定默认是否绑工具（本文件，~第263行）
+5. 在 INTENT_PROMPTS 加策略变体（agent/research/prompts.py）
+   → debate/emotional 策略参考：少调工具、角色人格主导
+
+==== 设计原则 ====
+
+- **优先级列表**：list[tuple] 而非 dict，保证有序匹配。复合意图在前。
+- **关键词 ≠ 语义理解**：关键词表不能 100% 准确，但可以做到：
+  当误判发生时，30 秒内定位到一条规则、改一个字、立即生效。
+- **误判可接受**：对于娱乐型产品，关键词分类的覆盖率和速度优先于准确率。
+  未被规则匹配的走 LLM fallback，规则匹配错了的无法自动纠正——
+  因此关键词选型要保守，宁可漏判（走 LLM）不可误判。
 """
 
 from __future__ import annotations
@@ -83,35 +110,51 @@ INTENT_RULES: list[tuple[str, dict]] = [
         },
     ),
     # ── 优先级 2: 对话向意图 ──────────────────────────
+    # ═══════════════════════════════════════════════════════
+    # debate — 用户想争论/质疑/表达强烈观点
+    #
+    # 关键词选型原则：
+    #   - 带**主语**的主观评价（"我不服这个评分"），不是客观描述（"主角不服输精神"）
+    #   - 强质疑信号（"凭什么封神"），不是普通反问（"为什么好看" → 可能是 lookup）
+    #   - 优先覆盖 ACGN 社区常用争论句式（"过誉"、"烂尾"、"就我觉得"）
+    #   - 单字关键词容易误判：入选需确认歧义度低
+    # ═══════════════════════════════════════════════════════
     (
         "debate",
         {
             "keywords": [
                 "过誉",
                 "被高估",
-                "不服",
                 "烂尾",
                 "烂不烂",
-                "神作？",
                 "不接受反驳",
                 "没有之一",
-                "最烂",
-                "最强",
-                "真有那么",
-                "真的假的",
+                "凭什么封神",
+                "真有那么好看",
+                "真有那么神",
+                "怎么都说好",
                 "为什么都说",
-                "凭什么",
-                "怎么都说",
                 "就我觉得",
                 "难道只有我",
+                "德不配位",
             ],
             "patterns": [
-                r"(过誉|烂尾|被高估|不服|德不配位).{0,10}$",
-                r".{0,5}(不接受反驳|没有之一|真有那么好看|真有那么神|怎么都说好|凭什么封神)",
+                r"(过誉|烂尾|被高估|德不配位).{0,10}$",
+                r".{0,5}(不接受反驳|没有之一|凭什么封神|真有那么好看|真有那么神)",
                 r"(就我|难道只有我).{0,5}(觉得|认为)",
             ],
         },
     ),
+    # ═══════════════════════════════════════════════════════
+    # emotional — 用户有明显的情绪表达
+    #
+    # 关键词选型原则：
+    #   - 第一人称情绪声明（"我失恋了"、"我今天好开心"）
+    #   - 显式情绪状态词（"心情不好"、"郁闷"、"情绪低落"）
+    #   - 求助信号（"陪我聊聊"、"治愈我"、"让我开心"）
+    #   - 避免覆盖：单纯的"推荐治愈番" → discovery
+    #              "这部番让我哭了" → 可能是 factual/lookup
+    # ═══════════════════════════════════════════════════════
     (
         "emotional",
         {
@@ -119,7 +162,6 @@ INTENT_RULES: list[tuple[str, dict]] = [
                 "失恋",
                 "难过",
                 "伤心",
-                "哭了",
                 "好想哭",
                 "太开心",
                 "好开心",
@@ -256,6 +298,11 @@ INTENT_CLASSIFIER_PROMPT = """将用户消息分类为以下类别之一，只�
 _VALID_INTENTS = frozenset(
     {"chitchat", "factual", "lookup", "discovery", "realtime", "debate", "emotional", "unknown"}
 )
+
+# 不绑定工具的意图——LLM 直接回复，角色人格主导。
+# 这些意图下模型默认看不到工具 schema，节省 token 预算（~2000 tokens/次）。
+# 如模型确实需要工具（如 debate 中想查社区观点），XML 泄漏自纠正机制会触发二次 LLM 调用。
+_NO_TOOL_INTENTS = frozenset({"chitchat", "factual", "debate", "emotional"})
 
 
 def classify_intent_rule(user_message: str) -> Optional[str]:

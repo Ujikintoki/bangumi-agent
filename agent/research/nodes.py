@@ -11,7 +11,7 @@ import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.classifier import classify_intent
+from agent.classifier import _NO_TOOL_INTENTS, classify_intent
 from agent.guardrails import (
     TOOL_CALL_XML_RESIDUE,
     check_duplicate_tool_calls,
@@ -26,9 +26,6 @@ from core.config import get_settings
 from tools.bgm_tools import get_agent_tools, set_tool_intent
 
 logger = logging.getLogger("bgm-agent.nodes")
-
-# 不绑定工具的意图（LLM 直接回复，角色人格主导）
-_NO_TOOL_INTENTS = frozenset({"chitchat", "factual", "debate", "emotional"})
 
 
 # ═══════════════════════════════════════════════════════════════════

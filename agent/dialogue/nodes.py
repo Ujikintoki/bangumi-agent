@@ -11,7 +11,7 @@ import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.classifier import classify_intent
+from agent.classifier import _NO_TOOL_INTENTS, classify_intent
 from agent.dialogue.prompts import build_dialogue_prompt
 from agent.dialogue.state import _MAX_ITERATIONS, DialogueState
 from agent.guardrails import (
@@ -25,9 +25,6 @@ from core.config import get_settings
 from tools.bgm_tools import get_agent_tools, set_tool_intent
 
 logger = logging.getLogger("bgm-agent.dialogue")
-
-# 不绑定工具的意图（LLM 直接回复，角色人格主导）
-_NO_TOOL_INTENTS = frozenset({"chitchat", "factual", "debate", "emotional"})
 
 # 最后一轮强制回复指令（注入 System Prompt 末尾）
 _LAST_CHANCE_INSTRUCTION = """## ⚠️ 最后一轮——必须现在回复
