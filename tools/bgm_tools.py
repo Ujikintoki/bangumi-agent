@@ -63,6 +63,23 @@ def _get_intent() -> str:
     return _tool_intent.get()
 
 
+# Agent 类型上下文（contextvars 传递，与 _tool_intent 同模式）
+_tool_agent_type: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "tool_agent_type", default="research"
+)
+"""当前调用的 Agent 类型，由 reasoning_node 设置。
+dialogue → compact 输出; research → 全量输出。"""
+
+
+def set_tool_agent_type(agent_type: str) -> None:
+    """设置当前工具调用的 Agent 类型（reasoning_node 在返回前调用）。"""
+    _tool_agent_type.set(agent_type)
+
+
+def _get_agent_type() -> str:
+    """读取当前 Agent 类型（工具函数内部使用）。"""
+    return _tool_agent_type.get()
+
 # ═══════════════════════════════════════════════════════════════════
 # 常量
 # ═══════════════════════════════════════════════════════════════════
@@ -225,13 +242,16 @@ def _compute_subject_signals(
 
 
 def _format_subject_detail(detail: dict, intent: str = "unknown") -> str:
-    """将条目详情格式化为易读文本，按意图分化输出。
+    """将条目详情格式化为易读文本，按 intent + agent_type 分化输出。
 
-    - **discovery**：极简模式（~45 tokens/部）——仅保留比较筛选必需字段
-    - **其余 intent**：全量模式——评分分布、收藏、信号、简介、标签
+    - **discovery**：极简模式（~45 tokens/项）
+    - **dialogue agent**：compact 模式（~80-120 tokens，关键信息 + 简介）
+    - **research agent**：全量模式（~300-800 tokens，完整统计分布）
     """
     if intent == "discovery":
         return _format_subject_detail_discovery(detail)
+    if _get_agent_type() == "dialogue":
+        return _format_subject_detail_compact(detail)
     return _format_subject_detail_full(detail)
 
 
@@ -351,8 +371,67 @@ def _format_subject_detail_discovery(detail: dict) -> str:
     return " | ".join(parts) + tag_str
 
 
+def _format_subject_detail_compact(detail: dict) -> str:
+    """Dialogue Agent 专用条目详情：关键信息 + 简介（~80-120 tokens）。
+
+    相比 full 模式删除了：评分分布(10行)、收藏分布(5项)、派生信号。
+    保留：名称、评分、排名、评分人数、类型、集数、简介(截断150字)、标签top5。
+    """
+    name = detail.get("name_cn") or detail.get("name", "未知")
+    orig_name = detail.get("name", "")
+    display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
+
+    lines: list[str] = [f"📺 {display}"]
+
+    # ── 评分行 ──
+    score = detail.get("score", 0)
+    rank = detail.get("rank", 0)
+    total_ratings = detail.get("total_rating_count", 0)
+    meta: list[str] = []
+    if score:
+        meta.append(f"评分 {score:.1f}")
+    if rank:
+        meta.append(f"排名 #{rank}")
+    if total_ratings:
+        meta.append(f"{total_ratings} 人评")
+    if meta:
+        lines.append(f"{' | '.join(meta)}")
+
+    # ── 类型/集数 ──
+    type_name = detail.get("type", "")
+    eps = detail.get("eps", 0)
+    sub: list[str] = []
+    if type_name:
+        sub.append(f"类型: {type_name}")
+    if eps:
+        sub.append(f"集数: {eps}")
+    if sub:
+        lines.append(f"{' | '.join(sub)}")
+
+    # ── 简介（截断） ──
+    summary = detail.get("summary", "")
+    if summary:
+        lines.append(f"\n简介：{summary[:150]}")
+
+    # ── 标签 top-5 ──
+    tags = detail.get("tags", [])
+    if tags:
+        tag_strs = [
+            f"{t['name']}{'(' + str(t['count']) + ')' if t.get('count') else ''}"
+            for t in tags[:5]
+        ]
+        lines.append(f"\n标签：{', '.join(tag_strs)}")
+
+    subject_id = detail.get("id", 0)
+    lines.append(f"\n── 条目 {subject_id} 详情 ──")
+    return "\n".join(lines)
+
+
 def _format_character_detail(detail: dict) -> str:
-    """将角色详情格式化为易读文本，避免裸 JSON 进入 LLM 上下文。"""
+    """将角色详情格式化为易读文本。
+
+    Dialogue Agent 下截断背景至 100 字，Research 保留完整背景。
+    """
     name = detail.get("name_cn") or detail.get("name", "未知角色")
     orig_name = detail.get("name", "")
     display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
@@ -377,7 +456,10 @@ def _format_character_detail(detail: dict) -> str:
     # ── 详细背景 ────────────────────────────────────────────────
     summary = detail.get("summary", "")
     if summary:
-        lines.append(f"\n背景：{summary}")
+        if _get_agent_type() == "dialogue":
+            lines.append(f"\n背景：{summary[:100]}")
+        else:
+            lines.append(f"\n背景：{summary}")
 
     character_id = detail.get("id", 0)
     lines.append(f"\n── 角色 {character_id} 详情 ──")
@@ -385,7 +467,10 @@ def _format_character_detail(detail: dict) -> str:
 
 
 def _format_person_detail(detail: dict) -> str:
-    """将人物详情格式化为易读文本，避免裸 JSON 进入 LLM 上下文。"""
+    """将人物详情格式化为易读文本。
+
+    Dialogue Agent 下截断背景至 100 字，Research 保留完整背景。
+    """
     name = detail.get("name_cn") or detail.get("name", "未知人物")
     orig_name = detail.get("name", "")
     display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
@@ -414,7 +499,10 @@ def _format_person_detail(detail: dict) -> str:
     # ── 详细背景 ────────────────────────────────────────────────
     summary = detail.get("summary", "")
     if summary:
-        lines.append(f"\n背景：{summary}")
+        if _get_agent_type() == "dialogue":
+            lines.append(f"\n背景：{summary[:100]}")
+        else:
+            lines.append(f"\n背景：{summary}")
 
     person_id = detail.get("id", 0)
     lines.append(f"\n── 人物 {person_id} 详情 ──")
@@ -1463,7 +1551,7 @@ async def get_user_timeline(username: str, limit: int = 20) -> str:
 
 
 @tool(args_schema=LocalSearchInput)
-def search_local_bangumi(
+async def search_local_bangumi(
     query: str,
     entity_type: str = "all",
     limit: int = 5,
@@ -1490,6 +1578,20 @@ def search_local_bangumi(
     Returns:
         纯文本格式的检索结果摘要。无结果时返回友好提示。
     """
+    import asyncio
+
+    return await asyncio.to_thread(
+        _search_local_bangumi_sync, query, entity_type, limit, nsfw
+    )
+
+
+def _search_local_bangumi_sync(
+    query: str,
+    entity_type: str = "all",
+    limit: int = 5,
+    nsfw: bool = False,
+) -> str:
+    """search_local_bangumi 的同步实现，在线程池中运行以避免阻塞事件循环。"""
     try:
         from core.config import get_settings as _get_rag_settings
         from database.engine import engine

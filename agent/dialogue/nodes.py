@@ -22,7 +22,7 @@ from agent.guardrails import (
 from agent.llm import create_llm
 from agent.memory import DIALOGUE_MAX_TOKENS, manage_memory
 from core.config import get_settings
-from tools.bgm_tools import get_agent_tools, set_tool_intent
+from tools.bgm_tools import get_agent_tools, set_tool_agent_type, set_tool_intent
 
 logger = logging.getLogger("bgm-agent.dialogue")
 
@@ -31,7 +31,10 @@ _LAST_CHANCE_INSTRUCTION = """## ⚠️ 最后一轮——必须现在回复
 
 你已经没有更多轮次了。**绝对禁止**调用任何工具。
 基于已经获取的数据直接回复用户，不要追求"完整"。
-如果确实没有任何有用数据，诚实告诉用户并换个方式提问。"""
+
+如果之前的工具调用没有获取到任何有效数据——不要编造评分、排名、具体数字。
+用你的角色语气诚实表达没找到，并给出替代方向（换关键词、换话题）。
+诚实比瞎编更让用户信任你。"""
 
 
 async def dialogue_reasoning_node(state: DialogueState) -> dict:
@@ -251,7 +254,8 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         [tc.get("name", "?") for tc in tool_calls],
     )
 
-    # ── 注入意图上下文（contextvars 传播到 ToolNode → 工具函数）──
+    # ── 注入意图 + Agent 类型上下文（contextvars 传播到 ToolNode → 工具函数）──
+    set_tool_agent_type("dialogue")
     set_tool_intent(query_intent)
 
     return {

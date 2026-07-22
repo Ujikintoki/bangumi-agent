@@ -340,3 +340,28 @@ class TestResearchContinuityRules:
         result = build_system_prompt("lookup")
         assert "宁可少用历史" in result
         assert "不要错误关联" in result
+
+
+class TestHonestyPrinciple:
+    """Prompt 中数据不足时的诚实兜底原则。"""
+
+    def test_dialogue_prompt_has_honesty_principle(self):
+        """Dialogue prompt 应包含'诚实比瞎编'原则。"""
+        from agent.dialogue.prompts import build_dialogue_prompt
+
+        result = build_dialogue_prompt(output_style="bangumi")
+        assert "诚实比瞎编" in result
+        assert "不要编造" in result
+
+    def test_research_prompt_has_honesty_principle(self):
+        """Research prompt 应包含'诚实比瞎编'原则。"""
+        result = build_system_prompt("lookup")
+        assert "诚实比瞎编" in result
+        assert "不要编造" in result
+
+    def test_last_chance_instruction_no_fabrication(self):
+        """Dialogue 的最后一轮指令应含空数据兜底。"""
+        from agent.dialogue.nodes import _LAST_CHANCE_INSTRUCTION
+
+        assert "不要编造评分" in _LAST_CHANCE_INSTRUCTION
+        assert "诚实比瞎编" in _LAST_CHANCE_INSTRUCTION
