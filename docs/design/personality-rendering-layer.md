@@ -2,7 +2,7 @@
 
 > ⚠️ **DEPRECATED — 此方案未采用。**  
 > 本文档描述的后处理 `render()` 六边形架构经测试不合理（额外 LLM 延迟 + 数据编造风险），**未投入实现**。  
-> 实际采用的方案为 **Prompt Appendix 注入**（`agent/styles.py`，零额外 LLM 调用）。  
+> 实际采用的方案为 **Prompt Appendix 注入**（`agent/profiles.py` + `agent/prompt_builder.py`，零额外 LLM 调用，role-first 架构）。
 > 权威文档：[CLAUDE.md](../../CLAUDE.md) Phase 5.5 节 + [ROADMAP.md](ROADMAP.md) Phase 5.5 节。  
 > 本文档保留仅供历史参考。
 

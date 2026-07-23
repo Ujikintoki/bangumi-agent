@@ -26,7 +26,7 @@ Phase 4 (done)       Phase 5 (done)         Phase 5.5 (done)          Phase 6
 双 Agent              记忆系统               Output Boundary           更多工具
                        │                     │                        │
   research        双通道语义召回          prompt 人格剥离          group topics
-  + dialogue      时间衰减排序            styles.py 四象限         web_search
+  + dialogue      时间衰减排序            profiles.py 四象限       web_search
   + 14 tools      锚定回退               neutral/bangumi          发帖辅助
                        │                     │                        │
                   L2: session 记忆        agent × style             记忆层受益
@@ -171,8 +171,10 @@ build_system_prompt() / build_dialogue_prompt()
 | `agent/research/prompts.py` | **重写** — BASE_SYSTEM_PROMPT 删除，INTENT_PROMPTS 扩展 +debate/emotional，`build_system_prompt` 变为薄封装 |
 | `agent/classifier.py` | **修改** — +2 意图（debate/emotional），15+keywords/patterns，LLM fallback 更新 |
 | `agent/memory_manager.py` | **修改** — SUMMARIZE_PROMPT_V2 +tone，解析 + 存储 + 召回注入 |
-| `agent/dialogue/nodes.py` | **修改** — `_NO_TOOL_INTENTS` +debate/emotional |
-| `agent/research/nodes.py` | **修改** — `_NO_TOOL_INTENTS` +debate/emotional |
+| `agent/dialogue/nodes.py` | **修改** — +debate/emotional intents |
+| `agent/research/nodes.py` | **修改** — +debate/emotional intents |
+| `agent/classifier.py` | **删除** — `INTENT_RULES` 关键词表、`classify_intent_rule()`；`_NO_TOOL_INTENTS` 已移除 |
+| `agent/reasoning_core.py` | **新建** — 共享推理辅助函数 |
 | `main.py` | **修改** — 导入更新，seed SystemMessage 从 profiles 动态获取 |
 
 ### 结构化角色系统

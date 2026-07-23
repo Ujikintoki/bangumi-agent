@@ -37,7 +37,7 @@ Two agents share a unified `POST /chat` endpoint, routed by `agent_type` in the 
 START → reasoning_node ←──────────────────┐
           │                                 │
           ├─ manage_memory (L1 sliding window)
-          ├─ classify_intent (rule-first + LLM fallback)
+          ├─ classify_intent (LLM-only, shared via reasoning_core)
           ├─ L2 memory recall (_memory_context cached)
           ├─ build_system_prompt (BASE + intent variant + critic_feedback + style appendix)
           └─ LLM invoke
@@ -45,10 +45,10 @@ START → reasoning_node ←─────────────────�
      ┌─────────┼─────────┐
      │         │         │
   tool_calls  chitchat  其他无工具
-     │         │         │
+     │      (快速通道)     │
      ▼         ▼         ▼
   tool_node   END     critic_node
-     │      (fast)    (rule/llm)
+     │              (llm/rule)
      │         │         │
      │         │    PASS/over-limit → END
      │         │    REVISE → reasoning_node
@@ -76,31 +76,33 @@ START → dialogue_reasoning_node ←─────────┐
          └──────────┘
 ```
 
-Key differences: Dialogue skips Critic, has tighter L2 threshold, and a last-iteration bailout that force-unbinds tools + injects a "respond NOW" instruction to prevent silent circuit-breaker failures.
+Key differences: Dialogue skips Critic, has tighter L2 threshold, and a last-iteration bailout that force-unbinds tools + injects a "respond NOW" instruction. Both agents always bind tools — intent classification affects only System Prompt strategy, not tool availability.
 
 ### Agent directory structure
 
 ```
 agent/
-├── classifier.py      # Two-stage intent classification (rule priority + LLM fallback)
-├── llm.py             # create_llm() multi-provider factory (Azure/OpenAI/DeepSeek)
-├── memory.py          # L1 short memory — sliding window + tiktoken truncation + orphan cleanup
-├── memory_manager.py  # L2 cross-session semantic recall + L3 deprecated methods
-├── session_cache.py   # Cross-HTTP-request message cache (TTL 1h, max 1000 sessions)
-├── styles.py          # Output style registry — neutral/bangumi appendices for both agents
-├── guardrails.py      # Shared: terminal response detection, XML leak stripping, duplicate tool detection
+├── classifier.py        # Single-stage LLM intent classification (keyword table removed 2026-07-22)
+├── llm.py               # create_llm() multi-provider factory (Azure/OpenAI/DeepSeek)
+├── memory.py            # L1 short memory — sliding window + tiktoken truncation + orphan cleanup
+├── memory_manager.py    # L2 cross-session semantic recall + L3 deprecated methods
+├── session_cache.py     # Cross-HTTP-request message cache (TTL 1h, max 1000 sessions)
+├── profiles.py          # CharacterProfile + AgentProfile dataclasses (replaces old styles.py)
+├── prompt_builder.py    # Unified prompt assembly — role-first, shared by both agents
+├── reasoning_core.py    # Shared reasoning helpers (classify, recall, build_list, xml_guard)
+├── guardrails.py        # Shared: terminal response detection, XML leak stripping, duplicate tool detection
 │
-├── research/          # Research Agent (deep search, Critic quality control)
-│   ├── state.py       # AgentState — 10 fields (_MAX_ITERATIONS=12)
-│   ├── graph.py       # 3-node topology with conditional edges
-│   ├── nodes.py       # reasoning_node + critic_node
-│   └── prompts.py     # BASE + 5 intent variants + CRITIC_SYSTEM_PROMPT
+├── research/            # Research Agent (deep search, Critic quality control)
+│   ├── state.py         # AgentState — 10 fields (_MAX_ITERATIONS=12)
+│   ├── graph.py         # 3-node topology with conditional edges
+│   ├── nodes.py         # reasoning_node + critic_node (thin wrappers, delegates to reasoning_core)
+│   └── prompts.py       # INTENT_PROMPTS + CRITIC_SYSTEM_PROMPT + build_system_prompt()
 │
-└── dialogue/          # Dialogue Agent (fast chat, no Critic, Bangumi娘 persona)
-    ├── state.py       # DialogueState — 7 fields (_MAX_ITERATIONS=4)
-    ├── graph.py       # 2-node topology
-    ├── nodes.py       # dialogue_reasoning_node + last-chance bailout
-    └── prompts.py     # DIALOGUE_CORE_PROMPT (persona-free) + build_dialogue_prompt()
+└── dialogue/            # Dialogue Agent (fast chat, no Critic, Bangumi娘 persona)
+    ├── state.py         # DialogueState — 7 fields (_MAX_ITERATIONS=4)
+    ├── graph.py         # 2-node topology
+    ├── nodes.py         # dialogue_reasoning_node (thin wrapper, delegates to reasoning_core)
+    └── prompts.py       # build_dialogue_prompt() thin wrapper
 ```
 
 Shared layers: `tools/`, `rag/`, `clients/`, `core/config.py`, `database/`
@@ -140,7 +142,7 @@ Shared layers: `tools/`, `rag/`, `clients/`, `core/config.py`, `database/`
 - **AgentState** (`agent/research/state.py`): TypedDict with 10 fields — `messages`, `iterations`, `critic_status`, `critic_feedback`, `query_intent`, `session_id`, `user_id`, `error_flag`, `_memory_context`, `output_style`. `_MAX_ITERATIONS = 12`.
 - **DialogueState** (`agent/dialogue/state.py`): TypedDict with 7 fields — same minus `critic_status`, `critic_feedback`, `error_flag`. `_MAX_ITERATIONS = 4`.
 - **Routing** is driven by native message properties (`messages[-1].tool_calls`), not redundant state fields.
-- **`output_style`** control: `agent/styles.py` holds two dicts (`STYLE_APPENDICES` for dialogue, `STYLE_APPENDICES_RESEARCH` for research). `"neutral"` maps to `""` (zero token overhead). Style appendix is appended to System Prompt — no separate rendering LLM call.
+- **`output_style`** control: `agent/profiles.py` holds `CharacterProfile` and `AgentProfile` dataclasses. Style is prompt-only — role-first assembly, zero extra LLM call, no separate rendering.
 - **`.env`** at project root, loaded by `core/config.py`. Key variables: `DATABASE_URL`, `BANGUMI_APP_ID`, `BANGUMI_APP_SECRET`, `ZHIPU_API_KEY`, `DEEPSEEK_API_KEY`, `EMBEDDING_DIMENSION` (default 2048).
 
 ## Phase 4: Dual Agent Architecture ✅ (2026-06-09)
@@ -154,7 +156,7 @@ Shared layers: `tools/`, `rag/`, `clients/`, `core/config.py`, `database/`
 | Response length | Unlimited | 30-80 chars (chat) / ≤150 chars (with tools) |
 | Tool chain depth | search → detail → characters → comments | search → (optional detail) |
 | LLM calls | 2-8 | 1-3 |
-| Critic | rule/llm dual-mode | None |
+| Critic | llm (default) / rule | None |
 | Default persona | Neutral (bangumi optional) | Bangumi娘 (neutral optional) |
 | Last-iteration protection | Critic REVISE + circuit breaker | Force-unbind tools + emergency instruction |
 | Files | `agent/research/` | `agent/dialogue/` |
@@ -337,10 +339,10 @@ Two new intents added to `agent/classifier.py`:
 
 | Intent | Behavior | Strategy |
 |--------|----------|----------|
-| `debate` | No tools bound — character-first response | Express opinion, don't lean on ratings, be provocative not offensive |
-| `emotional` | No tools bound — empathy first | Acknowledge emotion, then recommend; tools are optional |
+| `debate` | Tools available — data backs opinion | Express opinion backed by search/discussion data; don't just rant |
+| `emotional` | Tools available — empathy + data | Acknowledge emotion first, then recommend with real data if needed |
 
-Both added to `_NO_TOOL_INTENTS` in both dialogue and research nodes. Known deviation: emotional keyword matching needs tuning (observed "失恋了推荐一部番" classified as discovery).
+All intents have tools available (2026-07-22 refactor). Intent only affects System Prompt strategy, not tool availability.
 
 ### Memory Tone Profiling
 
@@ -389,24 +391,31 @@ Full suite: 527 passed, 23 skipped (L3), 0 failed.
 
 > Planned: `get_group_topics`, `web_search`, `polish_text`, community sentiment analysis. Memory system benefits from public memories (`public_memories` table already created). Not started.
 
-## Current Known Issues (2026-07-21)
+## Current Known Issues (2026-07-23)
 
 **🟡 Medium:**
 
 1. **Streaming endpoint is node-level only**: `/chat/stream` pushes node-completion events, not token-by-token streaming
-2. **Critic `< 20 chars` hard threshold**: Despite escape hatch, may still reject legitimate short responses
-3. **`_memory_context` empty-string caching**: When `recall_for_prompt()` returns `""`, subsequent reasoning node entries re-trigger embedding calls because `""` is falsy. Low impact (~2-3 extra calls/request for new users). Fix: use a sentinel value (~3 lines)
+2. **`_memory_context` empty-string caching**: When `recall_for_prompt()` returns `""`, subsequent reasoning node entries re-trigger embedding calls because `""` is falsy. Low impact. Fix: use a sentinel value (~3 lines)
+3. **bare title → data dump**: Dialogue agent sometimes dumps full data on bare title instead of asking what user wants. Mitigated by tool_strategy rule, but LLM compliance is probabilistic
 
 **ℹ️ Minor:**
 
-4. **Summary LLM has no independent timeout**: Reuses `create_llm(request_timeout=10)`. Very slow models could extend fire-and-forget task duration
-5. **`session_memories` doesn't track `agent_type`**: Recall can't distinguish dialogue vs research sessions
+4. **Summary LLM has no independent timeout**
+5. **`session_memories` doesn't track `agent_type`**
+
+**✅ Resolved (2026-07-22/23):**
+
+- Critic `< 20 chars` hard threshold → CRITIC_MODE defaults to `"llm"`
+- `_NO_TOOL_INTENTS` keyword table blocking tool access → deleted; LLM always has tools
+- `INTENT_RULES` 213-line keyword/regex table → deleted; LLM-only classification
+- Two agent nodes duplicate ~75 lines → extracted to `reasoning_core.py`
 
 ## Technical Debt
 
-- **RAG v0/v1 coexistence**: Deprecated `BangumiChunk` series coexists with new `RagEntity` series. Old tables still referenced in tests. DB is empty — clean removal is low-risk
-- **`create_llm()` no caching**: Creates a new `ChatOpenAI` instance on every call. Minor overhead but listed as P3-2 in ROADMAP
-- **HNSW index creation fails** on 2048d vectors (pgvector limit is 2000d). Logged as WARNING, falls through gracefully. Consider reducing embedding dimension or using IVFFlat
+- **RAG v0/v1 coexistence**: Deprecated `BangumiChunk` series coexists with new `RagEntity` series. DB is empty — clean removal is low-risk
+- **`create_llm()` no caching**: Creates a new `ChatOpenAI` instance on every call
+- **HNSW index creation fails** on 2048d vectors (pgvector limit is 2000d)
 
 ## Documentation Index
 
@@ -414,8 +423,10 @@ Full suite: 527 passed, 23 skipped (L3), 0 failed.
 |----------|---------|
 | `CLAUDE.md` | This file — architecture, conventions, current state |
 | `docs/design/ROADMAP.md` | Development roadmap, phase details, fix status |
-| `docs/design/phase5-memory-system-design.md` | Phase 5 full design spec (1194 lines) |
-| `docs/design/personality-rendering-layer.md` | Phase 5.5 original design (render-based approach, superseded by v3) |
-| `docs/memory/` | Memory system manuals (6 files: architecture, implementation, config, testing, debugging) |
+| `docs/design/phase5-memory-system-design.md` | Phase 5 full design spec |
+| `docs/design/personality-rendering-layer.md` | Phase 5.5 original design (render-based, superseded by v3) |
+| `docs/design/architecture-review-2026-07-22.md` | Macro architecture review — agent layer directional issues |
+| `docs/memory/` | Memory system manuals (6 files) |
 | `docs/ARCHITECTURE.md` | Legacy architecture doc (2026-05-29, partially outdated) |
 | `README.md` | Project README (badges, quick start — partially outdated) |
+| `.env.example` | Environment variable template — new developers copy to `.env` |
