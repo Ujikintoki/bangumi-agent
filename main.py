@@ -8,6 +8,7 @@ FastAPI 应用启动入口
 import asyncio
 import json
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from typing import Literal
 
@@ -80,8 +81,11 @@ class ChatRequest(BaseModel):
         description="输出风格。None=走 agent 默认值（dialogue→bangumi, research→neutral），"
         "neutral=中性输出，bangumi=Bangumi娘腹黑吐槽",
     )
-    session_id: str = Field(default="default", description="会话 ID（Layer 2 预留）")
-    user_id: str = Field(default="anonymous", description="用户 ID（Layer 3 预留）")
+    session_id: str = Field(
+        default="",
+        description="会话 ID，用于 L1 多轮上下文。留空时自动生成随机 UUID",
+    )
+    user_id: str = Field(default="anonymous", description="用户 ID（L2 跨会话记忆）")
 
 
 class ChatResponse(BaseModel):
@@ -191,11 +195,13 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
     """Dialogue Agent 内部处理。"""
+    # 未指定 session_id 时自动生成，防止多用户共享默认上下文
+    session_id = request.session_id or uuid.uuid4().hex
     output_style = _resolve_output_style(request)
 
     # ── L1 Session 缓存：恢复同 session 前序消息 ──
     session_cache = get_session_cache()
-    cached = await session_cache.load(request.session_id)
+    cached = await session_cache.load(session_id)
 
     # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
     _seed = get_agent_profile("dialogue").capabilities
@@ -207,7 +213,7 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
         ],
         "iterations": 0,
         "query_intent": "unknown",
-        "session_id": request.session_id,
+        "session_id": session_id,
         "user_id": request.user_id,
         "_memory_context": "",
         "output_style": output_style,
@@ -227,7 +233,7 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
 
     # ── L1 Session 缓存：保存本轮消息（Dialogue 最多 20 条） ──
     await session_cache.store(
-        request.session_id,
+        session_id,
         result.get("messages", []),
         max_messages=20,
     )
@@ -251,11 +257,12 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
 
 async def _chat_research(request: ChatRequest) -> ChatResponse:
     """Research Agent 内部处理。"""
+    session_id = request.session_id or uuid.uuid4().hex
     output_style = _resolve_output_style(request)
 
     # ── L1 Session 缓存：恢复同 session 前序消息 ──
     session_cache = get_session_cache()
-    cached = await session_cache.load(request.session_id)
+    cached = await session_cache.load(session_id)
 
     # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
     _seed = get_agent_profile("research").capabilities
@@ -269,7 +276,7 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
         "critic_status": "PENDING",
         "critic_feedback": "",
         "query_intent": "unknown",
-        "session_id": request.session_id,
+        "session_id": session_id,
         "user_id": request.user_id,
         "error_flag": False,
         "_memory_context": "",
@@ -290,7 +297,7 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
 
     # ── L1 Session 缓存：保存本轮消息（Research 最多 30 条） ──
     await session_cache.store(
-        request.session_id,
+        session_id,
         result.get("messages", []),
         max_messages=30,
     )

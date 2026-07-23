@@ -311,10 +311,10 @@ class TestIntentPrompts:
         discovery = INTENT_PROMPTS["discovery"]
         assert "退出条件" in discovery
 
-    def test_debate_strategy_no_data(self):
-        """debate 策略应强调不依赖数据。"""
+    def test_debate_strategy_data_backs_opinion(self):
+        """debate 策略应强调用数据支撑观点。"""
         debate = INTENT_PROMPTS["debate"]
-        assert "不是数据查询" in debate or "少调工具" in debate
+        assert "数据支撑观点" in debate or "用数据" in debate
 
     def test_emotional_strategy_empathy_first(self):
         """emotional 策略应强调先共情。"""
