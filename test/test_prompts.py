@@ -96,13 +96,15 @@ class TestPromptBuilder:
         assert result.startswith("# 你是 Bangumi娘")
 
     def test_builder_neutral_research(self):
-        """Research + neutral: 中性助手，无腹黑/吐槽。"""
+        """Research + neutral: 中性助手，身份描述不含腹黑人格。
+
+        ``_DATA_INTERPRETATION`` 共享层会提及"毒舌吐槽或中性分析"作为
+        风格选项对比——这不等于要求中性角色去吐槽。"""
         result = _build(
             agent_profile=RESEARCH_PROFILE,
             character=NEUTRAL_CHARACTER,
         )
         assert "腹黑" not in result
-        assert "吐槽" not in result
         assert "⭐评分" in result  # 结构化格式保留
 
     def test_builder_bangumi_research(self):

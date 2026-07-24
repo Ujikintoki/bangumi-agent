@@ -28,7 +28,7 @@ from agent.reasoning_core import (
 from agent.research.prompts import build_system_prompt
 from agent.research.state import _MAX_ITERATIONS, AgentState
 from core.config import get_settings
-from tools.bgm_tools import get_agent_tools, set_tool_agent_type, set_tool_intent
+from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.nodes")
 
@@ -179,10 +179,6 @@ async def research_reasoning_node(state: AgentState) -> dict:
         new_iterations,
         [tc.get("name", "?") for tc in last_tool_calls],
     )
-
-    # ── 注入意图 + Agent 类型上下文（contextvars 传播到 ToolNode → 工具函数）──
-    set_tool_agent_type("research")
-    set_tool_intent(query_intent)
 
     return {
         "messages": [response],
@@ -344,8 +340,52 @@ def _critic_node_rule(state: AgentState) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# LLM 版 Critic（三元维度 + 逃逸舱 + 定向反馈）
+# LLM 版 Critic（四维度 + 逃逸舱 + 定向反馈）
 # ═══════════════════════════════════════════════════════════════════
+
+_MAX_TOOL_DATA_CHARS = 800
+"""传给 Critic 的单个工具返回数据最大字符数，防止 JSON 淹没评估 prompt。"""
+
+
+def _extract_tool_data_for_critic(messages: list) -> str:
+    """从消息历史中提取本轮工具返回的结构化数据，供 Critic 做准确性校验。
+
+    提取策略：定位最后一个 HumanMessage，收集其后所有 ToolMessage，
+    截断至 ``_MAX_TOOL_DATA_CHARS`` 防止超长 JSON 淹没评估 prompt。
+
+    Args:
+        messages: 完整的消息历史列表。
+
+    Returns:
+        格式化的工具数据文本（"工具名:\n数据\n\n..."），无 ToolMessage 时返回空字符串。
+    """
+    from langchain_core.messages import ToolMessage
+
+    # 定位本轮起点：最后一个 HumanMessage
+    start_idx = 0
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            start_idx = i
+            break
+
+    parts: list[str] = []
+    total_chars = 0
+    for m in messages[start_idx:]:
+        if isinstance(m, ToolMessage):
+            name = getattr(m, "name", "?") or "?"
+            content = getattr(m, "content", "") or ""
+            if not content:
+                continue
+            # 截断单条数据
+            if len(content) > _MAX_TOOL_DATA_CHARS:
+                content = content[:_MAX_TOOL_DATA_CHARS] + "…"
+            parts.append(f"[{name}]\n{content}")
+            total_chars += len(content)
+            if total_chars > _MAX_TOOL_DATA_CHARS * 2:
+                parts.append("…[后续工具数据已截断]")
+                break
+
+    return "\n\n".join(parts)
 
 
 async def _critic_node_llm(state: AgentState) -> dict:
@@ -384,20 +424,29 @@ async def _critic_node_llm(state: AgentState) -> dict:
             "critic_feedback": ("未找到有效的 AI 回复 | 请生成自然语言回复 | 回复缺失"),
         }
 
+    # ── 提取本轮工具返回（用于准确性校验）──────────────────
+    tool_data = _extract_tool_data_for_critic(messages)
+
     # ── LLM 评估 ──────────────────────────────────────────
     settings = get_settings()
     critic_model = settings.LLM_CRITIC_MODEL or settings.LLM_MODEL
     llm = create_llm(model=critic_model, temperature=0)
 
+    eval_context = f"""用户问题: {user_query}
+
+助手回复: {last_ai.content}"""
+
+    if tool_data:
+        eval_context += f"""
+
+本轮工具返回（用于校验助手回复中的数字是否准确）:
+{tool_data}"""
+
+    eval_context += "\n\n请按四维度评估并给出结论："
+
     eval_messages = [
         SystemMessage(content=CRITIC_SYSTEM_PROMPT),
-        HumanMessage(
-            content=f"""用户问题: {user_query}
-
-助手回复: {last_ai.content}
-
-请按三维度评估并给出结论："""
-        ),
+        HumanMessage(content=eval_context),
     ]
 
     try:

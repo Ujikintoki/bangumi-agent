@@ -27,7 +27,7 @@ from agent.reasoning_core import (
     recall_memory_step,
 )
 from core.config import get_settings
-from tools.bgm_tools import get_agent_tools, set_tool_agent_type, set_tool_intent
+from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.dialogue")
 
@@ -184,10 +184,6 @@ async def dialogue_reasoning_node(state: DialogueState) -> dict:
         new_iterations,
         [tc.get("name", "?") for tc in tool_calls],
     )
-
-    # ── 注入意图 + Agent 类型上下文（contextvars 传播到 ToolNode → 工具函数）──
-    set_tool_agent_type("dialogue")
-    set_tool_intent(query_intent)
 
     return {
         "messages": [response],

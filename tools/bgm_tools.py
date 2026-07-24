@@ -15,7 +15,6 @@ AI Agent 工具函数层
 
 from __future__ import annotations
 
-import contextvars
 import logging
 from typing import Any, Optional
 
@@ -43,44 +42,6 @@ from schemas.tools_input import (
 )
 
 logger = logging.getLogger("bgm-agent.tools")
-
-# ═══════════════════════════════════════════════════════════════════
-# Intent 上下文（contextvars 传递，不改 ToolNode/Graph 拓扑）
-# ═══════════════════════════════════════════════════════════════════
-
-_tool_intent: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "tool_intent", default="unknown"
-)
-"""当前推理轮次的意图分类，由 reasoning_node 设置后自动传播到 ToolNode → 工具函数。
-lookup → 全量输出; discovery → 极简输出; 其余 → 默认全量。"""
-
-
-def set_tool_intent(intent: str) -> None:
-    """设置当前工具调用的意图上下文（reasoning_node 在返回前调用）。"""
-    _tool_intent.set(intent)
-
-
-def _get_intent() -> str:
-    """读取当前意图（工具函数内部使用，不暴露给 LLM Schema）。"""
-    return _tool_intent.get()
-
-
-# Agent 类型上下文（contextvars 传递，与 _tool_intent 同模式）
-_tool_agent_type: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "tool_agent_type", default="research"
-)
-"""当前调用的 Agent 类型，由 reasoning_node 设置。
-dialogue → compact 输出; research → 全量输出。"""
-
-
-def set_tool_agent_type(agent_type: str) -> None:
-    """设置当前工具调用的 Agent 类型（reasoning_node 在返回前调用）。"""
-    _tool_agent_type.set(agent_type)
-
-
-def _get_agent_type() -> str:
-    """读取当前 Agent 类型（工具函数内部使用）。"""
-    return _tool_agent_type.get()
 
 # ═══════════════════════════════════════════════════════════════════
 # 常量
