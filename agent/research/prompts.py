@@ -31,7 +31,7 @@ TOOL_DEPENDENCY_CONSTRAINT = """
 1. 以下工具需要 subject_id 参数，**必须先通过 search_bangumi_subject 获取**：
    - get_bangumi_subject_detail
    - get_subject_characters
-   - get_subject_discussion
+   - get_subject_opinions
    - get_episode_comments
 
 2. 以下工具需要 character_id / person_id 参数，**必须先通过 search_bangumi_subject 获取**：
@@ -43,8 +43,8 @@ TOOL_DEPENDENCY_CONSTRAINT = """
    正确做法：第一轮 search → 拿到 id → 第二轮 detail
 
 4. 可以安全并行调用的组合：
-   - search_local_bangumi + get_trending_topics（互不依赖）
-   - get_calendar + get_trending_topics（时效数据，互不依赖）
+   - search_local_bangumi + get_trending_subjects（互不依赖）
+   - get_calendar + get_trending_subjects（时效数据，互不依赖）
    - 多个不同关键词的 search_bangumi_subject 同时进行
    - 多个不同 ID 的 get_character_detail 同时调用（互不依赖）"""
 
@@ -93,7 +93,7 @@ INTENT_PROMPTS: dict[str, str] = {
 2. 拿到 subject_id 后，根据需要调用：
    - get_bangumi_subject_detail → 评分、简介、标签
    - get_subject_characters → 角色和声优
-   - get_episode_comments / get_subject_discussion → 评论和讨论
+   - get_episode_comments / get_subject_opinions → 评论和讨论
 3. 拿到 character_id 后，可调用 get_character_detail 获取角色完整背景故事
 4. 拿到 person_id 后，可调用 get_person_detail 获取人物的职业背景、代表作
 5. **用户问到哪就答到哪，没问到的不主动扩展。** 综合信息后给出回复
@@ -129,7 +129,7 @@ INTENT_PROMPTS: dict[str, str] = {
 1. **先搜参考作品**：用 `search_bangumi_subject` 定位该作品，获取 subject_id
 2. **再拿标签**：用 `get_bangumi_subject_detail` 获取参考作品的标签/类型
 3. **按标签搜同类**：根据标签中的题材/类型关键词，用 `search_bangumi_subject` 搜索同类型作品（可同时多关键词并行）
-4. 如用户关心热度，可在第 3 步并行调用 `get_trending_topics`
+4. 如用户关心热度，可在第 3 步并行调用 `get_trending_subjects`
 
 ⚠️ 第 1、2 步必须串行——没有 subject_id 就不要调用 get_detail。
 
@@ -160,7 +160,7 @@ INTENT_PROMPTS: dict[str, str] = {
 策略：
 1. 直接使用时效类工具——不需要先搜索条目 ID
    - get_calendar → 今日/本周放送排期
-   - get_trending_topics → 当前热门条目/话题
+   - get_trending_subjects → 当前热门条目/话题
    - get_episode_comments → 最新一集的观众反馈（需要 episode_id）
 2. 如果用户想深入了解某个条目，再走 lookup 流程
 

@@ -142,7 +142,7 @@ def check_duplicate_tool_calls(messages: list) -> str:
     if dup_names:
         return (
             f"连续两轮调用了相同工具 {'/'.join(sorted(dup_names))} 且参数未变 | "
-            "上一轮该工具返回了错误或空数据，请换用不同工具（如 get_trending_topics 替代 get_calendar）"
+            "上一轮该工具返回了错误或空数据，请换用不同工具（如 get_trending_subjects 替代 get_calendar）"
             "或直接告知用户当前数据不可用 | "
             "重复调用"
         )

@@ -21,8 +21,8 @@ from schemas.tools_input import (
     GetCalendarInput,
     GetEntityCommentsInput,
     GetEpisodeDiscussionInput,
-    GetSubjectDiscussionInput,
-    GetTrendingInput,
+    GetSubjectOpinionsInput,
+    GetTrendingSubjectsInput,
     GetUserProfileInput,
     SearchBangumiInput,
 )
@@ -151,13 +151,13 @@ class TestClientEndpoints:
         assert "calendar" in call_args[0][1]
 
     @pytest.mark.asyncio
-    async def test_get_trending(self):
+    async def test_get_trending_subjects(self):
         client = BangumiClient()
         mock = AsyncMock()
         mock.return_value = mock_response({"data": [], "total": 0}, 200)
         client._client.request = mock
 
-        await client.get_trending(GetTrendingInput(category="subjects"))
+        await client.get_trending_subjects(GetTrendingSubjectsInput())
         call_args = mock.call_args
         assert "trending/subjects" in call_args[0][1]
 
@@ -175,14 +175,14 @@ class TestClientEndpoints:
         assert mock.call_count >= 2
 
     @pytest.mark.asyncio
-    async def test_get_subject_discussion(self):
+    async def test_get_subject_opinions(self):
         client = BangumiClient()
         mock = AsyncMock()
         mock.return_value = mock_response({"data": [], "total": 0}, 200)
         client._client.request = mock
 
-        await client.get_subject_discussion(
-            GetSubjectDiscussionInput(subject_id=8, data_types=["comments"])
+        await client.get_subject_opinions(
+            GetSubjectOpinionsInput(subject_id=8)
         )
         assert mock.call_count >= 1
 
@@ -196,8 +196,8 @@ class TestClientEndpoints:
         await client.get_entity_comments(
             GetEntityCommentsInput(entity_type="character", entity_id=1)
         )
-        call_args = mock.call_args
-        assert "characters/1/comments" in call_args[0][1]
+        # 2 concurrent calls: entity detail + comments
+        assert mock.call_count == 2
 
     @pytest.mark.asyncio
     async def test_get_subject_characters(self, subject_characters_response):
@@ -234,14 +234,18 @@ class TestClientEndpoints:
 
     @pytest.mark.asyncio
     async def test_get_user_timeline(self):
+        """API 返回列表 → 经 sanitize_timeline_events 展平。"""
         client = BangumiClient()
         mock = AsyncMock()
-        mock.return_value = mock_response({"data": []}, 200)
+        mock.return_value = mock_response([], 200)  # p1 API 直接返回列表
         client._client.request = mock
 
-        await client.get_user_timeline("testuser", limit=10)
+        result = await client.get_user_timeline("testuser", limit=10)
         call_args = mock.call_args
         assert "users/testuser/timeline" in call_args[0][1]
+        assert result["username"] == "testuser"
+        assert result["events"] == []
+        assert result["total"] == 0
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -252,16 +256,15 @@ class TestClientEndpoints:
 class TestClientSpecialLogic:
     @pytest.mark.asyncio
     async def test_subject_characters_relation_mapped(self, subject_characters_response):
-        """验证 CharacterCastType 整数被映射为人类可读标签。"""
+        """验证 casts 字符串格式：CV 省略标签，其他关系标注。"""
         client = BangumiClient()
         mock = AsyncMock()
         mock.return_value = mock_response(subject_characters_response, 200)
         client._client.request = mock
 
         result = await client.get_subject_characters(8)
-        cast = result["characters"][0]["casts"][0]
-        # relation = 0 → "CV"
-        assert cast["relation"] == "CV"
+        # casts 是字符串：relation=0 → CV（省略标签）
+        assert result["characters"][0]["casts"] == "福山润"
 
     @pytest.mark.asyncio
     async def test_subject_characters_empty(self):
@@ -281,7 +284,7 @@ class TestClientSpecialLogic:
         mock.return_value = mock_response({"data": [], "total": 0}, 200)
         client._client.request = mock
 
-        await client.get_trending(GetTrendingInput(category="subjects"))
+        await client.get_trending_subjects(GetTrendingSubjectsInput())
         call_args = mock.call_args
         # 验证 params 中包含 type=2
         assert "type" in str(call_args.kwargs.get("params", {})) or True

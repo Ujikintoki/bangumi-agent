@@ -75,16 +75,16 @@ async def main():
         fail("get_calendar", str(e)[:100])
 
     try:
-        from tools.bgm_tools import get_trending_topics
+        from tools.bgm_tools import get_trending_subjects
         t0 = time.time()
-        r = await get_trending_topics.ainvoke({"limit": 1})
+        r = await get_trending_subjects.ainvoke({"limit": 1})
         elapsed = time.time() - t0
         if "系统提示" in str(r) or "抱歉" in str(r)[:20]:
-            fail("get_trending_topics", f"{elapsed:.1f}s — {str(r)[:100]}")
+            fail("get_trending_subjects", f"{elapsed:.1f}s — {str(r)[:100]}")
         else:
-            ok("get_trending_topics", f"{elapsed:.1f}s")
+            ok("get_trending_subjects", f"{elapsed:.1f}s")
     except Exception as e:
-        fail("get_trending_topics", str(e)[:100])
+        fail("get_trending_subjects", str(e)[:100])
 
     try:
         from tools.bgm_tools import get_bangumi_subject_detail

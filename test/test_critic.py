@@ -186,7 +186,7 @@ class TestCriticNodeRule:
             SystemMessage(content="..."), HumanMessage(content="今天有什么番"),
             AIMessage(content="", tool_calls=[{"name": "get_calendar", "args": {}, "id": "c1"}]),
             ToolMessage(content="API 错误", tool_call_id="c1"),
-            AIMessage(content="", tool_calls=[{"name": "get_trending_topics", "args": {}, "id": "c2"}]),
+            AIMessage(content="", tool_calls=[{"name": "get_trending_subjects", "args": {}, "id": "c2"}]),
             ToolMessage(content="热门数据", tool_call_id="c2"),
             AIMessage(content="今日热门番剧有 A、B、C 三部，评分分别为 8.5、8.0、7.5 分。"),
         ])

@@ -13,10 +13,12 @@ from schemas.tools_input import (
     GetCalendarInput,
     GetEntityCommentsInput,
     GetEpisodeDiscussionInput,
+    GetHotTopicsInput,
     GetSubjectCharactersInput,
     GetSubjectDetailInput,
-    GetSubjectDiscussionInput,
-    GetTrendingInput,
+    GetSubjectEpisodesInput,
+    GetSubjectOpinionsInput,
+    GetTrendingSubjectsInput,
     GetUserProfileInput,
     LocalSearchInput,
     SearchBangumiInput,
@@ -122,30 +124,34 @@ class TestGetCalendarInput:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# GetTrendingInput
+# GetTrendingSubjectsInput
 # ═══════════════════════════════════════════════════════════════════
 
 
-class TestGetTrendingInput:
+class TestGetTrendingSubjectsInput:
     def test_defaults(self):
-        t = GetTrendingInput()
-        assert t.category == "both"
+        t = GetTrendingSubjectsInput()
         assert t.subject_type is None
         assert t.limit == 10
 
-    def test_categories(self):
-        for cat in ("subjects", "topics", "both"):
-            t = GetTrendingInput(category=cat)
-            assert t.category == cat
-
     def test_subject_types(self):
         for st in ("anime", "book", "music", "game", "real"):
-            t = GetTrendingInput(subject_type=st)
+            t = GetTrendingSubjectsInput(subject_type=st)
             assert t.subject_type == st
 
-    def test_invalid_category_raises(self):
+    def test_invalid_type_raises(self):
         with pytest.raises(ValidationError):
-            GetTrendingInput(category="invalid")
+            GetTrendingSubjectsInput(subject_type="invalid")
+
+
+class TestGetHotTopicsInput:
+    def test_defaults(self):
+        t = GetHotTopicsInput()
+        assert t.limit == 10
+
+    def test_limit_custom(self):
+        t = GetHotTopicsInput(limit=5)
+        assert t.limit == 5
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -171,30 +177,30 @@ class TestGetEpisodeDiscussionInput:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# GetSubjectDiscussionInput
+# GetSubjectOpinionsInput
 # ═══════════════════════════════════════════════════════════════════
 
 
-class TestGetSubjectDiscussionInput:
+class TestGetSubjectOpinionsInput:
     def test_defaults(self):
-        s = GetSubjectDiscussionInput(subject_id=8)
+        s = GetSubjectOpinionsInput(subject_id=8)
         assert s.subject_id == 8
-        assert s.data_types == ["comments", "reviews"]
         assert s.limit == 8
 
-    def test_custom_data_types(self):
-        s = GetSubjectDiscussionInput(
-            subject_id=8, data_types=["comments", "topics", "episodes"]
-        )
-        assert len(s.data_types) == 3
+    def test_limit_custom(self):
+        s = GetSubjectOpinionsInput(subject_id=8, limit=15)
+        assert s.limit == 15
 
-    def test_empty_data_types_allowed(self):
-        s = GetSubjectDiscussionInput(subject_id=8, data_types=[])
-        assert s.data_types == []
 
-    def test_invalid_data_type_raises(self):
-        with pytest.raises(ValidationError):
-            GetSubjectDiscussionInput(subject_id=8, data_types=["invalid"])
+class TestGetSubjectEpisodesInput:
+    def test_defaults(self):
+        s = GetSubjectEpisodesInput(subject_id=8)
+        assert s.subject_id == 8
+        assert s.limit == 26
+
+    def test_limit_custom(self):
+        s = GetSubjectEpisodesInput(subject_id=8, limit=50)
+        assert s.limit == 50
 
 
 # ═══════════════════════════════════════════════════════════════════

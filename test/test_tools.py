@@ -23,9 +23,11 @@ from tools.bgm_tools import (
     get_bangumi_subject_detail,
     get_entity_comments,
     get_episode_comments,
+    get_hot_topics,
     get_subject_characters,
-    get_subject_discussion,
-    get_trending_topics,
+    get_subject_episodes,
+    get_subject_opinions,
+    get_trending_subjects,
     get_user_profile,
     get_user_timeline,
     search_bangumi_subject,
@@ -45,9 +47,11 @@ class TestToolDecorators:
         (search_bangumi_subject, "SearchBangumiInput"),
         (get_bangumi_subject_detail, "GetSubjectDetailInput"),
         (get_calendar, "GetCalendarInput"),
-        (get_trending_topics, "GetTrendingInput"),
+        (get_trending_subjects, "GetTrendingSubjectsInput"),
+        (get_hot_topics, "GetHotTopicsInput"),
         (get_episode_comments, "GetEpisodeDiscussionInput"),
-        (get_subject_discussion, "GetSubjectDiscussionInput"),
+        (get_subject_opinions, "GetSubjectOpinionsInput"),
+        (get_subject_episodes, "GetSubjectEpisodesInput"),
         (get_entity_comments, "GetEntityCommentsInput"),
         (get_subject_characters, "GetSubjectCharactersInput"),
         (get_user_profile, "GetUserProfileInput"),
@@ -88,9 +92,11 @@ class TestSchemaFieldConsistency:
         (search_bangumi_subject, {"keyword", "entity_type", "limit", "subject_type", "nsfw"}),
         (get_bangumi_subject_detail, {"subject_id"}),
         (get_calendar, {"weekday", "limit_per_day"}),
-        (get_trending_topics, {"category", "subject_type", "limit"}),
+        (get_trending_subjects, {"subject_type", "limit"}),
+        (get_hot_topics, {"limit"}),
         (get_episode_comments, {"episode_id", "comments_limit"}),
-        (get_subject_discussion, {"subject_id", "data_types", "limit"}),
+        (get_subject_opinions, {"subject_id", "limit"}),
+        (get_subject_episodes, {"subject_id", "limit"}),
         (get_entity_comments, {"entity_type", "entity_id", "limit"}),
         (get_subject_characters, {"subject_id"}),
         (get_user_profile, {"username", "collections_limit", "include_blogs", "include_characters", "include_persons"}),
@@ -120,24 +126,24 @@ class TestTokenGating:
     async def test_user_profile_no_token(self, mock_get_settings):
         mock_get_settings.return_value = MagicMock(BANGUMI_ACCESS_TOKEN="")
         result = await get_user_profile.ainvoke({"username": "testuser"})
-        assert "系统提示" in result
-        assert "bgm.tv/user/testuser" in result
+        assert "_error" in result
+        assert "bgm.tv/user/testuser" in result["_error"]
 
     @pytest.mark.asyncio
     @patch("tools.bgm_tools.get_settings")
     async def test_blog_no_token(self, mock_get_settings):
         mock_get_settings.return_value = MagicMock(BANGUMI_ACCESS_TOKEN="")
         result = await get_blog.ainvoke({"entry_id": 12345})
-        assert "系统提示" in result
-        assert "bgm.tv/blog/12345" in result
+        assert "_error" in result
+        assert "bgm.tv/blog/12345" in result["_error"]
 
     @pytest.mark.asyncio
     @patch("tools.bgm_tools.get_settings")
     async def test_user_timeline_no_token(self, mock_get_settings):
         mock_get_settings.return_value = MagicMock(BANGUMI_ACCESS_TOKEN="")
         result = await get_user_timeline.ainvoke({"username": "testuser"})
-        assert "系统提示" in result
-        assert "bgm.tv/user/testuser" in result
+        assert "_error" in result
+        assert "bgm.tv/user/testuser" in result["_error"]
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -149,19 +155,22 @@ class TestOutputFormatting:
     """验证工具在边缘情况下返回自然语言字符串（不崩溃）。"""
 
     @pytest.mark.asyncio
-    async def test_user_profile_returns_string(self):
+    async def test_user_profile_returns_dict(self):
+        """get_user_profile 返回 dict（有 token 时调用 API，无 token 时返回 error dict）。"""
         result = await get_user_profile.ainvoke({"username": "nonexistent"})
-        assert isinstance(result, str) and len(result) > 10
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
-    async def test_blog_returns_string(self):
+    async def test_blog_returns_dict(self):
+        """get_blog 返回 dict（有 token 时调用 API，无数据时返回 error dict）。"""
         result = await get_blog.ainvoke({"entry_id": 1})
-        assert isinstance(result, str) and len(result) > 10
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
-    async def test_user_timeline_returns_string(self):
+    async def test_user_timeline_returns_dict(self):
+        """get_user_timeline 返回 dict（有 token 时调用 API）。"""
         result = await get_user_timeline.ainvoke({"username": "test"})
-        assert isinstance(result, str) and len(result) > 10
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_search_returns_string_for_missing(self):
@@ -177,12 +186,13 @@ class TestOutputFormatting:
             pass
 
     @pytest.mark.asyncio
-    async def test_calendar_returns_string(self):
+    async def test_calendar_returns_dict(self):
+        """日历工具返回结构化 dict。"""
         try:
             result = await get_calendar.ainvoke({"weekday": "today"})
-            assert isinstance(result, str)
+            assert isinstance(result, dict)
         except Exception:
-            pass  # 无网络时返回 error dict 的序列化 → 仍为 str
+            pass  # 无网络
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -215,7 +225,7 @@ class TestDisplayConstants:
 class TestToolRegistry:
     def test_count_no_token(self):
         tools = get_agent_tools()
-        assert len(tools) >= 9
+        assert len(tools) >= 11
 
     def test_all_required_tools_present(self):
         tools = get_agent_tools()
@@ -224,9 +234,11 @@ class TestToolRegistry:
             "search_bangumi_subject",
             "get_bangumi_subject_detail",
             "get_calendar",
-            "get_trending_topics",
+            "get_trending_subjects",
+            "get_hot_topics",
             "get_episode_comments",
-            "get_subject_discussion",
+            "get_subject_opinions",
+            "get_subject_episodes",
             "get_entity_comments",
             "get_subject_characters",
             "search_local_bangumi",

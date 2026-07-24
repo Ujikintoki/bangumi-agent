@@ -425,7 +425,9 @@ Full suite: 527 passed, 23 skipped (L3), 0 failed.
 | `docs/design/ROADMAP.md` | Development roadmap, phase details, fix status |
 | `docs/design/phase5-memory-system-design.md` | Phase 5 full design spec |
 | `docs/design/personality-rendering-layer.md` | Phase 5.5 original design (render-based, superseded by v3) |
-| `docs/design/architecture-review-2026-07-22.md` | Macro architecture review — agent layer directional issues |
+| `docs/design/architecture-review-2026-07-22.md` | Macro architecture review — agent layer + infra layer directional issues |
+| `docs/design/data-layer-redesign-discussion.md` | **Data layer discussion**: evolution from whitelist → passthrough → graduated signal/noise extraction |
+| `docs/design/bangumi-api-schema-methodology.md` | **Data layer methodology**: 5-step process + A/B/C/D field decisions + data levels L1/L2/L3 |
 | `docs/memory/` | Memory system manuals (6 files) |
 | `docs/ARCHITECTURE.md` | Legacy architecture doc (2026-05-29, partially outdated) |
 | `README.md` | Project README (badges, quick start — partially outdated) |

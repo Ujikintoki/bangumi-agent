@@ -32,8 +32,10 @@ from schemas.tools_input import (
     GetPersonDetailInput,
     GetSubjectCharactersInput,
     GetSubjectDetailInput,
-    GetSubjectDiscussionInput,
-    GetTrendingInput,
+    GetSubjectEpisodesInput,
+    GetSubjectOpinionsInput,
+    GetTrendingSubjectsInput,
+    GetHotTopicsInput,
     GetUserProfileInput,
     LocalSearchInput,
     SearchBangumiInput,
@@ -105,77 +107,6 @@ _TYPE_ICONS: dict[int, str] = {
 # ═══════════════════════════════════════════════════════════════════
 
 
-def _format_search_results(
-    results: list[dict],
-    total: int,
-    keyword: str,
-    entity_type: str,
-    intent: str = "unknown",
-) -> str:
-    """将搜索结果格式化为易读文本，避免裸 JSON 进入 LLM 上下文。
-
-    根据 entity_type 自适应展示不同字段：
-    - subject: 评分、排名、类型图标
-    - character: 角色类型、NSFW 标记
-    - person: 职业
-
-    discovery 模式下缩短引导语，减少 token 噪音。
-    """
-    if not results:
-        return (
-            f"未找到与「{keyword}」相关的"
-            f"{'条目' if entity_type == 'subject' else '角色' if entity_type == 'character' else '人物'}，"
-            f"请尝试更换关键词。"
-        )
-
-    lines: list[str] = [f"🔍 「{keyword}」的搜索结果（共 {total} 条）：\n"]
-
-    for i, item in enumerate(results, 1):
-        item_id = item.get("id", 0)
-        name = item.get("name_cn") or item.get("name", "未知")
-        orig_name = item.get("name", "")
-        display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
-
-        etype = item.get("entity_type", entity_type)
-
-        if etype == "subject":
-            type_icon = _TYPE_ICONS.get(item.get("type_id", 0), "📌")
-            score = item.get("score", 0)
-            rank = item.get("rank", 0)
-            extras: list[str] = []
-            if score:
-                extras.append(f"评分 {score:.1f}")
-            if rank:
-                extras.append(f"排名 #{rank}")
-            extra_str = f" — {' | '.join(extras)}" if extras else ""
-            lines.append(f"{i}. {type_icon} {display}{extra_str}  [ID: {item_id}]")
-
-        elif etype == "character":
-            role = item.get("role", "")
-            role_str = f"（{role}）" if role and role != "未知" else ""
-            nsfw_tag = " 🔞" if item.get("nsfw") else ""
-            lines.append(f"{i}. 🧑 {display}{role_str}{nsfw_tag}  [ID: {item_id}]")
-
-        elif etype == "person":
-            career = item.get("career", "")
-            career_str = f" — {career}" if career else ""
-            lines.append(f"{i}. 🎤 {display}{career_str}  [ID: {item_id}]")
-
-        else:
-            lines.append(f"{i}. {display}  [ID: {item_id}]")
-
-    # discovery 模式：引导语缩短（~8 tokens vs ~25 tokens）
-    if intent == "discovery":
-        lines.append("\n── 使用详情工具获取更多信息 ──")
-    else:
-        lines.append(
-            f"\n── 使用详情工具（get_bangumi_subject_detail / get_entity_comments"
-            f"{' / get_subject_characters' if entity_type == 'subject' else ''}）"
-            f"获取完整信息 ──"
-        )
-    return "\n".join(lines)
-
-
 def _compute_subject_signals(
     rating_count: list[int],
     collection: dict,
@@ -241,272 +172,7 @@ def _compute_subject_signals(
     return signals
 
 
-def _format_subject_detail(detail: dict, intent: str = "unknown") -> str:
-    """将条目详情格式化为易读文本，按 intent + agent_type 分化输出。
 
-    - **discovery**：极简模式（~45 tokens/项）
-    - **dialogue agent**：compact 模式（~80-120 tokens，关键信息 + 简介）
-    - **research agent**：全量模式（~300-800 tokens，完整统计分布）
-    """
-    if intent == "discovery":
-        return _format_subject_detail_discovery(detail)
-    if _get_agent_type() == "dialogue":
-        return _format_subject_detail_compact(detail)
-    return _format_subject_detail_full(detail)
-
-
-def _format_subject_detail_full(detail: dict) -> str:
-    """全量条目详情（lookup/factual/realtime 等精确场景）。"""
-    name = detail.get("name_cn") or detail.get("name", "未知")
-    orig_name = detail.get("name", "")
-    display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
-
-    lines: list[str] = [f"📺 {display}"]
-
-    # ── 评分行 ──────────────────────────────────────────────
-    score = detail.get("score", 0)
-    rank = detail.get("rank", 0)
-    total_ratings = detail.get("total_rating_count", 0)
-    meta: list[str] = []
-    if score:
-        meta.append(f"评分 {score:.1f}")
-    if rank:
-        meta.append(f"排名 #{rank}")
-    if total_ratings:
-        meta.append(f"{total_ratings} 人评")
-    if meta:
-        lines.append(f"{' | '.join(meta)}")
-
-    # ── 评分分布（判断口碑是否两极化）──────────────────────
-    rating_count = detail.get("rating_count", [])
-    if rating_count and sum(rating_count) > 0:
-        compact = " ".join(
-            f"{i+1}分:{c}" for i, c in enumerate(rating_count) if c > 0
-        )
-        lines.append(f"评分分布：{compact}")
-
-    # ── 收藏分布（识别冷门神作 vs 过誉热门）─────────────────
-    collection = detail.get("collection", {})
-    if collection:
-        labels = {1: "想看", 2: "看过", 3: "在看", 4: "搁置", 5: "抛弃"}
-        parts = [f"{labels.get(int(k), k)}:{v}" for k, v in sorted(collection.items())]
-        lines.append(f"收藏分布：{' | '.join(parts)}")
-
-    # ── 派生信号（完成率 / 口碑集中度 / 热度评分比）────────
-    signals = _compute_subject_signals(
-        rating_count=rating_count if rating_count else [],
-        collection=collection if collection else {},
-        score=score,
-    )
-    if signals:
-        lines.append(f"📊 信号：{'；'.join(signals)}")
-
-    # ── 类型/集数行 ──────────────────────────────────────────
-    type_name = detail.get("type", "")
-    eps = detail.get("eps", 0)
-    sub: list[str] = []
-    if type_name:
-        sub.append(f"类型: {type_name}")
-    if eps:
-        sub.append(f"集数: {eps}")
-    if sub:
-        lines.append(f"{' | '.join(sub)}")
-
-    # ── 简介 ────────────────────────────────────────────────
-    summary = detail.get("summary", "")
-    if summary:
-        lines.append(f"\n简介：{summary}")
-
-    # ── 标签 ────────────────────────────────────────────────
-    tags = detail.get("tags", [])
-    if tags:
-        tag_strs = [
-            f"{t['name']}{'(' + str(t['count']) + ')' if t.get('count') else ''}"
-            for t in tags[:10]
-        ]
-        lines.append(f"\n标签：{', '.join(tag_strs)}")
-
-    subject_id = detail.get("id", 0)
-    lines.append(f"\n── 条目 {subject_id} 详情 ──")
-    return "\n".join(lines)
-
-
-def _format_subject_detail_discovery(detail: dict) -> str:
-    """发现模式条目详情：极简一行，仅保留比较和筛选必需字段。
-
-    输出格式（~45 tokens/部）：::
-
-        进击的巨人 | ★8.5 | #2 | 动画 25集 | id:8 [机战,科幻,热血]
-
-    刻意砍掉的字段及理由：
-    - 原文名：比较阶段用中文名够用
-    - 评分分布/收藏分布/派生信号：比较阶段不需要统计细节
-    - 简介：top-3 标签已提供类型线索，无需百字长文
-    - 评分人数：5 部横向对比的绝对数字信息密度低
-    """
-    name = detail.get("name_cn") or detail.get("name", "??")
-    score = detail.get("score", 0)
-    rank = detail.get("rank", 0)
-    type_name = detail.get("type", "")
-    eps = detail.get("eps", 0)
-    item_id = detail.get("id", 0)
-
-    # top-3 标签作为类型/风格线索
-    tags = detail.get("tags", [])
-    tag_str = ""
-    if tags:
-        top_tags = [t["name"] for t in tags[:3] if t.get("name")]
-        if top_tags:
-            tag_str = f" [{'/'.join(top_tags)}]"
-
-    parts: list[str] = [name]
-    if score:
-        parts.append(f"★{score:.1f}")
-    if rank:
-        parts.append(f"#{rank}")
-    fmt = f"{type_name} {eps}集" if eps else type_name
-    parts.append(fmt)
-    parts.append(f"id:{item_id}")
-
-    return " | ".join(parts) + tag_str
-
-
-def _format_subject_detail_compact(detail: dict) -> str:
-    """Dialogue Agent 专用条目详情：关键信息 + 简介（~80-120 tokens）。
-
-    相比 full 模式删除了：评分分布(10行)、收藏分布(5项)、派生信号。
-    保留：名称、评分、排名、评分人数、类型、集数、简介(截断150字)、标签top5。
-    """
-    name = detail.get("name_cn") or detail.get("name", "未知")
-    orig_name = detail.get("name", "")
-    display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
-
-    lines: list[str] = [f"📺 {display}"]
-
-    # ── 评分行 ──
-    score = detail.get("score", 0)
-    rank = detail.get("rank", 0)
-    total_ratings = detail.get("total_rating_count", 0)
-    meta: list[str] = []
-    if score:
-        meta.append(f"评分 {score:.1f}")
-    if rank:
-        meta.append(f"排名 #{rank}")
-    if total_ratings:
-        meta.append(f"{total_ratings} 人评")
-    if meta:
-        lines.append(f"{' | '.join(meta)}")
-
-    # ── 类型/集数 ──
-    type_name = detail.get("type", "")
-    eps = detail.get("eps", 0)
-    sub: list[str] = []
-    if type_name:
-        sub.append(f"类型: {type_name}")
-    if eps:
-        sub.append(f"集数: {eps}")
-    if sub:
-        lines.append(f"{' | '.join(sub)}")
-
-    # ── 简介（截断） ──
-    summary = detail.get("summary", "")
-    if summary:
-        lines.append(f"\n简介：{summary[:150]}")
-
-    # ── 标签 top-5 ──
-    tags = detail.get("tags", [])
-    if tags:
-        tag_strs = [
-            f"{t['name']}{'(' + str(t['count']) + ')' if t.get('count') else ''}"
-            for t in tags[:5]
-        ]
-        lines.append(f"\n标签：{', '.join(tag_strs)}")
-
-    subject_id = detail.get("id", 0)
-    lines.append(f"\n── 条目 {subject_id} 详情 ──")
-    return "\n".join(lines)
-
-
-def _format_character_detail(detail: dict) -> str:
-    """将角色详情格式化为易读文本。
-
-    Dialogue Agent 下截断背景至 100 字，Research 保留完整背景。
-    """
-    name = detail.get("name_cn") or detail.get("name", "未知角色")
-    orig_name = detail.get("name", "")
-    display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
-
-    lines: list[str] = [f"🧑 {display}"]
-
-    # ── 基本信息 ──────────────────────────────────────────────
-    role = detail.get("role", "")
-    nsfw_tag = " 🔞" if detail.get("nsfw") else ""
-    info = detail.get("info", "")
-    meta: list[str] = []
-    if role:
-        meta.append(f"类型: {role}")
-    collects = detail.get("collects", 0)
-    if collects:
-        meta.append(f"{collects} 人收藏")
-    if meta:
-        lines.append(f"{' | '.join(meta)}{nsfw_tag}")
-    if info:
-        lines.append(f"简介：{info}")
-
-    # ── 详细背景 ────────────────────────────────────────────────
-    summary = detail.get("summary", "")
-    if summary:
-        if _get_agent_type() == "dialogue":
-            lines.append(f"\n背景：{summary[:100]}")
-        else:
-            lines.append(f"\n背景：{summary}")
-
-    character_id = detail.get("id", 0)
-    lines.append(f"\n── 角色 {character_id} 详情 ──")
-    return "\n".join(lines)
-
-
-def _format_person_detail(detail: dict) -> str:
-    """将人物详情格式化为易读文本。
-
-    Dialogue Agent 下截断背景至 100 字，Research 保留完整背景。
-    """
-    name = detail.get("name_cn") or detail.get("name", "未知人物")
-    orig_name = detail.get("name", "")
-    display = f"{name}（{orig_name}）" if (name != orig_name and orig_name) else name
-
-    lines: list[str] = [f"🎤 {display}"]
-
-    # ── 基本信息 ──────────────────────────────────────────────
-    person_type = detail.get("type", "")
-    career = detail.get("career", "")
-    nsfw_tag = " 🔞" if detail.get("nsfw") else ""
-    meta: list[str] = []
-    if person_type:
-        meta.append(f"类型: {person_type}")
-    if career:
-        meta.append(f"职业: {career}")
-    collects = detail.get("collects", 0)
-    if collects:
-        meta.append(f"{collects} 人收藏")
-    if meta:
-        lines.append(f"{' | '.join(meta)}{nsfw_tag}")
-
-    info = detail.get("info", "")
-    if info:
-        lines.append(f"简介：{info}")
-
-    # ── 详细背景 ────────────────────────────────────────────────
-    summary = detail.get("summary", "")
-    if summary:
-        if _get_agent_type() == "dialogue":
-            lines.append(f"\n背景：{summary[:100]}")
-        else:
-            lines.append(f"\n背景：{summary}")
-
-    person_id = detail.get("id", 0)
-    lines.append(f"\n── 人物 {person_id} 详情 ──")
-    return "\n".join(lines)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -521,32 +187,45 @@ async def search_bangumi_subject(
     limit: int = 5,
     subject_type: Optional[int] = None,
     nsfw: Optional[bool] = None,
-) -> str:
-    """搜索 Bangumi 条目/角色/人物，返回格式化的自然语言结果列表。
+) -> dict:
+    """搜索 Bangumi 条目/角色/人物，返回结构化结果字典。
 
     当用户想要查找动画、书籍、音乐、游戏、角色或声优时调用此工具。
     返回结果包含 ID，便于后续调用详情类工具进行深度查询。
 
     典型场景：
-    - "帮我搜一下《进击的巨人》"
-    - "花泽香菜配过哪些角色？"
-    - "推荐几部评分高的科幻动画"
-    - "查一下有没有叫'阿尔托莉雅'的角色"
+    - "帮我搜一下《进击的巨人》" → 确认存在，拿到 ID
+    - "花泽香菜配过哪些角色？" → 找到对应人物
+    - "推荐几部评分高的科幻动画" → 拿到候选列表 + 评分排名
+    - "查一下有没有叫'阿尔托莉雅'的角色" → 消歧同名角色
 
     Args:
         keyword: 搜索关键词，支持日语、中文、英文等多种语言。
         entity_type: 搜索的实体类型。``subject``=番剧/书籍/音乐/游戏条目，
-            ``character``=虚拟角色，``person``=现实人物（声优、导演等）。
-            默认 ``subject``。
+            ``character``=虚拟角色，``person``=现实人物（声优、导演等）。默认 ``subject``。
         limit: 返回结果的最大条数，默认 5。
         subject_type: 【仅 entity_type=subject 时生效】条目类型过滤：
             1=书籍, 2=动画, 3=音乐, 4=游戏, 6=真人。留空则不限制类型。
         nsfw: 【仅 entity_type=character 时生效】是否包含 NSFW 角色。
-            留空由 API 默认行为决定。
 
     Returns:
-        自然语言格式的搜索结果摘要，含 emoji 标识、评分、排名等关键字段，
-        便于 LLM 直接理解和组织回复。无结果或失败时返回友好的自然语言提示。
+        dict::
+            {
+                "results": [
+                    # subject:
+                    {"id": int, "name": str, "name_cn": str, "type": str,
+                     "score": float, "rank": int, "info": str},
+                    # character:
+                    {"id": int, "name": str, "name_cn": str, "info": str,
+                     "role": str, "nsfw": bool},
+                    # person:
+                    {"id": int, "name": str, "name_cn": str, "info": str,
+                     "type": str, "career": [str], "nsfw": bool}
+                ],
+                "total": int
+            }
+
+        无结果时 ``results`` 为空列表。失败时返回 ``{"_error": "..."}``。
     """
     async with BangumiClient() as client:
         result = await client.search(
@@ -560,19 +239,9 @@ async def search_bangumi_subject(
         )
 
     if "_error" in result:
-        return f"系统提示：搜索失败。{result['_error']}"
+        return {"_error": f"搜索失败。{result['_error']}"}
 
-    results = result.get("results", [])
-    total = result.get("total", len(results))
-    if not results:
-        return (
-            f"未找到与「{keyword}」相关的"
-            f"{'条目' if entity_type == 'subject' else '角色' if entity_type == 'character' else '人物'}，"
-            f"请尝试更换关键词或调整搜索条件。"
-        )
-
-    intent = _get_intent()
-    return _format_search_results(results, total, keyword, entity_type, intent=intent)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -581,41 +250,48 @@ async def search_bangumi_subject(
 
 
 @tool(args_schema=GetSubjectDetailInput)
-async def get_bangumi_subject_detail(subject_id: int) -> str:
-    """获取 Bangumi 单个条目的完整详细信息，返回格式化的自然语言摘要。
+async def get_bangumi_subject_detail(subject_id: int) -> dict:
+    """获取 Bangumi 单个条目的完整详细信息，返回结构化字典。
 
     当用户需要了解某个条目的完整信息时调用此工具，通常在
     ``search_bangumi_subject`` 之后使用。在用户已明确知道条目 ID
     时也可直接调用。
 
     典型场景：
-    - "帮我看看编号 12345 这个番的详情"
-    - "这部动画有多少集？什么时候播出的？"
-    - "查一下这个条目的评分和收藏情况"
-
-    返回的摘要中包含该条目的：
-    - 基本信息和评分（名称、评分、排名、评分人数）
-    - 评分分布和收藏分布
-    - 派生信号（完成率、口碑集中度、热度评分比）
-    - 类型、集数、简介、标签
+    - "这部番评分怎么样？口碑两极吗？" → 看 score/rank/rating_count
+    - "导演是谁？谁做的音乐？" → 看 infobox
+    - "讲的是什么故事？" → 看 summary
+    - "是什么类型？和哪些作品类似？" → 看 tags
+    - "热度怎么样？有多少人看完了？" → 看 collection
+    - "有没有续作/前传？" → 调 get_subject_relations
 
     Args:
         subject_id: 条目 ID，即 Bangumi 条目详情页 URL 中的数字编号。
             例如 ``https://bgm.tv/subject/8`` 对应的 ``subject_id`` 为 ``8``。
 
     Returns:
-        自然语言格式的条目详情摘要。根据当前意图自动切换输出模式：
-        discovery 模式为极简一行（~45 tokens），其余模式为全量详情。
-        失败时返回友好的自然语言错误提示。
+        dict::
+            {
+                "id": int, "name": str, "name_cn": str, "type": str,
+                "info": str, "date": str, "eps": int, "volumes": int,
+                "series": bool, "series_entry": bool, "nsfw": bool,
+                "summary": str,
+                "score": float, "rank": int, "rating_total": int,
+                "rating_count": [int×10],
+                "collection": {"想看": int, "看过": int, ...},
+                "tags": [{"name": str, "count": int} × 30],
+                "infobox": {"导演": str, "原作": str, ...}
+            }
+
+        失败时返回 ``{"_error": "..."}``。
     """
     async with BangumiClient() as client:
         result = await client.get_subject_detail(subject_id=subject_id)
 
     if "_error" in result:
-        return f"系统提示：获取条目详情失败。{result['_error']}"
+        return {"_error": f"获取条目详情失败。{result['_error']}"}
 
-    intent = _get_intent()
-    return _format_subject_detail(result, intent=intent)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -624,7 +300,7 @@ async def get_bangumi_subject_detail(subject_id: int) -> str:
 
 
 @tool(args_schema=GetCharacterDetailInput)
-async def get_character_detail(character_id: int) -> str:
+async def get_character_detail(character_id: int) -> dict:
     """获取 Bangumi 虚拟角色的完整详细信息，返回格式化的自然语言摘要。
 
     当用户想了解某个角色的完整设定、背景故事、收藏热度时调用此工具。
@@ -650,13 +326,13 @@ async def get_character_detail(character_id: int) -> str:
         result = await client.get_character_detail(character_id=character_id)
 
     if "_error" in result:
-        return f"系统提示：获取角色详情失败。{result['_error']}"
+        return {"_error": f"获取角色详情失败。{result['_error']}"}
 
-    return _format_character_detail(result)
+    return result
 
 
 @tool(args_schema=GetPersonDetailInput)
-async def get_person_detail(person_id: int) -> str:
+async def get_person_detail(person_id: int) -> dict:
     """获取 Bangumi 现实人物（声优、导演、作者等）的完整详细信息，返回格式化的自然语言摘要。
 
     当用户想了解某位声优/导演/作者的职业背景、代表作列表时调用此工具。
@@ -682,9 +358,9 @@ async def get_person_detail(person_id: int) -> str:
         result = await client.get_person_detail(person_id=person_id)
 
     if "_error" in result:
-        return f"系统提示：获取人物详情失败。{result['_error']}"
+        return {"_error": f"获取人物详情失败。{result['_error']}"}
 
-    return _format_person_detail(result)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -693,11 +369,12 @@ async def get_person_detail(person_id: int) -> str:
 
 
 @tool(args_schema=GetCalendarInput)
-async def get_calendar(weekday: str = "today", limit_per_day: int = 10) -> str:
-    """获取 Bangumi 每日放送排期，展示当日热门番剧列表。
+async def get_calendar(weekday: str = "today", limit_per_day: int = 10) -> dict:
+    """获取 Bangumi 每日放送排期，返回结构化字典。
 
     从 Bangumi 番组表中提取当日或指定日期的放送安排，
-    按关注人数降序排列，帮助用户了解"今天有什么番可以看"。
+    按关注人数降序排列。这是"今天/周X有什么番"的发现工具——
+    拿到 id 后可调 ``get_bangumi_subject_detail`` 获取完整信息。
 
     典型场景：
     - "今天有什么新番更新？"
@@ -710,7 +387,15 @@ async def get_calendar(weekday: str = "today", limit_per_day: int = 10) -> str:
         limit_per_day: 每天最多返回的番剧条目数量，默认 10。
 
     Returns:
-        纯文本格式的放送排期摘要，包含番剧名称、评分和关注人数。
+        dict::
+            {
+                "daily_summary": str,
+                "items": [
+                    {"id": int, "name": str, "score": float, "watchers": int}
+                ]
+            }
+
+        失败时返回 ``{"_error": "..."}``。
     """
     async with BangumiClient() as client:
         result = await client.get_calendar(
@@ -718,30 +403,9 @@ async def get_calendar(weekday: str = "today", limit_per_day: int = 10) -> str:
         )
 
     if "_error" in result:
-        return f"系统提示：获取放送排期失败。{result['_error']}"
+        return {"_error": f"获取放送排期失败。{result['_error']}"}
 
-    items = result.get("items", [])
-    summary = result.get("daily_summary", "")
-
-    if not items:
-        return summary or "当前没有放送数据。"
-
-    weekday_labels = {
-        "mon": "周一", "tue": "周二", "wed": "周三", "thu": "周四",
-        "fri": "周五", "sat": "周六", "sun": "周日",
-    }
-    label = weekday_labels.get(weekday, "") if weekday != "today" and weekday != "all" else ""
-
-    lines: list[str] = [f"📅 {summary}\n" if label else f"📅 {summary}\n"]
-    for i, item in enumerate(items, 1):
-        name = item.get("name", "未知")
-        score = item.get("score", 0)
-        watchers = item.get("watchers", 0)
-        score_str = f"评分 {score:.1f}" if score else "暂无评分"
-        lines.append(f"{i}. {name} — {score_str} | {watchers} 人想看")
-
-    lines.append(f"\n── 以上为{'今日' if weekday == 'today' else label + '的' if label else ''}放送排期 TOP {len(items)} ──")
-    return "\n".join(lines)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -749,82 +413,85 @@ async def get_calendar(weekday: str = "today", limit_per_day: int = 10) -> str:
 # ═══════════════════════════════════════════════════════════════════
 
 
-@tool(args_schema=GetTrendingInput)
-async def get_trending_topics(
-    category: str = "both",
+@tool(args_schema=GetTrendingSubjectsInput)
+async def get_trending_subjects(
     subject_type: Optional[str] = None,
     limit: int = 10,
-) -> str:
-    """获取 Bangumi 全站热门条目和/或讨论帖风向标。
+) -> dict:
+    """获取 Bangumi 全站热门条目排名，返回结构化字典。
 
-    从全站热门趋势中提取条目名称、评分、讨论标题等关键信息，
-    帮助 Agent 感知社区当前讨论热度最高的作品和话题。
+    回答"最近什么番/书/游戏最火？"——无需关键词，平台按热度排名。
+    拿到 id 后可调 ``get_bangumi_subject_detail`` 获取完整信息。
 
     典型场景：
     - "最近什么番最火？"
     - "这季度大家都在追什么？"
     - "现在社区热度最高的动画有哪些？"
-    - "看看最近热议的话题"
 
     Args:
-        category: 热门维度。``subjects``=热门条目排行，``topics``=热门讨论帖排行，
-            ``both``=两者都拉取。默认 ``both``。
-        subject_type: 【仅 category 含 subjects 时生效】条目类型过滤：
-            ``anime``=动画, ``book``=书籍, ``music``=音乐, ``game``=游戏, ``real``=真人。
-            留空则不限制类型。
-        limit: 每个维度返回的最大条数，默认 10。
+        subject_type: 条目类型过滤。``anime``=动画, ``book``=书籍, ``music``=音乐,
+            ``game``=游戏, ``real``=真人。留空则不限制类型。
+        limit: 返回条数，默认 10。
 
     Returns:
-        纯文本格式的热门趋势摘要，包含条目名称、评分或讨论帖信息。
+        dict::
+            {
+                "summary": str,
+                "items": [
+                    {"id": int, "name": str, "type": str,
+                     "score": float, "trending_score": int}
+                ],
+                "total": int
+            }
+
+        失败时返回 ``{"_error": "..."}``。
     """
     async with BangumiClient() as client:
-        result = await client.get_trending(
-            GetTrendingInput(
-                category=category, subject_type=subject_type, limit=limit
-            )
+        result = await client.get_trending_subjects(
+            GetTrendingSubjectsInput(subject_type=subject_type, limit=limit)
         )
 
     if "_error" in result:
-        return f"系统提示：获取热门趋势失败。{result['_error']}"
+        return {"_error": f"获取热门条目失败。{result['_error']}"}
 
-    lines: list[str] = []
+    return result
 
-    # ── 热门条目 ──────────────────────────────────────────────
-    subjects_data = result.get("subjects", {})
-    if isinstance(subjects_data, dict) and "_error" not in subjects_data:
-        items = subjects_data.get("items", [])
-        summary = subjects_data.get("summary", "")
-        if items:
-            lines.append(f"🔥 {summary}\n")
-            for i, item in enumerate(items, 1):
-                name = item.get("name", "未知作品")
-                score = item.get("score", 0)
-                icon = _TYPE_ICONS.get(item.get("type", 0), "📌")
-                score_str = f"评分 {score:.1f}" if score else "暂无评分"
-                lines.append(f"{i}. {icon} {name} — {score_str}")
-    elif isinstance(subjects_data, dict) and "_error" in subjects_data:
-        lines.append(f"⚠️ 热门条目获取失败：{subjects_data['_error']}")
 
-    # ── 热门讨论 ──────────────────────────────────────────────
-    topics_data = result.get("topics", {})
-    if isinstance(topics_data, dict) and "_error" not in topics_data:
-        items = topics_data.get("items", [])
-        if items:
-            if lines:
-                lines.append("")
-            lines.append(f"💬 热门讨论帖（共 {len(items)} 条）：\n")
-            for i, item in enumerate(items, 1):
-                title = item.get("title", "无标题")
-                replies = item.get("reply_count", 0)
-                creator = item.get("creator_name", "匿名")
-                lines.append(f"{i}. {title} — {replies} 回复 | 作者: {creator}")
-    elif isinstance(topics_data, dict) and "_error" in topics_data:
-        lines.append(f"⚠️ 热门讨论获取失败：{topics_data['_error']}")
+@tool(args_schema=GetHotTopicsInput)
+async def get_hot_topics(limit: int = 10) -> dict:
+    """获取 Bangumi 全站热门讨论帖，返回结构化字典。
 
-    if not lines:
-        return "当前没有热门趋势数据，请稍后再试。"
+    回答"社区在热议什么？"——提取讨论帖标题和关联条目引用。
+    拿到 subject_id 后可调 ``get_bangumi_subject_detail`` 了解相关作品。
+    注意：帖子 ID 和作者名无下游工具可消费，仅保留标题+条目引用+回复数。
 
-    return "\n".join(lines)
+    典型场景：
+    - "Bangumi 上最近在热议什么？"
+    - "看看社区现在讨论热点"
+    - "最近有什么引发争议的话题？"
+
+    Args:
+        limit: 返回条数，默认 10。
+
+    Returns:
+        dict::
+            {
+                "items": [
+                    {"title": str, "reply_count": int,
+                     "subject_name": str, "subject_id": int}
+                ],
+                "total": int
+            }
+
+        失败时返回 ``{"_error": "..."}``。
+    """
+    async with BangumiClient() as client:
+        result = await client.get_hot_topics(GetHotTopicsInput(limit=limit))
+
+    if "_error" in result:
+        return {"_error": f"获取热门讨论失败。{result['_error']}"}
+
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -833,10 +500,10 @@ async def get_trending_topics(
 
 
 @tool(args_schema=GetEpisodeDiscussionInput)
-async def get_episode_comments(episode_id: int, comments_limit: int = 30) -> str:
-    """获取 Bangumi 单集详情与吐槽箱评论。
+async def get_episode_comments(episode_id: int, comments_limit: int = 30) -> dict:
+    """获取 Bangumi 单集详情与吐槽箱评论，返回结构化字典。
 
-    同时拉取单集的元数据（集数、标题、简介）和社区吐槽，
+    同时拉取单集元数据（集数、标题、简介、所属条目）和社区吐槽，
     帮助 Agent 理解特定单集的内容和观众反应。
 
     典型场景：
@@ -845,12 +512,24 @@ async def get_episode_comments(episode_id: int, comments_limit: int = 30) -> str
     - "这一集风评怎么样？"
 
     Args:
-        episode_id: 单集 ID，可通过 get_subject_discussion 的 episodes 列表获得，
-            或从 Bangumi 条目详情页获取。
+        episode_id: 单集 ID，可通过 get_subject_episodes 获得。
         comments_limit: 吐槽箱评论的最大拉取条数，默认 30，最大 200。
 
     Returns:
-        纯文本格式的单集信息和吐槽摘要。若无吐槽或 API 异常，返回对应的自然语言提示。
+        dict::
+            {
+                "episode": {
+                    "id": int, "sort": int, "name": str, "airdate": str,
+                    "duration": str, "desc": str, "comment_count": int,
+                    "subject_id": int, "subject_name": str
+                },
+                "comments": [str],
+                "comment_count": int
+            }
+
+        评论已按热度（回应数）降序排列，过滤噪音短评。
+        ``comments_error`` 字段出现时表示评论获取失败但 episode 元数据仍可用。
+        失败时返回 ``{"_error": "..."}``。
     """
     async with BangumiClient() as client:
         result = await client.get_episode_discussion(
@@ -860,176 +539,105 @@ async def get_episode_comments(episode_id: int, comments_limit: int = 30) -> str
         )
 
     if "_error" in result:
-        return f"系统提示：获取单集讨论失败。{result['_error']}"
+        return {"_error": f"获取单集讨论失败。{result['_error']}"}
 
-    # ── 单集信息 ──────────────────────────────────────────────
-    episode = result.get("episode", {})
-    ep_name = episode.get("ep_name", "") or f"单集 {episode_id}"
-    subject_name = episode.get("subject_name", "")
-    airdate = episode.get("airdate", "")
-
-    header = f"📺 {ep_name}"
-    if subject_name:
-        header += f"（{subject_name}）"
-    if airdate:
-        header += f" — {airdate} 播出"
-
-    # ── 评论 ──────────────────────────────────────────────────
-    comments: list[str] = result.get("comments", [])
-    comment_count: int = result.get("comment_count", 0)
-    comments_error = result.get("comments_error", "")
-
-    lines: list[str] = [header]
-
-    if comments_error:
-        lines.append(f"\n⚠️ 吐槽箱获取失败：{comments_error}")
-    elif not comments:
-        lines.append(f"\n该单集目前还没有吐槽评论，来做第一个吐槽的人吧！")
-    else:
-        lines.append(f"\n💬 吐槽箱（共 {comment_count} 条）：\n")
-        for i, text in enumerate(comments[:comments_limit], 1):
-            lines.append(f"{i}. {text}")
-        lines.append(f"\n── 以上为最近 {min(len(comments), comments_limit)} 条吐槽 ──")
-
-    return "\n".join(lines)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 条目讨论全景
+# 条目口碑（短评 + 长评）
 # ═══════════════════════════════════════════════════════════════════
 
 
-@tool(args_schema=GetSubjectDiscussionInput)
-async def get_subject_discussion(
-    subject_id: int,
-    data_types: list[str] = ["comments", "reviews"],
-    limit: int = 10,
-) -> str:
-    """获取条目多维度社区讨论数据，全面了解一部作品的社区评价。
+@tool(args_schema=GetSubjectOpinionsInput)
+async def get_subject_opinions(subject_id: int, limit: int = 8) -> dict:
+    """获取条目社区口碑：短评 + 长评，返回结构化字典。
 
-    四个维度的数据各有侧重——
-    comments 反映口碑温度，reviews 提供深度观点，topics 展示讨论热点，
-    episodes 帮助 LLM 定位关键集数。LLM 可按需选择拉取哪些维度的数据。
+    同时拉取两个维度——comments（吐槽箱+评分分布）和 reviews（长评摘要）。
+    短评反映整体口碑温度，长评提供深度分析入口（id 可调 get_blog 看全文）。
 
     典型场景：
     - "大家对《进击的巨人》总体评价怎么样？"
-    - "看看这部番的长评都说了什么"
-    - "最新一季有哪些讨论热点？"
+    - "这部番口碑如何？两极吗？"
+    - "看看有没有深度分析这篇作品的"
 
     Args:
-        subject_id: Bangumi 条目 ID，可通过 search_bangumi_subject 搜索番剧名称获得。
-        data_types: 需要拉取的数据维度列表。``comments``=吐槽箱（短评+评分），
-            ``reviews``=长篇评测（深度分析），``topics``=讨论帖（社区热点），
-            ``episodes``=剧集列表（帮助定位单集）。默认 ``["comments", "reviews"]``。
-        limit: 每个数据维度最多拉取的条数，默认 10。
+        subject_id: Bangumi 条目 ID。
+        limit: 每个维度返回的条数，默认 8。
 
     Returns:
-        纯文本格式的多维度讨论数据摘要。
+        dict::
+            {
+                "subject_id": int,
+                "comments": {
+                    "comments": [str], "rating_distribution": dict,
+                    "comment_count": int
+                },
+                "reviews": {
+                    "items": [
+                        {"id": int, "title": str, "summary": str,
+                         "user_name": str, "reply_count": int, "created_at": str}
+                    ], "total": int
+                }
+            }
+
+        某维度失败时返回 ``"{dim}_error"`` 键。
+        整体失败时返回 ``{"_error": "..."}``。
     """
     async with BangumiClient() as client:
-        result = await client.get_subject_discussion(
-            GetSubjectDiscussionInput(
-                subject_id=subject_id, data_types=data_types, limit=limit
-            )
+        result = await client.get_subject_opinions(
+            GetSubjectOpinionsInput(subject_id=subject_id, limit=limit)
         )
 
     if "_error" in result:
-        return f"系统提示：获取条目讨论失败。{result['_error']}"
+        return {"_error": f"获取条目口碑失败。{result['_error']}"}
 
-    lines: list[str] = [f"📊 条目 {subject_id} 的社区讨论全景：\n"]
+    return result
 
-    dimension_config: dict[str, tuple[str, str]] = {
-        "comments": ("💬 吐槽箱", "comments_error"),
-        "reviews": ("📝 长篇评测", "reviews_error"),
-        "topics": ("🔥 讨论帖", "topics_error"),
-        "episodes": ("📺 剧集列表", "episodes_error"),
-    }
 
-    for dt in data_types:
-        if dt not in dimension_config:
-            continue
+# ═══════════════════════════════════════════════════════════════════
+# 条目剧集索引
+# ═══════════════════════════════════════════════════════════════════
 
-        icon_label, error_key = dimension_config[dt]
-        error_msg = result.get(error_key, "")
-        data = result.get(dt, [])
 
-        if error_msg:
-            lines.append(f"{icon_label}：⚠️ 获取失败 — {error_msg}\n")
-            continue
+@tool(args_schema=GetSubjectEpisodesInput)
+async def get_subject_episodes(subject_id: int, limit: int = 26) -> dict:
+    """获取条目全部主线剧集列表，返回结构化字典。
 
-        if dt == "comments":
-            # comments 返回 {"comments": [...], "rating_distribution": {...}, "comment_count": N}
-            comments_data = data if isinstance(data, dict) else {}
-            comment_list = comments_data.get("comments", [])
-            comment_count = comments_data.get("comment_count", 0)
-            rating_dist = comments_data.get("rating_distribution", {})
+    按集数升序返回编号、标题、简介。拿到 episode id 后可调
+    ``get_episode_comments`` 获取单集详情和吐槽箱。
 
-            if comment_list:
-                lines.append(f"{icon_label}（共 {comment_count} 条）：")
-                if rating_dist:
-                    dist_parts = []
-                    for k, v in rating_dist.items():
-                        dist_parts.append(f"{k}分: {v}条")
-                    lines.append(f"  评分分布：{' | '.join(dist_parts)}")
-                for i, c in enumerate(comment_list[:limit], 1):
-                    lines.append(f"  {i}. {c}")
-                lines.append("")
-            else:
-                lines.append(f"{icon_label}：暂无评论\n")
+    典型场景：
+    - "列出 EVA 所有集" → 全量
+    - "EVA 第18集是哪一集？" → 按 name 定位
+    - "找一下讲XX的那一集" → 按 desc 关键词定位 → get_episode_comments
 
-        elif dt == "reviews":
-            items = data.get("items", []) if isinstance(data, dict) else []
-            total = data.get("total", len(items)) if isinstance(data, dict) else len(items)
-            if items:
-                lines.append(f"{icon_label}（共 {total} 篇）：")
-                for i, r in enumerate(items[:limit], 1):
-                    title = r.get("title", "无标题")
-                    summary = r.get("summary", "")
-                    user = r.get("user_name", "匿名")
-                    summary_str = f" — {summary}" if summary else ""
-                    lines.append(f"  {i}. {title}{summary_str}（作者: {user}）")
-                lines.append("")
-            else:
-                lines.append(f"{icon_label}：暂无评测\n")
+    Args:
+        subject_id: Bangumi 条目 ID。
+        limit: 返回条数，默认 26（覆盖两季番）。
 
-        elif dt == "topics":
-            items = data.get("items", []) if isinstance(data, dict) else []
-            total = data.get("total", len(items)) if isinstance(data, dict) else len(items)
-            if items:
-                lines.append(f"{icon_label}（共 {total} 条）：")
-                for i, t in enumerate(items[:limit], 1):
-                    title = t.get("title", "无标题")
-                    replies = t.get("reply_count", 0)
-                    creator = t.get("creator_name", "匿名")
-                    lines.append(f"  {i}. {title} — {replies} 回复（作者: {creator}）")
-                lines.append("")
-            else:
-                lines.append(f"{icon_label}：暂无讨论帖\n")
+    Returns:
+        dict::
+            {
+                "subject_id": int,
+                "items": [
+                    {"id": int, "sort": int, "name": str,
+                     "airdate": str, "desc": str, "comment_count": int}
+                ],
+                "total": int
+            }
 
-        elif dt == "episodes":
-            items = data.get("items", []) if isinstance(data, dict) else []
-            total = data.get("total", len(items)) if isinstance(data, dict) else len(items)
-            if items:
-                lines.append(f"{icon_label}（共 {total} 集）：")
-                for i, ep in enumerate(items[:limit], 1):
-                    sort = ep.get("sort", "?")
-                    name = ep.get("name", "未命名")
-                    name_cn = ep.get("name_cn", "")
-                    display = f"{name}（{name_cn}）" if name_cn else name
-                    airdate = ep.get("airdate", "")
-                    airdate_str = f" — {airdate}" if airdate else ""
-                    comments = ep.get("comment_count", 0)
-                    comments_str = f" [{comments} 条吐槽]" if comments else ""
-                    lines.append(f"  {i}. 第{sort}集 {display}{airdate_str}{comments_str}")
-                lines.append("")
-            else:
-                lines.append(f"{icon_label}：暂无剧集信息\n")
+        失败时返回 ``{"_error": "..."}``。
+    """
+    async with BangumiClient() as client:
+        result = await client.get_subject_episodes(
+            GetSubjectEpisodesInput(subject_id=subject_id, limit=limit)
+        )
 
-    if len(lines) == 1:
-        return f"条目 {subject_id} 暂无选择的讨论数据（{', '.join(data_types)}）。"
+    if "_error" in result:
+        return {"_error": f"获取剧集列表失败。{result['_error']}"}
 
-    lines.append(f"── 以上为条目 {subject_id} 的讨论数据摘要 ──")
-    return "\n".join(lines)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1041,13 +649,13 @@ async def get_subject_discussion(
 async def get_entity_comments(
     entity_type: str,
     entity_id: int,
-    limit: int = 20,
-) -> str:
+    limit: int = 10,
+) -> dict:
     """获取虚拟角色或现实人物的社区评论。
 
     角色和人物的评论接口结构完全一致，统一为一个 Tool，
-    通过 entity_type 区分。LLM 可据此分析特定角色/人物在
-    社区中的讨论热度和舆论倾向。
+    通过 entity_type 区分。返回实体名称（精确归属）和
+    清洗后的评论列表，LLM 可据此直接引用粉丝原话。
 
     典型场景：
     - "大家怎么评价阿尔托莉雅这个角色？"
@@ -1059,10 +667,16 @@ async def get_entity_comments(
             ``person``=现实人物（如'花泽香菜'、'新房昭之'）。
         entity_id: 角色或人物的 Bangumi ID，可通过
             search_bangumi_subject 以对应的 entity_type 搜索名称获得。
-        limit: 拉取的评论最大条数，默认 20。
+        limit: 拉取的评论最大条数，默认 10。
 
     Returns:
-        纯文本格式的评论列表摘要。
+        dict: {
+            "entity_type": "character"|"person",
+            "entity_id": int,
+            "entity_name": "实体中文名",
+            "comments": ["评论1", "评论2", ...],
+            "comment_count": N
+        }
     """
     async with BangumiClient() as client:
         result = await client.get_entity_comments(
@@ -1072,24 +686,9 @@ async def get_entity_comments(
         )
 
     if "_error" in result:
-        return f"系统提示：获取{'角色' if entity_type == 'character' else '人物'}评论失败。{result['_error']}"
+        return {"_error": result["_error"]}
 
-    entity_name = result.get("entity_name", "") or f"{'角色' if entity_type == 'character' else '人物'} {entity_id}"
-    comments: list[str] = result.get("comments", [])
-    comment_count: int = result.get("comment_count", 0)
-    icon = "🧑" if entity_type == "character" else "🎤"
-
-    if not comments:
-        return f"{icon} {entity_name} 目前还没有社区评论。"
-
-    lines: list[str] = [
-        f"{icon} {entity_name} 的社区评论（共 {comment_count} 条）：\n"
-    ]
-    for i, text in enumerate(comments[:limit], 1):
-        lines.append(f"{i}. {text}")
-
-    lines.append(f"\n── 以上为最近 {min(len(comments), limit)} 条评论 ──")
-    return "\n".join(lines)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1098,67 +697,48 @@ async def get_entity_comments(
 
 
 @tool(args_schema=GetSubjectCharactersInput)
-async def get_subject_characters(subject_id: int) -> str:
-    """获取一部作品的全部登场角色及其声优/演员信息。
+async def get_subject_characters(subject_id: int) -> dict:
+    """获取一部作品的全部登场角色及其声优/演员信息，返回结构化字典。
 
     返回角色列表，包含角色名、出演类型（主角/配角/客串）、
-    饰演者（声优/演员）名称。这是回答"主角是谁？""声优是谁？"
-    的核心数据源。
+    饰演者（声优/演员）名称及 ID。这是"主角是谁？""声优是谁？"
+    的核心数据源，也是角色/人物详情工具的上游——从这里拿到
+    character_id 和 person_id 后，可进一步调用 get_character_detail /
+    get_person_detail 获取详情。
 
     典型场景：
-    - "《进击的巨人》有哪些主要角色？"
-    - "鲁路修的声优是谁？"
-    - "这部番的配音阵容怎么样？"
-    - "列出这部作品的角色和对应的CV"
+    - "《进击的巨人》有哪些主要角色？" → 按 char_type 过滤主角
+    - "鲁路修的声优是谁？" → 找到角色 → 看 casts
+    - "这部番的配音阵容怎么样？" → 扫描全部 casts
+    - "列出这部作品的角色和对应的CV" → 全量输出
 
     Args:
         subject_id: Bangumi 条目 ID，可通过 search_bangumi_subject 搜索名称获得。
 
     Returns:
-        纯文本格式的角色列表，每行含角色名、角色类型、声优信息、
-        角色ID [角色ID: xxx] 和人物ID [人物ID: xxx]。
+        dict::
+            {
+                "subject_id": int,
+                "characters": [
+                    {
+                        "character_id": int, "name": str, "char_type": str,
+                        "casts": str
+                    }
+                ]
+            }
+
+        ``casts`` 为 ``"声优名(关系), 声优名, ..."`` 格式的字符串。
+        CV 关系省略标签，其他关系（Dub/中配/英配等）标注在括号中。
+        声优的 person_id 可通过 ``search_bangumi_subject(entity_type="person")``
+        用名字找回。失败时返回 ``{"_error": "..."}``。
     """
     async with BangumiClient() as client:
         result = await client.get_subject_characters(subject_id=subject_id)
 
     if "_error" in result:
-        return f"系统提示：获取条目角色失败。{result['_error']}"
+        return {"_error": f"获取条目角色失败。{result['_error']}"}
 
-    characters: list[dict] = result.get("characters", [])
-    if not characters:
-        return f"条目 {subject_id} 暂无角色信息。"
-
-    lines: list[str] = [f"🎭 条目 {subject_id} 的角色列表（共 {len(characters)} 位）：\n"]
-
-    for i, ch in enumerate(characters, 1):
-        name = ch.get("name_cn") or ch.get("name", "未知角色")
-        role_id = ch.get("role", 1)
-        role_label = _ROLE_MAP.get(role_id, f"类型{role_id}")
-
-        casts: list[dict] = ch.get("casts", [])
-        if casts:
-            cv_parts: list[str] = []
-            for cast in casts:
-                person_name = cast.get("person_name_cn") or cast.get("person_name", "")
-                pid = cast.get("person_id", 0)
-                relation = cast.get("relation", "")
-                if person_name:
-                    tag = f"{person_name}"
-                    if relation and relation != "CV":
-                        tag += f"（{relation}）"
-                    if pid:
-                        tag += f" [人物ID: {pid}]"
-                    cv_parts.append(tag)
-            cv_str = "、".join(cv_parts) if cv_parts else "暂无"
-        else:
-            cv_str = "暂无"
-
-        char_id = ch.get("character_id", 0)
-        id_part = f" [角色ID: {char_id}]" if char_id else ""
-        lines.append(f"{i}. {name}（{role_label}）— {cv_str}{id_part}")
-
-    lines.append(f"\n── 以上为条目 {subject_id} 的全部角色 ──")
-    return "\n".join(lines)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1169,11 +749,11 @@ async def get_subject_characters(subject_id: int) -> str:
 @tool(args_schema=GetUserProfileInput)
 async def get_user_profile(
     username: str,
-    collections_limit: int = 50,
+    collections_limit: int = 20,
     include_blogs: bool = True,
     include_characters: bool = False,
     include_persons: bool = False,
-) -> str:
+) -> dict:
     """获取 Bangumi 用户的多维度画像数据。
 
     一次调用返回多维度数据：用户基本信息 + 条目收藏 +（可选）角色收藏 +
@@ -1181,7 +761,7 @@ async def get_user_profile(
     角色审美及内容产出风格。
 
     **认证要求**：需要系统配置有效的 Bangumi Access Token。
-    如果 Token 未配置，将返回引导用户提供公开信息的提示。
+    如果 Token 未配置，将返回错误。
 
     典型场景：
     - "分析一下用户 deepseek_jiang 的看番品味"
@@ -1190,23 +770,22 @@ async def get_user_profile(
 
     Args:
         username: Bangumi 用户名（个人主页 URL 中的用户名部分）。
-        collections_limit: 收藏条目拉取的最大数量，默认 50。
+        collections_limit: 收藏条目拉取的最大数量，默认 20。
         include_blogs: 是否拉取该用户的日志列表。需要 Access Token，默认 True。
         include_characters: 是否拉取该用户收藏的虚拟角色列表，默认 False。
         include_persons: 是否拉取该用户收藏的现实人物列表，默认 False。
 
     Returns:
-        纯文本格式的用户画像摘要，或 Token 未配置时的引导提示。
+        多维度用户画像字典，或 ``{"_error": ...}``。
     """
     token = get_settings().BANGUMI_ACCESS_TOKEN
     if not token:
-        return (
-            "系统提示：系统未配置 Bangumi Access Token，无法获取用户画像。\n"
-            "您可以尝试以下替代方案：\n"
-            f"1. 直接访问该用户的 Bangumi 主页查看公开信息：https://bgm.tv/user/{username}\n"
-            "2. 使用搜索工具查找该用户公开评价过的条目。\n"
-            "3. 如果您是该系统的管理员，请设置环境变量 BANGUMI_ACCESS_TOKEN 以启用此功能。"
-        )
+        return {
+            "_error": (
+                "系统未配置 Bangumi Access Token，无法获取用户画像。"
+                f"您可以直接访问该用户的 Bangumi 主页：https://bgm.tv/user/{username}"
+            )
+        }
 
     async with BangumiClient(access_token=token) as client:
         result = await client.get_user_profile(
@@ -1220,126 +799,9 @@ async def get_user_profile(
         )
 
     if "_error" in result:
-        return f"系统提示：获取用户画像失败。{result['_error']}"
+        return {"_error": result["_error"]}
 
-    lines: list[str] = []
-
-    # ── 用户基本信息 ──────────────────────────────────────────
-    user = result.get("user", {})
-    if user:
-        nickname = user.get("nickname", username)
-        sign = user.get("sign", "")
-        lines.append(f"👤 用户画像：{nickname}（@{username}）")
-        if sign:
-            lines.append(f"   签名：{sign}")
-        lines.append("")
-
-    # ── 条目收藏 ──────────────────────────────────────────────
-    user_stats = result.get("user_stats", {})
-    collections = result.get("collections", {})
-    if isinstance(collections, dict):
-        stats = collections.get("collection_stats", {})
-        coll_list = collections.get("collections", [])
-        total = collections.get("total", 0)
-
-        if stats or coll_list:
-            lines.append(f"📂 条目收藏（共 {total} 条）：")
-
-            # 全量统计摘要（来自 user endpoint，不受 collections_limit 影响）
-            subject_stats = user_stats.get("subject", {})
-            if subject_stats:
-                _COLLECTION_LABELS = {1: "想看", 2: "看过", 3: "在看", 4: "搁置", 5: "抛弃"}
-                _SUBJECT_TYPE_LABELS_NARROW = {2: "动画", 3: "音乐", 1: "书籍", 4: "游戏", 6: "三次元"}
-                for type_key in [2, 3, 1, 4, 6]:  # 动画优先
-                    type_str = str(type_key)
-                    counts = subject_stats.get(type_str, {})
-                    if not counts:
-                        continue
-                    parts = []
-                    for status_key in [3, 2, 1, 4, 5]:  # 在看 → 看过 → 想看 → 搁置 → 抛弃
-                        status_str = str(status_key)
-                        cnt = counts.get(status_str, 0)
-                        if cnt:
-                            parts.append(f"{_COLLECTION_LABELS.get(status_key, status_str)} {cnt}")
-                    if parts:
-                        label = _SUBJECT_TYPE_LABELS_NARROW.get(type_key, f"类型{type_key}")
-                        lines.append(f"   {label}：{' / '.join(parts)}")
-
-            # 角色/人物收藏
-            mono_stats = user_stats.get("mono", {})
-            char_count = mono_stats.get("character", 0)
-            person_count = mono_stats.get("person", 0)
-            if char_count or person_count:
-                parts = []
-                if char_count:
-                    parts.append(f"角色 {char_count}")
-                if person_count:
-                    parts.append(f"人物 {person_count}")
-                lines.append(f"   其他收藏：{' / '.join(parts)}")
-
-            avg = stats.get("avg_score")
-            if avg is not None:
-                lines.append(f"   评分统计（采样）：均 {avg} / 最高 {stats.get('max_score', '-')} / 最低 {stats.get('min_score', '-')}")
-
-            # 评分分布
-            score_dist = stats.get("score_dist", {})
-            if score_dist:
-                sd_str = " | ".join(f"{k}分: {v}部" for k, v in score_dist.items())
-                lines.append(f"   评分分布（采样）：{sd_str}")
-
-            # 收藏列表摘要
-            if coll_list:
-                lines.append(f"\n   最近收藏：")
-                for i, c in enumerate(coll_list[:10], 1):
-                    name = c.get("name", "未知")
-                    rate = c.get("rate", 0)
-                    coll_type = c.get("collection_type", "")
-                    rate_str = f" → {rate}分" if rate else ""
-                    lines.append(f"   {i}. {name}（{coll_type}{rate_str}）")
-            lines.append("")
-
-    # ── 角色收藏 ──────────────────────────────────────────────
-    if "characters" in result:
-        chars = result["characters"]
-        if chars:
-            lines.append(f"🧑 角色收藏（共 {len(chars)} 位）：")
-            for i, c in enumerate(chars[:10], 1):
-                lines.append(f"   {i}. {c.get('name', '未知')}")
-            lines.append("")
-
-    # ── 人物收藏 ──────────────────────────────────────────────
-    if "persons" in result:
-        persons = result["persons"]
-        if persons:
-            lines.append(f"🎤 人物收藏（共 {len(persons)} 位）：")
-            for i, p in enumerate(persons[:10], 1):
-                career = p.get("career", "")
-                career_str = f"（{career}）" if career else ""
-                lines.append(f"   {i}. {p.get('name', '未知')}{career_str}")
-            lines.append("")
-
-    # ── 日志 ──────────────────────────────────────────────────
-    if "blogs" in result:
-        blogs = result["blogs"]
-        if blogs:
-            lines.append(f"📝 最近日志（共 {len(blogs)} 篇）：")
-            for i, b in enumerate(blogs[:5], 1):
-                title = b.get("title", "无标题")
-                replies = b.get("replies", 0)
-                lines.append(f"   {i}. {title} — {replies} 回复")
-            lines.append("")
-
-    # ── 错误信息 ──────────────────────────────────────────────
-    for key in ["user_error", "collections_error", "characters_error", "persons_error", "blogs_error"]:
-        if key in result:
-            section = key.replace("_error", "")
-            lines.append(f"⚠️ {section}数据获取失败：{result[key]}")
-
-    if len(lines) == 0:
-        return f"用户 {username} 暂无公开数据，或该用户设置了隐私保护。"
-
-    lines.append(f"── 以上为用户 {username} 的画像摘要 ──")
-    return "\n".join(lines)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1352,7 +814,7 @@ async def get_blog(
     entry_id: int,
     include_comments: bool = True,
     include_subjects: bool = True,
-) -> str:
+) -> dict:
     """获取 Bangumi 日志正文、评论及关联条目的聚合视图。
 
     一次调用返回三个维度的数据——正文（日志内容）、评论反应（社区观点）、
@@ -1371,16 +833,16 @@ async def get_blog(
         include_subjects: 是否同时拉取该日志关联的条目信息，默认 True。
 
     Returns:
-        纯文本格式的日志分析视图，或 Token 未配置时的引导提示。
+        日志聚合字典，或 ``{"_error": ...}``。
     """
     token = get_settings().BANGUMI_ACCESS_TOKEN
     if not token:
-        return (
-            "系统提示：系统未配置 Bangumi Access Token，无法获取日志内容。\n"
-            "您可以尝试以下替代方案：\n"
-            f"1. 直接访问日志页面查看：https://bgm.tv/blog/{entry_id}\n"
-            "2. 如果您是该系统的管理员，请设置环境变量 BANGUMI_ACCESS_TOKEN 以启用此功能。"
-        )
+        return {
+            "_error": (
+                "系统未配置 Bangumi Access Token，无法获取日志内容。"
+                f"您可以直接访问日志页面：https://bgm.tv/blog/{entry_id}"
+            )
+        }
 
     async with BangumiClient(access_token=token) as client:
         result = await client.get_blog(
@@ -1392,63 +854,9 @@ async def get_blog(
         )
 
     if "_error" in result:
-        return f"系统提示：获取日志失败。{result['_error']}"
+        return {"_error": result["_error"]}
 
-    lines: list[str] = []
-
-    # ── 日志正文 ──────────────────────────────────────────────
-    blog = result.get("blog", {})
-    if blog:
-        title = blog.get("title", "无标题")
-        author = blog.get("user_name", "匿名")
-        tags = blog.get("tags", [])
-        content = blog.get("content", "")
-        replies = blog.get("replies", 0)
-        created_at = blog.get("created_at", "")
-
-        lines.append(f"📝 {title}")
-        lines.append(f"   作者：{author}" + (f" | 发布时间：{created_at}" if created_at else ""))
-        if tags:
-            lines.append(f"   标签：{', '.join(tags)}")
-        if content:
-            lines.append(f"\n   {content}")
-        lines.append(f"\n   共 {replies} 条回复")
-        lines.append("")
-    elif "blog_error" in result:
-        lines.append(f"⚠️ 日志正文获取失败：{result['blog_error']}\n")
-
-    # ── 评论 ──────────────────────────────────────────────────
-    if include_comments and "comments" in result:
-        comments = result["comments"]
-        if comments:
-            lines.append(f"💬 评论摘要（共 {len(comments)} 条）：")
-            for i, c in enumerate(comments[:10], 1):
-                lines.append(f"   {i}. {c}")
-            lines.append("")
-    elif "comments_error" in result:
-        lines.append(f"⚠️ 评论获取失败：{result['comments_error']}\n")
-
-    # ── 关联条目 ──────────────────────────────────────────────
-    if include_subjects and "subjects" in result:
-        subjects = result["subjects"]
-        if subjects:
-            lines.append(f"🔗 关联条目（共 {len(subjects)} 部）：")
-            type_labels = {1: "📚", 2: "📺", 3: "🎵", 4: "🎮", 6: "🎬"}
-            for i, s in enumerate(subjects[:10], 1):
-                name = s.get("name", "未知")
-                score = s.get("score", 0)
-                icon = type_labels.get(s.get("type", 0), "📌")
-                score_str = f" — 评分 {score:.1f}" if score else ""
-                lines.append(f"   {i}. {icon} {name}{score_str}")
-            lines.append("")
-    elif "subjects_error" in result:
-        lines.append(f"⚠️ 关联条目获取失败：{result['subjects_error']}\n")
-
-    if len(lines) == 0:
-        return f"日志 {entry_id} 暂无可用数据。"
-
-    lines.append(f"── 以上为日志 {entry_id} 的分析视图 ──")
-    return "\n".join(lines)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1457,14 +865,14 @@ async def get_blog(
 
 
 @tool(args_schema=UserTimelineInput)
-async def get_user_timeline(username: str, limit: int = 20) -> str:
+async def get_user_timeline(username: str, limit: int = 20) -> dict:
     """获取指定用户的时光机动态（收藏、评分、吐槽等）。
 
-    从用户时光机中提取收藏变更、评分、吐槽等动态，
-    帮助 Agent 理解用户的追番偏好和鉴赏风格。
+    从用户时光机中提取收藏变更、评分、进度、日志等动态，
+    帮助 Agent 理解用户的追番偏好和鉴赏风格。自动过滤无分析价值的
+    每日签到事件。
 
     **认证要求**：需要系统配置有效的 Bangumi Access Token。
-    如果 Token 未配置，将返回引导用户提供公开信息的提示。
 
     典型场景：
     - "看看 deepseek_jiang 最近在追什么番"
@@ -1476,73 +884,25 @@ async def get_user_timeline(username: str, limit: int = 20) -> str:
         limit: 返回动态条数上限，默认 20，最大 50。
 
     Returns:
-        纯文本格式的用户动态摘要，或 Token 未配置时的引导提示。
+        时光机事件字典 ``{"username": ..., "events": [...], "total": N}``，
+        或 ``{"_error": ...}``。
     """
     token = get_settings().BANGUMI_ACCESS_TOKEN
     if not token:
-        return (
-            "系统提示：系统未配置 Bangumi Access Token，无法获取用户时光机。\n"
-            "您可以尝试以下替代方案：\n"
-            f"1. 直接访问该用户的 Bangumi 主页查看公开收藏：https://bgm.tv/user/{username}\n"
-            "2. 使用搜索工具查找该用户公开评价过的条目。\n"
-            "3. 如果您是该系统的管理员，请设置环境变量 BANGUMI_ACCESS_TOKEN 以启用此功能。"
-        )
+        return {
+            "_error": (
+                "系统未配置 Bangumi Access Token，无法获取用户时光机。"
+                f"您可以直接访问该用户的主页：https://bgm.tv/user/{username}"
+            )
+        }
 
     async with BangumiClient(access_token=token) as client:
         result = await client.get_user_timeline(username=username, limit=limit)
 
     if "_error" in result:
-        return f"系统提示：获取用户时光机失败。{result['_error']}"
+        return {"_error": result["_error"]}
 
-    data: list[dict[str, Any]] = result.get("data", [])
-    if not data:
-        return f"用户 {username} 暂无公开动态，或该用户设置了隐私保护。"
-
-    lines: list[str] = [
-        f"🕐 用户 {username} 的时光机动态（最近 {min(len(data), limit)} 条）：\n"
-    ]
-
-    type_labels = {
-        1: "💬 吐槽",
-        2: "📂 收藏",
-        6: "⭐ 评分",
-        8: "📝 进度",
-        9: "📝 进度",
-    }
-
-    for i, event in enumerate(data[:limit], 1):
-        try:
-            event_type = event.get("type", 0)
-            label = type_labels.get(event_type, f"📌 动态(type={event_type})")
-
-            subject = event.get("subject", {})
-            subject_name = ""
-            if isinstance(subject, dict):
-                subject_name = subject.get("name", "") or subject.get("name_cn", "")
-
-            rating = event.get("rating", None)
-            rating_str = ""
-            if isinstance(rating, (int, float)) and rating > 0:
-                rating_str = f" → {rating} 分"
-            elif isinstance(rating, dict):
-                score_val = rating.get("score", 0)
-                if score_val:
-                    rating_str = f" → {score_val} 分"
-
-            text = event.get("text", "") or event.get("content", "")
-            text_str = ""
-            if isinstance(text, str) and text.strip():
-                short_text = text[:100] + "..." if len(text) > 100 else text
-                text_str = f"：「{short_text}」"
-
-            subject_str = f"《{subject_name}》" if subject_name else ""
-            line = f"{i}. {label}{subject_str}{rating_str}{text_str}"
-            lines.append(line)
-        except Exception:
-            lines.append(f"{i}. （该条动态解析失败，已跳过）")
-
-    lines.append(f"\n── 以上为 {username} 的最近动态 ──")
-    return "\n".join(lines)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1747,8 +1107,8 @@ def get_agent_tools() -> list:
     工具注册策略：
     - **无条件注册**（无需 Access Token，11 个）：``search_bangumi_subject``、
       ``get_bangumi_subject_detail``、``get_character_detail``、``get_person_detail``、
-      ``get_calendar``、``get_trending_topics``、``get_episode_comments``、
-      ``get_subject_discussion``、``get_entity_comments``、
+      ``get_calendar``、``get_trending_subjects``、``get_hot_topics``、
+      ``get_subject_opinions``、``get_subject_episodes``、
       ``get_subject_characters``、``search_local_bangumi``。
     - **条件注册**（需要 ``BANGUMI_ACCESS_TOKEN``，3 个）：``get_user_timeline``、
       ``get_user_profile``、``get_blog``。
@@ -1769,9 +1129,11 @@ def get_agent_tools() -> list:
         get_character_detail,
         get_person_detail,
         get_calendar,
-        get_trending_topics,
+        get_trending_subjects,
+        get_hot_topics,
         get_episode_comments,
-        get_subject_discussion,
+        get_subject_opinions,
+        get_subject_episodes,
         get_entity_comments,
         get_subject_characters,
         search_local_bangumi,

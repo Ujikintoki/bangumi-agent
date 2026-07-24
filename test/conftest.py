@@ -269,12 +269,22 @@ def trending_response() -> dict:
 
 @pytest.fixture
 def user_collections_data() -> list[dict]:
-    """用户收藏数据（30 条，测试 display cap）。"""
+    """用户收藏数据（30 条，测试 display cap + 新字段）。"""
     return [
         {
-            "subject": {"id": i, "name": f"Item {i}", "nameCN": "", "type": 2, "rating": {"score": 7.0}},
-            "type": 2,
-            "rate": 7,
+            "subject": {
+                "id": i, "name": f"Item {i}", "nameCN": "", "type": 2,
+                "rating": {"score": 7.0},
+                "info": f"2024-{i%12+1:02d}-01 / 作者{i}" if i % 3 == 0 else "",
+                "metaTags": ["日本", "动画"] if i % 5 == 0 else [],
+            },
+            "interest": {
+                "type": 2,
+                "rate": 7,
+                "comment": f"短评{i}" if i % 4 == 0 else "",
+                "tags": [],
+                "updatedAt": 1700000000 + i * 86400,
+            },
         }
         for i in range(1, 31)
     ]

@@ -19,7 +19,10 @@ from clients.base import BaseClient
 from schemas.tools_input import (GetBlogInput, GetCalendarInput,
                                  GetEntityCommentsInput,
                                  GetEpisodeDiscussionInput,
-                                 GetSubjectDiscussionInput, GetTrendingInput,
+                                 GetHotTopicsInput,
+                                 GetSubjectEpisodesInput,
+                                 GetSubjectOpinionsInput,
+                                 GetTrendingSubjectsInput,
                                  GetUserProfileInput, SearchBangumiInput)
 
 logger = logging.getLogger("bgm-agent.client.bangumi")
@@ -134,54 +137,29 @@ class BangumiClient(BaseClient):
         "real": 6,
     }
 
-    async def get_trending(self, input: GetTrendingInput) -> dict:
-        """获取热门条目/话题趋势。"""
-        category = input.category
+    async def get_trending_subjects(self, input: GetTrendingSubjectsInput) -> dict:
+        """获取全站热门条目排名。
+
+        GET /p1/trending/subjects
+        """
         subject_type = input.subject_type or ""
+        type_id = self._TRENDING_TYPE_MAP.get(subject_type, 2) if subject_type else 2
+        raw = await self._get("/p1/trending/subjects", params={"limit": input.limit, "type": type_id})
 
-        # 构建并行任务
-        tasks: dict[str, asyncio.Task] = {}
-        if category in ("subjects", "both"):
-            type_id = self._TRENDING_TYPE_MAP.get(subject_type, 2) if subject_type else 2
-            params: dict = {"limit": input.limit, "type": type_id}
-            tasks["subjects"] = asyncio.create_task(
-                self._get("/p1/trending/subjects", params=params)
-            )
-        if category in ("topics", "both"):
-            tasks["topics"] = asyncio.create_task(
-                self._get("/p1/trending/subjects/topics", params={"limit": input.limit})
-            )
+        if "_error" in raw:
+            return raw
+        return sanitizers.sanitize_trending(raw, subject_type)
 
-        # 等待所有请求
-        results: dict = {}
-        for key, task in tasks.items():
-            try:
-                raw = await task
-            except Exception:
-                raw = {"_error": f"获取热门{key}失败"}
+    async def get_hot_topics(self, input: GetHotTopicsInput) -> dict:
+        """获取全站热门讨论帖。
 
-            if "_error" in raw:
-                results[key] = raw
-            elif key == "subjects":
-                results[key] = sanitizers.sanitize_trending(raw, subject_type)
-            else:  # topics
-                # topics 精简：id, title, replyCount, creator.nickname, subject 摘要
-                data = raw.get("data", []) or []
-                topics = []
-                for t in data:
-                    creator = t.get("creator", {}) or {}
-                    subj = t.get("subject", {}) or {}
-                    topics.append({
-                        "id": t.get("id", 0),
-                        "title": t.get("title", ""),
-                        "reply_count": t.get("reply_count", 0) or t.get("replyCount", 0),
-                        "creator_name": creator.get("nickname", ""),
-                        "subject_name": subj.get("name_cn") or subj.get("name", ""),
-                        "created_at": t.get("created_at", "") or t.get("createdAt", ""),
-                    })
-                results[key] = {"items": topics, "total": raw.get("total", len(topics))}
+        GET /p1/trending/subjects/topics
+        """
+        raw = await self._get("/p1/trending/subjects/topics", params={"limit": input.limit})
 
-        return results
+        if "_error" in raw:
+            return raw
+        return sanitizers.sanitize_trending_topics(raw)
 
     # ═══════════════════════════════════════════════════════════
     # 单集讨论
@@ -233,116 +211,94 @@ class BangumiClient(BaseClient):
     # 条目讨论全景
     # ═══════════════════════════════════════════════════════════
 
-    async def get_subject_discussion(self, input: GetSubjectDiscussionInput) -> dict:
-        """获取条目多维度讨论数据。
+    async def get_subject_opinions(self, input: GetSubjectOpinionsInput) -> dict:
+        """获取条目口碑：短评（comments）+ 长评（reviews），并发拉取。
 
-        支持 comments / reviews / topics / episodes 四种维度，并发拉取。
+        两部分互补：短评给评分温度，长评给深度分析入口（id → get_blog）。
+        任一维度拉取失败不影响另一维度。
         """
         sid = input.subject_id
         limit = input.limit
-        data_types = input.data_types
 
-        # 并发请求所有选定维度
-        tasks: dict[str, asyncio.Task] = {}
-        endpoint_map = {
-            "comments": f"/p1/subjects/{sid}/comments?limit={limit}",
-            "reviews": f"/p1/subjects/{sid}/reviews?limit={limit}",
-            "topics": f"/p1/subjects/{sid}/topics?limit={limit}",
-            "episodes": f"/p1/subjects/{sid}/episodes?limit={limit}",
-        }
-        for dt in data_types:
-            if dt in endpoint_map:
-                tasks[dt] = asyncio.create_task(self._get(endpoint_map[dt]))
+        comments_task = asyncio.create_task(
+            self._get(f"/p1/subjects/{sid}/comments?limit={limit}")
+        )
+        reviews_task = asyncio.create_task(
+            self._get(f"/p1/subjects/{sid}/reviews?limit={limit}")
+        )
 
-        # 收集结果并清洗
         result: dict = {"subject_id": sid}
-        for dt, task in tasks.items():
-            try:
-                raw = await task
-            except Exception:
-                raw = {"_error": f"获取{dt}失败"}
 
-            if "_error" in raw:
-                result[f"{dt}_error"] = raw["_error"]
-                result[dt] = [] if dt != "comments" else {}
-            elif dt == "comments":
-                comments_list = (
-                    raw if isinstance(raw, list)
-                    else raw.get("data", raw.get("results", []))
-                )
-                result["comments"] = sanitizers.sanitize_subject_comments(
-                    comments_list, limit
-                )
-            elif dt == "reviews":
-                data = raw.get("data", []) or []
-                reviews = []
-                for r in data:
-                    entry = r.get("entry", {}) or {}
-                    user = r.get("user", {}) or {}
-                    reviews.append({
-                        "id": r.get("id", 0),
-                        "title": entry.get("title", ""),
-                        "summary": sanitizers._truncate(
-                            entry.get("summary", "") or "", 200
-                        ),
-                        "created_at": entry.get("created_at", "") or entry.get("createdAt", ""),
-                        "user_name": user.get("nickname", ""),
-                    })
-                result["reviews"] = {"items": reviews, "total": raw.get("total", len(reviews))}
-            elif dt == "topics":
-                data = raw.get("data", []) or []
-                topics = []
-                for t in data:
-                    creator = t.get("creator", {}) or {}
-                    topics.append({
-                        "id": t.get("id", 0),
-                        "title": t.get("title", ""),
-                        "reply_count": t.get("reply_count", 0) or t.get("replyCount", 0),
-                        "creator_name": creator.get("nickname", ""),
-                        "created_at": t.get("created_at", "") or t.get("createdAt", ""),
-                    })
-                result["topics"] = {"items": topics, "total": raw.get("total", len(topics))}
-            elif dt == "episodes":
-                data = raw.get("data", []) or []
-                eps = []
-                for e in data:
-                    if e.get("type", 0) != 0:
-                        continue  # 只保留主线剧集 (type=0)
-                    eps.append({
-                        "id": e.get("id", 0),
-                        "sort": e.get("sort", 0),
-                        "name": sanitizers._cn_name(
-                            e.get("name", ""), e.get("name_cn")
-                        ),
-                        "name_cn": e.get("name_cn", ""),
-                        "airdate": e.get("airdate", ""),
-                        "comment_count": e.get("comment", 0),
-                    })
-                result["episodes"] = {"items": eps, "total": raw.get("total", len(eps))}
+        # comments
+        try:
+            raw = await comments_task
+        except Exception:
+            raw = {"_error": "获取评论失败"}
+        if "_error" in raw:
+            result["comments_error"] = raw["_error"]
+        else:
+            comments_list = (
+                raw if isinstance(raw, list)
+                else raw.get("data", raw.get("results", []))
+            )
+            result["comments"] = sanitizers.sanitize_subject_comments(comments_list, limit)
+
+        # reviews
+        try:
+            raw = await reviews_task
+        except Exception:
+            raw = {"_error": "获取评测失败"}
+        if "_error" in raw:
+            result["reviews_error"] = raw["_error"]
+        else:
+            result["reviews"] = sanitizers.sanitize_reviews(raw)
 
         return result
+
+    async def get_subject_episodes(self, input: GetSubjectEpisodesInput) -> dict:
+        """获取条目剧集列表。
+
+        返回全部主线剧集（type=0），按集数升序。
+        拿到 episode id 后可调 get_episode_comments。
+        """
+        sid = input.subject_id
+        raw = await self._get(f"/p1/subjects/{sid}/episodes?limit={input.limit}")
+
+        if "_error" in raw:
+            return raw
+        return sanitizers.sanitize_subject_episodes(raw)
 
     # ═══════════════════════════════════════════════════════════
     # 角色/人物评论
     # ═══════════════════════════════════════════════════════════
 
     async def get_entity_comments(self, input: GetEntityCommentsInput) -> dict:
-        """获取角色或人物的社区评论。
+        """获取角色或人物的社区评论 + 实体信息，并发拉取。
 
-        角色和人物共享同一接口结构，通过 entity_type 区分。
+        并发请求 entity 详情（获取 nameCN/name 用于精确归属）
+        和评论列表。任一维度拉取失败不影响另一维度。
         """
-        path = f"/p1/{input.entity_type}s/{input.entity_id}/comments"
-        raw = await self._get(f"{path}?limit={input.limit}")
+        et = input.entity_type
+        eid = input.entity_id
+        limit = input.limit
+
+        detail_task = asyncio.create_task(self._get(f"/p1/{et}s/{eid}"))
+        comments_task = asyncio.create_task(
+            self._get(f"/p1/{et}s/{eid}/comments?limit={limit}")
+        )
+
+        detail = await detail_task
+        raw = await comments_task
+
         if "_error" in raw:
             return raw
 
-        # API 返回纯数组
         comments_list = (
             raw if isinstance(raw, list)
             else raw.get("data", raw.get("results", []))
         )
         return sanitizers.sanitize_entity_comments(
-            comments_list, input.limit, input.entity_type
+            comments_list, limit, et, eid, detail
         )
 
     # ═══════════════════════════════════════════════════════════
@@ -392,15 +348,17 @@ class BangumiClient(BaseClient):
                 continue
 
             if key == "user":
+                joined_ts = raw.get("joinedAt", 0)
                 result["user"] = {
                     "id": raw.get("id", 0),
                     "nickname": raw.get("nickname", ""),
                     "username": raw.get("username", ""),
                     "sign": (raw.get("sign", "") or "")[:200],
                     "avatar": raw.get("avatar", {}).get("large", "") if raw.get("avatar") else "",
+                    "joined_at": datetime.fromtimestamp(joined_ts).strftime("%Y-%m-%d") if joined_ts else "",
                 }
-                # 提取全量收藏统计（user endpoint 自带，不受 collections limit 影响）
-                result["user_stats"] = raw.get("stats", {})
+                # 全量收藏统计（user endpoint 自带，不受 collections limit 影响）
+                result["user_stats"] = sanitizers.sanitize_user_stats(raw.get("stats", {}))
             elif key == "collections":
                 if isinstance(raw, list):
                     data = raw
@@ -490,6 +448,7 @@ class BangumiClient(BaseClient):
 
             if key == "blog":
                 user = raw.get("user", {}) or {}
+                ts = raw.get("createdAt", 0)
                 result["blog"] = {
                     "id": raw.get("id", 0),
                     "title": raw.get("title", ""),
@@ -497,8 +456,11 @@ class BangumiClient(BaseClient):
                         sanitizers._strip_bbcode(raw.get("content") or raw.get("text") or ""), 300
                     ),
                     "tags": raw.get("tags", []),
-                    "created_at": raw.get("created_at", "") or raw.get("createdAt", ""),
+                    "created_at": datetime.fromtimestamp(ts).strftime("%Y-%m-%d") if ts else "",
                     "replies": raw.get("replies", 0),
+                    "views": raw.get("views", 0),
+                    "type": raw.get("type", 0),
+                    "related": raw.get("related", 0),
                     "user_name": user.get("nickname", ""),
                 }
             elif key == "comments":
@@ -590,34 +552,24 @@ class BangumiClient(BaseClient):
             limit: 返回动态条数上限。
 
         Returns:
-            包含 ``data`` 列表的字典，或 ``{"_error": ...}``。
-
-        Note:
-            p1 时光机 API 直接返回列表（非 ``{data: [...]}``），
-            此处做归一化包装以保证上层工具的一致性。
+            ``{"username": ..., "events": [...], "total": N}``，或 ``{"_error": ...}``。
         """
         raw = await self._get(
             f"/p1/users/{username}/timeline", params={"limit": limit}
         )
-        # p1 时光机 API 直接返回列表，归一化为 dict
+        if "_error" in raw:
+            return raw
+
+        # p1 时光机 API 直接返回列表
         if isinstance(raw, list):
-            return {"data": raw}
+            timeline = sanitizers.sanitize_timeline_events(raw, limit)
+            timeline["username"] = username
+            return timeline
         return raw
 
     # ═══════════════════════════════════════════════════════════
     # 条目角色
     # ═══════════════════════════════════════════════════════════
-
-    # CharacterCastType 枚举 → 人类可读标签
-    _CAST_RELATION_MAP: dict[int, str] = {
-        0: "CV",
-        1: "Dub",
-        2: "Actor",
-        3: "中配",
-        4: "日配",
-        5: "英配",
-        6: "韩配",
-    }
 
     async def get_subject_characters(self, subject_id: int) -> dict:
         """获取条目角色列表（p1 API）。
@@ -635,32 +587,5 @@ class BangumiClient(BaseClient):
         if "_error" in raw:
             return raw
 
-        # API 返回纯数组
         data = raw if isinstance(raw, list) else raw.get("data", raw.get("results", []))
-        if not data:
-            return {"subject_id": subject_id, "characters": []}
-
-        characters: list[dict] = []
-        for item in data:
-            character = item.get("character") or {}
-            casts_raw = item.get("casts") or []
-            casts: list[dict] = []
-            for cast in casts_raw:
-                person = cast.get("person") or {}
-                relation_id = cast.get("relation", 0)
-                casts.append({
-                    "person_id": person.get("id", 0),
-                    "person_name": person.get("name", ""),
-                    "person_name_cn": person.get("nameCN", ""),
-                    "relation": self._CAST_RELATION_MAP.get(relation_id, f"类型{relation_id}"),
-                })
-
-            characters.append({
-                "character_id": character.get("id", 0),
-                "name": character.get("name", ""),
-                "name_cn": character.get("nameCN", ""),
-                "role": character.get("role", 1),
-                "casts": casts,
-            })
-
-        return {"subject_id": subject_id, "characters": characters}
+        return sanitizers.sanitize_subject_characters(data, subject_id)

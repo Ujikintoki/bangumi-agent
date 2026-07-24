@@ -108,7 +108,7 @@ class GetEpisodeDiscussionInput(BaseModel):
 
     episode_id: int = Field(
         ...,
-        description="单集 ID，可通过 get_subject_discussion 的 episodes 列表获得，"
+        description="单集 ID，可通过 get_subject_episodes 获得，"
         "或从 search_bangumi 定位条目后按集数查找",
     )
     comments_limit: int = Field(
@@ -152,54 +152,68 @@ class GetUserProfileInput(BaseModel):
     )
 
 
-class GetSubjectDiscussionInput(BaseModel):
-    """
-    【条目讨论全景工具】全面了解一部作品的社区评价和讨论。
+class GetSubjectOpinionsInput(BaseModel):
+    """【条目口碑工具】回答"这作品口碑怎么样？"
 
-    四个维度的数据各有侧重——
-    comments 反映口碑温度，reviews 提供深度观点，topics 展示讨论热点，
-    episodes 帮助 LLM 定位关键集数。LLM 可按需选择拉取哪些维度的数据。
+    同时拉取两个维度——comments（短评+评分分布，反映口碑温度）和
+    reviews（长评摘要，id 可调 get_blog 看全文）。两者互补：
+    短评给整体印象，长评给深度分析入口。
     """
 
     subject_id: int = Field(
         ...,
-        description="Bangumi 条目 ID，可通过 search_bangumi 搜索番剧名称获得",
-    )
-    data_types: list[Literal["comments", "reviews", "topics", "episodes"]] = Field(
-        default=["comments", "reviews"],
-        description="需要拉取的数据维度列表：comments=吐槽箱（短评+评分），"
-        "reviews=长篇评测（深度分析），topics=讨论帖（社区热点），episodes=剧集列表（帮助定位单集）",
+        description="Bangumi 条目 ID",
     )
     limit: int = Field(
-        default=8,
-        ge=1,
-        le=15,
-        description="每个数据维度最多拉取的条数",
+        default=8, ge=1, le=15,
+        description="每个维度返回的条数",
     )
 
 
-class GetTrendingInput(BaseModel):
-    """
-    【热门趋势工具】回答"最近什么火"的数据源。
+class GetSubjectEpisodesInput(BaseModel):
+    """【条目剧集索引工具】回答"有哪些集？第X集讲什么？"
 
-    两个维度——作品热度（哪些番剧热度飙升）和讨论热度（哪些话题被激烈讨论），
-    帮助 LLM 了解 Bangumi 社区当下的关注焦点。
+    返回条目全部主线剧集的编号、标题和简介（按集数升序）。
+    拿到 episode id 后可调 get_episode_comments 获取单集详情+吐槽。
+    仅返回主线剧集（type=0），过滤 SP/花絮等。
     """
 
-    category: Literal["subjects", "topics", "both"] = Field(
-        default="both",
-        description="热门维度：subjects=热门条目排行，topics=热门讨论帖排行，both=两者都拉取",
+    subject_id: int = Field(
+        ...,
+        description="Bangumi 条目 ID",
     )
+    limit: int = Field(
+        default=26, ge=1, le=50,
+        description="返回条数（默认 26 覆盖两季番）",
+    )
+
+
+class GetTrendingSubjectsInput(BaseModel):
+    """【热门条目工具】全站热度飙升的条目排名。
+
+    回答"最近什么番/书/游戏最火？"——无需关键词，平台告诉你趋势。
+    """
+
     subject_type: Optional[Literal["anime", "book", "music", "game", "real"]] = Field(
         default=None,
-        description="【仅 category 含 subjects 时生效】按条目类型过滤热门结果。"
-        "anime=动画, book=书籍, music=音乐, game=游戏, real=真人。留空则不限制类型",
+        description="按条目类型过滤。anime=动画, book=书籍, music=音乐, game=游戏, real=真人。留空则不限制",
     )
     limit: int = Field(
-        default=10,
-        ge=1,
-        le=12,
-        description="每个维度返回的最大条数",
+        default=10, ge=1, le=12,
+        description="返回条数",
+    )
+
+
+class GetHotTopicsInput(BaseModel):
+    """【热门讨论帖工具】全站热议话题风向标。
+
+    回答"社区在热议什么？"——提取讨论帖标题和关联条目。
+    无下游工具可直接消费帖子 ID 和作者名，仅保留讨论内容和条目引用。
+    """
+
+    limit: int = Field(
+        default=10, ge=1, le=12,
+        description="返回条数",
     )
 
 
