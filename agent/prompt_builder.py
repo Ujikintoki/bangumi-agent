@@ -14,7 +14,7 @@ Unified System Prompt Builder — 统一 prompt 组装器
     4. agent_profile.tool_strategy          ← 具体策略
     5. tool_constraint（如有）               ← 工具依赖规则
     6. _TOOL_CALLING_RULES                  ← 工具调用后必须回复、数据不足时诚实
-    7. _DATA_INTERPRETATION                 ← 如何解读 dict 返回（评分/收藏/标签/infobox）
+    7. data_guide（Research 专用）            ← _DATA_INTERPRETATION：如何解读 dict 返回
     8. _CONTINUITY_RULES                    ← 对话连续性
     9. intent 策略变体（如有）                ← 当前场景
     10. memory_context（如有）               ← 用户历史 + tone 提示
@@ -150,6 +150,7 @@ def build_system_prompt(
     intent: str | None = None,
     intent_strategies: dict[str, str] | None = None,
     tool_constraint: str = "",
+    data_guide: str = "",
     memory_context: str = "",
     critic_feedback: str = "",
     last_chance_instruction: str = "",
@@ -166,6 +167,7 @@ def build_system_prompt(
         intent: 查询意图（Research 用；Dialogue 传 None）。
         intent_strategies: 意图策略变体 dict（INTENT_PROMPTS）。
         tool_constraint: 工具依赖约束（TOOL_DEPENDENCY_CONSTRAINT）。
+        data_guide: 数据解读指南（Research 专用；Dialogue 不传）。
         memory_context: L2 记忆召回 + tone 提示的格式化文本。
         critic_feedback: Critic 的定向反馈。
         last_chance_instruction: Dialogue 熔断指令。
@@ -195,8 +197,9 @@ def build_system_prompt(
     # ── Layer 6: 关键规则 ──────────────────────────────
     parts.append(_TOOL_CALLING_RULES)
 
-    # ── Layer 7: 数据解读指南 ─────────────────────────
-    parts.append(_DATA_INTERPRETATION)
+    # ── Layer 7: 数据解读指南（Research 专用） ──────────
+    if data_guide:
+        parts.append(data_guide)
 
     # ── Layer 8: 对话连续性 ──────────────────────────────
     parts.append(_CONTINUITY_RULES)

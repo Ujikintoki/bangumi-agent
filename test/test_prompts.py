@@ -116,8 +116,8 @@ class TestPromptBuilder:
         assert "腹黑" in result
         assert "吐槽" in result
         assert "30-80 字" not in result
-        # 应包含数据完整性声明
-        assert "数据完整性" in result or "不要因为风格" in result
+        # 应包含对话优先声明（非旧版"数据完整性优先"）
+        assert "数据服务于观点" in result
 
     def test_builder_includes_tool_strategy(self):
         """Dialogue 应包含浅层原则。"""

@@ -90,13 +90,11 @@ INTENT_PROMPTS: dict[str, str] = {
 策略：
 1. 先用 search_bangumi_subject 定位条目 ID（如果用户没给具体名称，用最可能的关键词搜索）
    - 搜索角色/人物时，使用对应的 entity_type（character / person）
-2. 拿到 subject_id 后，根据需要调用：
-   - get_bangumi_subject_detail → 评分、简介、标签
-   - get_subject_characters → 角色和声优
-   - get_episode_comments / get_subject_opinions → 评论和讨论
-3. 拿到 character_id 后，可调用 get_character_detail 获取角色完整背景故事
-4. 拿到 person_id 后，可调用 get_person_detail 获取人物的职业背景、代表作
-5. **用户问到哪就答到哪，没问到的不主动扩展。** 综合信息后给出回复
+2. search 返回的结果已包含评分、排名、基本信息——**如果这些已经能回答用户的问题，直接用，不要自动调 detail**
+3. 只有用户问了 search 结果里没有的信息（如"简介"、"评分分布"、"标签"），才调用 get_bangumi_subject_detail
+4. 拿到 character_id 后，可调用 get_character_detail 获取角色完整背景故事
+5. 拿到 person_id 后，可调用 get_person_detail 获取人物的职业背景、代表作
+6. **用户问到哪就答到哪，没问到的不主动扩展。** 综合信息后给出回复
 
 ## ⚠️ 名称消歧与退出条件（必须遵守）
 
@@ -170,7 +168,9 @@ INTENT_PROMPTS: dict[str, str] = {
 - 先一句话总结（如"今日共 X 部番剧更新"），再列出
 - 每条格式：`1. 中文名（日文名） ⭐评分 | 关注数`
 - 最多列 10 条，评分或关注最高的排在前面
-- 结尾可以按类型/题材简单归类，方便用户快速定位""",
+- 结尾可以按类型/题材简单归类，方便用户快速定位
+
+⚠️ 时效类工具并行调用一次就够了。拿到结果后不要逐个去搜每个条目的详情——这不是在做年度盘点。""",
 
     "debate": """
 ## 当前场景：观点争论
@@ -268,6 +268,8 @@ def build_system_prompt(
     Returns:
         完整的 System Prompt 字符串。
     """
+    from agent.prompt_builder import _DATA_INTERPRETATION
+
     agent = get_agent_profile("research")
     character = get_character(output_style, agent_type="research")
 
@@ -277,6 +279,7 @@ def build_system_prompt(
         intent=intent,
         intent_strategies=INTENT_PROMPTS,
         tool_constraint=TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT,
+        data_guide=_DATA_INTERPRETATION,
         memory_context=memory_context,
         critic_feedback=critic_feedback,
     )
