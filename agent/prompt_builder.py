@@ -1,28 +1,21 @@
 """
 Unified System Prompt Builder — 统一 prompt 组装器
 
-两个 Agent（Dialogue / Research）共用同一个 builder。
-组装顺序体现"角色优先"原则——角色身份在最前面，能力是角色的附属。
+Phase 6: 14 层 → 8 层。expression_guide 从 layer 12 提前到 layer 2。
+角色人格紧跟身份定义——LLM 先知道"怎么说"再学"怎么查数据"。
 
-==== 组装顺序 ====
+==== 组装顺序（8 层）====
 
 ::
 
-    1. character.identity + motivation      ← 角色是第一层
-    2. agent_profile.capabilities           ← 能力是角色的附属
-    3. character.tool_behavior              ← 角色如何使用工具
-    4. agent_profile.tool_strategy          ← 具体策略
-    5. tool_constraint（如有）               ← 工具依赖规则
-    6. _TOOL_CALLING_RULES                  ← 工具调用后必须回复、数据不足时诚实
-    7. data_guide（Research 专用）            ← _DATA_INTERPRETATION：如何解读 dict 返回
-    8. _CONTINUITY_RULES                    ← 对话连续性
-    9. intent 策略变体（如有）                ← 当前场景
-    10. memory_context（如有）               ← 用户历史 + tone 提示
-    11. critic_feedback（如有）              ← 上一轮缺陷
-    12. character.expression_guide          ← 怎么说
-    13. agent_profile.output_format_guide   ← 格式指引
-    14. character.guardrails                ← 硬约束
-    15. last_chance_instruction（如有）     ← 熔断指令
+    1. character.identity + motivation                ← 角色是第一层
+    2. character.expression_guide + output_format     ← 怎么说（提前！）
+    3. agent_profile.capabilities                     ← 有什么能力
+    4. tool_behavior + tool_strategy + tool_constraint ← 怎么用工具（合并层）
+    5. _TOOL_CALLING_RULES + _CONTINUITY_RULES         ← 关键规则（合并层）
+    6. data_guide（deep）+ intent 策略                  ← 当前场景
+    7. memory_context + critic_feedback                ← 上下文
+    8. character.guardrails                            ← 硬约束
 
 ==== 使用方式 ====
 
@@ -32,8 +25,8 @@ Unified System Prompt Builder — 统一 prompt 组装器
     from agent.prompt_builder import build_system_prompt
 
     character = get_character("bangumi")
-    agent = get_agent_profile("dialogue")
-    prompt = build_system_prompt(agent_profile=agent, character=character)
+    agent = get_agent_profile("companion")
+    prompt = build_system_prompt(agent_profile=agent, character=character, depth="auto")
 """
 
 from __future__ import annotations
@@ -41,7 +34,7 @@ from __future__ import annotations
 from agent.profiles import AgentProfile, CharacterProfile
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 常用对话连续性规则（两个 Agent 共用）
+# 常用对话连续性规则
 # ═══════════════════════════════════════════════════════════════════════════
 
 _CONTINUITY_RULES = """
@@ -72,7 +65,7 @@ _CONTINUITY_RULES = """
 """
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 数据模型约束 + 关键规则（Research 用）
+# 工具调用 + 诚实兜底规则
 # ═══════════════════════════════════════════════════════════════════════════
 
 _TOOL_CALLING_RULES = """
@@ -92,6 +85,10 @@ _TOOL_CALLING_RULES = """
 "没找到"不是你的失败——诚实比瞎编更让用户信任你。
 """
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 数据解读指南（仅 depth=="deep" 时注入）
+# ═══════════════════════════════════════════════════════════════════════════
+
 _DATA_INTERPRETATION = """
 ## 数据解读指南
 
@@ -104,10 +101,10 @@ _DATA_INTERPRETATION = """
 ### 什么是好的呈现
 
 ❌ 罗列数据：
-"EVA 评分 9.1，排名 #1，评分总人数 9438 人。rating_count 显示 1-2 分 89 人，9-10 分 4567 人。收藏中看过 45678，想看 1234，完成率约 78%。标签包括机战(2345)、科幻(1890)、末世(1200)……"
+"EVA 评分 9.1，排名 #1，评分总人数 9438 人。rating_count 显示 1-2 分 89 人，9-10 分 4567 人……"
 
 ✅ 融入叙述：
-"EVA 稳坐 Bangumi 头把交椅，9.1 分。有意思的是打 1 分和打 10 分的人都特别多——爱的爱死恨的恨死，三十年了还没吵完。能看完的人倒是不少，弃坑率不算高。"
+"EVA 稳坐 Bangumi 头把交椅，9.1 分。有意思的是打 1 分和打 10 分的人都特别多——爱的爱死恨的恨死，三十年了还没吵完。"
 
 ### 评分
 - `score`: 0-10 分制。Bangumi 社区评分偏高——6.0 算合格，7.5+ 优秀，8.5+ 现象级，9.0+ 神作
@@ -119,15 +116,10 @@ _DATA_INTERPRETATION = """
 ### 收藏
 - `collection`: {"想看": N, "看过": N, "在看": N, "搁置": N, "抛弃": N}
 - 看过/(看过+搁置+抛弃) ≈ 完成率，>70% 多数人能看完，<40% 弃坑率高
-- 看过 >> 想看 → 出圈作品（路人盘大）
 
 ### 标签
 - `tags`: [{"name": "机战", "count": 2345}, ...]
 - 高 count = 社区共识的题材定位，**用于推荐**，不用于罗列
-
-### Infobox
-- `infobox`: {"导演": "...", "音乐": "...", ...}，条目级元数据键值对
-- key 名来自 Bangumi 社区，不同条目类型 key 不同。已过滤空值和 URL
 
 ### 呈现原则
 - 用户问口碑 → 说"两极分化"还是"一致好评"，不要列评分分布表
@@ -139,7 +131,7 @@ _DATA_INTERPRETATION = """
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Builder
+# Builder（8 层）
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -147,30 +139,29 @@ def build_system_prompt(
     agent_profile: AgentProfile,
     character: CharacterProfile,
     *,
+    depth: str = "auto",
     intent: str | None = None,
     intent_strategies: dict[str, str] | None = None,
     tool_constraint: str = "",
     data_guide: str = "",
     memory_context: str = "",
     critic_feedback: str = "",
-    last_chance_instruction: str = "",
 ) -> str:
-    """组装完整的 System Prompt。
+    """组装完整的 System Prompt（8 层）。
 
-    角色优先——角色身份在最前面，能力是角色的附属。
-    两个 Agent（Dialogue / Research）共用同一个 builder，
-    通过 agent_profile 和 character 参数区分行为。
+    角色优先——角色身份在最前面，表达风格紧跟其后。
+    depth 参数控制工具策略分支和数据解读指南注入。
 
     Args:
-        agent_profile: Agent 配置（dialogue 或 research）。
+        agent_profile: Agent 配置。
         character: 当前使用的角色人格。
-        intent: 查询意图（Research 用；Dialogue 传 None）。
-        intent_strategies: 意图策略变体 dict（INTENT_PROMPTS）。
-        tool_constraint: 工具依赖约束（TOOL_DEPENDENCY_CONSTRAINT）。
-        data_guide: 数据解读指南（Research 专用；Dialogue 不传）。
+        depth: 深度模式（"auto" | "quick" | "deep"），影响 data_guide 注入。
+        intent: 查询意图。
+        intent_strategies: 意图策略变体 dict。
+        tool_constraint: 工具依赖约束（仅 deep 模式传入）。
+        data_guide: 数据解读指南（仅 deep 模式传入）。
         memory_context: L2 记忆召回 + tone 提示的格式化文本。
-        critic_feedback: Critic 的定向反馈。
-        last_chance_instruction: Dialogue 熔断指令。
+        critic_feedback: Critic 的定向反馈（仅 deep 模式传入）。
 
     Returns:
         完整的 System Prompt 字符串。
@@ -180,43 +171,39 @@ def build_system_prompt(
     # ── Layer 1: 角色是第一层 ──────────────────────────────
     parts.append(f"# {character.identity}\n\n{character.motivation}")
 
-    # ── Layer 2: 能力是角色的附属 ─────────────────────────
+    # ── Layer 2: 怎么说（expression_guide 提前！） ────────
+    expression_section = f"## 表达风格\n{character.expression_guide}"
+    if agent_profile.output_format_guide:
+        expression_section += f"\n\n{agent_profile.output_format_guide}"
+    parts.append(expression_section)
+
+    # ── Layer 3: 有什么能力 ─────────────────────────────────
     parts.append(agent_profile.capabilities)
 
-    # ── Layer 3: 角色如何使用工具 ─────────────────────────
+    # ── Layer 4: 怎么用工具（合并层） ─────────────────────
+    tool_section_parts: list[str] = []
     if character.tool_behavior:
-        parts.append(f"## 你对工具的态度\n{character.tool_behavior}")
-
-    # ── Layer 4: 具体工具策略 ─────────────────────────────
-    parts.append(agent_profile.tool_strategy)
-
-    # ── Layer 5: 工具依赖规则（如有） ─────────────────────
+        tool_section_parts.append(f"## 你对工具的态度\n{character.tool_behavior}")
+    tool_section_parts.append(agent_profile.tool_strategy)
     if tool_constraint:
-        parts.append(tool_constraint)
+        tool_section_parts.append(tool_constraint)
+    parts.append("\n\n".join(tool_section_parts))
 
-    # ── Layer 6: 关键规则 ──────────────────────────────
-    parts.append(_TOOL_CALLING_RULES)
+    # ── Layer 5: 关键规则（合并层） ─────────────────────────
+    parts.append(_TOOL_CALLING_RULES + "\n" + _CONTINUITY_RULES)
 
-    # ── Layer 7: 数据解读指南（Research 专用） ──────────
+    # ── Layer 6: 当前场景（data_guide + intent 策略） ─────
     if data_guide:
         parts.append(data_guide)
-
-    # ── Layer 8: 对话连续性 ──────────────────────────────
-    parts.append(_CONTINUITY_RULES)
-
-    # ── Layer 9: 意图策略变体（如有） ─────────────────────
     if intent and intent_strategies:
         strategy = intent_strategies.get(intent, intent_strategies.get("unknown", ""))
         if strategy:
             parts.append(strategy)
 
-    # ── Layer 10: 用户历史 + tone 提示（如有） ─────────────
+    # ── Layer 7: 上下文（memory + critic_feedback） ─────────
     if memory_context:
         parts.append(memory_context)
-
-    # ── Layer 11: Critic 反馈（如有） ──────────────────────
     if critic_feedback:
-        # 期望格式："<缺陷> | <建议> | <缺失类型>"
         safe_feedback = critic_feedback
         if "|" not in critic_feedback and len(critic_feedback) > 200:
             safe_feedback = critic_feedback[:200] + "\n…[反馈过长已截断]"
@@ -224,15 +211,7 @@ def build_system_prompt(
             f"\n## ⚠️ 上一轮回复需要改进\n{safe_feedback}\n请针对以上问题修正你的回复。"
         )
 
-    # ── Layer 12: 怎么说 + 格式指引 ──────────────────────
-    parts.append(f"## 表达风格\n{character.expression_guide}")
-    parts.append(agent_profile.output_format_guide)
-
-    # ── Layer 13: 硬约束 ──────────────────────────────────
+    # ── Layer 8: 硬约束 ─────────────────────────────────────
     parts.append(character.guardrails)
-
-    # ── Layer 14: 熔断指令（如有） ────────────────────────
-    if last_chance_instruction:
-        parts.append(last_chance_instruction)
 
     return "\n\n".join(parts)

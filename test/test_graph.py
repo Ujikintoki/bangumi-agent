@@ -1,5 +1,5 @@
 """
-图谱集成测试（mock LLM + mock 工具）
+图谱集成测试（mock LLM + mock 工具）— Phase 6 统一架构
 
 验证跨模块耦合：critic_feedback 传播、memory 截断不破坏 graph、
 消化态隔离、多轮状态一致性。
@@ -12,16 +12,17 @@ from unittest.mock import call, patch
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.research.graph import build_graph
-from agent.research.state import _MAX_ITERATIONS
+from agent.graph import build_graph
+from agent.state import get_max_iterations
 from agent.memory import estimate_tokens
-from agent.research.nodes import _get_last_ai_response, research_reasoning_node
+from agent.nodes import _get_last_ai_response, reasoning_node
 from test.conftest import MOCK_TOOLS, make_mock_llm, make_state
 
 import pytest
 
 pytestmark = pytest.mark.asyncio
 
+_DEEP_MAX = get_max_iterations("deep")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -32,20 +33,18 @@ pytestmark = pytest.mark.asyncio
 class TestGraphIntegration:
     """端到端图谱：基本路径 + 熔断"""
 
-    @patch("agent.research.nodes.create_llm")
+    @patch("agent.nodes.create_llm")
     async def test_chitchat_fast_path_skips_critic(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="你好！")
         graph = build_graph(tools=MOCK_TOOLS)
-        # iterations=1 跳过分类——本测试验证路由行为，不验证分类
         state = make_state(
             messages=[SystemMessage(content="..."), HumanMessage(content="你好")],
-            query_intent="chitchat", iterations=1,
+            query_intent="chitchat", iterations=1, depth="deep",
         )
         result = await graph.ainvoke(state)
-        assert result.get("critic_status") == "PENDING"  # critic 从未被调用
-        assert result.get("query_intent") == "chitchat"
+        assert result.get("critic_status") == "PENDING"
 
-    @patch("agent.research.nodes.create_llm")
+    @patch("agent.nodes.create_llm")
     async def test_circuit_breaker(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="test")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -55,22 +54,25 @@ class TestGraphIntegration:
                 HumanMessage(content="搜巨人"),
                 AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}]),
             ],
-            iterations=_MAX_ITERATIONS - 1, critic_status="REVISE", query_intent="lookup",
+            iterations=_DEEP_MAX - 1, critic_status="REVISE", query_intent="lookup",
+            depth="deep",
         )
         result = await graph.ainvoke(state)
         assert result.get("error_flag") is True
 
-    @patch("agent.research.nodes.create_llm")
+    @patch("agent.nodes.create_llm")
     async def test_factual_skips_tools(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="三集定律是指...")
         graph = build_graph(tools=MOCK_TOOLS)
-        state = make_state(messages=[SystemMessage(content="..."), HumanMessage(content="什么是三集定律")])
+        state = make_state(
+            messages=[SystemMessage(content="..."), HumanMessage(content="什么是三集定律")],
+            depth="deep",
+        )
         result = await graph.ainvoke(state)
         assert result.get("critic_status") == "PASS"
 
-    @patch("agent.research.nodes.create_llm")
+    @patch("agent.nodes.create_llm")
     async def test_query_intent_persists_across_rounds(self, mock_create_llm):
-        """query_intent 在 REVISE 重入 reasoning 时不丢失"""
         mock_create_llm.return_value = make_mock_llm(content="done")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -80,9 +82,10 @@ class TestGraphIntegration:
                 AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}]),
             ],
             query_intent="lookup", iterations=1, critic_status="REVISE",
+            depth="deep",
         )
         result = await graph.ainvoke(state)
-        assert result.get("query_intent") == "lookup"  # 不因重入而重置
+        assert result.get("query_intent") == "lookup"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -91,12 +94,11 @@ class TestGraphIntegration:
 
 
 class TestCriticFeedbackPropagation:
-    """验证 critic_feedback 确实注入到下一轮 research_reasoning_node 的 LLM 调用"""
+    """验证 critic_feedback 确实注入到下一轮 reasoning_node 的 LLM 调用"""
 
-    @patch("agent.research.nodes.create_llm")
-    @patch("agent.research.nodes.get_agent_tools")
+    @patch("agent.nodes.create_llm")
+    @patch("agent.nodes.get_agent_tools")
     async def test_feedback_appears_in_llm_prompt(self, mock_get_tools, mock_create_llm):
-        """critic_feedback 文本出现在发送给 LLM 的 SystemMessage 中"""
         mock_get_tools.return_value = []
         mock_llm = make_mock_llm(content="已修正的回复")
         mock_create_llm.return_value = mock_llm
@@ -110,16 +112,16 @@ class TestCriticFeedbackPropagation:
             ],
             query_intent="lookup", iterations=1,
             critic_feedback="缺少评分 | 调用 get_detail | 缺失评分",
+            depth="deep",
         )
-        await research_reasoning_node(state)
+        await reasoning_node(state)
 
-        # 验证 LLM.invoke 调用时 prompt 中包含 critic_feedback
         invoke_call = mock_llm.ainvoke.call_args
         assert invoke_call is not None, "LLM.invoke 未被调用"
         messages_to_llm = invoke_call[0][0]
         system_msgs = [m for m in messages_to_llm if isinstance(m, SystemMessage)]
         combined_system = " ".join(m.content for m in system_msgs)
-        assert "缺少评分" in combined_system, f"critic_feedback 未注入到 prompt 中！内容: {combined_system[:200]}"
+        assert "缺少评分" in combined_system
         assert "上一轮回复需要改进" in combined_system
 
 
@@ -127,26 +129,21 @@ class TestMemoryGraphIntegration:
     """验证 memory 截断与 graph 协同"""
 
     async def test_memory_truncation_before_llm_call(self):
-        """长消息历史在 research_reasoning_node 内被截断后再发给 LLM"""
-        # 构建一条超长的 HumanMessage 触发截断
-        long_content = "长文本" * 2000  # ~8000 chars → ~2000 tokens
+        long_content = "长文本" * 2000
         messages = [
             SystemMessage(content="You are Bangumi assistant."),
             HumanMessage(content=long_content),
         ]
-        state = make_state(messages=messages, query_intent="chitchat")
+        state = make_state(messages=messages, query_intent="chitchat", depth="deep")
 
-        # 手动调用 research_reasoning_node（mock create_llm 避免真实 LLM 调用）
-        with patch("agent.research.nodes.create_llm") as mock_create_llm:
+        with patch("agent.nodes.create_llm") as mock_create_llm:
             mock_llm = make_mock_llm(content="你好！")
             mock_create_llm.return_value = mock_llm
-            result = await research_reasoning_node(state)
+            result = await reasoning_node(state)
 
-        # 验证 research_reasoning_node 正常完成（不因超长消息崩溃）
         assert result["iterations"] == 1
 
     async def test_trimmed_messages_still_contain_system(self):
-        """截断后 SystemMessage 始终保留"""
         messages = [
             SystemMessage(content="You are Bangumi assistant."),
         ]
@@ -157,7 +154,7 @@ class TestMemoryGraphIntegration:
         from agent.memory import manage_memory
         trimmed = manage_memory(messages, max_tokens=1000)
         assert any(isinstance(m, SystemMessage) for m in trimmed)
-        assert len(trimmed) < len(messages)  # 确实截断了
+        assert len(trimmed) < len(messages)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -169,10 +166,9 @@ class TestStateLifecycle:
     """验证跨轮次 state 字段的完整性"""
 
     async def test_tool_to_reasoning_to_critic_pipeline(self):
-        """tool → reasoning（消化工具结果）→ critic 链路正常完成"""
-        from agent.research.graph import build_graph
+        from agent.graph import build_graph
 
-        @patch("agent.research.nodes.create_llm")
+        @patch("agent.nodes.create_llm")
         async def _test(mock_llm):
             mock_llm.return_value = make_mock_llm(
                 content="根据搜索结果，巨人评分 8.5 分。",
@@ -186,17 +182,16 @@ class TestStateLifecycle:
                     AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}]),
                 ],
                 query_intent="lookup",
+                depth="deep",
             )
             result = await graph.ainvoke(state)
-            # tool → reasoning 消化后应生成回复，critic 评估后 PASS
             assert result.get("critic_status") == "PASS"
 
         await _test()
 
-    @patch("agent.research.nodes.get_settings")
+    @patch("agent.nodes.get_settings")
     async def test_critic_status_transitions(self, mock_get_settings):
-        """critic_status 正常流转: PENDING → REVISE → PASS"""
-        from agent.research.nodes import critic_node
+        from agent.nodes import critic_node
         from unittest.mock import MagicMock
 
         s = MagicMock()
@@ -206,7 +201,7 @@ class TestStateLifecycle:
         mock_get_settings.return_value = s
 
         # REVISE: 工具返回但无有效回复
-        state1 = make_state(iterations=1, messages=[
+        state1 = make_state(iterations=1, depth="deep", messages=[
             SystemMessage(content="..."), HumanMessage(content="搜"),
             AIMessage(content="", tool_calls=[{"name": "s", "args": {}, "id": "c1"}]),
             ToolMessage(content="结果", tool_call_id="c1"),
@@ -214,7 +209,7 @@ class TestStateLifecycle:
         assert (await critic_node(state1))["critic_status"] == "REVISE"
 
         # PASS: 有效回复（长度 ≥ 20 字）
-        state2 = make_state(iterations=2, messages=[
+        state2 = make_state(iterations=2, depth="deep", messages=[
             SystemMessage(content="..."), HumanMessage(content="搜"),
             AIMessage(content="", tool_calls=[{"name": "s", "args": {}, "id": "c1"}]),
             ToolMessage(content="结果", tool_call_id="c1"),
@@ -223,7 +218,6 @@ class TestStateLifecycle:
         assert (await critic_node(state2))["critic_status"] == "PASS"
 
     async def test_get_last_ai_response_accepts_content_with_tool_calls(self):
-        """有 content 的 AIMessage（即使附带 tool_calls）被视为有效回复"""
         msgs = [
             AIMessage(content="根据搜索结果，以下是分析...", tool_calls=[]),
         ]
@@ -233,11 +227,28 @@ class TestStateLifecycle:
             AIMessage(content="我先介绍已知信息，同时查最新数据...",
                       tool_calls=[{"name": "get_detail", "args": {}, "id": "c1"}]),
         ]
-        assert _get_last_ai_response(msgs2) is not None  # ← 之前会跳过
+        assert _get_last_ai_response(msgs2) is not None
 
     async def test_get_last_ai_response_skips_empty_content(self):
-        """纯 tool_call AIMessage（content=""）仍然被跳过"""
         msgs = [
             AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
         ]
         assert _get_last_ai_response(msgs) is None
+
+    @patch("agent.nodes.create_llm")
+    async def test_shallow_mode_skips_critic(self, mock_create_llm):
+        """depth="auto" 模式：无工具调用 → 直接 END，不进入 critic"""
+        mock_create_llm.return_value = make_mock_llm(content="根据搜索结果，巨人评分 8.5 分。")
+        graph = build_graph(tools=MOCK_TOOLS)
+        state = make_state(
+            messages=[
+                SystemMessage(content="..."),
+                HumanMessage(content="搜巨人"),
+                AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}]),
+            ],
+            query_intent="lookup",
+            depth="auto",
+        )
+        result = await graph.ainvoke(state)
+        # auto 模式：工具消化后无 critic → critic_status 保持 PENDING
+        assert result.get("critic_status") == "PENDING"

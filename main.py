@@ -1,8 +1,8 @@
 """
 FastAPI 应用启动入口
 
-初始化 FastAPI 实例，配置 CORS 中间件与生命周期事件，
-提供健康检查、Agent 对话和流式输出端点。
+Phase 6: depth 参数替代 agent_type（agent_type 保留 deprecated 映射）。
+单一 Companion Agent graph 处理所有请求。
 """
 
 import asyncio
@@ -18,11 +18,9 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel, Field
 
-from agent.dialogue.graph import dialogue_app
-from agent.dialogue.state import DialogueState
+from agent.graph import agent_app
 from agent.profiles import get_agent_profile
-from agent.research.graph import agent_app
-from agent.research.state import AgentState
+from agent.state import AgentState
 from agent.session_cache import get_session_cache
 from core.config import get_settings
 from database.engine import init_db
@@ -31,18 +29,13 @@ settings = get_settings()
 
 
 def _setup_logging() -> None:
-    """初始化 bgm-agent 命名空间下的所有 logger。
-
-    默认输出到 stdout，日志级别由环境变量 BGM_LOG_LEVEL 控制（默认 INFO）。
-    避免触碰 root logger 以防干扰 uvicorn/sqlalchemy 的独立配置。
-    """
+    """初始化 bgm-agent 命名空间下的所有 logger。"""
     level_name = __import__("os").environ.get("BGM_LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
 
-    # 根 logger for bgm-agent 命名空间
     root = logging.getLogger("bgm-agent")
     root.setLevel(level)
-    root.propagate = False  # 不向 root logger 重复传播
+    root.propagate = False
 
     if not root.handlers:
         handler = logging.StreamHandler()
@@ -54,7 +47,6 @@ def _setup_logging() -> None:
         handler.setFormatter(fmt)
         root.addHandler(handler)
 
-    # 抑制 sqlalchemy engine 的 SQL 日志（太吵），除非显式设了 DEBUG
     if level_name != "DEBUG":
         logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
@@ -69,17 +61,23 @@ logger = logging.getLogger("bgm-agent")
 
 
 class ChatRequest(BaseModel):
-    """对话请求。"""
+    """对话请求。
+
+    Phase 6: ``depth`` 是主参数。``agent_type`` 保留 deprecated。
+    """
 
     message: str = Field(..., description="用户消息", min_length=1)
-    agent_type: Literal["dialogue", "research"] = Field(
-        default="dialogue",
-        description="Agent 类型：dialogue（快速对话/Bangumi娘）或 research（深度搜索/中性助手）",
+    depth: Literal["auto", "quick", "deep"] = Field(
+        default="auto",
+        description="深度控制。auto=LLM 自行判断，quick=强制浅层 1-3 轮，deep=激活 Research Skill",
+    )
+    agent_type: Literal["dialogue", "research"] | None = Field(
+        default=None,
+        description="[deprecated] 使用 depth 替代。dialogue→quick, research→deep",
     )
     output_style: Literal["neutral", "bangumi"] | None = Field(
         default=None,
-        description="输出风格。None=走 agent 默认值（dialogue→bangumi, research→neutral），"
-        "neutral=中性输出，bangumi=Bangumi娘腹黑吐槽",
+        description="输出风格。None=走默认值（bangumi），neutral=中性输出，bangumi=Bangumi娘腹黑吐槽",
     )
     session_id: str = Field(
         default="",
@@ -95,24 +93,45 @@ class ChatResponse(BaseModel):
     iterations: int = Field(..., description="ReAct 循环轮数")
     tools_used: list[str] = Field(default_factory=list, description="本轮调用的工具名称")
     query_intent: str = Field(default="unknown", description="查询意图分类结果")
-    output_style: str = Field(default="neutral", description="实际使用的输出渲染风格")
+    output_style: str = Field(default="bangumi", description="实际使用的输出渲染风格")
+    depth: str = Field(default="auto", description="实际使用的深度模式")
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 风格决议
+# agent_type → depth 映射（deprecated）
 # ═══════════════════════════════════════════════════════════════════
 
-AGENT_DEFAULT_STYLES: dict[str, str] = {
-    "dialogue": "bangumi",
-    "research": "neutral",
+_AGENT_TYPE_TO_DEPTH: dict[str, str] = {
+    "dialogue": "quick",
+    "research": "deep",
 }
-"""各 agent_type 的默认 output_style。用户显式传 output_style 时覆盖。"""
+
+
+def _resolve_depth(request: ChatRequest) -> str:
+    """确定实际使用的深度模式。
+
+    优先级：agent_type（deprecated）> depth。
+
+    Args:
+        request: 用户请求。
+
+    Returns:
+        深度模式（"auto" | "quick" | "deep"）。
+    """
+    if request.agent_type is not None:
+        mapped = _AGENT_TYPE_TO_DEPTH.get(request.agent_type, "auto")
+        logger.info(
+            "[deprecated] agent_type='%s' → depth='%s'，请迁移到 depth 参数",
+            request.agent_type, mapped,
+        )
+        return mapped
+    return request.depth
 
 
 def _resolve_output_style(request: ChatRequest) -> str:
     """确定实际使用的输出风格。
 
-    优先级：用户显式传值 > agent 默认值。
+    优先级：用户显式传值 > 默认值 bangumi。
 
     Args:
         request: 用户请求。
@@ -122,7 +141,7 @@ def _resolve_output_style(request: ChatRequest) -> str:
     """
     if request.output_style is not None:
         return request.output_style
-    return AGENT_DEFAULT_STYLES.get(request.agent_type, "neutral")
+    return "bangumi"  # Companion Agent 统一默认 Bangumi娘
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -147,7 +166,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS 中间件 ────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -175,27 +193,21 @@ async def health_check() -> dict:
 async def chat(request: ChatRequest) -> ChatResponse:
     """Agent 对话端点。
 
-    通过 ``agent_type`` 选择 Agent：
+    通过 ``depth`` 控制深度模式：
 
-    - ``"dialogue"``（默认）：Bangumi娘人格，2 节点拓扑，无 Critic，
-      回复 30-150 字，<2s 延迟。适合日常闲聊和快速查询。
-    - ``"research"``：中性助手，3 节点拓扑，Critic 质量自省，
-      深度链式工具调用。适合需要完整数据的复杂查询。
+    - ``"auto"``（默认）：LLM 自行判断，轻量 ReAct ≤5 轮，无 Critic
+    - ``"quick"``：强制浅层 1-3 轮，速度快
+    - ``"deep"``：激活 Research Skill，深度链式调用 + Critic 质量自省
+
+    ``agent_type`` 参数保留但已 deprecated，会自动映射到 depth。
 
     Args:
-        request: 包含用户消息、Agent 类型、会话 ID 和用户 ID 的请求体。
+        request: 包含用户消息、深度模式、会话 ID 和用户 ID 的请求体。
 
     Returns:
-        ChatResponse: 包含回复、迭代次数、工具列表和意图分类的响应。
+        ChatResponse: 包含回复、迭代次数、工具列表、意图分类、深度模式的响应。
     """
-    if request.agent_type == "research":
-        return await _chat_research(request)
-    return await _chat_dialogue(request)
-
-
-async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
-    """Dialogue Agent 内部处理。"""
-    # 未指定 session_id 时自动生成，防止多用户共享默认上下文
+    depth = _resolve_depth(request)
     session_id = request.session_id or uuid.uuid4().hex
     output_style = _resolve_output_style(request)
 
@@ -204,72 +216,11 @@ async def _chat_dialogue(request: ChatRequest) -> ChatResponse:
     cached = await session_cache.load(session_id)
 
     # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
-    _seed = get_agent_profile("dialogue").capabilities
-    initial_state: DialogueState = {
-        "messages": [
-            SystemMessage(content=_seed),
-            *cached,  # 前序对话（不含 SystemMessage）
-            HumanMessage(content=request.message),
-        ],
-        "iterations": 0,
-        "query_intent": "unknown",
-        "session_id": session_id,
-        "user_id": request.user_id,
-        "_memory_context": "",
-        "output_style": output_style,
-    }
-
-    try:
-        result = await dialogue_app.ainvoke(initial_state)
-    except Exception as e:
-        logger.exception("/chat (dialogue): Agent 执行异常")
-        return ChatResponse(
-            reply=f"啧，出错了：{e}",
-            iterations=0,
-            tools_used=[],
-            query_intent="unknown",
-            output_style=output_style,
-        )
-
-    # ── L1 Session 缓存：保存本轮消息（Dialogue 最多 20 条） ──
-    await session_cache.store(
-        session_id,
-        result.get("messages", []),
-        max_messages=20,
-    )
-
-    # ── L2 记忆写入（fire-and-forget，不阻塞响应） ──
-    asyncio.create_task(_remember_session(result, request))
-
-    messages = result.get("messages", [])
-    return ChatResponse(
-        reply=_extract_final_reply(
-            messages,
-            iterations=result.get("iterations", 0),
-            max_iterations=4,
-        ),
-        iterations=result.get("iterations", 0),
-        tools_used=_extract_tools_used(messages),
-        query_intent=result.get("query_intent", "unknown"),
-        output_style=output_style,
-    )
-
-
-async def _chat_research(request: ChatRequest) -> ChatResponse:
-    """Research Agent 内部处理。"""
-    session_id = request.session_id or uuid.uuid4().hex
-    output_style = _resolve_output_style(request)
-
-    # ── L1 Session 缓存：恢复同 session 前序消息 ──
-    session_cache = get_session_cache()
-    cached = await session_cache.load(session_id)
-
-    # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
-    _seed = get_agent_profile("research").capabilities
+    _seed = get_agent_profile("companion").capabilities
     initial_state: AgentState = {
         "messages": [
             SystemMessage(content=_seed),
-            *cached,  # 前序对话（不含 SystemMessage）
+            *cached,
             HumanMessage(content=request.message),
         ],
         "iterations": 0,
@@ -281,42 +232,49 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
         "error_flag": False,
         "_memory_context": "",
         "output_style": output_style,
+        "depth": depth,
     }
 
     try:
         result = await agent_app.ainvoke(initial_state)
     except Exception as e:
-        logger.exception("/chat (research): Agent 执行异常")
+        logger.exception("/chat: Agent 执行异常")
         return ChatResponse(
-            reply=f"系统异常：{e}",
+            reply=f"啧，出错了：{e}",
             iterations=0,
             tools_used=[],
             query_intent="unknown",
             output_style=output_style,
+            depth=depth,
         )
 
-    # ── L1 Session 缓存：保存本轮消息（Research 最多 30 条） ──
+    # ── L1 Session 缓存：保存本轮消息 ──
+    max_cached = 30 if depth == "deep" else 20
     await session_cache.store(
         session_id,
         result.get("messages", []),
-        max_messages=30,
+        max_messages=max_cached,
     )
 
-    # ── L2 记忆写入（fire-and-forget，不阻塞响应） ──
-    asyncio.create_task(_remember_session(result, request))
+    # ── L2 记忆写入（fire-and-forget） ──
+    asyncio.create_task(_remember_session(result, request, depth))
 
+    from agent.state import get_max_iterations
+
+    max_iterations = get_max_iterations(depth)
     messages = result.get("messages", [])
     return ChatResponse(
         reply=_extract_final_reply(
             messages,
             error_flag=result.get("error_flag", False),
             iterations=result.get("iterations", 0),
-            max_iterations=12,
+            max_iterations=max_iterations,
         ),
         iterations=result.get("iterations", 0),
         tools_used=_extract_tools_used(messages),
         query_intent=result.get("query_intent", "unknown"),
         output_style=output_style,
+        depth=depth,
     )
 
 
@@ -324,55 +282,39 @@ async def _chat_research(request: ChatRequest) -> ChatResponse:
 async def chat_stream(request: ChatRequest):
     """Agent 对话流式端点（SSE）。
 
-    通过 ``agent_type`` 选择 Agent。按节点级别推送事件。
-    Research: reasoning → tool → critic → done。
-    Dialogue: reasoning → tool → done（无 critic 节点）。
+    按节点级别推送事件：reasoning → tool → (critic，仅 deep) → done。
 
     Args:
-        request: 包含用户消息、Agent 类型、会话 ID 和用户 ID 的请求体。
+        request: 包含用户消息、深度模式、会话 ID 和用户 ID 的请求体。
 
     Returns:
         StreamingResponse: SSE 事件流（text/event-stream）。
     """
+    depth = _resolve_depth(request)
     output_style = _resolve_output_style(request)
 
-    if request.agent_type == "dialogue":
-        _seed = get_agent_profile("dialogue").capabilities
-        initial_state: DialogueState = {
-            "messages": [
-                SystemMessage(content=_seed),
-                HumanMessage(content=request.message),
-            ],
-            "iterations": 0,
-            "query_intent": "unknown",
-            "session_id": request.session_id,
-            "user_id": request.user_id,
-            "output_style": output_style,
-        }
-        graph_app = dialogue_app
-    else:
-        _seed = get_agent_profile("research").capabilities
-        initial_state: AgentState = {
-            "messages": [
-                SystemMessage(content=_seed),
-                HumanMessage(content=request.message),
-            ],
-            "iterations": 0,
-            "critic_status": "PENDING",
-            "critic_feedback": "",
-            "query_intent": "unknown",
-            "session_id": request.session_id,
-            "user_id": request.user_id,
-            "error_flag": False,
-            "output_style": output_style,
-        }
-        graph_app = agent_app
+    _seed = get_agent_profile("companion").capabilities
+    initial_state: AgentState = {
+        "messages": [
+            SystemMessage(content=_seed),
+            HumanMessage(content=request.message),
+        ],
+        "iterations": 0,
+        "critic_status": "PENDING",
+        "critic_feedback": "",
+        "query_intent": "unknown",
+        "session_id": request.session_id,
+        "user_id": request.user_id,
+        "error_flag": False,
+        "output_style": output_style,
+        "depth": depth,
+    }
 
     async def generate():
         try:
-            async for event in graph_app.astream(initial_state):
+            async for event in agent_app.astream(initial_state):
                 for node_name, node_output in event.items():
-                    if node_name in ("reasoning_node", "dialogue_reasoning_node"):
+                    if node_name == "reasoning_node":
                         intent = node_output.get("query_intent", "unknown")
                         tool_calls = []
                         for msg in node_output.get("messages", []):
@@ -413,19 +355,14 @@ def _extract_final_reply(
     messages: list,
     error_flag: bool = False,
     iterations: int = 0,
-    max_iterations: int = 10,
+    max_iterations: int = 5,
 ) -> str:
     """从消息历史中提取最终 AI 回复。
-
-    查找最后一条有实质内容的 AIMessage。与 Critic 的 ``_get_last_ai_response``
-    标准一致：有 content 即视为有效回复，不因附带 tool_calls 而拒绝。
-
-    兜底消息根据失败原因提供区分度更高的提示。
 
     Args:
         messages: 完整的消息历史列表。
         error_flag: 是否触发了错误降级。
-        iterations: 当前迭代次数（用于超限提示）。
+        iterations: 当前迭代次数。
         max_iterations: 最大迭代次数上限。
 
     Returns:
@@ -435,14 +372,12 @@ def _extract_final_reply(
         if isinstance(m, AIMessage) and m.content:
             return m.content
 
-    # ── 区分化的兜底消息 ────────────────────────────────────
     if error_flag:
         return "系统处理超时，请简化查询后重试。"
 
     if iterations >= max_iterations:
         return "查询达到最大处理轮次，请尝试更具体的提问方式。"
 
-    # 检查是否有工具执行但无文本回复
     has_tool_results = any(
         isinstance(m, ToolMessage) for m in messages
     )
@@ -453,18 +388,14 @@ def _extract_final_reply(
 
 
 def _extract_tools_used(messages: list) -> list[str]:
-    """从消息历史中提取**本轮**调用的工具名称列表（去重保序）。
-
-    策略：定位最后一个 HumanMessage（用户最新输入），只统计其后的 ToolMessage。
-    这解决了 session_cache 注入的旧消息中的 ToolMessage 被误报为"本轮"工具的问题。
+    """从消息历史中提取本轮调用的工具名称列表（去重保序）。
 
     Args:
-        messages: 完整的消息历史列表（含 session_cache 注入的前序消息）。
+        messages: 完整的消息历史列表。
 
     Returns:
         本轮工具名称列表。
     """
-    # 定位本轮起点：最后一个 HumanMessage 的位置
     start_idx = 0
     for i in range(len(messages) - 1, -1, -1):
         if isinstance(messages[i], HumanMessage):
@@ -486,38 +417,24 @@ def _extract_tools_used(messages: list) -> list[str]:
 async def _remember_session(
     result: dict,
     request: ChatRequest,
+    depth: str = "auto",
 ) -> None:
-    """Fire-and-forget: 写入 L2 session 摘要。
-
-    Agent 返回结果后，在后台异步执行 LLM 摘要 → embedding →
-    INSERT session_memories。不阻塞 HTTP 响应——用户感知延迟为零。
-
-    整个 remember_session 链路设有 15 秒硬超时。正常链路
-    （摘要 LLM 10s + embedding 0.1s + DB <0.1s）约 10-11 秒，
-    15 秒提供 ~50% 余量，允许轻微响应波动通过。
-
-    注意：流式端点 ``POST /chat/stream`` 未接入记忆写入。
-    ``astream()`` 逐个 yield 节点事件，无干净的"最终结果点"，
-    强行接入会在 ``[DONE]`` 前卡 ~1s。后续可考虑收集完整事件后
-    在生成器末尾调度。
-
-    Args:
-        result: agent_graph.ainvoke() 的完整返回 dict。
-        request: 原始 ChatRequest（含 session_id, user_id）。
-    """
+    """Fire-and-forget: 写入 L2 session 摘要。"""
     try:
         from agent.memory_manager import get_memory_manager
+        from agent.state import get_max_iterations
 
         mm = get_memory_manager()
         messages: list = result.get("messages", [])
         if not messages:
             return
 
+        max_iterations = get_max_iterations(depth)
         final_reply = _extract_final_reply(
             messages,
             error_flag=result.get("error_flag", False),
             iterations=result.get("iterations", 0),
-            max_iterations=10,
+            max_iterations=max_iterations,
         )
 
         query_intent = result.get("query_intent", "unknown")

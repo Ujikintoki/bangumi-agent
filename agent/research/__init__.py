@@ -1,9 +1,18 @@
-"""Research Agent — 深度研究助手。
+"""Research Skill — 仅 depth=="deep" 时激活。
 
-3 节点 ReAct 拓扑 + Critic 质量自省。准确 > 速度。
+深度意图策略 + Critic 评估 prompt。
 """
 
-from agent.research.graph import agent_app, build_graph
-from agent.research.state import AgentState
+from agent.research.prompts import (  # noqa: F401
+    CRITIC_SYSTEM_PROMPT,
+    INTENT_PROMPTS,
+    TOOL_DEPENDENCY_CONSTRAINT,
+    build_system_prompt,
+)
 
-__all__ = ["AgentState", "agent_app", "build_graph"]
+__all__ = [
+    "build_system_prompt",
+    "CRITIC_SYSTEM_PROMPT",
+    "INTENT_PROMPTS",
+    "TOOL_DEPENDENCY_CONSTRAINT",
+]

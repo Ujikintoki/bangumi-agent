@@ -1,15 +1,11 @@
 """
-Research Agent 系统提示词模块
+Research Skill 深度意图策略 — 仅 depth=="deep" 激活
 
-人格化模块架构 v3：BASE_SYSTEM_PROMPT 已移除，内容迁移至：
-- agent/profiles.py — 角色人格 + Agent 配置
-- agent/prompt_builder.py — 统一 prompt 组装
+Phase 6: 保留 INTENT_PROMPTS（深度版）、TOOL_DEPENDENCY_CONSTRAINT、
+_DATA_MODEL_CONSTRAINT、CRITIC_SYSTEM_PROMPT。
+build_system_prompt() 薄封装，委托给 agent.prompt_builder。
 
-本文件保留：
-- INTENT_PROMPTS: 意图特定的策略 prompt 变体（含 debate/emotional）
-- TOOL_DEPENDENCY_CONSTRAINT: 工具依赖约束声明
-- CRITIC_SYSTEM_PROMPT: Critic 评估 prompt
-- build_system_prompt(): 薄封装，委托给 prompt_builder
+Companion 浅层版见 agent/prompts.py。
 """
 
 from __future__ import annotations
@@ -17,12 +13,12 @@ from __future__ import annotations
 import logging
 
 from agent.profiles import get_agent_profile, get_character
-from agent.prompt_builder import build_system_prompt as _build
+from agent.prompt_builder import _DATA_INTERPRETATION, build_system_prompt as _build
 
 logger = logging.getLogger("bgm-agent.prompts")
 
 # ═══════════════════════════════════════════════════════════════════
-# 工具依赖约束
+# 工具依赖约束（仅 deep 模式）
 # ═══════════════════════════════════════════════════════════════════
 
 TOOL_DEPENDENCY_CONSTRAINT = """
@@ -50,7 +46,7 @@ TOOL_DEPENDENCY_CONSTRAINT = """
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 数据模型约束（Research 专用）
+# 数据模型约束（仅 deep 模式）
 # ═══════════════════════════════════════════════════════════════════
 
 _DATA_MODEL_CONSTRAINT = """
@@ -65,7 +61,7 @@ _DATA_MODEL_CONSTRAINT = """
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 意图特定 Prompt 变体
+# 深度意图策略变体
 # ═══════════════════════════════════════════════════════════════════
 
 INTENT_PROMPTS: dict[str, str] = {
@@ -209,7 +205,7 @@ INTENT_PROMPTS: dict[str, str] = {
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Critic 系统提示词（LLM 版）
+# Critic 系统提示词（LLM 版，仅 deep 模式）
 # ═══════════════════════════════════════════════════════════════════
 
 CRITIC_SYSTEM_PROMPT = """你是 Bangumi 助手的输出质量控制专家。按以下四个维度评估助手的最后一条回复：
@@ -254,13 +250,13 @@ def build_system_prompt(
     memory_context: str = "",
     output_style: str = "neutral",
 ) -> str:
-    """拼接完整 System Prompt。
+    """拼接深度模式 System Prompt。
 
     实际组装由 agent.prompt_builder.build_system_prompt() 完成。
-    本函数作为薄封装，保持与 research/nodes.py 的接口兼容。
+    本函数作为薄封装，保持与 nodes.py 的接口兼容。
 
     Args:
-        intent: 查询意图，如 "lookup"、"discovery"、"debate"、"emotional" 等。
+        intent: 查询意图，如 "lookup"、"discovery" 等。
         critic_feedback: Critic 的定向反馈。空字符串表示无反馈。
         memory_context: L2 语义召回的格式化文本。仅首轮非空。
         output_style: 输出渲染风格（"neutral" | "bangumi"）。默认 "neutral"。
@@ -268,14 +264,13 @@ def build_system_prompt(
     Returns:
         完整的 System Prompt 字符串。
     """
-    from agent.prompt_builder import _DATA_INTERPRETATION
-
-    agent = get_agent_profile("research")
-    character = get_character(output_style, agent_type="research")
+    agent = get_agent_profile("companion")
+    character = get_character(output_style)
 
     return _build(
         agent_profile=agent,
         character=character,
+        depth="deep",
         intent=intent,
         intent_strategies=INTENT_PROMPTS,
         tool_constraint=TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT,

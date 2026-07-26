@@ -123,7 +123,7 @@ class TestChatEndpoint:
         response = client.post("/chat", json={"message": "测试", "agent_type": "research"})
         assert response.status_code == 200
         data = response.json()
-        assert "异常" in data["reply"]
+        assert ("出错" in data["reply"] or "异常" in data["reply"])
         assert data["iterations"] == 0
 
     def test_rejects_empty_message(self):

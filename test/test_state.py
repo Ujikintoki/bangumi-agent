@@ -17,12 +17,13 @@ from test.conftest import make_state
 
 
 class TestAgentStateStructure:
-    """AgentState 字段完整性（8 字段，last_tool_calls 已删除）"""
+    """AgentState 字段完整性（Phase 6 新增 depth 和 _memory_context）"""
 
     def test_all_required_keys_present(self):
         state = make_state()
         for key in ("messages", "iterations", "critic_status", "critic_feedback",
-                     "query_intent", "session_id", "user_id", "error_flag"):
+                     "query_intent", "session_id", "user_id", "error_flag",
+                     "_memory_context", "output_style", "depth"):
             assert key in state, f"缺少必需字段: {key}"
 
     def test_last_tool_calls_removed(self):
@@ -53,7 +54,7 @@ class TestRouteAfterReasoning:
         assert route_after_research_reasoning(state) == "tool_node"
 
     def test_routes_to_critic_when_no_tool_calls(self):
-        """AIMessage 无 tool_calls + lookup intent → critic_node"""
+        """AIMessage 无 tool_calls + lookup intent + depth=deep → critic_node"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -61,13 +62,27 @@ class TestRouteAfterReasoning:
                 AIMessage(content="根据搜索结果..."),
             ],
             query_intent="lookup",
+            depth="deep",
         )
         assert route_after_research_reasoning(state) == "critic_node"
 
-    def test_routes_to_critic_when_empty_messages(self):
-        """空消息列表 → critic_node（防御性处理）"""
-        state = make_state(messages=[])
-        assert route_after_research_reasoning(state) == "critic_node"
+    def test_routes_to_end_when_shallow_no_tool_calls(self):
+        """AIMessage 无 tool_calls + depth=auto → END（非 deep 不走 critic）"""
+        state = make_state(
+            messages=[
+                SystemMessage(content="..."),
+                HumanMessage(content="搜巨人"),
+                AIMessage(content="根据搜索结果..."),
+            ],
+            query_intent="lookup",
+            depth="auto",
+        )
+        assert route_after_research_reasoning(state) == END
+
+    def test_routes_to_end_when_empty_messages(self):
+        """空消息列表 + depth=auto → END"""
+        state = make_state(messages=[], depth="auto")
+        assert route_after_research_reasoning(state) == END
 
     def test_chitchat_fast_path_to_end(self):
         """chitchat 无工具调用 → 快速通道直达 END"""
@@ -82,7 +97,7 @@ class TestRouteAfterReasoning:
         assert route_after_research_reasoning(state) == END
 
     def test_factual_still_goes_to_critic(self):
-        """factual 不走快速通道 → critic_node"""
+        """factual + depth=deep → critic_node"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -90,6 +105,7 @@ class TestRouteAfterReasoning:
                 AIMessage(content="三集定律是指..."),
             ],
             query_intent="factual",
+            depth="deep",
         )
         assert route_after_research_reasoning(state) == "critic_node"
 
