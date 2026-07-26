@@ -1,6 +1,6 @@
 # 开发路线图
 
-> 最后更新: 2026-07-21 | 当前阶段: Phase 5 完成（L3 已移除），Phase 5.5 Lite 落地
+> 最后更新: 2026-07-26 | 当前阶段: Phase 6 Companion Agent 架构重构（Step 1 完成）
 
 ---
 
@@ -8,308 +8,260 @@
 
 | 指标 | 值 |
 |------|-----|
-| 总测试数 | 503 passed + 23 skipped (L3 deprecated) |
-| 记忆相关测试 | L1: ~30, L2: ~9 (L3: 23 skipped) |
-| Agent 数 | 2 (Research + Dialogue) |
+| 总测试数 | 565 passed + 23 skipped (L3 deprecated) |
+| Agent 数 | 2 (Research + Dialogue) — **Phase 6 目标合并为 1 个 Companion Agent** |
 | 工具数 | 14（含 get_character_detail, get_person_detail） |
-| 工具链深度 | Research 2-8 轮, Dialogue 1-3 轮 |
+| 工具返回格式 | dict（2026-07-24 str→dict 重构，A/B/C/D 方法论） |
+| 工具链深度 | 默认 1-2 轮, deep 模式 3-8 轮 |
 | 记忆层级 | 2 活跃 (L1 滑动窗口, L2 语义召回) + 1 废弃 (L3 用户画像) |
 | 配置项 | 12 个 MEMORY_* 配置 |
-| output_style | 四象限可用 (neutral/bangumi × research/dialogue) |
+| output_style | bangumi（默认）/ neutral |
 
 ---
 
 ## 总体路线
 
 ```
-Phase 4 (done)       Phase 5 (done)         Phase 5.5 (done)          Phase 6
-双 Agent              记忆系统               Output Boundary           更多工具
-                       │                     │                        │
-  research        双通道语义召回          prompt 人格剥离          group topics
-  + dialogue      时间衰减排序            profiles.py 四象限       web_search
-  + 14 tools      锚定回退               neutral/bangumi          发帖辅助
-                       │                     │                        │
-                  L2: session 记忆        agent × style             记忆层受益
-                  L3: 已废弃              四象限可用                 输出边界受益
+Phase 1-3 (done)    Phase 4 (done)    Phase 5 (done)     Phase 5.5 (done)    Phase 6 (进行中)     Phase 7 (重新定义)
+基础地基             双 Agent 拓扑      记忆系统            Output Boundary     Companion Agent      更多工具 & 社区数据
+     │                   │                 │                    │                   │                    │
+  FastAPI            Research Agent   L1 滑动窗口         prompt 人格剥离      产品定位翻转          group topics
+  BangumiClient      Dialogue Agent    L2 语义召回         profiles.py         单一 Agent 入口        web_search
+  RAG 检索           14 tools          L3 已废弃           四象限可用           损友人格             发帖辅助
+  pgvector           3 节点 ReAct      时间衰减排序         intent 体系扩展      depth 参数控制        记忆层受益
+                     2 节点 ReAct      tone 侧写           depth="deep"→Skill  输出边界受益
 ```
 
-**依赖关系**：记忆层 →（Output Boundary、更多工具并行）
+**Phase 7 替代旧 ROADMAP 中的 Phase 6（"更多工具"），原计划推迟到 Companion Agent 重构完成之后。**
 
 ---
 
-## Phase 5: 记忆系统 ✅ 已完成（2026-07-21 更新）
+## Phase 1-3: 地基 ✅（2026-05 ~ 2026-06 初）
 
-> 详细设计方案见 [`docs/design/phase5-memory-system-design.md`](phase5-memory-system-design.md)（1194 行）  
-> 综合手册见 [`docs/memory/`](../memory/README.md)（6 文件）  
-> 实现文件：`agent/memory.py` (L1, 380 行) + `agent/memory_manager.py` (L2, 1015 行)  
-> 辅助文件：`agent/session_cache.py` (194 行) + `agent/guardrails.py` (共享)  
-> 数据库：`database/memory_tables.py` (3 张表：session_memories, user_profiles, public_memories)  
-> 配置：`core/config.py` 中 12 个 MEMORY_* 项
+项目的早期基础层。无独立设计文档，但代码仍在生产使用中。
 
-### 当前架构
+| Phase | 内容 | 关键文件 |
+|-------|------|---------|
+| Phase 1 | FastAPI 入口、配置系统、Bangumi API 客户端 | `main.py`, `core/config.py`, `clients/` |
+| Phase 2 | RAG 检索（text_processor, ingestion, retriever）、工具函数初版 | `rag/`, `tools/`, `database/` |
+| Phase 3 | 第一个 ReAct Agent 实现、Schema 定义 | `agent/`, `schemas/` |
 
-| 层级 | 状态 | 实现 | 存储 |
-|------|------|------|------|
-| L1 短记忆 | ✅ 活跃 | `agent/memory.py` — 滑动窗口 + tiktoken 精确截断 + 孤儿消息清理 | 内存 |
-| L2 长记忆 | ✅ 活跃 | `agent/memory_manager.py` — 跨 session 语义召回 + 时间衰减 | PostgreSQL + pgvector |
-| L3 用户画像 | 🗑️ 废弃 | `agent/memory_manager.py` — 增量更新偏好/亲和度（代码保留，调用点注释） | PostgreSQL JSONB（表未删） |
+**2026-07-26 审查结论**：这些层与 agent 拓扑完全解耦——Client、RAG、工具、数据库在新 Companion Agent 架构下不需要改动。详见 [`docs/design/phase1-3-audit.md`](phase1-3-audit.md)。
 
-**L3 移除理由**（2026-07-20）：画像推断（关键词匹配 9 个类型→实体名）基本不工作；娱乐型对话对话 Agent，"偏好/机战类作品"的边际价值极低；L2 语义召回已提供跨 session 连续性。详见 plan 文件。
+---
 
-### L2 召回策略：双通道 + 时间衰减 + Agent 差异化
+## Phase 4: 双 Agent 拓扑 ✅（2026-06-09）
 
-**通道 1: 语义通道**
-```
-pgvector cosine_distance(query_embedding, session_embedding)
-  → 过滤: distance ≤ threshold (Research: 0.50, Dialogue: 0.35)
-  → 评分: combined_score = (1 - distance) × 0.5^(days_ago / 14)
-```
+建立 Research + Dialogue 两条独立的 Agent 管线，共享工具层和记忆层。
 
-**通道 2: 时效回退**（语义命中不足 TOP_K 时触发）
-```
-按 created_at DESC 取最近 session
-  → 计算 cosine_distance
-  → 锚定过滤: distance ≤ 0.60 (MEMORY_RECENCY_FALLBACK_THRESHOLD)
-  → 同样时间衰减评分
-```
+### 架构决策
 
-**Agent 差异化**：
-
-| | Research | Dialogue |
+| | Research Agent | Dialogue Agent |
 |---|---|---|
-| L2 注入预算 | 700 tokens | 300 tokens |
-| 语义阈值 | cos ≤ 0.50 | cos ≤ 0.35 |
-| 跳过意图 | chitchat, factual | chitchat, factual |
-| 召回时机 | reasoning_node 首轮（`_memory_context` 缓存） | 同 Research |
-| 最后轮保护 | Critic REVISE + 12 轮熔断 | iter ≥ 3 → 强制解绑工具 + 注入紧急指令 |
+| 定位 | 深度搜索助手 | 快速聊天（Bangumi娘） |
+| 拓扑 | 3 节点（reasoning + tool + critic） | 2 节点（reasoning + tool） |
+| 最大迭代 | 12 | 4 |
+| 默认人格 | neutral | bangumi |
+| Critic | llm（四维度） | 无 |
+| Prompt 构建 | `agent/research/prompts.py` | `agent/dialogue/prompts.py` |
+| State | `AgentState`（10 字段） | `DialogueState`（7 字段） |
 
-### 写入路径
+### ReAct 变体
 
-```
-对话历史（Human + AI，跳过 Tool/System）
-  → 截断到 3000 tokens
-  → DeepSeek 生成 ~200 字 JSON 摘要 {"summary": "...", "entities": [...]}
-  → Zhipu embedding-3 向量化 (2048d)
-  → UPSERT session_memories（同 user+session 只保留最新一条）
-  → ~~_update_user_profile()~~ [L3 deprecated, 已跳过]
-  
-  全程 fire-and-forget（asyncio.create_task），15 秒硬超时，异常静默降级
-```
+Tool-calling ReAct（非标准 ReAct）：LLM 通过 function calling 决定工具调用，无显式 Thought 输出。Research Agent 在 LLM 主动停止后触发 Critic 质量审查（PASS/REVISE）。
 
-### 优雅降级矩阵
-
-| 故障点 | 降级行为 | 用户体验 |
-|--------|---------|---------|
-| embedding API 超时/失败 | embedding=None，回退纯时效排序 | 近期记忆仍可用 |
-| 语义检索 DB 异常 | RuntimeError 捕获，scored=[] | 无记忆，agent 正常回复 |
-| 摘要 LLM 失败 | 回退 `final_reply[:200]` | 摘要质量略降 |
-| session_memory INSERT 失败 | SQLAlchemyError 捕获，skip | 本轮不记，下轮不受影响 |
-| 画像更新（已禁用） | — | — |
-| `MEMORY_ENABLED=False` | recall/remember 全部返回 no-op | Agent 退化回无记忆模式 |
-| `user_id="anonymous"` | recall/remember 全部返回 no-op | 匿名用户不触发记忆 |
-
-### Phase 5 完成标准 ✅
-- ✅ session_id 不同 → 记忆隔离
-- ✅ user_id 相同 → 跨 session 语义召回历史摘要
-- ✅ 双通道召回：语义 + 时效回退（最小语义锚定 cos ≤ 0.60）
-- ✅ 时间衰减排序：`combined_score = (1-cos_dist) × 0.5^(days/14)`
-- ✅ Fire-and-forget 写入，异常静默降级
-- ✅ Research + Dialogue 双 Agent 记忆集成，独立阈值
-- ✅ Session 缓存（跨 HTTP 消息桥接）
-- ✅ Dialogue 最后一轮强制回复（防止熔断无输出）
-- ✅ ~~用户画像增量更新~~ [L3 deprecated]
-- ✅ 503 tests 通过 + 23 skipped (L3)
-
-### 与原始计划的关键差异
-
-| 项目 | 原始计划 | 实际实现 |
-|------|---------|---------|
-| L2 召回 | 单一语义通道 | **双通道**（语义 + 时效回退） |
-| L2 排序 | cosine 距离 | **时间衰减** `similarity × 0.5^(days/14)` |
-| L3 画像 | 增量更新 | **已移除**（代码保留，调用点注释） |
-| Dialogue L2 | 未计划独立配置 | **独立阈值 0.35** + 300 tokens 预算 |
-| Dialogue 熔断 | 直接 END | **最后轮强制解绑工具** + 紧急指令注入 |
-| Session 缓存 | 未计划 | `session_cache.py` (194 行) |
-| Research L2 预算 | 500 tokens | **700** tokens |
-| UPSERT 写入 | INSERT | **UPSERT**（防向量空间污染） |
-| `_memory_context` 缓存 | 无 | **有**（同 graph 调用不复召回） |
-| 测试 | — | 503 passed + 23 skipped |
-
----
-
-## Phase 5.5: Output Style Control ✅ 完成（2026-06-17 初版，2026-07-22 架构重构）
-
-> **最终方案**：角色优先 prompt 组装 + 意图体系扩展 + 记忆 tone 侧写。  
-> 原始计划的后处理 `render()` 六边形架构经测试不合理（额外延迟 + 数据编造风险），已废弃。  
-> 废弃的设计文档保留在 [`docs/design/personality-rendering-layer.md`](personality-rendering-layer.md) 供历史参考。
-
-### 实际架构（v3，2026-07-22）
-
-```
-build_system_prompt() / build_dialogue_prompt()
-  → CharacterProfile（角色是第一层）
-  → AgentProfile.capabilities（能力是角色的附属）
-  → tool behavior + strategy
-  → tool constraints + data model
-  → continuity rules
-  → intent strategy variant（debate/emotional/lookup/...）
-  → memory context + tone hints
-  → critic feedback（Research only）
-  → expression guide + output format
-  → guardrails（字数、emoji 等硬约束）
-  → last-chance instruction（Dialogue only）
-```
-
-### 实现文件（v3）
+### 关键文件
 
 | 文件 | 角色 |
 |------|------|
-| `agent/profiles.py` (270 行) | **新建** — CharacterProfile + AgentProfile dataclass，3 个角色实例 + 2 个 Agent 配置 |
-| `agent/prompt_builder.py` (160 行) | **新建** — 统一 13 层 prompt 组装器，两个 Agent 共用 |
-| `agent/styles.py` | **已删除** — 合并到 profiles.py |
-| `agent/dialogue/prompts.py` | **重写** — DIALOGUE_CORE_PROMPT 删除，`build_dialogue_prompt` 变为薄封装 |
-| `agent/research/prompts.py` | **重写** — BASE_SYSTEM_PROMPT 删除，INTENT_PROMPTS 扩展 +debate/emotional，`build_system_prompt` 变为薄封装 |
-| `agent/classifier.py` | **修改** — +2 意图（debate/emotional），15+keywords/patterns，LLM fallback 更新 |
-| `agent/memory_manager.py` | **修改** — SUMMARIZE_PROMPT_V2 +tone，解析 + 存储 + 召回注入 |
-| `agent/dialogue/nodes.py` | **修改** — +debate/emotional intents |
-| `agent/research/nodes.py` | **修改** — +debate/emotional intents |
-| `agent/classifier.py` | **删除** — `INTENT_RULES` 关键词表、`classify_intent_rule()`；`_NO_TOOL_INTENTS` 已移除 |
-| `agent/reasoning_core.py` | **新建** — 共享推理辅助函数 |
-| `main.py` | **修改** — 导入更新，seed SystemMessage 从 profiles 动态获取 |
+| `agent/research/graph.py` | Research 图谱编排（条件边：tool / critic / END） |
+| `agent/research/nodes.py` | reasoning_node + critic_node（rule/llm 双模式） |
+| `agent/research/state.py` | AgentState（10 字段，_MAX_ITERATIONS=12） |
+| `agent/research/prompts.py` | INTENT_PROMPTS + CRITIC_SYSTEM_PROMPT |
+| `agent/dialogue/graph.py` | Dialogue 图谱编排（条件边：tool / END） |
+| `agent/dialogue/nodes.py` | dialogue_reasoning_node（last-chance 熔断） |
+| `agent/dialogue/state.py` | DialogueState（7 字段，_MAX_ITERATIONS=4） |
+| `agent/dialogue/prompts.py` | build_dialogue_prompt() 薄封装 |
+| `agent/classifier.py` | 8 意图 LLM 单阶段分类 |
+| `agent/guardrails.py` | 终端回复检测 + XML 泄漏剥离 + 重复工具调用检测 |
+| `agent/reasoning_core.py` | 共享辅助函数 |
+| `main.py` | `agent_type` 路由 + `_chat_dialogue()` / `_chat_research()` |
 
-### 结构化角色系统
+### ⚠️ Phase 6 将重构
 
-| CharacterProfile | 使用者 | 字数限制 | 数据完整性声明 |
-|------|--------|----------|---------------|
-| `BANGUMI_CHARACTER` | Dialogue（默认） | ✅ 30-80/150 字 | 无 |
-| `NEUTRAL_CHARACTER` | Dialogue/Research | 无 | 无 |
-| `BANGUMI_RESEARCH_CHARACTER` | Research（bangumi 时自动选取） | **无** | ✅ "数据完整性和工具调用策略不变" |
-
-`get_character("bangumi", agent_type="research")` 自动返回 `BANGUMI_RESEARCH_CHARACTER`——同一风格 key，不同 Agent 得到不同变体。
-
-### 意图体系扩展（8 意图）
-
-```
-chitchat    → 不绑工具     factual  → 不绑工具
-debate      → 不绑工具     emotional → 不绑工具   ← 新增
-lookup      → 绑工具       discovery → 绑工具
-realtime    → 绑工具       unknown  → 绑工具
-```
-
-debate/emotional 默认不绑工具——角色人格主导。如需工具，XML 泄漏自纠正机制自动触发。
-
-### 记忆交互风格侧写
-
-- LLM 摘要时提取 `tone`（casual/debate/emotional/informational）
-- 存入 `intent_distribution` JSONB（schema-free，无 DB migration）
-- 召回时：≥2 次同一 tone → 注入交互风格提示
-
-### 设计决策：为什么 Lite > 完整版 + 为什么需要重构
-
-| 维度 | Lite v1（f644a56） | Lite v3（078a803） |
-|------|-------------------|-------------------|
-| 角色位置 | System Prompt 末尾（附录注入） | **第一行**（角色优先） |
-| 模块结构 | 1 文件 99 行（自由文本 dict） | 2 文件 430 行（结构化 dataclass + builder） |
-| 可扩展性 | 加风格需在两个 dict 各写附录 | 加风格 = 新建 CharacterProfile + 注册 key |
-| 对话向意图 | 无（全检索导向） | debate + emotional |
-| 交互风格记忆 | 无 | tone 侧写 |
-| Research Bangumi | 同一附录（字数限制混入） | 独立 BANGUMI_RESEARCH_CHARACTER |
-| Dialogue 格式 | 硬模板 `⭐评分 —` | 自然表达原则 |
-
-### 测试覆盖（v3）
-
-`test/test_prompts.py` — 46 个测试：
-- `TestProfiles` (9): profile 完整性、字段验证、注册表、回退
-- `TestPromptBuilder` (14): 组装顺序、角色优先、四象限、memory/critic 注入
-- `TestBuildDialoguePrompt` (4) + `TestBuildResearchPrompt` (7)
-- `TestIntentPrompts` (9): 全意图注册、工具约束含/不含、debate/emotional 策略验证
-- `TestResearchContinuityRules` (3)
-
-全量：527 passed, 23 skipped (L3), 0 failed
-
-### 已完成 vs 计划
-
-| 计划 Step | 实际 |
-|-----------|------|
-| 5.5.1 新建 `agent/personality/` 模块 | ❌ 否决 — 六边形架构不合理 |
-| 5.5.2 请求/响应模型更新 | ✅ `ChatRequest.output_style` + `ChatResponse.output_style` |
-| 5.5.3 main.py 响应管道 | ✅ `_resolve_output_style()` + state 透传 |
-| 5.5.4 剥离 DIALOGUE 人格 | ✅ v3 完全剥离——CORE_PROMPT 已删除 |
-| 5.5.5 精简 BASE 风格指令 | ✅ v3 完全剥离——BASE_SYSTEM_PROMPT 已删除 |
-| 5.5.6 测试更新 | ✅ 46 个 prompt 测试 + 真实 LLM 验证 |
-| 意图体系扩展 | ✅ +debate/emotional（超出原计划） |
-| 记忆 tone 侧写 | ✅ 轻量交互风格追踪（超出原计划） |
+Phase 4 的双 Agent 拓扑将被合并为单一 Companion Agent（depth 参数控制深度）。Critic 仅 depth="deep" 时保留。`agent/dialogue/` 目录删除，文件合并到 `agent/` 根级。
 
 ---
 
-## Phase 6: 更多工具 & 社区数据
+## Phase 5: 记忆系统 ✅（2026-07-21）
+
+L1 + L2 活跃。L3 用户画像 deprecated（2026-07-20）。
+
+详见 [`docs/design/phase5-memory-system-design.md`](phase5-memory-system-design.md) 和 [`docs/memory/`](../memory/)。
+
+### 架构
+
+| 层级 | 状态 | 实现 | 存储 |
+|------|------|------|------|
+| L1 短记忆 | ✅ | `agent/memory.py` — 滑动窗口 + tiktoken 截断 | 内存 |
+| L2 长记忆 | ✅ | `agent/memory_manager.py` — 跨 session 语义召回 + 时间衰减 | PostgreSQL+pgvector |
+| L3 用户画像 | 🗑️ | 代码保留，调用点注释 | PostgreSQL JSONB |
+
+### L2 召回：双通道 + 时间衰减
+
+**语义通道**：pgvector cosine_distance ≤ threshold → `combined_score = (1 - distance) × 0.5^(days/14)`
+
+**时效回退**（语义命中不足时）：按 created_at DESC 取最近 session → 锚定过滤（distance ≤ 0.60）→ 同样时间衰减评分
+
+### Phase 6 影响
+
+双套记忆阈值（Research 0.50/700 tokens, Dialogue 0.35/300 tokens）源于 Phase 4 的双 Agent 架构。Phase 6 合并为一个 Agent 后，建议合并为两套：`MEMORY_QUICK_*`（默认 Companion 模式）和 `MEMORY_DEEP_*`（depth="deep" 模式）。
+
+---
+
+## Phase 5.5: Output Style Control ✅（2026-06-17 初版，2026-07-22 架构重构 v3，2026-07-25 翻转优先级）
+
+### v3 架构（2026-07-22）
+
+结构化 CharacterProfile + AgentProfile dataclass + 统一 prompt builder。角色优先——角色身份在最前面，能力是角色的附属。详见 [`agent/profiles.py`](../../agent/profiles.py) 和 [`agent/prompt_builder.py`](../../agent/prompt_builder.py)。
+
+### Phase 6 Step 1（2026-07-25, `4fed77f`）：翻转"数据完整性优先"→"对话优先"
+
+- Profiles: "数据完整性优先" → "数据服务于观点"、"1-2轮足够"
+- Intent 策略: lookup/realtime 加早停信号
+- `_DATA_INTERPRETATION` 改为可选参数，Dialogue agent 不再接收
+
+### Phase 6 Step 2（待实施）：Companion 人格重写
+
+- `BANGUMI_CHARACTER` → Companion 损友人格（"让对话有趣"）
+- `BANGUMI_RESEARCH_CHARACTER` → 删除
+- Prompt 14 层 → 8 层，expression_guide 从 layer 12 提前到 layer 2
+
+---
+
+## Phase 6: Companion Agent 架构重构（进行中）
+
+> **这是产品定位的根本性调整。** Phase 4 的双 Agent 架构假设的是 Tool Agent 心智模型（"深度链式调用"、"数据完整性优先"、"Critic 审查数据够不够全"）。Phase 6 将架构切换为 Companion Agent 心智模型（"查数据是为了聊天"、"1-2 轮够了"、"人味 > 完整"）。
+
+### 产品定位
+
+**Bangumi 的 AI 看板娘**——一个住在站内的、有性格的二次元损友。她可以查数据，但她存在的理由不是查数据——是陪你聊动画。
+
+在 Agent 光谱上卡在 "ChatGPT" 和 "Character.AI" 之间——有真实数据支撑的聊天角色。
+
+### 架构目标（Phase 6 Step 2）
+
+| | 当前（Phase 4） | 目标（Phase 6） |
+|---|---|---|
+| Agent 入口 | 2 个（agent_type 路由） | 1 个（depth 参数控制深度） |
+| 默认模式 | 双轨并行 | Companion 损友（1-5 轮，无 Critic） |
+| 深度模式 | Research Agent（独立入口） | Research Skill（depth="deep" 激活，保留 Critic） |
+| 人格 | 3 个角色（含 Research 变体） | 2 个角色（bangumi/neutral，Research 不变人格） |
+| Prompt 层数 | 14 | 8（expression_guide 提前到 layer 2） |
+| 迭代上限 | Research 12, Dialogue 4 | 默认 5, deep 12 |
+| Critic | Research 默认运行 | 仅 depth="deep" 运行 |
+| 文件结构 | `agent/research/` + `agent/dialogue/` | 合并到 `agent/` 根级 |
+
+### 待实施（10 项）
+
+1. 合并两个 Graph → 单一 `agent/graph.py`（depth 条件启用 Critic）
+2. 合并两个 State → 统一 `AgentState`（含 `depth` 字段）
+3. 合并两个 reasoning node → `agent/nodes.py`（depth 分支消化态引导 + last-chance）
+4. 重写 `BANGUMI_CHARACTER` 为 Companion 损友人格
+5. 删除 `BANGUMI_RESEARCH_CHARACTER`
+6. Prompt 14→8 层，expression_guide 从 layer 12 提到 layer 2
+7. intent 策略双版本：Companion 浅层版（`agent/prompts.py`）+ deep 深度版（`agent/research/prompts.py` 保留）
+8. `main.py`：`depth` 参数替换 `agent_type`，合并两个 handler
+9. Critic 条件注册（仅 depth=="deep" 时添加到 Graph）
+10. 删除 `agent/dialogue/` 全目录
+
+### 已自动迁移的文件（linter）
+
+- `agent/profiles.py` — Companion 人格 + COMPANION_PROFILE
+- `agent/prompt_builder.py` — 8 层，expression_guide 提前
+- `agent/prompts.py` — **新建** Companion 浅层 intent 策略
+- `agent/research/prompts.py` — 重构为深度模式专用
+- `test/test_prompts.py` — 测试更新
+
+### 效果验证（Step 1，排除 session 污染）
+
+| Test | Before | After Step 1 |
+|------|--------|-------------|
+| Test 6 热门趋势 | 12 迭代, 7 工具 | **2 迭代, 2 工具** |
+| Test 2 京吹评分 | 7 迭代, 编造 | 6 迭代, 无编造 |
+| Test 8 星际牛仔 Dialogue | 答非所问 | 正确+毒舌 |
+
+---
+
+## Phase 7: 更多工具 & 社区数据（重新定义，原 Phase 6）
+
+> 原 ROADMAP 中 Phase 6 的内容。推迟到 Companion Agent 重构完成后。
 
 ### 目标
 接入 Bangumi 小组讨论、网页搜索，支持辅助发帖/影评场景。
 
-### 新增工具
+### 新增工具（计划）
 
-#### 6.1: 小组讨论抓取 (`get_group_topics`)
-- **新 API 端点**: Bangumi p1 `/p1/groups/{group_name}/topics`（需确认 Bangumi API 是否开放）
-- **工具**: `get_group_topics(group_name, limit=20)` → 格式化讨论列表
-- **Client 层**: `BangumiClient.get_group_topics()`
-- **Schema**: `schemas/tools_input.py` 新增 `GetGroupTopicsInput`
+#### 7.1: 小组讨论抓取 (`get_group_topics`)
+- 新 API 端点: Bangumi p1 `/p1/groups/{group_name}/topics`
+- 工具: `get_group_topics(group_name, limit=20)` → 格式化讨论列表
 
-#### 6.2: 讨论帖深度分析 (`analyze_topic_sentiment`)
-- **工具**: 给定 topic_id，拉取正文 + 评论 → LLM 摘要社区观点
-- 输出: 争议点、主流观点、热评摘要
+#### 7.2: 网页搜索 (`web_search`)
+- 接 Tavily / Bing Search API
+- 工具: `web_search(query, limit=5)` → 标题+摘要 URL 列表
 
-#### 6.3: 网页搜索 (`web_search`)
-- 接 Tavily / Bing Search API / Google Custom Search
-- 工具: `web_search(query, limit=5)` → 返回标题+摘要 URL 列表
-- **新的 Provider 配置**: `core/config.py` 新增 `SEARCH_API_KEY`, `SEARCH_PROVIDER`
+#### 7.3: 文本润色 (`polish_text`)
+- 工具: `polish_text(draft, style="spoiler_free")` → LLM 润色
+- 场景: 用户草稿影评 → 去剧透 + 优化表达
 
-#### 6.4: 文本润色 (`polish_text`)
-- **工具**: `polish_text(draft, style="spoiler_free")` → LLM 润色
-- 不调外部 API，纯 LLM 调用
-- 场景: 用户草稿影评 → Agent 去剧透 + 优化表达
-
-### Step 总结
-- Step 6.1-6.4: 新增 4 个工具（Client + Tool + Schema 三位一体）
-- Step 6.5: 记忆层受益 — group 分析结果走 `remember_public()` 写入公共记忆（`public_memories` 表已建，索引已就绪）
-- Step 6.6: 输出边界受益 — 润色/吐槽内容自动走 `render(style="bangumi")` 人格化
-- Step 6.7: 测试更新
+#### 7.4: 记忆层受益
+- Group 分析结果走 `remember_public()` 写入 `public_memories`（表已建，索引已就绪）
 
 ---
 
 ## 紧急修复状态
 
-> 以下问题在 [2026-06-10 边缘审计](./audit-2026-06-10.md) 中发现，部分已在 `a46b72c` 中修复。标注状态反映当前代码。
+> 以下问题在 2026-06-10 边缘审计中发现。
 
 ### ✅ 已修复
 
-| # | 问题 | 修复方式 |
-|---|------|---------|
-| P0-1 | LLM 调用无超时 | `core/config.py` 新增 `LLM_REQUEST_TIMEOUT=60.0`，`agent/llm.py` 的 `create_llm()` 支持 `request_timeout` 参数 |
-| P1-1 | Dialogue 无重复工具调用检测 | `agent/guardrails.py` 共享 `check_duplicate_tool_calls()`，Dialogue 已导入使用 |
-| P1-2 | Dialogue 无逃逸舱 | `agent/guardrails.py` 共享 `is_terminal_response()`（12 条正则），Dialogue 消化态检测后调用 |
-| P1-3 | Dialogue chitchat/factual 无 XML 安全网 | `agent/guardrails.py` 共享 `strip_tool_call_xml()`，Dialogue 回复前调用 |
-| P2-2 | `_extract_final_reply` 兜底无区分度 | `main.py` 按异常类型返回不同兜底消息（超限/空回复/工具错误/通用异常） |
-| P2-4 | tiktoken `encode()` 无 try/except | `agent/memory.py` 的 `count_tokens()` 含 try/except + 降级为 `len//4` 估算 |
-| P3-3 | ToolNode `handle_tool_errors=True` 泄漏堆栈 | 改为 `handle_tool_errors=format_tool_error`（`agent/guardrails.py`），仅保留错误摘要 |
+| # | 问题 | 修复 |
+|---|------|------|
+| P0-1 | LLM 调用无超时 | `LLM_REQUEST_TIMEOUT=60.0` |
+| P1-1 | Dialogue 无重复工具调用检测 | guardrails.py 共享 |
+| P1-2 | Dialogue 无逃逸舱 | guardrails.py 共享 `is_terminal_response()` |
+| P1-3 | Dialogue chitchat/factual 无 XML 安全网 | guardrails.py 共享 `strip_tool_call_xml()` |
+| P2-2 | `_extract_final_reply` 兜底无区分度 | 按异常类型返回不同消息 |
+| P2-4 | tiktoken `encode()` 无 try/except | 降级为 `len//4` |
+| P3-3 | ToolNode 泄漏堆栈 | `format_tool_error` |
 
 ### 🟡 仍待修复
 
-| # | 问题 | 修复位置 | 改动量 | 优先级 |
-|---|------|---------|--------|--------|
-| P0-2 | 分类器对短作品名误判 ("EVA", "K", "86") | `agent/classifier.py` — 短名优先走 LLM fallback | ~5 行 | 中 |
-| P2-1 | messages 为空时路由读 `messages[-1]` 崩溃 | `graph.py` — 加空列表检查 | ~3 行 | 低 |
-| P2-3 | Critic `< 20 字` 硬阈值边缘误伤 | `research/nodes.py` — 将阈值从 20 降至 12 | ~3 行 | 低 |
-| P3-1 | RAG retriever 每次调用重建 | `tools/bgm_tools.py` — 单例化或连接复用 | ~10 行 | 低 |
-| P3-2 | `create_llm()` 每次调用新建实例 | `agent/llm.py` — 加模块级缓存 | ~5 行 | 低 |
+| # | 问题 | 位置 | 改动量 |
+|---|------|------|--------|
+| P0-2 | 分类器短作品名误判 ("EVA", "K", "86") | `agent/classifier.py` | ~5 行 |
+| P2-1 | messages 为空时路由崩溃 | `graph.py` | ~3 行 |
+| P2-3 | Critic 硬阈值边缘误伤 | `research/nodes.py` | ~3 行 |
+| P3-1 | RAG retriever 每次调用重建 | `tools/bgm_tools.py` | ~10 行 |
+| P3-2 | `create_llm()` 每次调用新建实例 | `agent/llm.py` | ~5 行 |
 
-### ℹ️ 已知次要问题（非紧急修复列表）
+### ℹ️ 已知次要问题
 
-| # | 问题 |
-|---|------|
-| - | 流式端点 `/chat/stream` 仅节点级，非逐 token 流 |
-| - | `user_profiles` 表注释与配置不一致：docstring 说 `total_sessions >= 3` 注入画像，但 `MEMORY_MIN_SESSIONS_FOR_PROFILE` 默认为 5 |
-| - | 记忆写入的摘要 LLM 无独立超时配置，复用 `request_timeout=10` |
+- 流式端点 `/chat/stream` 仅节点级，非逐 token
+- 记忆写入的摘要 LLM 无独立超时配置
+- `MEMORY_MIN_SESSIONS_FOR_PROFILE` [L3 deprecated] 零消费者
+
+---
+
+## 配置项待清理（Phase 6 Step 2 后）
+
+| 配置项 | 问题 | 建议 |
+|--------|------|------|
+| `LLM_TEMPERATURE=0.3` | Tool Agent 优化，压制 Companion 人味 | Companion 模式 0.7-0.9 |
+| `MEMORY_MAX_INJECT_TOKENS=700` | Research Agent 的旧默认值 | ~300（Companion 回复 30-150 字） |
+| `MEMORY_DIALOGUE_*` (2 项) | 命名还叫 DIALOGUE | 改名为 `MEMORY_QUICK_*` |
+| `CRITIC_MODE="llm"` | 注释未说明仅 deep 生效 | 更新注释 |
+| `MEMORY_MIN_SESSIONS_FOR_PROFILE=5` | L3 废弃，零消费者 | 删除 |
 
 ---
 
@@ -317,22 +269,27 @@ debate/emotional 默认不绑工具——角色人格主导。如需工具，XML
 
 | 文件 | 阶段 | 角色 |
 |------|------|------|
-| `agent/memory.py` | Phase 5 | L1 短记忆 — 滑动窗口 + 两层截断 |
-| `agent/memory_manager.py` | Phase 5 | L2/L3 长记忆 — 召回 + 写入 + 画像 (931 行) |
-| `agent/guardrails.py` | Phase 5 穿插 | 共享防御模块 — 终端检测 + XML 清洗 + 重复检测 + 错误格式化 |
-| `database/memory_tables.py` | Phase 5 | ORM 模型 — session_memories + user_profiles + public_memories |
-| `database/rag_tables.py` | Phase 5 穿插 | 重构拆分 — 旧 `models.py` 中 RAG 表移至此 |
-| `clients/zhipu_client.py` | Phase 5 | 智谱 embedding 客户端 |
-| `core/config.py` | Phase 5 | 10 个 MEMORY_* + LLM_REQUEST_TIMEOUT 配置 |
-| `main.py` | Phase 5 | Fire-and-forget 写入调度 + 区分化兜底消息 |
-| `agent/research/nodes.py` | Phase 5 | L2 记忆召回集成（首轮注入 System Prompt） |
-| `agent/dialogue/nodes.py` | Phase 5 | L2 记忆召回集成 + 防御机制补全 |
-| `agent/profiles.py` | Phase 5.5 v3 | **新建** — CharacterProfile + AgentProfile dataclass，3 角色 + 2 Agent |
-| `agent/prompt_builder.py` | Phase 5.5 v3 | **新建** — 统一 13 层角色优先 prompt 组装器 |
-| `agent/styles.py` | Phase 5.5 v3 | **已删除** — 合并到 profiles.py |
-| `agent/session_cache.py` | Phase 5 穿插 | 跨 HTTP 消息缓存 — TTL 1h, max 1000 session |
-| `agent/dialogue/prompts.py` | Phase 5.5 v3 | 重写 — CORE_PROMPT 删除，薄封装委托给 prompt_builder |
-| `agent/research/prompts.py` | Phase 5.5 v3 | 重写 — BASE_PROMPT 删除，+debate/emotional 策略，薄封装 |
+| `main.py` | Phase 1/4 | FastAPI 入口 — **Phase 6 重构核心目标** |
+| `core/config.py` | Phase 1 | 配置系统 — **Phase 6 默认值调整** |
+| `clients/` | Phase 1 | HTTP 客户端 + sanitizer — 不需要动 |
+| `rag/` | Phase 2 | RAG 检索 — 不需要动 |
+| `tools/bgm_tools.py` | Phase 2 | 工具函数（dict 返回） — 不需要动 |
+| `database/` | Phase 1/5 | ORM + 记忆表 — 不需要动 |
+| `schemas/` | Phase 2 | 工具输入 schema — 不需要动 |
+| `agent/memory.py` | Phase 5 | L1 短记忆 |
+| `agent/memory_manager.py` | Phase 5 | L2 语义召回 |
+| `agent/session_cache.py` | Phase 5 | 跨 HTTP 缓存 |
+| `agent/classifier.py` | Phase 4 | 意图分类 |
+| `agent/guardrails.py` | Phase 4 | 共享护栏 |
+| `agent/reasoning_core.py` | Phase 5.5 | 共享辅助函数 |
+| `agent/profiles.py` | Phase 5.5 | **已迁移** — Companion 人格 |
+| `agent/prompt_builder.py` | Phase 5.5 | **已迁移** — 8 层组装 |
+| `agent/prompts.py` | Phase 6 | **新建** — Companion 浅层策略 |
+| `agent/research/prompts.py` | Phase 4/6 | **已迁移** — deep 模式策略 + Critic prompt |
+| `agent/research/graph.py` | Phase 4 | Research 图谱 — **Phase 6 合并目标** |
+| `agent/research/nodes.py` | Phase 4 | reasoning + critic — **Phase 6 合并目标** |
+| `agent/research/state.py` | Phase 4 | AgentState — **Phase 6 合并目标** |
+| `agent/dialogue/` | Phase 4 | Dialogue Agent — **Phase 6 删除** |
 
 ---
 
@@ -340,32 +297,13 @@ debate/emotional 默认不绑工具——角色人格主导。如需工具，XML
 
 | 文档 | 内容 |
 |------|------|
-| [`CLAUDE.md`](../../CLAUDE.md) | 项目架构、命令、约定、当前状态 |
-| [`docs/design/phase5-memory-system-design.md`](phase5-memory-system-design.md) | Phase 5 完整设计方案（1194 行） |
-| [`docs/design/personality-rendering-layer.md`](personality-rendering-layer.md) | Output Boundary 设计规范 — 六边形架构、render() 共享、四象限 |
-| [`docs/design/ROADMAP.md`](ROADMAP.md) | 本文档 — 路线图 & 任务分解 |
-| [`docs/memory/README.md`](../memory/README.md) | 记忆系统综合手册入口 |
-| [`docs/memory/architecture.md`](../memory/architecture.md) | 三层记忆架构、数据流、模块关系 |
-| [`docs/memory/implementation.md`](../memory/implementation.md) | 核心算法、代码路径、关键函数 |
-| [`docs/memory/configuration.md`](../memory/configuration.md) | 配置项详解、调优指南 |
-| [`docs/memory/testing.md`](../memory/testing.md) | 测试覆盖、运行方法、扩写指南 |
-| [`docs/memory/debugging.md`](../memory/debugging.md) | 日志关键字、常见问题排查 |
-
----
-
-## 新对话快速启动指南
-
-在新的 Claude Code session 中，用以下提示启动工作：
-
-**了解记忆系统：**
-> 阅读 `CLAUDE.md` Phase 5 节和 `docs/design/ROADMAP.md`，理解 L1/L2 当前实现和 L3 废弃原因。
-
-**启动 Phase 6：**
-> 阅读 `docs/design/ROADMAP.md` Phase 6 节，从 `get_group_topics` 或 `web_search` 开始新增工具。
-
-**修复已知问题：**
-> 阅读 `CLAUDE.md` "当前已知问题"节，优先修 `_memory_context` 空字符串缓存失效（sentinel 值，~3 行）。
-> 阅读 `docs/design/ROADMAP.md` 的 🟡 仍待修复节，先修 P0-2（短名误判）。
-
-**了解项目全貌：**
-> 阅读 `CLAUDE.md`，然后读取 `docs/design/` 目录下所有设计文档。
+| [`CLAUDE.md`](../../CLAUDE.md) | 项目架构、Phase 6 蓝图、产品定位 |
+| [`docs/design/ROADMAP.md`](ROADMAP.md) | 本文档 |
+| [`docs/design/phase1-3-audit.md`](phase1-3-audit.md) | Phase 1-3 地基审查（2026-07-26） |
+| [`docs/design/phase5-memory-system-design.md`](phase5-memory-system-design.md) | Phase 5 记忆系统完整设计 |
+| [`docs/design/data-layer-redesign-discussion.md`](data-layer-redesign-discussion.md) | 工具层 str→dict 迁移决策过程 |
+| [`docs/design/bangumi-api-schema-methodology.md`](bangumi-api-schema-methodology.md) | A/B/C/D 字段方法论 |
+| [`docs/design/personality-rendering-layer.md`](personality-rendering-layer.md) | Output Boundary 原始设计（已废弃，历史参考） |
+| [`docs/design/architecture-review-2026-07-22.md`](architecture-review-2026-07-22.md) | 宏观架构 review |
+| [`docs/tmp/real_data_test.md`](../tmp/real_data_test.md) | 9 个测试用例 + A/B 对照实验 |
+| [`docs/memory/`](../memory/) | 记忆系统手册（6 文件） |
