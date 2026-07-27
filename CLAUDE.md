@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **产品定位**：Companion Agent（知识型损友），不是 Tool Agent（搜索引擎），不是 Research Agent（Perplexity 式深度分析）。在 Agent 光谱上卡在 "ChatGPT 通用助手" 和 "Character.AI 角色扮演" 之间——有真实数据支撑的聊天角色。
 
-**当前实现阶段**：Phase 6 — Companion Agent 架构重构。Phase 5 双 Agent 架构已落地，但暴露了"架构假设（Tool Agent）与产品定位（Companion Agent）错配"的问题。本轮重构将两个 Agent 合并为一个 Companion Agent，Research 能力降级为 opt-in Skill。
+**当前实现阶段**：Phase 6.5 — Render Layer 解耦。Phase 6 Companion Agent 单一体架构已落地，Render 层将"准确回答"和"聊天风格"分离。
 
 ## Commands
 
@@ -56,50 +56,56 @@ docker run -d --name bangumi-pg \
 
 `agent_type` 参数 deprecated，替换为 `depth` 参数（`"auto"` / `"quick"` / `"deep"`）。对终端用户不可见——他们只看到一个 AI。
 
-### Agent 拓扑（合并后）
+### Agent 拓扑（Phase 6.5 — 含 Render 层）
 
 ```
 START → reasoning_node ←──────────────────┐
           │                                 │
           ├─ classify_intent（仅首轮）       │
           ├─ L2 memory recall（仅首轮）      │
-          ├─ build_system_prompt（含人格）   │
+          ├─ build_system_prompt（8 层）     │
           └─ LLM invoke（始终绑定工具）      │
                │                            │
      ┌─────────┼─────────┐                  │
      │         │         │                  │
   tool_calls  chitchat  depth!="deep"      │
-     │      (快速通道)  (直接结束)           │
+     │      (快速通道)  + 有工具调用          │
      │         │         │                  │
      ▼         ▼         ▼                  │
-  tool_node   END       END                 │
+  tool_node   END    render_node            │
+     │                  │                   │
+     │                  ▼                   │
+     │                END                   │
      │                                       │
      │    depth=="deep" + 无工具 + 非闲聊     │
      │         │                             │
      │         ▼                             │
      │    critic_node                        │
-     │    (PASS→END, REVISE→reasoning)       │
+     │    (PASS+工具→render→END,             │
+     │     PASS→END, REVISE→reasoning)       │
      │                                       │
      └───────────────────────────────────────┘
 ```
 
 **关键参数**：
 
-| 模式 | `_MAX_ITERATIONS` | Critic | 工具策略 | 数据指南 |
-|------|-------------------|--------|---------|---------|
-| 默认（轻量） | 5 | 无 | 1-2轮够用就停 | 无（dict key 自解释） |
-| deep（Research Skill） | 12 | 有（LLM Critic） | 深度链式 search→detail→characters | `_DATA_INTERPRETATION` 加载 |
+| 模式 | `_MAX_ITERATIONS` | Critic | Render | 工具策略 |
+|------|-------------------|--------|--------|---------|
+| quick | 3 | 无 | 有工具时触发 | 1 轮够用就停 |
+| auto（默认） | 5 | 无 | 有工具时触发 | 1-2 轮 |
+| deep（Research Skill） | 12 | 有（LLM Critic） | 有工具时触发 | 深度链式 search→detail→characters |
 
-### Agent 目录结构（目标）
+### Agent 目录结构
 
 ```
 agent/
 ├── state.py             # 统一 AgentState（含 depth 字段）
-├── graph.py             # 统一 StateGraph（depth 条件启用 Critic）
+├── graph.py             # 统一 StateGraph（含 render_node 路由）
 ├── nodes.py             # reasoning_node + critic_node
 ├── profiles.py          # BANGUMI_CHARACTER + NEUTRAL_CHARACTER
-├── prompt_builder.py    # 统一 prompt 组装（depth 分支，8 层）
+├── prompt_builder.py    # 统一 prompt 组装（8 层，无 data_guide）
 ├── prompts.py           # Companion 浅层 intent 策略
+├── render.py            # Render 层——工具回复的风格转换（Phase 6.5）
 ├── classifier.py        # 意图分类 + 深度信号检测
 ├── memory.py            # L1 短记忆
 ├── memory_manager.py    # L2 跨会话语义记忆
@@ -111,15 +117,16 @@ agent/
     └── prompts.py       # 深度 INTENT_PROMPTS + CRITIC_SYSTEM_PROMPT
 ```
 
-**删除**：`agent/dialogue/` 全目录（合并到根级 `agent/`）。
+**删除**：`agent/dialogue/` 全目录（已合并到根级 `agent/`）。
 
-### Layer responsibilities（目标）
+### Layer responsibilities
 
 | Layer | Module | Role |
 |-------|--------|------|
 | Entry | `main.py` | FastAPI app, `POST /chat`（depth 参数）, `/chat/stream`（SSE） |
 | Config | `core/config.py` | pydantic-settings from `.env`, `@lru_cache` singleton |
-| Agent | `agent/graph.py` + `agent/nodes.py` | 单一 StateGraph：reasoning → tool → (条件 Critic) → END |
+| Agent | `agent/graph.py` + `agent/nodes.py` | 单一 StateGraph：reasoning → tool → (条件 Critic) → (条件 Render) → END |
+| Render | `agent/render.py` | 工具回复风格转换——仅工具调用后触发，按 depth 分档字数限制（Phase 6.5） |
 | Tools | `tools/bgm_tools.py` | 14 LangChain `@tool` 函数，返回结构化 dict |
 | Client | `clients/` | `BaseClient` → `BangumiClient` → `sanitizers`（A/B/C/D 字段方法论） |
 | RAG | `rag/` | `text_processor.py` → `ingestion.py` → `retriever.py` |
@@ -142,13 +149,11 @@ agent/
 
 `ChatResponse` returns: `reply`, `iterations`, `tools_used`, `query_intent`, `output_style`, `depth`.
 
-## Phase 6: Companion Agent 架构重构（当前进行中）
-
-### 目标
+## Phase 6: Companion Agent 架构重构 ✅（2026-07-25/26）
 
 将 Phase 5 的双 Agent 架构（Dialogue + Research，各走各的 graph）合并为单一 Companion Agent，Research 能力降级为 opt-in Skill。
 
-### 已完成（2026-07-25/26）
+### 已完成
 
 **Phase 6 Step 1 — 翻转"数据完整性优先"→"对话优先"** (`4fed77f`):
 
@@ -158,34 +163,70 @@ Profiles 改动：
 - `RESEARCH_PROFILE`: tool_strategy "深度链式调用 2-3步封顶"→"回答用户问题即可，1-2轮足够"
 - `BANGUMI_CHARACTER`: tool_behavior 加"如果一句话能说清楚，不要用三句话"
 
-Intent 策略早停信号：
-- `lookup`: "search 返回已含评分和基本信息——不要自动调 detail"
-- `realtime`: "时效类工具并行调用一次够，不要逐个搜详情"
+**Phase 6 Step 2 — Companion Agent 单一体架构** (`e7df803`):
 
-Prompt builder：`_DATA_INTERPRETATION` 改为可选 `data_guide` 参数，Dialogue agent 不再接收。
+1. ✅ 合并两个 Graph → 单一 `agent/graph.py`，depth 条件启用 Critic
+2. ✅ 合并两个 State → 统一 `AgentState`（含 `depth` 字段）
+3. ✅ 合并两个 reasoning node → `agent/nodes.py`
+4. ✅ 重写 `BANGUMI_CHARACTER` 为 Companion 损友人格
+5. ✅ 删除 `BANGUMI_RESEARCH_CHARACTER`
+6. ✅ Prompt 14→8 层，expression_guide 从 layer 12 提到 layer 2
+7. ✅ intent 策略双版本：Companion 浅层版 + deep 深度版
+8. ✅ `main.py`：`depth` 参数替换 `agent_type`
+9. ✅ Critic 条件路由（仅 depth=="deep"）
+10. ✅ 删除 `agent/dialogue/` 全目录
 
-### 待实施（Phase 6 Step 2）
+## Phase 6.5: Render Layer（进行中 — 2026-07-27, `3cc3ecc`）
 
-1. **合并两个 Graph** → 单一 `agent/graph.py`，depth 条件启用 Critic
-2. **合并两个 State** → 单一 `AgentState`，含 `depth` 字段
-3. **合并两个 reasoning node** → 单一 `reasoning_node`，根据 depth 调整消化态引导 + last-chance 逻辑
-4. **重写 BANGUMI_CHARACTER** → Companion 损友人格（motivation: "让对话有趣"，expression_guide: "有自己的判断，不列清单"）
-5. **删除 BANGUMI_RESEARCH_CHARACTER** → Research Skill 不改变人格，只改变工具策略和 Critic
-6. **Prompt 组装层数精简** → 14层 → 8层，expression_guide 从 layer 12 提到 layer 2
-7. **intent 策略双版本** → Companion 浅层版（`agent/prompts.py`）+ Research Skill 深度版（`agent/research/prompts.py` 保留）
-8. **main.py：depth 参数替换 agent_type** → agent_type 保留 deprecated 映射
-9. **Critic 节点条件注册** → 仅 `depth=="deep"` 时添加到 Graph
-10. **删除 `agent/dialogue/` 全目录** → 合并到根级
+### 问题
 
-### 效果验证（Step 1 已完成，排除 session 污染后）
+Phase 6 统一架构后，agent 仍存在"助手骨架"——工具返回 dict → LLM "翻译成自然语言报告给用户" → "回答→罗列数据→请求下一个问题"的死板结构。prompt 层面无法根除，因为这是 ReAct + function-calling 的固有倾向。
 
-| Test | Before | After Step 1 |
-|------|--------|-------------|
-| Test 6 热门趋势 | 12 迭代, 7 工具 | **2 迭代, 2 工具** ✅ |
-| Test 2 京吹评分 | 7 迭代, 编造数据 | 6 迭代, 无编造 ✅ |
-| Test 8 星际牛仔 Dialogue | 答非所问 | 正确+毒舌 ✅ |
-| Test 4 放送排期 | 2 迭代 | 2 迭代 ➡️ |
-| Test 5 京吹角色 | 3 迭代, 列表式 | 3 迭代, 列表式 ➡️ |
+### 方案
+
+新增 **render_node**：在 graph 输出前将 agent 回复改写为角色聊天风格。解耦"准确回答"和"聊天风格"。
+
+```
+reasoning_node（专注准确 + 工具策略）
+    → render_node（专注风格：损友吐槽 / 中性助手）
+    → END
+```
+
+仅**走了工具调用**的回复触发 render。纯闲聊直接走快速通道。
+
+### 架构
+
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| Render prompt | `agent/render.py` `build_render_prompt()` | ~380 chars 极简 prompt：身份 + 3 条数据呈现规则 + 硬约束 |
+| Render node | `agent/render.py` `render_node()` | 提取最后 AIMessage → 调用 LLM（temperature=0.4）→ 追加渲染回复 |
+| 路由 | `agent/graph.py` | 五级路由：tool_calls → chitchat → critic → **render** → END |
+
+### 关键设计
+
+1. **Render prompt 极简**——纯人格 + 任务，不含 `_DATA_INTERPRETATION`。参照 `docs/tmp/UserScriptAi.js` 油猴脚本的设计哲学
+2. **按 depth 分档字数**：quick=120, auto=200, deep=350 字
+3. **expression_guide 与 _RENDER_STYLE 职责分离**：
+   - `expression_guide`（profiles.py）→ 所有回复的通用语气、节奏
+   - `_RENDER_STYLE`（render.py）→ 仅数据呈现（评分怎么带、数据怎么融）
+   - 两套规则无重叠，各管各的阶段
+4. **Critic → Render 顺序**：Critic 评估 pre-render 回复的准确性；Render 只改风格不改事实
+5. **失败静默回退**：render LLM 调用失败时保留原始回复
+6. **主 prompt 瘦身**：移除 `data_guide` 参数，Deep 模式 -22%（5750→4629 chars）
+
+### 效果
+
+| 场景 | Before | After |
+|------|--------|-------|
+| "EVA 评分怎么样" | "评分 9.1，排名 #1。你想了解角色还是评论？" | "EVA 评分很能打——旧剧场版 8.86 稳居全站前十……我觉得分数里情怀加成不少，真要论精神冲击还是旧剧场版更凶。**你是从 TV 入坑还是直接剧场版？**" |
+| "今季有什么新番" | 列表式罗列 + "你想看哪部？" | "无职和穹庐下的魔女是这季真正值得追的。那堆异世界龙傲天全在5分上下晃悠，别浪费时间。" |
+
+### 待解决
+
+- 🟡 Neutral 风格 render 偏弱——still 罗列数据（Test 9: 409 字 vs Bangumi娘 137 字）
+- 🟡 Deep 模式未充分触发链式调用（Test 5: 仅 2 轮 search，没走 detail）
+- 🟡 Bare title 仍未追问直接搜
+- 渲染后消息在历史中出现两次（原始 + 渲染后），多轮对话中可能产生噪音
 
 ## Phase 5: Dual Agent Architecture ✅ (2026-06-09, 2026-07-22/23 重构)
 
@@ -365,34 +406,36 @@ User query → embedding → pgvector cosine_distance ≤ threshold → time dec
 - `test/test_sanitizers.py` — Sanitizer 测试
 - `test/test_client.py` — Client 层测试
 
-## Current Known Issues (2026-07-26)
+## Current Known Issues (2026-07-27)
 
 **🟡 Medium:**
 
 1. **Streaming endpoint is node-level only**: `/chat/stream` pushes node-completion events, not token-by-token
 2. **`_memory_context` empty-string caching**: `""` is falsy → re-triggers embedding calls
-3. **bare title → data dump**: Dialogue agent sometimes dumps full data on bare title
-4. **Test 3 花泽香菜**: 18 iterations, goes off-track (person API doesn't return direct role list — pre-existing tool chain issue, not profile-related)
+3. **Neutral 风格 render 偏弱**：Render 后仍可能罗列数据（Neutral 的 `_RENDER_STYLE` 仅 2 条规则）
+4. **Bare title → 直接搜**：只给作品名时未追问确认，直接 dump 数据
+5. **Deep 模式链式调用不充分**：有时仅 1-2 轮 search 即停止，未触发 search→detail 链
 
-**✅ Resolved (2026-07-25):**
+**✅ Resolved (2026-07-25/27):**
 
 - Profiles "数据完整性优先" → "对话优先" (`4fed77f`)
-- Intent strategies added early-stop signals for lookup + realtime
-- `_DATA_INTERPRETATION` made optional — Dialogue agent no longer receives textbook
+- Phase 6 Step 2: Companion Agent 单一体架构 (`e7df803`)
+- Phase 6.5: Render Layer 解耦 (`3cc3ecc`)
+- 助手骨架（"回答→罗列→请求下一个问题"）→ 损友聊天风格
 
 ## Technical Debt
 
 - **RAG v0/v1 coexistence**: Deprecated `BangumiChunk` series coexists with new `RagEntity` series
 - **`create_llm()` no caching**: Creates a new `ChatOpenAI` instance on every call
 - **HNSW index creation fails** on 2048d vectors (pgvector limit is 2000d)
-- **Two agent directories** (`agent/research/` + `agent/dialogue/`): Phase 6 合并为一个 `agent/` 根级目录
-- **Phase 5 双 Agent 拓扑 vs Phase 6 单 Agent 拓扑**: 代码仍在 Phase 5 状态，CLAUDE.md 描述 Phase 6 目标
+- **Render 后消息重复**：render_node 追加新 AIMessage 而非替换，历史中出现两条连续 AIMessage
+- **Neutral render 规则过弱**：仅 2 条，对数据罗列约束不足
 
 ## Documentation Index
 
 | Document | Content |
 |----------|---------|
-| `CLAUDE.md` | This file — architecture, conventions, Phase 6 blueprint |
+| `CLAUDE.md` | This file — architecture, conventions, Phase 6.5 render layer |
 | `docs/tmp/real_data_test.md` | 真实测试数据 + A/B 对照实验分析 |
 | `docs/design/ROADMAP.md` | Development roadmap |
 | `docs/design/phase5-memory-system-design.md` | Phase 5 memory system design |

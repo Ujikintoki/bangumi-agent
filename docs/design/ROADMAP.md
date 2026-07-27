@@ -1,6 +1,6 @@
 # 开发路线图
 
-> 最后更新: 2026-07-26 | 当前阶段: Phase 6 Companion Agent 架构重构（Step 1 完成）
+> 最后更新: 2026-07-27 | 当前阶段: Phase 6.5 Render Layer
 
 ---
 
@@ -8,28 +8,30 @@
 
 | 指标 | 值 |
 |------|-----|
-| 总测试数 | 565 passed + 23 skipped (L3 deprecated) |
-| Agent 数 | 2 (Research + Dialogue) — **Phase 6 目标合并为 1 个 Companion Agent** |
+| 总测试数 | 573 passed + 23 skipped |
+| Agent 数 | **1（Companion Agent，depth 参数控制深度）** |
+| Graph 节点 | 5（reasoning + tool + critic + **render** + START/END） |
 | 工具数 | 14（含 get_character_detail, get_person_detail） |
-| 工具返回格式 | dict（2026-07-24 str→dict 重构，A/B/C/D 方法论） |
+| 工具返回格式 | dict（A/B/C/D 方法论） |
 | 工具链深度 | 默认 1-2 轮, deep 模式 3-8 轮 |
 | 记忆层级 | 2 活跃 (L1 滑动窗口, L2 语义召回) + 1 废弃 (L3 用户画像) |
 | 配置项 | 12 个 MEMORY_* 配置 |
 | output_style | bangumi（默认）/ neutral |
+| Render 层级 | 仅工具调用后触发，按 depth 分档字数（quick=120, auto=200, deep=350） |
 
 ---
 
 ## 总体路线
 
 ```
-Phase 1-3 (done)    Phase 4 (done)    Phase 5 (done)     Phase 5.5 (done)    Phase 6 (进行中)     Phase 7 (重新定义)
-基础地基             双 Agent 拓扑      记忆系统            Output Boundary     Companion Agent      更多工具 & 社区数据
-     │                   │                 │                    │                   │                    │
-  FastAPI            Research Agent   L1 滑动窗口         prompt 人格剥离      产品定位翻转          group topics
-  BangumiClient      Dialogue Agent    L2 语义召回         profiles.py         单一 Agent 入口        web_search
-  RAG 检索           14 tools          L3 已废弃           四象限可用           损友人格             发帖辅助
-  pgvector           3 节点 ReAct      时间衰减排序         intent 体系扩展      depth 参数控制        记忆层受益
-                     2 节点 ReAct      tone 侧写           depth="deep"→Skill  输出边界受益
+Phase 1-3 (done)    Phase 4 (done)    Phase 5 (done)     Phase 5.5 (done)    Phase 6 (done)      Phase 6.5 (done)    Phase 7 (重新定义)
+基础地基             双 Agent 拓扑      记忆系统            Output Boundary     Companion Agent     Render Layer        更多工具 & 社区数据
+     │                   │                 │                    │                   │                    │                    │
+  FastAPI            Research Agent   L1 滑动窗口         prompt 人格剥离      产品定位翻转        解耦准确+风格        group topics
+  BangumiClient      Dialogue Agent    L2 语义召回         profiles.py         单一 Agent 入口      render_node          web_search
+  RAG 检索           14 tools          L3 已废弃           四象限可用           损友人格            极简 prompt         发帖辅助
+  pgvector           3 节点 ReAct      时间衰减排序         intent 体系扩展      depth 参数控制      按 depth 分档字数     记忆层受益
+                     2 节点 ReAct      tone 侧写           删除 dialogue/      删除 Research 变体   Critic→Render 顺序
 ```
 
 **Phase 7 替代旧 ROADMAP 中的 Phase 6（"更多工具"），原计划推迟到 Companion Agent 重构完成之后。**
@@ -139,57 +141,60 @@ L1 + L2 活跃。L3 用户画像 deprecated（2026-07-20）。
 
 ---
 
-## Phase 6: Companion Agent 架构重构（进行中）
+## Phase 6: Companion Agent 架构重构 ✅（2026-07-25/26, `e7df803`）
 
-> **这是产品定位的根本性调整。** Phase 4 的双 Agent 架构假设的是 Tool Agent 心智模型（"深度链式调用"、"数据完整性优先"、"Critic 审查数据够不够全"）。Phase 6 将架构切换为 Companion Agent 心智模型（"查数据是为了聊天"、"1-2 轮够了"、"人味 > 完整"）。
+> **这是产品定位的根本性调整。** Phase 4 的双 Agent 架构假设的是 Tool Agent 心智模型。Phase 6 将架构切换为 Companion Agent 心智模型（"查数据是为了聊天"、"人味 > 完整"）。
 
 ### 产品定位
 
 **Bangumi 的 AI 看板娘**——一个住在站内的、有性格的二次元损友。她可以查数据，但她存在的理由不是查数据——是陪你聊动画。
 
-在 Agent 光谱上卡在 "ChatGPT" 和 "Character.AI" 之间——有真实数据支撑的聊天角色。
+### 完成内容
 
-### 架构目标（Phase 6 Step 2）
-
-| | 当前（Phase 4） | 目标（Phase 6） |
+| | Before（Phase 4） | After（Phase 6） |
 |---|---|---|
-| Agent 入口 | 2 个（agent_type 路由） | 1 个（depth 参数控制深度） |
-| 默认模式 | 双轨并行 | Companion 损友（1-5 轮，无 Critic） |
-| 深度模式 | Research Agent（独立入口） | Research Skill（depth="deep" 激活，保留 Critic） |
-| 人格 | 3 个角色（含 Research 变体） | 2 个角色（bangumi/neutral，Research 不变人格） |
-| Prompt 层数 | 14 | 8（expression_guide 提前到 layer 2） |
-| 迭代上限 | Research 12, Dialogue 4 | 默认 5, deep 12 |
-| Critic | Research 默认运行 | 仅 depth="deep" 运行 |
-| 文件结构 | `agent/research/` + `agent/dialogue/` | 合并到 `agent/` 根级 |
+| Agent 入口 | 2 个（agent_type 路由） | 1 个（depth 参数控制深度）✅ |
+| 默认模式 | 双轨并行 | Companion 损友（1-5 轮，无 Critic）✅ |
+| 深度模式 | Research Agent（独立入口） | Research Skill（depth="deep" 激活）✅ |
+| 人格 | 3 个角色 | 2 个角色（bangumi/neutral）✅ |
+| Prompt 层数 | 14 | 8（expression_guide 在 layer 2）✅ |
+| 迭代上限 | Research 12, Dialogue 4 | 默认 5, deep 12 ✅ |
+| Critic | Research 默认运行 | 仅 depth="deep" 路由 ✅ |
+| 文件结构 | `agent/research/` + `agent/dialogue/` | 合并到 `agent/` 根级 ✅ |
 
-### 待实施（10 项）
+10 项全完成。`agent/dialogue/` 目录已删除。BANGUMI_RESEARCH_CHARACTER 已删除。
 
-1. 合并两个 Graph → 单一 `agent/graph.py`（depth 条件启用 Critic）
-2. 合并两个 State → 统一 `AgentState`（含 `depth` 字段）
-3. 合并两个 reasoning node → `agent/nodes.py`（depth 分支消化态引导 + last-chance）
-4. 重写 `BANGUMI_CHARACTER` 为 Companion 损友人格
-5. 删除 `BANGUMI_RESEARCH_CHARACTER`
-6. Prompt 14→8 层，expression_guide 从 layer 12 提到 layer 2
-7. intent 策略双版本：Companion 浅层版（`agent/prompts.py`）+ deep 深度版（`agent/research/prompts.py` 保留）
-8. `main.py`：`depth` 参数替换 `agent_type`，合并两个 handler
-9. Critic 条件注册（仅 depth=="deep" 时添加到 Graph）
-10. 删除 `agent/dialogue/` 全目录
+---
 
-### 已自动迁移的文件（linter）
+## Phase 6.5: Render Layer ✅（2026-07-27, `3cc3ecc`）
 
-- `agent/profiles.py` — Companion 人格 + COMPANION_PROFILE
-- `agent/prompt_builder.py` — 8 层，expression_guide 提前
-- `agent/prompts.py` — **新建** Companion 浅层 intent 策略
-- `agent/research/prompts.py` — 重构为深度模式专用
-- `test/test_prompts.py` — 测试更新
+### 问题
 
-### 效果验证（Step 1，排除 session 污染）
+Phase 6 统一架构后 agent 仍存在"助手骨架"：工具数据 → "回答→罗列→请求下一个问题"的机械结构。prompt 层面无法根除——这是 ReAct function-calling 的固有倾向。
 
-| Test | Before | After Step 1 |
-|------|--------|-------------|
-| Test 6 热门趋势 | 12 迭代, 7 工具 | **2 迭代, 2 工具** |
-| Test 2 京吹评分 | 7 迭代, 编造 | 6 迭代, 无编造 |
-| Test 8 星际牛仔 Dialogue | 答非所问 | 正确+毒舌 |
+### 方案
+
+新增 `render_node`（`agent/render.py`）：graph 输出前将 agent 回复改写为角色聊天风格。
+
+- **极简 prompt**（~380 chars）：纯人格 + 3 条数据呈现规则 + 硬约束，不含数据解读教科书
+- **仅工具调用后触发**：闲聊直接走快速通道，不额外开销
+- **按 depth 分档字数**：quick=120, auto=200, deep=350
+- **expression_guide 与 _RENDER_STYLE 职责分离**：通用语气 vs 数据呈现，无重叠
+- **Critic → Render 顺序**：先验证准确性，再改写风格
+
+### 效果
+
+| 场景 | Before（Phase 6） | After（Phase 6.5） |
+|------|-------------------|---------------------|
+| "EVA 评分怎么样" | "评分 9.1，排名 #1。你想了解角色还是评论？" | "EVA 评分很能打——旧剧场版 8.86 稳居全站前十……我觉得分数里情怀加成不少" |
+| "今季有什么新番" | 列表式罗列 + "你想看哪部？" | "无职和穹庐下的魔女是这季真正值得追的。那堆异世界龙傲天全在5分上下晃悠" |
+| Deep prompt 大小 | ~5750 chars | **4629 chars（-19%）** |
+
+### 待解决
+
+- 🟡 Neutral 风格 render 偏弱（409 字数据清单 vs Bangumi娘 137 字）
+- 🟡 Deep 模式未充分触发链式调用
+- 🟡 Bare title 仍直接搜索而非追问
 
 ---
 
@@ -282,10 +287,11 @@ L1 + L2 活跃。L3 用户画像 deprecated（2026-07-20）。
 | `agent/classifier.py` | Phase 4 | 意图分类 |
 | `agent/guardrails.py` | Phase 4 | 共享护栏 |
 | `agent/reasoning_core.py` | Phase 5.5 | 共享辅助函数 |
-| `agent/profiles.py` | Phase 5.5 | **已迁移** — Companion 人格 |
-| `agent/prompt_builder.py` | Phase 5.5 | **已迁移** — 8 层组装 |
-| `agent/prompts.py` | Phase 6 | **新建** — Companion 浅层策略 |
-| `agent/research/prompts.py` | Phase 4/6 | **已迁移** — deep 模式策略 + Critic prompt |
+| `agent/profiles.py` | Phase 5.5 | Character 和 Agent 人格定义 |
+| `agent/prompt_builder.py` | Phase 5.5 | 8 层 System Prompt 组装 |
+| `agent/prompts.py` | Phase 6 | Companion 浅层 intent 策略 |
+| `agent/render.py` | Phase 6.5 | **新建** — Render 层风格转换 |
+| `agent/research/prompts.py` | Phase 4/6 | deep 模式策略 + Critic prompt |
 | `agent/research/graph.py` | Phase 4 | Research 图谱 — **Phase 6 合并目标** |
 | `agent/research/nodes.py` | Phase 4 | reasoning + critic — **Phase 6 合并目标** |
 | `agent/research/state.py` | Phase 4 | AgentState — **Phase 6 合并目标** |
