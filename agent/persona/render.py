@@ -15,7 +15,7 @@ import logging
 from langchain_core.messages import AIMessage, HumanMessage
 
 from agent.llm import create_llm
-from agent.profiles import CharacterProfile, get_character
+from agent.persona.profiles import CharacterProfile, get_character
 
 logger = logging.getLogger("bgm-agent.render")
 

@@ -68,9 +68,9 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from agent.guardrails import format_tool_error
-from agent.nodes import critic_node, reasoning_node
-from agent.render import render_node
+from agent.orchestrate.guardrails import format_tool_error
+from agent.orchestrate.nodes import critic_node, reasoning_node
+from agent.persona.render import render_node
 from agent.state import AgentState, get_max_iterations
 from tools.bgm_tools import get_agent_tools
 

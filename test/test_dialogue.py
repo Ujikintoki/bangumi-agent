@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.nodes import reasoning_node
+from agent.orchestrate.nodes import reasoning_node
 from agent.state import get_max_iterations
 from test.conftest import make_mock_llm
 
@@ -53,8 +53,8 @@ def _extract_tool_calls_from_result(result: dict) -> list[dict]:
 class TestReasoningNode:
     """reasoning_node — mock LLM（depth="quick" 模式）"""
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_agent_tools")
     async def test_chitchat_still_binds_tools(self, mock_get_tools, mock_create_llm):
         """chitchat → 仍绑定工具，LLM 自主决定是否调用"""
         mock_get_tools.return_value = [Mock(name="search"), Mock(name="detail")]
@@ -68,8 +68,8 @@ class TestReasoningNode:
         assert _extract_tool_calls_from_result(result) == []
         assert "哼" in str(result["messages"][0].content)
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_agent_tools")
     async def test_factual_still_binds_tools(self, mock_get_tools, mock_create_llm):
         """factual → 仍绑定工具，LLM 自主决定"""
         mock_get_tools.return_value = [Mock(name="search")]
@@ -81,8 +81,8 @@ class TestReasoningNode:
 
         mock.bind_tools.assert_called_once()
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_agent_tools")
     async def test_lookup_binds_tools(self, mock_get_tools, mock_create_llm):
         """lookup → 绑定工具并返回 AIMessage 含 tool_calls"""
         mock_get_tools.return_value = [Mock(name="search"), Mock(name="detail")]
@@ -100,8 +100,8 @@ class TestReasoningNode:
         assert len(tool_calls) == 1
         assert tool_calls[0]["name"] == "search_bangumi_subject"
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_agent_tools")
     async def test_discovery_binds_tools(self, mock_get_tools, mock_create_llm):
         """discovery → 绑定工具"""
         mock_get_tools.return_value = [Mock(name="search_local")]
@@ -116,7 +116,7 @@ class TestReasoningNode:
 
         mock.bind_tools.assert_called_once()
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_increments_iterations(self, mock_create_llm):
         """正常推理 → iterations +1"""
         mock = make_mock_llm(content="test")
@@ -125,7 +125,7 @@ class TestReasoningNode:
         state = _make_state(query_intent="chitchat", iterations=0)
         assert (await reasoning_node(state))["iterations"] == 1
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_preserves_existing_query_intent(self, mock_create_llm):
         """后续轮次 → 复用首轮的 query_intent"""
         mock = make_mock_llm(content="根据数据，这部的评分嘛...")
@@ -134,7 +134,7 @@ class TestReasoningNode:
         state = _make_state(query_intent="lookup", iterations=1)
         assert (await reasoning_node(state))["query_intent"] == "lookup"
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_handles_llm_call_failure(self, mock_create_llm):
         """LLM 异常 → 返回错误消息，不崩溃"""
         mock = make_mock_llm()
@@ -145,7 +145,7 @@ class TestReasoningNode:
         result = await reasoning_node(state)
         assert "短路" in str(result["messages"][0].content)
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_last_chance_unbinds_tools(self, mock_create_llm):
         """最后一轮（depth="quick", iter=2/3）→ 强制解绑工具"""
         mock = make_mock_llm(content="好吧，就这样吧。")
@@ -160,8 +160,8 @@ class TestReasoningNode:
 
     # ── 消化态测试 ──
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_agent_tools")
     async def test_digestion_still_binds_tools(self, mock_get_tools, mock_create_llm):
         """消化态 + lookup → 仍绑定工具（模型自主判断是否继续）"""
         mock_get_tools.return_value = [Mock(name="search"), Mock(name="detail")]
@@ -183,8 +183,8 @@ class TestReasoningNode:
         mock_get_tools.assert_called_once()
         assert _extract_tool_calls_from_result(result) == []
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_agent_tools")
     async def test_digestion_chitchat_still_binds_tools(self, mock_get_tools, mock_create_llm):
         """消化态 + chitchat → 仍绑定工具（所有 intent 始终绑工具）"""
         mock_get_tools.return_value = [Mock(name="search")]
@@ -272,8 +272,8 @@ class TestRouting:
 class TestMemoryIntegration:
     """manage_memory 在 reasoning_node 中正常调用"""
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.manage_memory")
+    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.manage_memory")
     async def test_manage_memory_called(self, mock_memory, mock_create_llm):
         """reasoning_node 调用 manage_memory"""
         mock_memory.return_value = [

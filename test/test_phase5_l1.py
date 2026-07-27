@@ -19,7 +19,7 @@ from unittest import mock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.memory import (
+from agent.memory.short_term import (
     DEFAULT_MAX_TOKENS,
     DIALOGUE_MAX_TOKENS,
     L2_MEMORY_BUDGET_DIALOGUE,
@@ -272,17 +272,17 @@ class TestTiktokenFaultTolerance:
         assert normal > 0
 
         # 模拟 encoder 为 None
-        with mock.patch("agent.memory._ENCODER", None):
+        with mock.patch("agent.memory.short_term._ENCODER", None):
             fallback = count_tokens(text)
             assert fallback == max(1, len(text) // 2)
             assert fallback >= normal * 0.3  # 不应偏差过大（中文约 0.5x）
 
     def test_truncate_text_by_tokens_fallback(self):
         """模拟 _ENCODER 为 None，截断回退到字符截断"""
-        from agent.memory import _truncate_text_by_tokens
+        from agent.memory.short_term import _truncate_text_by_tokens
 
         text = "A" * 500
-        with mock.patch("agent.memory._ENCODER", None):
+        with mock.patch("agent.memory.short_term._ENCODER", None):
             result = _truncate_text_by_tokens(text, max_tokens=10)
             # 字符回退: max_tokens * 2 = 20 chars
             assert len(result) <= 21  # 带截断标记可能略超
@@ -296,7 +296,7 @@ class TestTiktokenFaultTolerance:
             AIMessage(content="助手回复: 推荐列表 " * 20),
         ]
 
-        with mock.patch("agent.memory._ENCODER", None):
+        with mock.patch("agent.memory.short_term._ENCODER", None):
             result = manage_memory(messages, max_tokens=200)
             assert isinstance(result, list)
             assert any(isinstance(m, SystemMessage) for m in result)

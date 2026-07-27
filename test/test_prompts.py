@@ -8,8 +8,8 @@ CRITIC_SYSTEM_PROMPT、output_style 四象限、render prompt。
 
 from __future__ import annotations
 
-from agent.classifier import _VALID_INTENTS
-from agent.profiles import (
+from agent.orchestrate.classifier import _VALID_INTENTS
+from agent.persona.profiles import (
     AGENT_REGISTRY,
     BANGUMI_CHARACTER,
     CHARACTER_REGISTRY,
@@ -18,10 +18,10 @@ from agent.profiles import (
     get_agent_profile,
     get_character,
 )
-from agent.prompt_builder import build_system_prompt as _build
-from agent.prompts import COMPANION_INTENT_PROMPTS
-from agent.render import build_render_prompt
-from agent.research.prompts import (
+from agent.orchestrate.prompt_builder import build_system_prompt as _build
+from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS
+from agent.persona.render import build_render_prompt
+from agent.orchestrate.deep_strategies import (
     CRITIC_SYSTEM_PROMPT,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
     TOOL_DEPENDENCY_CONSTRAINT,

@@ -604,7 +604,7 @@ class MemoryManager:
 
         # Token 截断
         try:
-            from agent.memory import count_tokens
+            from agent.memory.short_term import count_tokens
 
             if count_tokens(full_text) <= max_tokens:
                 return full_text
@@ -955,7 +955,7 @@ class MemoryManager:
 
         # ── Token 截断 ──────────────────────────────
         try:
-            from agent.memory import count_tokens
+            from agent.memory.short_term import count_tokens
 
             if count_tokens(result) <= max_tokens:
                 return result

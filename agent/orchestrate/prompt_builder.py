@@ -21,8 +21,8 @@ Phase 6: 14 层 → 8 层。expression_guide 从 layer 12 提前到 layer 2。
 
 ::
 
-    from agent.profiles import get_character, get_agent_profile
-    from agent.prompt_builder import build_system_prompt
+    from agent.persona.profiles import get_character, get_agent_profile
+    from agent.orchestrate.prompt_builder import build_system_prompt
 
     character = get_character("bangumi")
     agent = get_agent_profile("companion")
@@ -31,7 +31,7 @@ Phase 6: 14 层 → 8 层。expression_guide 从 layer 12 提前到 layer 2。
 
 from __future__ import annotations
 
-from agent.profiles import AgentProfile, CharacterProfile
+from agent.persona.profiles import AgentProfile, CharacterProfile
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 常用对话连续性规则

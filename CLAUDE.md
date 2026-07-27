@@ -61,9 +61,9 @@ docker run -d --name bangumi-pg \
 
 | 层 | 管什么 | 核心文件 | 稳定性 | 修改频率 |
 |---|--------|---------|--------|---------|
-| **编排层** | 怎么思考、查多深、用什么工具 | `graph.py`, `nodes.py`, `state.py`, `prompts.py`, `classifier.py`, `guardrails.py` | 🟡 刚稳定 | 偶尔 |
-| **人格层** | 怎么说话、什么风格 | `profiles.py`, `render.py` | 🟡 活跃调参 | **经常** |
-| **记忆层** | 能记住什么 | `memory.py`, `memory_manager.py`, `session_cache.py` | ✅ 稳 | 很少 |
+| **编排层** | 怎么思考、查多深、用什么工具 | `orchestrate/nodes.py`, `state.py`, `orchestrate/strategies.py`, `orchestrate/classifier.py`, `orchestrate/guardrails.py` | 🟡 刚稳定 | 偶尔 |
+| **人格层** | 怎么说话、什么风格 | `persona/profiles.py`, `persona/render.py` | 🟡 活跃调参 | **经常** |
+| **记忆层** | 能记住什么 | `memory/short_term.py`, `memory/long_term.py`, `memory/cache.py` | ✅ 稳 | 很少 |
 | **数据层** | 能查什么、查到的是什么 | `clients/`, `tools/`, `rag/`, `database/`, `schemas/` | ✅ 稳 | 几乎不 |
 
 **核心原则**：上层依赖下层，下层完全不感知上层。数据层不知道谁在用它；编排层知道要调用哪些工具但不知道返回的 dict 长什么样。
@@ -124,30 +124,36 @@ START → reasoning_node ←─────────────────�
 
 ```
 agent/
-├── state.py             # 统一 AgentState（含 depth 字段）
-├── graph.py             # 统一 StateGraph（含 render_node 路由）
-├── nodes.py             # reasoning_node + critic_node
-├── prompt_builder.py    # 统一 prompt 组装（8 层，无 data_guide）
-├── prompts.py           # Companion 浅层 intent 策略
-├── classifier.py        # 意图分类 + 深度信号检测
-├── reasoning_core.py    # 共享辅助函数
-├── guardrails.py        # 终端检测 / XML 泄漏 / 重复调用
-├── research/            # Research Skill（仅 depth="deep" 激活）
-│   └── prompts.py       # 深度 INTENT_PROMPTS + CRITIC_SYSTEM_PROMPT
-├── profiles.py          # [人格层] BANGUMI_CHARACTER + NEUTRAL_CHARACTER
-├── render.py            # [人格层] Render 节点——工具回复风格转换
-├── memory.py            # [记忆层] L1 短记忆
-├── memory_manager.py    # [记忆层] L2 跨会话语义记忆
-└── session_cache.py     # [记忆层] 跨 HTTP 请求缓存
+├── state.py                 # 统一 AgentState（含 depth 字段）
+├── graph.py                 # 统一 StateGraph（含 render_node 路由）
+├── llm.py                   # LLM 工厂（多 Provider）
+│
+├── orchestrate/             # 编排层
+│   ├── nodes.py             # reasoning_node + critic_node
+│   ├── strategies.py        # Companion 浅层 intent 策略
+│   ├── deep_strategies.py   # Deep 策略 + Critic prompt
+│   ├── prompt_builder.py    # 统一 prompt 组装（8 层，无 data_guide）
+│   ├── classifier.py        # 意图分类 + 深度信号检测
+│   ├── guardrails.py        # 终端检测 / XML 泄漏 / 重复调用
+│   └── helpers.py           # 共享辅助函数
+│
+├── persona/                 # 人格层
+│   ├── profiles.py          # CharacterProfile + AgentProfile
+│   └── render.py            # Render 节点——工具回复风格转换
+│
+├── memory/                  # 记忆层
+│   ├── short_term.py        # L1 滑动窗口截断
+│   ├── long_term.py         # L2 跨会话语义记忆
+│   └── cache.py             # 跨 HTTP 请求 session 缓存
 ```
 
 #### 调参杠杆
 
 - `agent/state.py` → `_MAX_ITERATIONS_QUICK/DEFAULT/DEEP` —— 三种模式的迭代上限
-- `agent/prompts.py` → `COMPANION_INTENT_PROMPTS` —— 每种意图的浅层策略
-- `agent/research/prompts.py` → `INTENT_PROMPTS` —— deep 模式策略（更长更详细）
-- `agent/research/prompts.py` → `TOOL_DEPENDENCY_CONSTRAINT` —— deep 模式工具链顺序
-- `agent/prompt_builder.py` → `_TOOL_CALLING_RULES`, `_CONTINUITY_RULES` —— 工具调用纪律和话题绑定
+- `agent/orchestrate/strategies.py` → `COMPANION_INTENT_PROMPTS` —— 每种意图的浅层策略
+- `agent/orchestrate/deep_strategies.py` → `INTENT_PROMPTS` —— deep 模式策略（更长更详细）
+- `agent/orchestrate/deep_strategies.py` → `TOOL_DEPENDENCY_CONSTRAINT` —— deep 模式工具链顺序
+- `agent/orchestrate/prompt_builder.py` → `_TOOL_CALLING_RULES`, `_CONTINUITY_RULES` —— 工具调用纪律和话题绑定
 
 ---
 
@@ -155,7 +161,7 @@ agent/
 
 人格层是 Agent 的"性格"——决定回复听起来像损友还是助手。分为两部分：**性格定义**（`profiles.py`，所有回复生效）和**风格渲染**（`render.py`，仅工具回复时叠加上去）。
 
-#### CharacterProfile — 性格定义 (`agent/profiles.py`)
+#### CharacterProfile — 性格定义 (`agent/persona/profiles.py`)
 
 ```python
 BANGUMI_CHARACTER = CharacterProfile(
@@ -174,7 +180,7 @@ COMPANION_PROFILE  # AgentProfile: 能力描述 + 工具策略 + 输出格式
 **expression_guide 的职责**：管通用聊天语气（"吐槽语气"、"语言简洁"、"有自己的判断"）。
 它**不管**数据怎么呈现——那是 Render 层的职责。
 
-#### Render 层 — 风格转换 (`agent/render.py`)
+#### Render 层 — 风格转换 (`agent/persona/render.py`)
 
 仅工具调用后触发。把 Agent 的"数据回答"改写为角色聊天风格。
 
@@ -209,13 +215,13 @@ RENDER_TEMPERATURE = 0.4     # 风格改写的大胆程度（高=更骚，低=�
 
 ### 记忆层 — 能记住什么
 
-#### L1：短记忆 — 滑动窗口 (`agent/memory.py`)
+#### L1：短记忆 — 滑动窗口 (`agent/memory/short_term.py`)
 
 每轮 reasoning_node 入口调用。tiktoken `cl100k_base` 精确编码，SystemMessage 永久保留，旧消息从头部丢弃。
 
 Token 预算：deep 模式 8000, 非 deep 模式 4000。
 
-#### L2：跨会话语义记忆 (`agent/memory_manager.py` + `session_cache.py`)
+#### L2：跨会话语义记忆 (`agent/memory/long_term.py` + `cache.py`)
 
 **写入**（fire-and-forget，15s 超时）：对话 → DeepSeek 生成 ~200 char JSON 摘要 → Zhipu embedding-3 向量化（2048d）→ UPSERT `session_memories`。
 
@@ -241,7 +247,7 @@ Token 预算：deep 模式 8000, 非 deep 模式 4000。
 
 #### 工具 (`tools/bgm_tools.py`)
 
-14 个 LangChain `@tool` 函数，返回结构化 dict。`search_local_bangumi` 是唯一返回 `str` 的工具（RAG 结果）。
+16 个 LangChain `@tool` 函数（13 个无条件可用 + 3 个需 `BANGUMI_ACCESS_TOKEN`），15 个返回结构化 dict，`search_local_bangumi` 是唯一返回 `str` 的工具（RAG 结果）。
 
 #### Client (`clients/`)
 
@@ -261,16 +267,16 @@ SQLModel + pgvector。记忆表和 RAG 实体的持久层。
 
 | 想改的效果 | 文件 | 改什么 |
 |-----------|------|--------|
-| "AI 说话太像助手，不够损" | `profiles.py` | `BANGUMI_CHARACTER.expression_guide` |
-| "回复太长/太短" | `render.py` | `_RENDER_WORD_LIMIT` dict |
-| "数据回复风格不对" | `render.py` | `_RENDER_STYLE["bangumi"]` 3 条规则 |
+| "AI 说话太像助手，不够损" | `persona/profiles.py` | `BANGUMI_CHARACTER.expression_guide` |
+| "回复太长/太短" | `persona/render.py` | `_RENDER_WORD_LIMIT` dict |
+| "数据回复风格不对" | `persona/render.py` | `_RENDER_STYLE["bangumi"]` 3 条规则 |
 | "AI 调了太多轮工具" | `state.py` | `_MAX_ITERATIONS_*` |
-| "总是反问句结尾" | `render.py` | `_RENDER_STYLE["bangumi"]` 结尾规则 |
-| "Deep 模式查得太深/太浅" | `research/prompts.py` | `INTENT_PROMPTS` + `TOOL_DEPENDENCY_CONSTRAINT` |
-| "闲聊风格不对" | `profiles.py` | `BANGUMI_CHARACTER.expression_guide`（闲聊只用这个） |
+| "总是反问句结尾" | `persona/render.py` | `_RENDER_STYLE["bangumi"]` 结尾规则 |
+| "Deep 模式查得太深/太浅" | `orchestrate/deep_strategies.py` | `INTENT_PROMPTS` + `TOOL_DEPENDENCY_CONSTRAINT` |
+| "闲聊风格不对" | `persona/profiles.py` | `BANGUMI_CHARACTER.expression_guide`（闲聊只用这个） |
 | "忘了之前聊过什么" | `config.py` | `MEMORY_*` 阈值 |
-| "话题绑定太松/太紧" | `prompt_builder.py` | `_CONTINUITY_RULES` |
-| "Render 太保守/太放飞" | `render.py` | `RENDER_TEMPERATURE` |
+| "话题绑定太松/太紧" | `orchestrate/prompt_builder.py` | `_CONTINUITY_RULES` |
+| "Render 太保守/太放飞" | `persona/render.py` | `RENDER_TEMPERATURE` |
 
 ## Request/Response model
 
@@ -292,7 +298,7 @@ SQLModel + pgvector。记忆表和 RAG 实体的持久层。
 - **Error handling**: API failures return `{"_error": "..."}` dicts — never throw. BaseClient retries on 429/502/503/TimeoutException with exponential backoff (max 3 attempts).
 - **Sanitizer pattern**: pure functions that whitelist fields, coerce magic numbers to human-readable labels, hard-truncate text, and filter noise. 按 A/B/C/D 方法论逐字段决策。
 - **Tool return format**: 15/16 tools return structured `dict`. `search_local_bangumi` 是唯一返回 `str` 的工具。
-- **`output_style`** control: `agent/profiles.py` holds `CharacterProfile` and `AgentProfile` dataclasses. Style is prompt-only — role-first assembly, zero extra LLM call.
+- **`output_style`** control: `agent/persona/profiles.py` holds `CharacterProfile` and `AgentProfile` dataclasses. Style is prompt-only — role-first assembly, zero extra LLM call.
 - **`.env`** at project root, loaded by `core/config.py`. Key variables: `DATABASE_URL`, `BANGUMI_APP_ID`, `BANGUMI_APP_SECRET`, `ZHIPU_API_KEY`, `DEEPSEEK_API_KEY`, `EMBEDDING_DIMENSION` (default 2048).
 
 ## Test Coverage
@@ -363,8 +369,7 @@ SQLModel + pgvector。记忆表和 RAG 实体的持久层。
 | `docs/design/phase5-memory-system-design.md` | Phase 5 记忆系统完整设计 |
 | `docs/design/data-layer-redesign-discussion.md` | 工具层 str→dict 迁移决策过程 |
 | `docs/design/bangumi-api-schema-methodology.md` | A/B/C/D 字段方法论 |
-| `docs/design/personality-rendering-layer.md` | Output Boundary 原始设计（已废弃，历史参考） |
 | `docs/memory/` | 记忆系统手册（6 文件） |
-| `docs/tmp/real_data_test.md` | 9 个测试用例 + A/B 对照实验 |
-| `README.md` | Project README (partially outdated) |
+| `docs/tmp/real_data_test.md` | Phase 5 测试数据基线 |
+| `README.md` | 项目 README |
 | `.env.example` | Environment variable template |

@@ -17,9 +17,9 @@
 
 | 层 | 文件 | 稳定 | 待解决 |
 |---|------|------|--------|
-| **编排层** | `graph.py`, `nodes.py`, `state.py`, `prompts.py`, `classifier.py`, `guardrails.py`, `prompt_builder.py`, `reasoning_core.py` | 🟡 刚稳定 | 3 项 |
-| **人格层** | `profiles.py`, `render.py` | 🟡 活跃调参 | 1 项 |
-| **记忆层** | `memory.py`, `memory_manager.py`, `session_cache.py` | ✅ 稳 | 1 项 |
+| **编排层** | `orchestrate/nodes.py`, `state.py`, `orchestrate/strategies.py`, `orchestrate/classifier.py`, `orchestrate/guardrails.py`, `orchestrate/prompt_builder.py`, `orchestrate/helpers.py` | 🟡 刚稳定 | 3 项 |
+| **人格层** | `persona/profiles.py`, `persona/render.py` | 🟡 活跃调参 | 1 项 |
+| **记忆层** | `memory/short_term.py`, `memory/long_term.py`, `memory/cache.py` | ✅ 稳 | 1 项 |
 | **数据层** | `clients/`, `tools/`, `rag/`, `database/`, `schemas/` | ✅ 稳 | 2 项 |
 
 ---
@@ -57,15 +57,15 @@ Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再�
 
 **路由**：五级优先级（tool_calls → chitchat → deep/critic → render → END）。
 
-**文件**：`agent/graph.py`, `agent/nodes.py`, `agent/state.py`, `agent/prompts.py`, `agent/research/prompts.py`, `agent/prompt_builder.py`, `agent/classifier.py`, `agent/guardrails.py`, `agent/reasoning_core.py`
+**文件**：`agent/graph.py`, `agent/orchestrate/nodes.py`, `agent/state.py`, `agent/orchestrate/strategies.py`, `agent/orchestrate/deep_strategies.py`, `agent/orchestrate/prompt_builder.py`, `agent/orchestrate/classifier.py`, `agent/orchestrate/guardrails.py`, `agent/orchestrate/helpers.py`
 
 ### 待解决
 
 | # | 问题 | 文件 | 改动量 |
 |---|------|------|--------|
-| 1 | Deep 模式未充分触发链式调用（仅 1-2 轮 search，没走 detail） | `research/prompts.py` | 策略调整 |
-| 2 | Bare title 仍直接搜而非先追问 | `prompts.py` + `profiles.py` | ~10 行 |
-| 3 | Render 后历史中出现两条连续 AIMessage | `graph.py` 或 `render.py` | 中等 |
+| 1 | Deep 模式未充分触发链式调用（仅 1-2 轮 search，没走 detail） | `orchestrate/deep_strategies.py` | 策略调整 |
+| 2 | Bare title 仍直接搜而非先追问 | `orchestrate/strategies.py` + `persona/profiles.py` | ~10 行 |
+| 3 | Render 后历史中出现两条连续 AIMessage | `graph.py` 或 `persona/render.py` | 中等 |
 
 ---
 
@@ -75,11 +75,11 @@ Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再�
 
 2 个 CharacterProfile（bangumi/neutral）+ Render 层风格转换。
 
-**CharacterProfile**（`agent/profiles.py`）：
+**CharacterProfile**（`agent/persona/profiles.py`）：
 - `BANGUMI_CHARACTER`：二次元损友——"让对话有趣"，"数据是吐槽的弹药"
 - `NEUTRAL_CHARACTER`：中性助手——准确、简洁、可操作
 
-**Render 层**（`agent/render.py`）：
+**Render 层**（`agent/persona/render.py`）：
 - 仅工具调用后触发，极简 prompt（~380 chars）
 - 按 depth 分档字数：quick=120, auto=200, deep=350
 - expression_guide（通用语气）与 _RENDER_STYLE（数据呈现）职责分离、无重叠
@@ -88,7 +88,7 @@ Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再�
 
 | # | 问题 | 文件 | 改动量 |
 |---|------|------|--------|
-| 1 | Neutral 风格 render 偏弱——仍可能罗列数据（`_RENDER_STYLE` 仅 2 条规则） | `render.py` | ~5 行 |
+| 1 | Neutral 风格 render 偏弱——仍可能罗列数据（`_RENDER_STYLE` 仅 2 条规则） | `persona/render.py` | ~5 行 |
 
 ---
 
@@ -98,15 +98,15 @@ Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再�
 
 L1 + L2 活跃，L3 废弃。
 
-- **L1**：`agent/memory.py` — tiktoken 精确截断 + 滑动窗口
-- **L2**：`agent/memory_manager.py` — 双通道召回（语义 + 时效回退）+ 时间衰减
-- **Session 缓存**：`agent/session_cache.py` — 跨 HTTP 请求多轮上下文
+- **L1**：`agent/memory/short_term.py` — tiktoken 精确截断 + 滑动窗口
+- **L2**：`agent/memory/long_term.py` — 双通道召回（语义 + 时效回退）+ 时间衰减
+- **Session 缓存**：`agent/memory/cache.py` — 跨 HTTP 请求多轮上下文
 
 ### 待解决
 
 | # | 问题 | 文件 | 改动量 |
 |---|------|------|--------|
-| 1 | 双套记忆阈值（Research/Dialogue）继承自 Phase 4 — 应合并为 depth 分支 | `config.py` + `memory_manager.py` | 中等 |
+| 1 | 双套记忆阈值（Research/Dialogue）继承自 Phase 4 — 应合并为 depth 分支 | `config.py` + `memory/long_term.py` | 中等 |
 
 ---
 

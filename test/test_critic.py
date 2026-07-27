@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage, HumanMessage
 
-from agent.nodes import critic_node
+from agent.orchestrate.nodes import critic_node
 from agent.state import get_max_iterations
 from test.conftest import make_mock_llm, make_state
 
@@ -44,7 +44,7 @@ class TestCriticNodeRule:
         assert result["critic_status"] == "REVISE"
         assert "回复缺失" in result.get("critic_feedback", "")
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_revise_when_reply_too_short(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=1, depth="deep", messages=[
@@ -64,7 +64,7 @@ class TestCriticNodeRule:
         ])
         assert (await critic_node(state))["critic_status"] == "PASS"
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_pass_for_normal_reply(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=2, depth="deep", messages=[
@@ -75,7 +75,7 @@ class TestCriticNodeRule:
         ])
         assert (await critic_node(state))["critic_status"] == "PASS"
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_circuit_breaker(self, mock_settings):
         self._set_rule_mode(mock_settings)
         """熔断在 iterations >= _DEEP_MAX(=12) 时触发，强制 PASS + error_flag。"""
@@ -98,7 +98,7 @@ class TestCriticNodeRule:
 
     # ── 逃逸舱：语义终端回复识别 ──────────────────────────
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_pass_for_honest_not_found(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=2, depth="deep", messages=[
@@ -112,7 +112,7 @@ class TestCriticNodeRule:
             f"诚实告知'未找到'应被逃逸舱保护为 PASS，实际: {result.get('critic_feedback')}"
         )
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_pass_for_clarification(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=2, depth="deep", messages=[
@@ -126,7 +126,7 @@ class TestCriticNodeRule:
             f"追问用户应被逃逸舱保护为 PASS，实际: {result.get('critic_feedback')}"
         )
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_pass_for_character_no_rating_explanation(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=2, depth="deep", messages=[
@@ -152,7 +152,7 @@ class TestCriticNodeRule:
 
     # ── 重复工具调用检测 ──────────────────────────────────
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_revise_on_duplicate_tool_calls(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=3, depth="deep", messages=[
@@ -167,7 +167,7 @@ class TestCriticNodeRule:
         assert result["critic_status"] == "REVISE"
         assert "重复调用" in result.get("critic_feedback", "")
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_pass_when_different_tool_calls(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=3, depth="deep", messages=[
@@ -181,7 +181,7 @@ class TestCriticNodeRule:
         result = await critic_node(state)
         assert result["critic_status"] == "PASS"
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_duplicate_detection_skips_single_tool_round(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=2, depth="deep", messages=[
@@ -195,7 +195,7 @@ class TestCriticNodeRule:
 
     # ── Critic 窗口缩窄测试 ──────────────────────────────────
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_has_tool_msgs_scoped_to_current_iteration(self, mock_settings):
         self._set_rule_mode(mock_settings)
         state = make_state(iterations=3, depth="deep", messages=[
@@ -232,8 +232,8 @@ class TestCriticNodeLLM:
         s.LLM_MODEL = "test"
         mock_get_settings.return_value = s
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_pass(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock_llm.return_value = make_mock_llm(content="PASS: 回复完整。")
@@ -244,8 +244,8 @@ class TestCriticNodeLLM:
         r = await critic_node(state)
         assert r["critic_status"] == "PASS" and "PASS" in r["critic_feedback"]
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_revise_with_feedback(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock_llm.return_value = make_mock_llm(
@@ -259,8 +259,8 @@ class TestCriticNodeLLM:
         assert r["critic_status"] == "REVISE"
         assert "get_detail" in r["critic_feedback"]
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_escape_hatch(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock_llm.return_value = make_mock_llm(
@@ -275,8 +275,8 @@ class TestCriticNodeLLM:
         r = await critic_node(state)
         assert r["critic_status"] == "PASS"
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_default_pass_on_llm_error(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock = make_mock_llm()
@@ -287,8 +287,8 @@ class TestCriticNodeLLM:
         ])
         assert (await critic_node(state))["critic_status"] == "PASS"
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_default_pass_on_unexpected_output(self, mock_llm, mock_settings):
         self._set_mode(mock_settings, "llm")
         mock_llm.return_value = make_mock_llm(content="UNKNOWN xyz")
@@ -297,8 +297,8 @@ class TestCriticNodeLLM:
         ])
         assert (await critic_node(state))["critic_status"] == "PASS"
 
-    @patch("agent.nodes.get_settings")
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_circuit_breaker_in_llm_mode(self, mock_llm, mock_settings):
         """LLM 模式下熔断应在 iterations >= max 时直接 PASS，不调 LLM。"""
         self._set_mode(mock_settings, "llm")

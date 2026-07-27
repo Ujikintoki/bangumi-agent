@@ -19,9 +19,9 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from pydantic import BaseModel, Field
 
 from agent.graph import agent_app
-from agent.profiles import get_agent_profile
+from agent.persona.profiles import get_agent_profile
 from agent.state import AgentState
-from agent.session_cache import get_session_cache
+from agent.memory.cache import get_session_cache
 from core.config import get_settings
 from database.engine import init_db
 
@@ -424,7 +424,7 @@ async def _remember_session(
 ) -> None:
     """Fire-and-forget: 写入 L2 session 摘要。"""
     try:
-        from agent.memory_manager import get_memory_manager
+        from agent.memory.long_term import get_memory_manager
         from agent.state import get_max_iterations
 
         mm = get_memory_manager()

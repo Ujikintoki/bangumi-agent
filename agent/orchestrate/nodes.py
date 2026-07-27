@@ -15,24 +15,24 @@ import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.guardrails import (
+from agent.orchestrate.guardrails import (
     TOOL_CALL_XML_RESIDUE,
     check_duplicate_tool_calls,
     is_terminal_response,
 )
 from agent.llm import create_llm
-from agent.memory import DEFAULT_MAX_TOKENS, DIALOGUE_MAX_TOKENS, manage_memory
-from agent.profiles import get_agent_profile, get_character
-from agent.prompt_builder import build_system_prompt
-from agent.prompts import COMPANION_INTENT_PROMPTS
-from agent.reasoning_core import (
+from agent.memory.short_term import DEFAULT_MAX_TOKENS, DIALOGUE_MAX_TOKENS, manage_memory
+from agent.persona.profiles import get_agent_profile, get_character
+from agent.orchestrate.prompt_builder import build_system_prompt
+from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS
+from agent.orchestrate.helpers import (
     build_message_list,
     classify_intent_step,
     extract_user_input,
     guard_xml_leak,
     recall_memory_step,
 )
-from agent.research.prompts import (
+from agent.orchestrate.deep_strategies import (
     CRITIC_SYSTEM_PROMPT,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
     TOOL_DEPENDENCY_CONSTRAINT,

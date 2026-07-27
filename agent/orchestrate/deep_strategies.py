@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import logging
 
-from agent.profiles import get_agent_profile, get_character
-from agent.prompt_builder import build_system_prompt as _build
+from agent.persona.profiles import get_agent_profile, get_character
+from agent.orchestrate.prompt_builder import build_system_prompt as _build
 
 logger = logging.getLogger("bgm-agent.prompts")
 

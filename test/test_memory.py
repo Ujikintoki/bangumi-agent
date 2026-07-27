@@ -10,7 +10,7 @@ from __future__ import annotations
 import tiktoken
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.memory import count_tokens, estimate_tokens, manage_memory, trim_messages
+from agent.memory.short_term import count_tokens, estimate_tokens, manage_memory, trim_messages
 
 
 class TestCountTokens:
@@ -205,7 +205,7 @@ class TestComputeCombinedScore:
 
     def test_perfect_match_today(self):
         """完美语义匹配 + 今天 → 分数 ≈ 1.0"""
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score = MemoryManager._compute_combined_score(
             cosine_distance=0.0,
@@ -216,7 +216,7 @@ class TestComputeCombinedScore:
 
     def test_threshold_match_today(self):
         """阈值边缘匹配 + 今天 → 分数 ≈ 0.5"""
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score = MemoryManager._compute_combined_score(
             cosine_distance=0.5,
@@ -227,7 +227,7 @@ class TestComputeCombinedScore:
 
     def test_perfect_match_one_half_life(self):
         """完美语义 + 恰好一个半衰期 → 分数 ≈ 0.5"""
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score = MemoryManager._compute_combined_score(
             cosine_distance=0.0,
@@ -238,7 +238,7 @@ class TestComputeCombinedScore:
 
     def test_threshold_match_one_half_life(self):
         """阈值匹配 + 一个半衰期 → 分数 ≈ 0.25"""
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score = MemoryManager._compute_combined_score(
             cosine_distance=0.5,
@@ -249,7 +249,7 @@ class TestComputeCombinedScore:
 
     def test_old_memory_decayed(self):
         """60 天前的语义匹配 → 衰减明显"""
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score = MemoryManager._compute_combined_score(
             cosine_distance=0.45,
@@ -261,7 +261,7 @@ class TestComputeCombinedScore:
 
     def test_recent_beats_old(self):
         """近期略差匹配 > 远期略好匹配（核心断言）"""
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score_recent = MemoryManager._compute_combined_score(
             cosine_distance=0.48,  # 较差语义
@@ -281,7 +281,7 @@ class TestComputeCombinedScore:
         """naive datetime 自动视为 UTC"""
         from datetime import datetime
 
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score = MemoryManager._compute_combined_score(
             cosine_distance=0.0,
@@ -292,7 +292,7 @@ class TestComputeCombinedScore:
 
     def test_zero_half_life_clamped(self):
         """half_life_days=0 → clamp 到 1，不触发除零"""
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score = MemoryManager._compute_combined_score(
             cosine_distance=0.0,
@@ -306,7 +306,7 @@ class TestComputeCombinedScore:
         """未来时间戳 → days_ago clamp 到 0，不产生负衰减"""
         from datetime import datetime, timedelta, timezone
 
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         future = datetime.now(timezone.utc) + timedelta(days=1)
         score = MemoryManager._compute_combined_score(
@@ -318,7 +318,7 @@ class TestComputeCombinedScore:
 
     def test_completely_irrelevant(self):
         """cosine_distance=1.0 → similarity=0 → 分数恒为 0"""
-        from agent.memory_manager import MemoryManager
+        from agent.memory.long_term import MemoryManager
 
         score = MemoryManager._compute_combined_score(
             cosine_distance=1.0,

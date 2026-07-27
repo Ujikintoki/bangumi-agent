@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_openai import ChatOpenAI
 
-from agent.classifier import (
+from agent.orchestrate.classifier import (
     _VALID_INTENTS,
     classify_intent,
     classify_intent_llm,

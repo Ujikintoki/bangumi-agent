@@ -14,8 +14,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from agent.graph import build_graph
 from agent.state import get_max_iterations
-from agent.memory import estimate_tokens
-from agent.nodes import _get_last_ai_response, reasoning_node
+from agent.memory.short_term import estimate_tokens
+from agent.orchestrate.nodes import _get_last_ai_response, reasoning_node
 from test.conftest import MOCK_TOOLS, make_mock_llm, make_state
 
 import pytest
@@ -33,7 +33,7 @@ _DEEP_MAX = get_max_iterations("deep")
 class TestGraphIntegration:
     """端到端图谱：基本路径 + 熔断"""
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_chitchat_fast_path_skips_critic(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="你好！")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -44,7 +44,7 @@ class TestGraphIntegration:
         result = await graph.ainvoke(state)
         assert result.get("critic_status") == "PENDING"
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_circuit_breaker(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="test")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -60,7 +60,7 @@ class TestGraphIntegration:
         result = await graph.ainvoke(state)
         assert result.get("error_flag") is True
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_factual_skips_tools(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="三集定律是指...")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -71,7 +71,7 @@ class TestGraphIntegration:
         result = await graph.ainvoke(state)
         assert result.get("critic_status") == "PASS"
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_query_intent_persists_across_rounds(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="done")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -96,8 +96,8 @@ class TestGraphIntegration:
 class TestCriticFeedbackPropagation:
     """验证 critic_feedback 确实注入到下一轮 reasoning_node 的 LLM 调用"""
 
-    @patch("agent.nodes.create_llm")
-    @patch("agent.nodes.get_agent_tools")
+    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.get_agent_tools")
     async def test_feedback_appears_in_llm_prompt(self, mock_get_tools, mock_create_llm):
         mock_get_tools.return_value = []
         mock_llm = make_mock_llm(content="已修正的回复")
@@ -136,7 +136,7 @@ class TestMemoryGraphIntegration:
         ]
         state = make_state(messages=messages, query_intent="chitchat", depth="deep")
 
-        with patch("agent.nodes.create_llm") as mock_create_llm:
+        with patch("agent.orchestrate.nodes.create_llm") as mock_create_llm:
             mock_llm = make_mock_llm(content="你好！")
             mock_create_llm.return_value = mock_llm
             result = await reasoning_node(state)
@@ -151,7 +151,7 @@ class TestMemoryGraphIntegration:
             messages.append(HumanMessage(content=f"Q{i}: " + "数据" * 50))
             messages.append(AIMessage(content=f"A{i}: " + "回复" * 50))
 
-        from agent.memory import manage_memory
+        from agent.memory.short_term import manage_memory
         trimmed = manage_memory(messages, max_tokens=1000)
         assert any(isinstance(m, SystemMessage) for m in trimmed)
         assert len(trimmed) < len(messages)
@@ -168,7 +168,7 @@ class TestStateLifecycle:
     async def test_tool_to_reasoning_to_critic_pipeline(self):
         from agent.graph import build_graph
 
-        @patch("agent.nodes.create_llm")
+        @patch("agent.orchestrate.nodes.create_llm")
         async def _test(mock_llm):
             mock_llm.return_value = make_mock_llm(
                 content="根据搜索结果，巨人评分 8.5 分。",
@@ -189,9 +189,9 @@ class TestStateLifecycle:
 
         await _test()
 
-    @patch("agent.nodes.get_settings")
+    @patch("agent.orchestrate.nodes.get_settings")
     async def test_critic_status_transitions(self, mock_get_settings):
-        from agent.nodes import critic_node
+        from agent.orchestrate.nodes import critic_node
         from unittest.mock import MagicMock
 
         s = MagicMock()
@@ -235,7 +235,7 @@ class TestStateLifecycle:
         ]
         assert _get_last_ai_response(msgs) is None
 
-    @patch("agent.nodes.create_llm")
+    @patch("agent.orchestrate.nodes.create_llm")
     async def test_shallow_mode_skips_critic(self, mock_create_llm):
         """depth="auto" 模式：无工具调用 → 直接 END，不进入 critic"""
         mock_create_llm.return_value = make_mock_llm(content="根据搜索结果，巨人评分 8.5 分。")

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from agent.memory_manager import MemoryManager, get_memory_manager
+from agent.memory.long_term import MemoryManager, get_memory_manager
 
 
 # ═══════════════════════════════════════════════════════════════════════════

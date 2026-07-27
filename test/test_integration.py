@@ -50,7 +50,7 @@ class TestRealLLM:
     @pytest.mark.asyncio
     async def test_classifier_integration(self):
         """意图分类器 + 真实 LLM"""
-        from agent.classifier import classify_intent
+        from agent.orchestrate.classifier import classify_intent
         from agent.llm import create_llm
 
         classifier_llm = create_llm(temperature=0, max_tokens=10)

@@ -11,8 +11,8 @@ import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from agent.classifier import classify_intent
-from agent.guardrails import strip_tool_call_xml
+from agent.orchestrate.classifier import classify_intent
+from agent.orchestrate.guardrails import strip_tool_call_xml
 
 logger = logging.getLogger("bgm-agent.reasoning_core")
 
@@ -97,7 +97,7 @@ async def recall_memory_step(
         return ""
 
     try:
-        from agent.memory_manager import get_memory_manager
+        from agent.memory.long_term import get_memory_manager
 
         mm = get_memory_manager()
         kwargs: dict = {"user_id": user_id, "query": user_query, "max_tokens": max_tokens}
