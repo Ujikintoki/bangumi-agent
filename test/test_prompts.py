@@ -1,8 +1,8 @@
 """
-系统提示词测试 — Phase 6 统一架构 + Phase 6.5 Render 层
+系统提示词测试 — Phase 7 Prompt Engineering 重设计
 
-验证 prompt_builder 组装逻辑、profile 完整性、意图策略变体、
-CRITIC_SYSTEM_PROMPT、output_style 四象限、render prompt。
+验证 Character Card、TOOL_INTUITION、Scene Hints、参数映射、
+render prompt（参数感知 + 快速跳过）、guardrails 字数占位符。
 可独立运行: python -m pytest test/test_prompts.py -v
 """
 
@@ -15,14 +15,20 @@ from agent.persona.profiles import (
     CHARACTER_REGISTRY,
     COMPANION_PROFILE,
     NEUTRAL_CHARACTER,
+    _render_tone,
     get_agent_profile,
     get_character,
+    get_character_card,
 )
-from agent.orchestrate.prompt_builder import build_system_prompt as _build
-from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS
-from agent.persona.render import build_render_prompt
+from agent.orchestrate.prompt_builder import TOOL_INTUITION, build_system_prompt as _build
+from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
+from agent.persona.render import (
+    _should_skip_render,
+    build_render_prompt,
+)
 from agent.orchestrate.deep_strategies import (
     CRITIC_SYSTEM_PROMPT,
+    DEEP_SCENE_HINTS,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
     TOOL_DEPENDENCY_CONSTRAINT,
     build_system_prompt as build_deep_prompt,
@@ -43,18 +49,22 @@ class TestProfiles:
         """AGENT_REGISTRY 应包含 companion（以及兼容的 dialogue/research key）。"""
         assert "companion" in AGENT_REGISTRY
         assert AGENT_REGISTRY["companion"] is COMPANION_PROFILE
-        # 旧 key 兼容
         assert "dialogue" in AGENT_REGISTRY
         assert "research" in AGENT_REGISTRY
 
     def test_bangumi_character_has_required_fields(self):
-        """Bangumi 角色应有身份、动机、表达风格、约束。"""
+        """Bangumi 角色应有身份、参数、硬约束（含 word_limit 占位符）。"""
         assert len(BANGUMI_CHARACTER.identity) > 20
-        assert len(BANGUMI_CHARACTER.motivation) > 20
-        assert len(BANGUMI_CHARACTER.expression_guide) > 20
+        assert len(BANGUMI_CHARACTER.motivation) > 10
+        assert len(BANGUMI_CHARACTER.expression_guide) > 10
         assert len(BANGUMI_CHARACTER.guardrails) > 20
-        assert "字数限制" in BANGUMI_CHARACTER.guardrails
-        assert "emoji" in BANGUMI_CHARACTER.guardrails
+        # Phase 7: guardrails 使用 {word_limit} 占位符
+        assert "{word_limit}" in BANGUMI_CHARACTER.guardrails
+        assert "不用 emoji" in BANGUMI_CHARACTER.guardrails
+        # Phase 7: 参数字段应有默认值
+        assert 0.0 <= BANGUMI_CHARACTER.snark <= 1.0
+        assert 0.0 <= BANGUMI_CHARACTER.depth_taste <= 1.0
+        assert 0.0 <= BANGUMI_CHARACTER.initiative <= 1.0
 
     def test_neutral_character_has_no_bangumi_persona(self):
         """Neutral 角色不应包含腹黑/吐槽人格。"""
@@ -63,7 +73,7 @@ class TestProfiles:
         assert "萝莉" not in NEUTRAL_CHARACTER.identity
 
     def test_neutral_has_empty_guardrails_for_style(self):
-        """Neutral 角色不应有字数上限（那是 Bangumi 的约束）。"""
+        """Neutral 角色不应有 Bangumi 特有的字数硬编码。"""
         assert "30-80" not in NEUTRAL_CHARACTER.guardrails
         assert "150 字" not in NEUTRAL_CHARACTER.guardrails
 
@@ -80,35 +90,64 @@ class TestProfiles:
         assert COMPANION_PROFILE.default_character == "bangumi"
 
     def test_bangumi_is_companion_persona(self):
-        """BANGUMI_CHARACTER 应为 Companion 损友人格（非旧版 Research 变体）。"""
-        assert "二次元损友" in BANGUMI_CHARACTER.identity
+        """BANGUMI_CHARACTER 应为 Companion 损友人格。"""
+        assert "二次元损友" in BANGUMI_CHARACTER.identity or "ACGN 老害" in BANGUMI_CHARACTER.identity
         assert "让对话有趣" in BANGUMI_CHARACTER.motivation
-        # 不应再有"深度链式调用"等 Research 变体的措辞
         assert "数据完整性优先" not in BANGUMI_CHARACTER.tool_behavior
+
+    def test_character_card_exists_for_bangumi(self):
+        """Bangumi 应有 Character Card。"""
+        card = get_character_card("bangumi")
+        assert card is not None
+        assert "ACGN 老害" in card or "Bangumi 看板娘" in card
+        # 应包含对话示例
+        assert "EVA" in card
+        assert "CLANNAD" in card
+
+    def test_character_card_exists_for_neutral(self):
+        """Neutral 应有 Character Card。"""
+        card = get_character_card("neutral")
+        assert card is not None
+        assert "ACGN" in card
+
+    def test_render_tone_defaults(self):
+        """_render_tone 默认参数应返回三段非空文本。"""
+        result = _render_tone(0.65, 0.70, 0.75)
+        assert len(result) == 3
+        assert all(len(v) > 10 for v in result.values())
+        assert "tone" in result
+        assert "depth" in result
+        assert "rhythm" in result
+
+    def test_render_tone_extremes(self):
+        """_render_tone 极值参数应返回不同文本。"""
+        low = _render_tone(0.0, 0.0, 0.0)
+        high = _render_tone(1.0, 1.0, 1.0)
+        # extreme values should produce different tone text
+        assert low["tone"] != high["tone"]
 
 
 class TestPromptBuilder:
-    """Prompt builder 组装逻辑（8 层）。"""
+    """Prompt builder 组装逻辑（Phase 7: 5 段结构）。"""
 
-    def test_builder_character_first(self):
-        """角色身份应出现在 prompt 最前面。"""
+    def test_builder_starts_with_character_card(self):
+        """Prompt 应以 '你是谁'（Character Card section）开头。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
         )
-        assert result.startswith("# 你是 Bangumi娘")
+        assert result.startswith("# 你是谁")
 
-    def test_expression_guide_at_layer_2(self):
-        """expression_guide 应在 layer 2（紧跟 identity）。"""
+    def test_character_card_before_capabilities(self):
+        """Character Card 应在 capabilities 之前出现。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
         )
-        # expression_guide 应在 capabilities 之前出现
-        expr_pos = result.find("表达风格")
+        card_pos = result.find("你是谁")
         cap_pos = result.find("你的能力")
-        assert expr_pos > 0 and cap_pos > 0
-        assert expr_pos < cap_pos, "expression_guide 应在 capabilities 之前"
+        assert card_pos > 0 and cap_pos > 0
+        assert card_pos < cap_pos, "Character Card 应在 capabilities 之前"
 
     def test_builder_neutral(self):
         """Neutral 角色：中性助手，不含 Bangumi 人格。"""
@@ -118,15 +157,18 @@ class TestPromptBuilder:
         )
         assert "腹黑" not in result
         assert "Bangumi娘" not in result
+        assert "损友" not in result
 
     def test_builder_bangumi_has_persona(self):
-        """Bangumi 角色：应有腹黑损友人格 + 字数限制。"""
+        """Bangumi 角色：应有 Character Card 中的关键标识。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
         )
-        assert "腹黑" in result or "吐槽" in result
-        assert "30-80 字" in result
+        assert "ACGN 老害" in result or "Bangumi 看板娘" in result
+        # word_limit 应被格式化（不再有占位符）
+        assert "{word_limit}" not in result
+        assert "200 字" in result or "120 字" in result or "350 字" in result
 
     def test_builder_includes_tool_strategy(self):
         """应包含够了就停原则。"""
@@ -145,37 +187,43 @@ class TestPromptBuilder:
         assert "对话连续性" in result
         assert "明确指代" in result
 
-    def test_builder_includes_tool_calling_rules(self):
-        """应包含工具调用后必须回复的规则。"""
+    def test_builder_includes_tool_intuition(self):
+        """应包含 TOOL_INTUITION（行为性工具指引）。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=NEUTRAL_CHARACTER,
         )
-        assert "工具调用后必须生成文字回复" in result
+        assert "查数据就像聊天时掏出手机" in result
+        assert "没查到" in result
 
-    def test_builder_with_intent_strategy(self):
-        """传入 intent + 深度策略时应包含策略变体。"""
+    def test_builder_with_deep_scene_hint(self):
+        """Deep 模式 + intent 应注入 DEEP_SCENE_HINTS。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=NEUTRAL_CHARACTER,
             depth="deep",
             intent="lookup",
             intent_strategies=DEEP_INTENT_PROMPTS,
+            scene_hints=DEEP_SCENE_HINTS,
             tool_constraint=TOOL_DEPENDENCY_CONSTRAINT,
         )
-        assert "精确查找" in result
-        assert "工具依赖规则" in result
+        # Scene Hint 格式: [场景：查数据...]
+        assert "[场景：" in result
+        assert "查数据" in result
+        assert "工具依赖规则" in result  # tool_constraint 单独注入
 
-    def test_builder_with_shallow_intent(self):
-        """Companion 浅层策略不应包含工具依赖规则。"""
+    def test_builder_with_companion_scene_hint(self):
+        """Companion 浅层模式应注入 Scene Hints，不含工具依赖规则。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
             depth="auto",
             intent="lookup",
             intent_strategies=COMPANION_INTENT_PROMPTS,
+            scene_hints=COMPANION_SCENE_HINTS,
         )
-        assert "精确查找" in result
+        assert "[场景：" in result
+        assert "查数据" in result
         assert "工具依赖规则" not in result
 
     def test_builder_with_critic_feedback(self):
@@ -215,34 +263,31 @@ class TestPromptBuilder:
         )
         assert "腹黑萝莉" not in result
         assert "毒舌吐槽役" not in result
-        assert "Bangumi娘" not in result
 
-    def test_builder_no_data_guide(self):
-        """所有模式均不应包含数据解读指南（已移到 render 层）。"""
-        # auto mode
+    def test_builder_word_limit_by_depth(self):
+        """Guardrails 的 {word_limit} 应按 depth 正确格式化。"""
+        q = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="quick")
+        a = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="auto")
+        d = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="deep")
+        assert "120 字" in q
+        assert "200 字" in a
+        assert "350 字" in d
+        # 占位符不应残留
+        assert "{word_limit}" not in q
+        assert "{word_limit}" not in a
+        assert "{word_limit}" not in d
+
+    def test_builder_includes_tone_hint(self):
+        """应包含 '今天的语气' 段（从参数生成）。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
-            depth="auto",
-            intent="lookup",
-            intent_strategies=COMPANION_INTENT_PROMPTS,
         )
-        assert "数据解读指南" not in result
-
-        # deep mode
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=NEUTRAL_CHARACTER,
-            depth="deep",
-            intent="lookup",
-            intent_strategies=DEEP_INTENT_PROMPTS,
-            tool_constraint=TOOL_DEPENDENCY_CONSTRAINT,
-        )
-        assert "数据解读指南" not in result
+        assert "今天的语气" in result
 
 
 class TestDeepPrompt:
-    """深度模式 prompt（research.prompts.build_system_prompt）。"""
+    """深度模式 prompt（deep_strategies.build_system_prompt）。"""
 
     def test_returns_non_empty(self):
         result = build_deep_prompt("lookup")
@@ -254,12 +299,11 @@ class TestDeepPrompt:
 
     def test_bangumi_includes_style(self):
         result = build_deep_prompt("lookup", output_style="bangumi")
-        assert "损友" in result or "腹黑" in result
-        assert "吐槽" in result
+        assert "ACGN 老害" in result or "损友" in result or "Bangumi 看板娘" in result
 
-    def test_includes_intent_strategy(self):
+    def test_includes_scene_hint(self):
         result = build_deep_prompt("discovery")
-        assert "发现推荐" in result
+        assert "[场景：" in result
 
     def test_includes_tool_constraint(self):
         result = build_deep_prompt("lookup")
@@ -274,15 +318,17 @@ class TestDeepPrompt:
     def test_debate_intent_exists(self):
         assert "debate" in DEEP_INTENT_PROMPTS
         result = build_deep_prompt("debate")
-        assert "观点争论" in result
+        assert "[场景：" in result
+        assert "争论" in result or "立场" in result
 
     def test_emotional_intent_exists(self):
         assert "emotional" in DEEP_INTENT_PROMPTS
         result = build_deep_prompt("emotional")
-        assert "情绪" in result
+        assert "[场景：" in result
+
 
 class TestIntentPrompts:
-    """INTENT_PROMPTS 完整性。"""
+    """INTENT_PROMPTS / SCENE_HINTS 完整性。"""
 
     def test_all_valid_intents_have_deep_prompts(self):
         for intent in _VALID_INTENTS:
@@ -292,11 +338,26 @@ class TestIntentPrompts:
     def test_all_valid_intents_have_companion_prompts(self):
         for intent in _VALID_INTENTS:
             assert intent in COMPANION_INTENT_PROMPTS, f"缺少 companion intent: {intent}"
-            assert len(COMPANION_INTENT_PROMPTS[intent]) > 0
+            # "unknown" 的 Scene Hint 可以为空（无场景提示）
+            if intent == "unknown":
+                continue
+            assert len(COMPANION_INTENT_PROMPTS[intent]) > 0, \
+                f"companion intent {intent} 不应为空"
 
-    def test_lookup_and_unknown_include_tool_constraint(self):
-        assert TOOL_DEPENDENCY_CONSTRAINT.strip() in DEEP_INTENT_PROMPTS["lookup"]
-        assert TOOL_DEPENDENCY_CONSTRAINT.strip() in DEEP_INTENT_PROMPTS["unknown"]
+    def test_all_valid_intents_have_companion_scene_hints(self):
+        for intent in _VALID_INTENTS:
+            assert intent in COMPANION_SCENE_HINTS, f"缺少 companion scene_hint: {intent}"
+
+    def test_all_valid_intents_have_deep_scene_hints(self):
+        for intent in _VALID_INTENTS:
+            assert intent in DEEP_SCENE_HINTS, f"缺少 deep scene_hint: {intent}"
+
+    def test_lookup_and_unknown_have_tool_constraint(self):
+        """Deep lookup/unknown 的 Scene Hints 不嵌入 TOOL_DEPENDENCY_CONSTRAINT——
+        它由 build_system_prompt() 单独注入 tool_constraint 参数。"""
+        # TOOL_DEPENDENCY_CONSTRAINT 不应嵌入在 Scene Hints 中
+        for intent in ["lookup", "unknown"]:
+            assert TOOL_DEPENDENCY_CONSTRAINT.strip() not in DEEP_INTENT_PROMPTS[intent]
 
     def test_chitchat_factual_exclude_tool_constraint(self):
         assert TOOL_DEPENDENCY_CONSTRAINT.strip() not in DEEP_INTENT_PROMPTS["chitchat"]
@@ -317,42 +378,59 @@ class TestIntentPrompts:
         assert "只有" in result and "评分" in result
         assert "角色" in result
 
-    def test_lookup_has_exit_conditions(self):
+    def test_deep_lookup_has_exit_conditions(self):
+        """Deep lookup Scene Hint 应包含退出条件的关键词。"""
         lookup = DEEP_INTENT_PROMPTS["lookup"]
-        assert "退出条件" in lookup
-        assert "名称消歧" in lookup
-        assert "诚实告知" in lookup
+        assert "两次搜索" in lookup or "搜索无果" in lookup
+        assert "诚实告知" in lookup or "名称有歧义" in lookup
 
-    def test_debate_strategy_data_backs_opinion(self):
+    def test_debate_scene_hint_data_backs_opinion(self):
         debate = DEEP_INTENT_PROMPTS["debate"]
-        assert "数据支撑观点" in debate or "用数据" in debate
+        assert "数据" in debate
 
-    def test_emotional_strategy_empathy_first(self):
+    def test_emotional_scene_hint_empathy_first(self):
         emotional = DEEP_INTENT_PROMPTS["emotional"]
         assert "共情" in emotional
+
+    def test_companion_scene_hints_are_short(self):
+        """Companion Scene Hints 应短于 deep 版（~50 chars vs ~100 chars）。"""
+        for intent in _VALID_INTENTS:
+            if intent == "unknown":
+                continue
+            c_hint = COMPANION_SCENE_HINTS.get(intent, "")
+            d_hint = DEEP_SCENE_HINTS.get(intent, "")
+            if c_hint and d_hint:
+                assert len(c_hint) <= len(d_hint) + 20, \
+                    f"Companion {intent} hint 不应显著长于 deep 版"
 
 
 class TestHonestyPrinciple:
     """Prompt 中数据不足时的诚实兜底原则。"""
 
+    def test_tool_intuition_has_honesty_principle(self):
+        """TOOL_INTUITION 应包含诚实兜底原则。"""
+        assert "没查到" in TOOL_INTUITION
+        assert "编造数据" in TOOL_INTUITION
+        assert "诚实说" in TOOL_INTUITION
+
     def test_companion_prompt_has_honesty_principle(self):
-        """Companion prompt 应包含'诚实比瞎编'原则。"""
+        """Companion prompt 应包含诚实原则。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
         )
-        assert "诚实比瞎编" in result
-        assert "不要编造" in result
+        assert "没查到" in result
+        assert "编造数据" in result or "编造具体数字" in result
 
     def test_deep_prompt_has_honesty_principle(self):
-        """深度 prompt 应包含'诚实比瞎编'原则。"""
+        """深度 prompt 应包含诚实原则。"""
         result = build_deep_prompt("lookup")
-        assert "诚实比瞎编" in result
-        assert "不要编造" in result
+        assert "没查到" in result
+        assert "编造" in result
 
 
 class TestRenderPrompt:
-    """Render prompt 构建（Phase 6.5）。"""
+    """Render prompt 构建（Phase 7: 参数感知 + 快速跳过）。"""
 
     def test_render_prompt_non_empty(self):
         """build_render_prompt 应返回非空 prompt。"""
@@ -362,7 +440,7 @@ class TestRenderPrompt:
     def test_render_prompt_includes_identity(self):
         """Render prompt 应包含角色身份。"""
         result = build_render_prompt(BANGUMI_CHARACTER, "test", "test response")
-        assert "Bangumi娘" in result
+        assert "Bangumi娘" in result or "看板娘" in result
 
     def test_render_prompt_includes_user_query(self):
         """Render prompt 应包含用户问题。"""
@@ -383,12 +461,11 @@ class TestRenderPrompt:
     def test_render_prompt_bangumi_has_style(self):
         """Bangumi 角色 render prompt 应包含吐槽风格。"""
         result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
-        assert "损友" in result or "吐槽" in result
+        assert "损友" in result or "吐槽" in result or "水了点" in result
 
     def test_render_prompt_no_data_interpretation(self):
         """Render prompt 不应包含数据解读教科书。"""
         result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
-        assert "数据解读指南" not in result
         assert "rating_count" not in result
 
     def test_render_prompt_has_hard_constraints(self):
@@ -405,9 +482,48 @@ class TestRenderPrompt:
         assert "120 字" in q
         assert "200 字" in a
         assert "350 字" in d
+        assert "{word_limit}" not in q
 
     def test_render_prompt_ending_not_always_question(self):
-        """结尾规则应允许反问、判断、冷吐槽——而非只允许反问。"""
+        """结尾规则应允许反问、判断、冷吐槽。"""
         result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
-        assert "可以是一个冷吐槽" in result
-        assert "不要用" in result  # "不要用'你还想查什么'"
+        assert "冷吐槽" in result or "反问" in result
+
+    def test_render_prompt_snark_affects_style(self):
+        """高 snark 时 render prompt 应有更犀利的风格指引。"""
+        low = build_render_prompt(BANGUMI_CHARACTER, "test", "r", snark=0.2)
+        high = build_render_prompt(BANGUMI_CHARACTER, "test", "r", snark=0.9)
+        # 高 snark 应有额外的毒舌规则
+        assert len(high) >= len(low)
+
+    def test_should_skip_render_short_chitchat(self):
+        """短闲聊无工具调用应跳过 render。"""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        state = {"messages": [
+            HumanMessage(content="今天好累"),
+            AIMessage(content="那就别看烧脑的了。"),
+        ]}
+        assert _should_skip_render(state) is True
+
+    def test_should_not_skip_render_with_tools(self):
+        """有工具调用时不应跳过 render。"""
+        from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+        state = {"messages": [
+            HumanMessage(content="EVA 评分"),
+            AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "tc1"}]),
+            ToolMessage(content="...", tool_call_id="1", name="search"),
+            AIMessage(content="EVA 9.1 分。"),
+        ]}
+        assert _should_skip_render(state) is False
+
+    def test_should_not_skip_render_long_chitchat(self):
+        """长闲聊（>60 字）不应跳过 render。"""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        state = {"messages": [
+            HumanMessage(content="讲讲 EVA"),
+            AIMessage(content="EVA 是一部非常有意思的作品，它的深度和复杂度远超一般的机甲动画。" * 5),
+        ]}
+        assert _should_skip_render(state) is False

@@ -34,7 +34,8 @@ class TestGraphIntegration:
     """端到端图谱：基本路径 + 熔断"""
 
     @patch("agent.orchestrate.nodes.create_llm")
-    async def test_chitchat_fast_path_skips_critic(self, mock_create_llm):
+    async def test_chitchat_deep_still_goes_to_critic(self, mock_create_llm):
+        """chitchat + depth=deep → critic 仍会评估（Phase 7: chitchat 快速通道已移除）"""
         mock_create_llm.return_value = make_mock_llm(content="你好！")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -42,7 +43,8 @@ class TestGraphIntegration:
             query_intent="chitchat", iterations=1, depth="deep",
         )
         result = await graph.ainvoke(state)
-        assert result.get("critic_status") == "PENDING"
+        # chitchat + deep → 路由到 critic_node → rule critic 判定 PASS
+        assert result.get("critic_status") == "PASS"
 
     @patch("agent.orchestrate.nodes.create_llm")
     async def test_circuit_breaker(self, mock_create_llm):

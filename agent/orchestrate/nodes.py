@@ -24,7 +24,7 @@ from agent.llm import create_llm
 from agent.memory.short_term import DEFAULT_MAX_TOKENS, DIALOGUE_MAX_TOKENS, manage_memory
 from agent.persona.profiles import get_agent_profile, get_character
 from agent.orchestrate.prompt_builder import build_system_prompt
-from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS
+from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
 from agent.orchestrate.helpers import (
     build_message_list,
     classify_intent_step,
@@ -34,6 +34,7 @@ from agent.orchestrate.helpers import (
 )
 from agent.orchestrate.deep_strategies import (
     CRITIC_SYSTEM_PROMPT,
+    DEEP_SCENE_HINTS,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
     TOOL_DEPENDENCY_CONSTRAINT,
     _DATA_MODEL_CONSTRAINT,
@@ -135,6 +136,7 @@ async def reasoning_node(state: AgentState) -> dict:
             depth="deep",
             intent=query_intent,
             intent_strategies=DEEP_INTENT_PROMPTS,
+            scene_hints=DEEP_SCENE_HINTS,
             tool_constraint=TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT,
             memory_context=memory_context,
             critic_feedback=critic_feedback,
@@ -146,6 +148,7 @@ async def reasoning_node(state: AgentState) -> dict:
             depth=depth,
             intent=query_intent,
             intent_strategies=COMPANION_INTENT_PROMPTS,
+            scene_hints=COMPANION_SCENE_HINTS,
             memory_context=memory_context,
         )
 

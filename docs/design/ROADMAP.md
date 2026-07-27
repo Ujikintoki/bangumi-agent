@@ -166,6 +166,8 @@ L1 + L2 活跃，L3 废弃。
 | [`docs/design/phase5-memory-system-design.md`](phase5-memory-system-design.md) | Phase 5 记忆系统完整设计 |
 | [`docs/design/data-layer-redesign-discussion.md`](data-layer-redesign-discussion.md) | 工具层 str→dict 迁移决策过程 |
 | [`docs/design/bangumi-api-schema-methodology.md`](bangumi-api-schema-methodology.md) | A/B/C/D 字段决策方法论 |
+| [`docs/design/claude-on-bangumi-vision.md`](claude-on-bangumi-vision.md) | Claude on Bangumi 产品愿景（"是什么"） |
+| [`docs/design/evolution-roadmap-phase7-9.md`](evolution-roadmap-phase7-9.md) | 分层演进路线 Phase 7-9（"怎么到那里"） |
 | [`docs/memory/`](../memory/) | 记忆系统手册（6 文件） |
 | [`docs/tool-guide.md`](../tool-guide.md) | 工具增/改/删操作指南 |
 | [`docs/Tools/tools_file.md`](../Tools/tools_file.md) | 16 个工具设计详情 |

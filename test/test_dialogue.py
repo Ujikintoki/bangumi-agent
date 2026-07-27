@@ -226,8 +226,8 @@ class TestRouting:
         )
         assert route_after_reasoning(state) == "tool_node"
 
-    def test_no_tool_calls_quick_routes_to_end(self):
-        """AIMessage 有 content 但无 tool_calls + depth="quick" → END"""
+    def test_no_tool_calls_quick_routes_to_render(self):
+        """AIMessage 有 content 但无 tool_calls + depth="quick" → render_node（Phase 7: 始终走 render）"""
         from agent.graph import route_after_reasoning
 
         state = _make_state(
@@ -240,7 +240,7 @@ class TestRouting:
             query_intent="chitchat",
             depth="quick",
         )
-        assert route_after_reasoning(state) == "__end__"
+        assert route_after_reasoning(state) == "render_node"
 
     def test_no_tool_calls_deep_routes_to_critic(self):
         """AIMessage 无 tool_calls + depth="deep" → critic_node"""

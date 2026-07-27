@@ -76,8 +76,6 @@ from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.graph")
 
-_FAST_PATH_INTENTS = frozenset({"chitchat"})
-
 
 def _has_tool_calls_in_current_turn(messages: list) -> bool:
     """检查当前轮次是否有工具调用。
@@ -114,14 +112,12 @@ def _has_tool_calls_in_current_turn(messages: list) -> bool:
 def route_after_reasoning(
     state: AgentState,
 ) -> Literal["tool_node", "critic_node", "render_node", "__end__"]:
-    """reasoning_node 后的条件边（原生消息路由）。
+    """reasoning_node 后的条件边。
 
-    五级路由（优先级从高到低）：
+    四级路由（Phase 7：chitchat 不再走快速通道到 END——统一过 render）：
         1. AIMessage.tool_calls 非空 → tool_node
-        2. query_intent = chitchat   → END（快速通道，不过 render）
-        3. depth == "deep"          → critic_node（由 critic 决定是否 render）
-        4. 当前轮有工具调用           → render_node → END
-        5. 其他                     → END
+        2. depth == "deep"          → critic_node（由 critic 决定是否 render）
+        3. 其他                     → render_node → END（短闲聊由 _should_skip_render 自动跳过）
     """
     from langchain_core.messages import AIMessage
 
@@ -139,34 +135,22 @@ def route_after_reasoning(
         )
         return "tool_node"
 
-    query_intent = state.get("query_intent", "unknown")
-    if query_intent in _FAST_PATH_INTENTS:
-        logger.debug(
-            "route_after_reasoning: intent=%s → 快速通道 END", query_intent
-        )
-        return END
-
     depth = state.get("depth", "auto")
     if depth == "deep":
+        query_intent = state.get("query_intent", "unknown")
         logger.debug(
             "route_after_reasoning: depth=deep intent=%s 无工具调用 → critic_node",
             query_intent,
         )
         return "critic_node"
 
-    # 非 deep 模式：有工具调用 → render 后结束
-    if _has_tool_calls_in_current_turn(messages):
-        logger.debug(
-            "route_after_reasoning: depth=%s intent=%s 有工具调用 → render_node",
-            depth, query_intent,
-        )
-        return "render_node"
-
+    # Phase 7: 所有非 deep、非工具路径统一走 render_node
+    # _should_skip_render 在 render_node 内部自动跳过短闲聊
     logger.debug(
-        "route_after_reasoning: depth=%s intent=%s 无工具调用 → END",
-        depth, query_intent,
+        "route_after_reasoning: depth=%s intent=%s → render_node",
+        depth, state.get("query_intent", "unknown"),
     )
-    return END
+    return "render_node"
 
 
 # ── 条件路由: critic → retry / END ──────────────────────────
