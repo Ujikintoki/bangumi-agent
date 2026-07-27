@@ -33,6 +33,7 @@ def create_llm(
     model: str | None = None,
     request_timeout: float | None = None,
     settings: Settings | None = None,
+    _telemetry_label: str | None = None,
     **kwargs: Any,
 ) -> ChatOpenAI:
     """创建 ChatOpenAI 实例，自动适配 provider。
@@ -87,7 +88,7 @@ def create_llm(
             resolved_model,
             azure_api_version,
         )
-        return AzureChatOpenAI(
+        llm = AzureChatOpenAI(
             azure_endpoint=azure_endpoint.rstrip("/"),
             deployment_name=resolved_model,
             openai_api_version=azure_api_version,
@@ -97,6 +98,7 @@ def create_llm(
             request_timeout=resolved_timeout,
             **kwargs,
         )
+        return _maybe_wrap_telemetry(llm, _telemetry_label)
 
     # ── 自定义 base_url 模式（DeepSeek / Qwen / ...） ─────
     base_url = settings.LLM_BASE_URL
@@ -106,7 +108,7 @@ def create_llm(
             base_url,
             resolved_model,
         )
-        return ChatOpenAI(
+        llm = ChatOpenAI(
             model=resolved_model,
             base_url=base_url,
             api_key=api_key,
@@ -115,10 +117,11 @@ def create_llm(
             request_timeout=resolved_timeout,
             **kwargs,
         )
+        return _maybe_wrap_telemetry(llm, _telemetry_label)
 
     # ── 标准 OpenAI 模式 ───────────────────────────────────
     logger.info("create_llm: OpenAI mode — model=%s", resolved_model)
-    return ChatOpenAI(
+    llm = ChatOpenAI(
         model=resolved_model,
         api_key=api_key,
         temperature=resolved_temperature,
@@ -126,6 +129,7 @@ def create_llm(
         request_timeout=resolved_timeout,
         **kwargs,
     )
+    return _maybe_wrap_telemetry(llm, _telemetry_label)
 
 
 def _resolve_api_key(settings: Settings) -> str:
@@ -162,3 +166,17 @@ def _resolve_api_key(settings: Settings) -> str:
         "  - OPENAI_API_KEY\n"
         "  - AZURE_OPENAI_API_KEY"
     )
+
+
+def _maybe_wrap_telemetry(
+    llm: ChatOpenAI, label: str | None
+) -> ChatOpenAI:
+    """DEV_MODE 时用 TelemetryLLMWrapper 包装 LLM，透明记录 token 消耗。"""
+    if label is None:
+        return llm
+    from agent.devtools import TelemetryLLMWrapper, get_current_telemetry
+
+    telemetry = get_current_telemetry()
+    if telemetry is None:
+        return llm
+    return TelemetryLLMWrapper(llm, label=label, telemetry=telemetry)  # type: ignore[return-value]

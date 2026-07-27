@@ -160,7 +160,7 @@ async def render_node(state: dict) -> dict:
     character = get_character(output_style)
     render_prompt = build_render_prompt(character, user_query, last_ai.content, depth=depth)
 
-    llm = create_llm(temperature=RENDER_TEMPERATURE)
+    llm = create_llm(temperature=RENDER_TEMPERATURE, _telemetry_label="render")
     try:
         response = await llm.ainvoke([HumanMessage(content=render_prompt)])
         rendered = (

@@ -164,7 +164,7 @@ async def reasoning_node(state: AgentState) -> dict:
         messages_for_llm = build_message_list(messages, system_content)
 
     # ── Step 4: LLM 调用 ────────────────────────────────────
-    llm = create_llm()
+    llm = create_llm(_telemetry_label=f"reasoning#{state['iterations'] + 1}")
 
     is_digesting = messages and isinstance(messages[-1], ToolMessage)
     if is_digesting:
@@ -464,7 +464,7 @@ async def _critic_node_llm(state: AgentState) -> dict:
 
     settings = get_settings()
     critic_model = settings.LLM_CRITIC_MODEL or settings.LLM_MODEL
-    llm = create_llm(model=critic_model, temperature=0)
+    llm = create_llm(model=critic_model, temperature=0, _telemetry_label="critic")
 
     eval_context = f"""用户问题: {user_query}
 

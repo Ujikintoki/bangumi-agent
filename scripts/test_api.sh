@@ -35,8 +35,15 @@ try:
     intent = d.get('query_intent', '?')
     depth = d.get('depth', '?')
     style = d.get('output_style', '?')
+    telemetry = d.get('telemetry')
     print(f'[{style.upper()}] depth={depth} | intent={intent} | {iters} iters | tools={tools}')
     print(f'字数: {wc}')
+    if telemetry:
+        print(f'耗时: {telemetry.get(\"elapsed_ms\", \"?\")}ms')
+        for c in telemetry.get('llm_calls', []):
+            print(f'  LLM {c[\"label\"]}: {c[\"elapsed_ms\"]}ms | in={c[\"prompt_tokens\"]} out={c[\"completion_tokens\"]}')
+        for t in telemetry.get('node_timings', []):
+            print(f'  Node {t[\"node\"]}: {t[\"elapsed_ms\"]}ms')
     print('───')
     print(reply)
 except Exception as e:

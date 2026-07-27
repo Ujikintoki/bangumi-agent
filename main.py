@@ -18,10 +18,11 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel, Field
 
+from agent.devtools import RequestTelemetry, set_current_telemetry
 from agent.graph import agent_app
+from agent.memory.cache import get_session_cache
 from agent.persona.profiles import get_agent_profile
 from agent.state import AgentState
-from agent.memory.cache import get_session_cache
 from core.config import get_settings
 from database.engine import init_db
 
@@ -95,6 +96,9 @@ class ChatResponse(BaseModel):
     query_intent: str = Field(default="unknown", description="查询意图分类结果")
     output_style: str = Field(default="bangumi", description="实际使用的输出渲染风格")
     depth: str = Field(default="auto", description="实际使用的深度模式")
+    telemetry: dict | None = Field(
+        default=None, description="开发者可观测性数据（仅 DEV_MODE=true 时返回）"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -235,8 +239,16 @@ async def chat(request: ChatRequest) -> ChatResponse:
         "depth": depth,
     }
 
+    telemetry = None
+    if settings.DEV_MODE:
+        telemetry = RequestTelemetry()
+        set_current_telemetry(telemetry)
+
     try:
-        result = await agent_app.ainvoke(initial_state)
+        if telemetry:
+            result = await _run_with_telemetry(initial_state, telemetry)
+        else:
+            result = await agent_app.ainvoke(initial_state)
     except Exception as e:
         logger.exception("/chat: Agent 执行异常")
         return ChatResponse(
@@ -247,6 +259,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
             output_style=output_style,
             depth=depth,
         )
+    finally:
+        if telemetry:
+            set_current_telemetry(None)
 
     # ── L1 Session 缓存：保存本轮消息 ──
     max_cached = 30 if depth == "deep" else 20
@@ -275,6 +290,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         query_intent=result.get("query_intent", "unknown"),
         output_style=output_style,
         depth=depth,
+        telemetry=telemetry.to_dict() if telemetry else None,
     )
 
 
@@ -347,6 +363,36 @@ async def chat_stream(request: ChatRequest):
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# DEV_MODE: 节点计时
+# ═══════════════════════════════════════════════════════════════════
+
+
+async def _run_with_telemetry(
+    initial_state: dict, telemetry: RequestTelemetry
+) -> dict:
+    """用 ``astream()`` 跑 graph，记录每个节点的起止时间。
+
+    和 ``ainvoke()`` 的最终结果一致，但额外在过程中记录 NodeTiming。
+    """
+    import time
+
+    prev_time = telemetry.t_start
+    final_state = initial_state
+
+    async for event in agent_app.astream(initial_state):
+        now = time.monotonic()
+        for node_name, node_output in event.items():
+            from agent.devtools import NodeTiming
+
+            elapsed = (now - prev_time) * 1000
+            telemetry.add_node_timing(NodeTiming(node=node_name, elapsed_ms=int(elapsed)))
+            prev_time = now
+            final_state = node_output
+
+    return final_state
 
 
 # ═══════════════════════════════════════════════════════════════════

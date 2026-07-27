@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     """运行环境标识，可选值如 development / staging / production。"""
 
+    DEV_MODE: bool = False
+    """开发者可观测性开关。开启后 /chat 响应附带 token 统计 + 节点耗时。"""
+
     # ── 数据库配置 ────────────────────────────────────────────
     DATABASE_URL: str = "postgresql://myuser:mypassword@localhost:5432/bangumidb"
     """PostgreSQL 数据库连接 URL，默认连接本地 bangumidb 库。"""
