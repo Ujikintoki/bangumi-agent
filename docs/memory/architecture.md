@@ -20,7 +20,7 @@
 
 ### L1 短记忆 — 滑动窗口截断
 
-**文件**: `agent/memory.py`
+**文件**: `agent/memory/short_term.py`
 
 **职责**: 确保 token 预算不超限，保留最近消息。
 
@@ -40,7 +40,7 @@
 
 ### L2 长记忆 — 跨 session 语义召回
 
-**文件**: `agent/memory_manager.py`
+**文件**: `agent/memory/long_term.py`
 
 **职责**: 将历史对话的 LLM 摘要向量化存储，新对话时语义检索相关历史。
 
@@ -73,7 +73,7 @@ reasoning_node 首轮
 
 > **L3 已于 Phase 5.5 废弃。** 以下内容仅供历史参考。L2 语义记忆单独承担跨 session 上下文。
 
-**文件**: `agent/memory_manager.py`（同 L2 管理器，相关函数已 no-op）
+**文件**: `agent/memory/long_term.py`（同 L2 管理器，相关函数已 no-op）
 
 **职责**: ~~跨 session 聚合用户偏好，提供"用户是谁"的长期上下文。~~
 
@@ -183,7 +183,7 @@ updated_at (datetime)
 
 ## Agent 集成点
 
-### Companion Agent (`agent/nodes.py`) — Phase 6 统一入口
+### Companion Agent (`agent/orchestrate/nodes.py`) — Phase 6 统一入口
 
 ```
 reasoning_node (首轮 iterations==0):

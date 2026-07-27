@@ -17,8 +17,8 @@
 ```
 bgm-agent-dev/
 ├── agent/
-│   ├── memory.py              ← L1 短记忆（滑动窗口 + 两层截断）
-│   └── memory_manager.py      ← L2 长记忆（召回 + 写入），L3 画像已废弃
+│   ├── memory/short_term.py   ← L1 短记忆（滑动窗口 + 两层截断）
+│   └── memory/long_term.py    ← L2 长记忆（召回 + 写入），L3 画像已废弃
 ├── database/
 │   ├── memory_tables.py       ← ORM 模型（三张表）
 │   └── engine.py              ← 索引创建（HNSW + B-tree）
@@ -27,7 +27,7 @@ bgm-agent-dev/
 ├── clients/
 │   └── zhipu_client.py        ← embedding 基础设施（共享）
 ├── main.py                    ← fire-and-forget 写入调度
-├── agent/nodes.py             ← L2 记忆召回（单 Agent 入口）
+├── agent/orchestrate/nodes.py  ← L2 记忆召回（单 Agent 入口）
 └── test/
     ├── test_memory.py         ← L1 测试 (21) + 时间衰减 (10)
     └── test_memory_manager.py ← L2/L3 测试 (15)
@@ -37,8 +37,8 @@ bgm-agent-dev/
 
 | 层级 | 存储内容 | 生命周期 | 存储介质 | 核心模块 |
 |------|---------|---------|---------|---------|
-| **L1** | 当前 session 对话历史 | 单 session | 内存 | `agent/memory.py` |
-| **L2** | LLM 摘要 + embedding | 跨 session | PostgreSQL + pgvector | `agent/memory_manager.py` |
+| **L1** | 当前 session 对话历史 | 单 session | 内存 | `agent/memory/short_term.py` |
+| **L2** | LLM 摘要 + embedding | 跨 session | PostgreSQL + pgvector | `agent/memory/long_term.py` |
 | **L3** | ~~用户偏好画像~~ | ~~跨 session~~ | ~~PostgreSQL JSONB~~ | ⛔ 已废弃（2026-07-20） |
 
 ## 核心数据流（一句话版）

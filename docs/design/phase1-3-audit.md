@@ -19,12 +19,12 @@ Phase 1-3 是项目的早期地基：API 客户端、RAG 检索、工具函数�
 | 数据库 ORM | 1 | `database/models.py`, `database/engine.py` | RagEntity 模型。和数据消费方式无关。 |
 | 数据库记忆 | 5 | `database/memory_tables.py` | `SessionMemory` 表无 `agent_type` 列——不需要迁移。`public_memories` 表已创建但未使用（Phase 6 预留）。 |
 | Schema | 2 | `schemas/tools_input.py`, `schemas/__init__.py` | Pydantic 工具输入 schema。工具不改则不碰。 |
-| 意图分类 | 4 | `agent/classifier.py` | 8 种意图分类逻辑不变。可以加一个深度信号检测函数（独立于现有分类器）。 |
-| 护栏 | 4 | `agent/guardrails.py` | 终端回复检测（逃逸舱）、XML 泄漏剥离、重复工具调用检测——Companion 仍然需要全部。 |
-| 共享辅助 | 4 | `agent/reasoning_core.py` | `classify_intent_step`、`recall_memory_step`、`build_message_list` 均与 agent 拓扑无关。 |
-| 记忆 L1 | 5 | `agent/memory.py` | 滑动窗口 + tiktoken 截断。纯 Token 管理，和 agent 类型无关。 |
-| 记忆 L2 | 5 | `agent/memory_manager.py` | 语义召回 + 时间衰减。和 agent 拓扑无关。但 `recall_for_prompt()` 的 `max_tokens` 和 `recall_threshold` 参数由调用方传入——调用方需要传 Companion 适用的值（见下 config 部分）。 |
-| Session 缓存 | 5 | `agent/session_cache.py` | 跨 HTTP 请求缓存。和 agent 拓扑无关。 |
+| 意图分类 | 4 | `agent/orchestrate/classifier.py` | 8 种意图分类逻辑不变。可以加一个深度信号检测函数（独立于现有分类器）。 |
+| 护栏 | 4 | `agent/orchestrate/guardrails.py` | 终端回复检测（逃逸舱）、XML 泄漏剥离、重复工具调用检测——Companion 仍然需要全部。 |
+| 共享辅助 | 4 | `agent/orchestrate/helpers.py` | `classify_intent_step`、`recall_memory_step`、`build_message_list` 均与 agent 拓扑无关。 |
+| 记忆 L1 | 5 | `agent/memory/short_term.py` | 滑动窗口 + tiktoken 截断。纯 Token 管理，和 agent 类型无关。 |
+| 记忆 L2 | 5 | `agent/memory/long_term.py` | 语义召回 + 时间衰减。和 agent 拓扑无关。但 `recall_for_prompt()` 的 `max_tokens` 和 `recall_threshold` 参数由调用方传入——调用方需要传 Companion 适用的值（见下 config 部分）。 |
+| Session 缓存 | 5 | `agent/memory/cache.py` | 跨 HTTP 请求缓存。和 agent 拓扑无关。 |
 
 ---
 
@@ -120,10 +120,10 @@ class ChatResponse(BaseModel):
 
 | 文件 | 变化 |
 |------|------|
-| `agent/profiles.py` | `BANGUMI_CHARACTER` 重写为 Companion 损友人格；`BANGUMI_RESEARCH_CHARACTER` 删除；`DIALOGUE_PROFILE` + `RESEARCH_PROFILE` 合并为 `COMPANION_PROFILE`；`get_character()` 不再接受 `agent_type` 参数 |
-| `agent/prompt_builder.py` | 14 层 → 8 层；`expression_guide` 从 layer 12 提前到 layer 2；`build_system_prompt()` 接受 `depth` 参数；`_DATA_INTERPRETATION` 通过 `data_guide` 参数条件注入 |
-| `agent/prompts.py` | **新建** — Companion 浅层意图策略（`COMPANION_INTENT_PROMPTS`） |
-| `agent/research/prompts.py` | 重构为深度模式专用：保留 `INTENT_PROMPTS`、`TOOL_DEPENDENCY_CONSTRAINT`、`_DATA_MODEL_CONSTRAINT`、`CRITIC_SYSTEM_PROMPT` |
+| `agent/persona/profiles.py` | `BANGUMI_CHARACTER` 重写为 Companion 损友人格；`BANGUMI_RESEARCH_CHARACTER` 删除；`DIALOGUE_PROFILE` + `RESEARCH_PROFILE` 合并为 `COMPANION_PROFILE`；`get_character()` 不再接受 `agent_type` 参数 |
+| `agent/orchestrate/prompt_builder.py` | 14 层 → 8 层；`expression_guide` 从 layer 12 提前到 layer 2；`build_system_prompt()` 接受 `depth` 参数；`_DATA_INTERPRETATION` 通过 `data_guide` 参数条件注入 |
+| `agent/orchestrate/strategies.py` | **新建** — Companion 浅层意图策略（`COMPANION_INTENT_PROMPTS`） |
+| `agent/orchestrate/deep_strategies.py` | 重构为深度模式专用：保留 `INTENT_PROMPTS`、`TOOL_DEPENDENCY_CONSTRAINT`、`_DATA_MODEL_CONSTRAINT`、`CRITIC_SYSTEM_PROMPT` |
 | `test/test_prompts.py` | Profile 测试更新：检查 `COMPANION_PROFILE`、`"二次元损友"`、`"让对话有趣"`；新增 shallow vs deep 分支测试 |
 
 ---

@@ -2,7 +2,7 @@
 
 ## 核心函数速查
 
-### L1 短记忆 (`agent/memory.py`)
+### L1 短记忆 (`agent/memory/short_term.py`)
 
 | 函数 | 签名 | 用途 |
 |------|------|------|
@@ -13,7 +13,7 @@
 
 **调用位置**: 每个 `reasoning_node` 开头，LLM invoke 前。
 
-### L2 长记忆 (`agent/memory_manager.py`) — L3 已废弃
+### L2 长记忆 (`agent/memory/long_term.py`) — L3 已废弃
 
 | 方法 | 签名 | 用途 |
 |------|------|------|
@@ -35,7 +35,7 @@
 
 ### 1. 时间衰减组合评分
 
-**文件**: `agent/memory_manager.py:734-776`
+**文件**: `agent/memory/long_term.py:734-776`
 
 ```python
 similarity = 1.0 - cosine_distance
@@ -62,7 +62,7 @@ combined_score = similarity * decay
 
 ### 2. 双通道召回
 
-**文件**: `agent/memory_manager.py:84-236`
+**文件**: `agent/memory/long_term.py:84-236`
 
 ```
 ┌─ Step 1: embedding API ──────────────────────┐
@@ -99,7 +99,7 @@ combined_score = similarity * decay
 
 ### 3. 会话摘要生成（含实体提取）
 
-**文件**: `agent/memory_manager.py:455-540`
+**文件**: `agent/memory/long_term.py:455-540`
 
 ```
 输入: messages (完整对话) + final_reply (最终回复)
@@ -127,7 +127,7 @@ LLM (temperature=0, max_tokens=500, timeout=10s)
 
 ### 4. 用户画像增量更新
 
-**文件**: `agent/memory_manager.py:548-727`
+**文件**: `agent/memory/long_term.py:548-727`
 
 **新用户**: `_build_initial_preferences()` → 实体初始 interest_score=0.5，query_types 计数=1
 
@@ -148,7 +148,7 @@ genre_hints = {
 
 ### 5. 实体提取（已废弃的正则方法）
 
-**文件**: `agent/memory_manager.py:608-622`
+**文件**: `agent/memory/long_term.py:608-622`
 
 > **⛔ 已废弃 (2026-06-16)**：`_extract_key_entities()` 方法已废弃，始终返回空列表 `[]`。
 > 实体提取逻辑已合并到 `_summarize_session()` 的一次 LLM 调用中（见 §3 会话摘要生成）。

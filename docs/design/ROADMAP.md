@@ -9,7 +9,7 @@
 | 测试 | 573 passed + 23 skipped |
 | Agent 入口 | 1 个（`depth` 参数控制深度: auto/quick/deep） |
 | Graph 节点 | 5（reasoning + tool + critic + render + START/END） |
-| 工具 | 14 个 LangChain `@tool`，返回结构化 dict（A/B/C/D 方法论） |
+| 工具 | 16 个 LangChain `@tool`（13 无条件 + 3 token 门控），返回结构化 dict（A/B/C/D 方法论） |
 | 记忆 | L1 滑动窗口 + L2 语义召回（双通道 + 时间衰减），L3 废弃 |
 | 人格 | 2 个角色（bangumi/neutral）+ Render 层风格转换 |
 
@@ -114,7 +114,7 @@ L1 + L2 活跃，L3 废弃。
 
 ### 当前
 
-14 个工具 + BangumiClient + RAG + pgvector。自 dict 结构化重构后基本稳定。
+16 个工具 + BangumiClient + RAG + pgvector。自 dict 结构化重构后基本稳定。
 
 **工具**（`tools/bgm_tools.py`）：search, get_detail, get_calendar, get_trending, get_hot_topics, get_episode_discussion, get_opinions, get_episodes, get_comments, get_characters, get_person_detail, get_character_detail, get_user_profile, get_blog, user_timeline, search_local_bangumi
 
@@ -168,7 +168,7 @@ L1 + L2 活跃，L3 废弃。
 | [`docs/design/bangumi-api-schema-methodology.md`](bangumi-api-schema-methodology.md) | A/B/C/D 字段决策方法论 |
 | [`docs/memory/`](../memory/) | 记忆系统手册（6 文件） |
 | [`docs/tool-guide.md`](../tool-guide.md) | 工具增/改/删操作指南 |
-| [`docs/Tools/tools_file.md`](../Tools/tools_file.md) | 14 个工具设计详情 |
+| [`docs/Tools/tools_file.md`](../Tools/tools_file.md) | 16 个工具设计详情 |
 | [`docs/database-admin.md`](../database-admin.md) | PostgreSQL + pgvector 运维手册 |
 | [`docs/Rag/`](../Rag/) | RAG 策略、表结构、上下文（3 文件） |
 | [`docs/tmp/real_data_test.md`](../tmp/real_data_test.md) | Phase 5 测试数据基线 |

@@ -15,11 +15,11 @@ Layer 3  clients/sanitizers.py     字段白名单 + 类型强制 + 文本截断
 Layer 4  clients/client.py         HTTP 请求 + 错误处理
 Layer 5  tools/bgm_tools.py        @tool 函数 + _format_* 输出 + get_agent_tools() 注册
 Layer 6  tools/__init__.py         import + __all__ 注册
-Layer 7  agent/research/prompts.py TOOL_DEPENDENCY_CONSTRAINT（有依赖时）
+Layer 7  agent/orchestrate/deep_strategies.py TOOL_DEPENDENCY_CONSTRAINT（有依赖时）
 Layer 8  test/                     测试
 ```
 
-**不需要改的文件**：`main.py`、`agent/*/graph.py`、`agent/*/nodes.py`、`agent/prompt_builder.py`、`agent/classifier.py`、`core/config.py`、`database/`。
+**不需要改的文件**：`main.py`、`agent/graph.py`、`agent/orchestrate/nodes.py`、`agent/orchestrate/prompt_builder.py`、`agent/orchestrate/classifier.py`、`core/config.py`、`database/`。
 
 原因：ToolNode 从 `get_agent_tools()` 动态获取工具列表，工具注册对图谱拓扑完全透明。
 
@@ -316,7 +316,7 @@ async def {tool_name}({params}) -> str:
 
 在 import 块加 `get_group_topics`，在 `__all__` 加 `"get_group_topics"`。
 
-#### Step 7: `agent/research/prompts.py` — 依赖声明（有依赖时）
+#### Step 7: `agent/orchestrate/deep_strategies.py` — 依赖声明（有依赖时）
 
 **仅当工具有链式依赖时需要**（如 `get_bangumi_subject_detail` 需要先 search 拿 subject_id）。
 
@@ -364,7 +364,7 @@ async def {tool_name}({params}) -> str:
 
 ### 3.4 修改工具依赖关系
 
-**只改 `agent/research/prompts.py` 的 `TOOL_DEPENDENCY_CONSTRAINT`。**
+**只改 `agent/orchestrate/deep_strategies.py` 的 `TOOL_DEPENDENCY_CONSTRAINT`。**
 
 ---
 
@@ -395,7 +395,7 @@ async def {tool_name}({params}) -> str:
 □ 6. tools/bgm_tools.py — @tool 函数
 □ 7. tools/bgm_tools.py — get_agent_tools() 注册
 □ 8. tools/__init__.py — import + __all__
-□ 9. agent/research/prompts.py — TOOL_DEPENDENCY_CONSTRAINT（如有依赖）
+□ 9. agent/orchestrate/deep_strategies.py — TOOL_DEPENDENCY_CONSTRAINT（如有依赖）
 □ 10. 测试
 □ 11. 启动 uvicorn，发真实请求验证
 ```
@@ -428,9 +428,9 @@ async def {tool_name}({params}) -> str:
 | `sanitizer.truncations` | `clients/sanitizers.py` — `_truncate(field, max_len)` |
 | `sanitizer.transforms` | `clients/sanitizers.py` — 手写映射逻辑 |
 | `output_format` | `tools/bgm_tools.py` — `_format_*()` 函数 |
-| `dependencies.needs_search` | `agent/research/prompts.py` — `TOOL_DEPENDENCY_CONSTRAINT` |
+| `dependencies.needs_search` | `agent/orchestrate/deep_strategies.py` — `TOOL_DEPENDENCY_CONSTRAINT` |
 | `dependencies.needs_token` | `tools/bgm_tools.py` — `get_agent_tools()` 条件注册 |
-| `dependencies.parallel_safe_with` | `agent/research/prompts.py` — `TOOL_DEPENDENCY_CONSTRAINT` 第4组 |
+| `dependencies.parallel_safe_with` | `agent/orchestrate/deep_strategies.py` — `TOOL_DEPENDENCY_CONSTRAINT` 第4组 |
 | `description` | `tools/bgm_tools.py` — @tool 函数的 docstring |
 
 ---
@@ -445,6 +445,6 @@ async def {tool_name}({params}) -> str:
 | `clients/client.py` | ~700 行，14 个业务方法 |
 | `clients/base.py` | BaseClient — 重试/超时/认证 |
 | `tools/bgm_tools.py` | ~1800 行，14 个 @tool + 格式化 + 注册 |
-| `agent/research/prompts.py` | `TOOL_DEPENDENCY_CONSTRAINT` + `INTENT_PROMPTS` |
-| `agent/guardrails.py` | `format_tool_error`、`check_duplicate_tool_calls` |
+| `agent/orchestrate/deep_strategies.py` | `TOOL_DEPENDENCY_CONSTRAINT` + `INTENT_PROMPTS` |
+| `agent/orchestrate/guardrails.py` | `format_tool_error`、`check_duplicate_tool_calls` |
 | `test/test_bgm_tools.py` | 工具输出格式测试（13 个） |
