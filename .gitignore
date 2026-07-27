@@ -23,6 +23,7 @@ build/
 test/mock_data/
 docs/tmp/
 docs/phase3/
+docs/DEPRECATED/
 test/AI.js
 
 # ── Logs ─────────────────────────────────────────────────

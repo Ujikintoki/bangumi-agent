@@ -1,11 +1,13 @@
 # 记忆系统测试
 
+> 2026-07-27：Phase 6.5 — L3 已废弃，相关测试仍保留但仅验证 no-op 行为。
+
 ## 测试文件
 
 | 文件 | 用例数 | 覆盖范围 |
 |------|--------|---------|
-| `test/test_memory.py` | 31 | L1 短记忆 (21) + 时间衰减评分 (10) |
-| `test/test_memory_manager.py` | 15 | L2/L3 纯函数 (13) + DB 冒烟 (2) |
+| `test/test_memory.py` | ~31 | L1 短记忆 + 时间衰减评分 |
+| `test/test_memory_manager.py` | ~15 | L2 纯函数 + L3 no-op 验证 + DB 冒烟 |
 
 ## 运行测试
 
@@ -16,7 +18,7 @@ pytest test/test_memory.py test/test_memory_manager.py -v
 # 仅运行 L1 测试
 pytest test/test_memory.py -v
 
-# 仅运行 L2/L3 测试（跳过 DB 测试）
+# 仅运行 L2 测试（跳过 DB 测试）
 pytest test/test_memory_manager.py -v -m "not database"
 
 # 仅运行 DB 测试（需要 PostgreSQL + pgvector）
@@ -82,7 +84,7 @@ pytest test/test_memory.py::TestComputeCombinedScore -v
 | `test_future_date_clamped` | 未来时间戳 | clamp 到 0 天 |
 | `test_completely_irrelevant` | cos_dist=1.0 | score=0 |
 
-### L2/L3 长记忆 (`test/test_memory_manager.py`)
+### L2 长记忆 (`test/test_memory_manager.py`) — L3 已废弃
 
 #### `TestExtractKeyEntities` (5 tests)
 
@@ -93,6 +95,7 @@ pytest test/test_memory.py::TestComputeCombinedScore -v
 | `test_deduplication` | 重复「高达Seed」 | 去重为 1 |
 | `test_empty_summary` | "" | [] |
 | `test_no_brackets` | 无引号文本 | [] |
+| ~~正则实体提取~~ | ⛔ 已废弃（合并到 LLM JSON 联合输出） | 保留为 no-op 验证 |
 
 #### `TestFormatConversationText` (2 tests)
 

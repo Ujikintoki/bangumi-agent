@@ -2,13 +2,15 @@
 
 ## 配置项一览
 
+> ⚠️ 2026-07-27 更新：Phase 6 已合并双 Agent 为单一 Companion Agent（`depth` 参数控制深度）。旧 Research/Dialogue 双套配置需合并为 quick/auto/deep 分档。L3 用户画像已于 Phase 5.5 废弃。
+
 **文件**: `core/config.py`
 
 ### 开关
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
-| `MEMORY_ENABLED` | `True` | L2/L3 记忆总开关。关闭后所有记忆操作变为 no-op |
+| `MEMORY_ENABLED` | `True` | L2 记忆总开关（L3 已废弃）。关闭后所有记忆操作变为 no-op |
 
 ### 召回控制
 
@@ -21,16 +23,16 @@
 
 ### 注入预算
 
-| 配置项 | 默认值 | Agent |
-|--------|--------|-------|
-| `MEMORY_MAX_INJECT_TOKENS` | `500` | Research Agent 记忆注入上限 |
-| `MEMORY_DIALOGUE_MAX_INJECT_TOKENS` | `300` | Dialogue Agent 记忆注入上限 |
+| 配置项 | 默认值 | 适用 Depth |
+|--------|--------|-----------|
+| `MEMORY_MAX_INJECT_TOKENS` | `700` | deep 模式记忆注入上限（继承自旧 Research Agent） |
+| `MEMORY_DIALOGUE_MAX_INJECT_TOKENS` | `300` | auto/quick 模式记忆注入上限（待重命名为 `MEMORY_QUICK_MAX_INJECT_TOKENS`） |
 
-### 用户画像
+### 用户画像 ⛔ 已废弃
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
-| `MEMORY_MIN_SESSIONS_FOR_PROFILE` | `5` | 开始注入画像的最低 session 数（冷启动保护） |
+| `MEMORY_MIN_SESSIONS_FOR_PROFILE` | `5` | ⛔ L3 已废弃，此配置项零消费者。保留以备未来重新激活 |
 
 ---
 
@@ -79,15 +81,9 @@ MEMORY_DIALOGUE_MAX_INJECT_TOKENS=150
 
 **原理**: L1 对话窗口 = 总预算 - System Prompt - L2 注入。减小注入给对话留更多空间。
 
-### 场景 4: 用户画像太早出现（新用户就被打标签）
+### 场景 4: 用户画像太早出现 ⛔ L3 已废弃
 
-**症状**: 新用户只聊了 2-3 次就看到"偏好XX类作品"。
-
-**调整**:
-```bash
-# 提高冷启动门槛
-MEMORY_MIN_SESSIONS_FOR_PROFILE=10
-```
+> 此场景随 L3 废弃不再适用。保留供历史参考。
 
 ### 场景 5: 完全关闭记忆（调试/对比测试）
 
@@ -101,7 +97,7 @@ Agent 退化回纯 L1 滑动窗口模式。
 
 ## 配置组合建议
 
-### 默认（平衡）
+### 默认（平衡 — Companion Agent auto 模式）
 
 ```env
 MEMORY_ENABLED=True
@@ -109,25 +105,24 @@ MEMORY_RECALL_TOP_K=5
 MEMORY_RECALL_THRESHOLD=0.5
 MEMORY_RECENCY_FALLBACK_THRESHOLD=0.70
 MEMORY_TIME_DECAY_HALF_LIFE_DAYS=14
-MEMORY_MAX_INJECT_TOKENS=500
+MEMORY_MAX_INJECT_TOKENS=700
 MEMORY_DIALOGUE_MAX_INJECT_TOKENS=300
-MEMORY_MIN_SESSIONS_FOR_PROFILE=5
 ```
 
-适用: 通用场景，日活用户。
+适用: 通用场景，depth=auto 默认模式。
 
-### 精准优先（减少噪音）
+### 精准优先（减少噪音 — quick 模式）
 
 ```env
 MEMORY_RECALL_THRESHOLD=0.40
 MEMORY_RECENCY_FALLBACK_THRESHOLD=0.55
 MEMORY_RECALL_TOP_K=3
-MEMORY_MIN_SESSIONS_FOR_PROFILE=10
+MEMORY_DIALOGUE_MAX_INJECT_TOKENS=150
 ```
 
-适用: 对记忆精度要求高，宁可漏掉也不愿意错。
+适用: depth=quick，对记忆精度要求高，宁可漏掉也不愿意错。
 
-### 记忆优先（长上下文）
+### 记忆优先（长上下文 — deep 模式）
 
 ```env
 MEMORY_TIME_DECAY_HALF_LIFE_DAYS=30
@@ -136,7 +131,7 @@ MEMORY_MAX_INJECT_TOKENS=800
 MEMORY_RECALL_THRESHOLD=0.55
 ```
 
-适用: 低频用户，希望尽可能找回历史上下文。
+适用: depth=deep，低频用户，希望尽可能找回历史上下文。
 
 ---
 

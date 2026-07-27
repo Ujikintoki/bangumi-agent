@@ -13,7 +13,7 @@
 
 **调用位置**: 每个 `reasoning_node` 开头，LLM invoke 前。
 
-### L2/L3 长记忆 (`agent/memory_manager.py`)
+### L2 长记忆 (`agent/memory_manager.py`) — L3 已废弃
 
 | 方法 | 签名 | 用途 |
 |------|------|------|
@@ -23,9 +23,9 @@
 | `_search_similar_sessions` | `(user_id, embedding, limit) -> list` | pgvector 语义检索 |
 | `_summarize_session` | `(messages, final_reply) -> tuple[str, list[dict]]` | LLM 摘要 + 实体联合提取（JSON 输出） |
 | `_extract_key_entities` | `(summary) -> list[dict]` | ⛔ 已废弃 — 实体提取已合并到 `_summarize_session` (LLM JSON 联合输出) |
-| `_update_user_profile` | `(user_id, summary, intent, entities) -> None` | 增量画像更新 |
+| `_update_user_profile` | `(user_id, summary, intent, entities) -> None` | ⛔ L3 已废弃 — 增量画像更新（no-op） |
 | `_format_memory_context` | `(sessions, profile, max_tokens) -> str` | 格式化注入文本 |
-| `_format_profile_summary` | `(profile) -> str` | 画像摘要文本 |
+| `_format_profile_summary` | `(profile) -> str` | ⛔ L3 已废弃 — 画像摘要文本（no-op） |
 
 **模块级单例**: `get_memory_manager() -> MemoryManager`
 

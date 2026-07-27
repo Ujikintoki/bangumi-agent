@@ -9,8 +9,7 @@
 │  │  L2 跨 session 语义召回（双通道）                  │   │
 │  │  "3 天前你问过高达Seed... 上周讨论过机战番..."      │   │
 │  ├──────────────────────────────────────────────────┤   │
-│  │  L3 用户画像（冷启动保护: ≥5 sessions）             │   │
-│  │  "偏好机战/科幻类作品，关注高达Seed/星际牛仔"       │   │
+│  │  ~~L3 用户画像（已废弃）~~                         │   │
 │  ├──────────────────────────────────────────────────┤   │
 │  │  L1 同 session 滑动窗口                            │   │
 │  │  HumanMessage + AIMessage + ToolMessage ...        │   │
@@ -29,12 +28,13 @@
 1. **单条截断**: ToolMessage 超过 2000 tokens → 截断内容（不丢弃整条）
 2. **列表截断**: 总 token 超预算时，从头部丢弃旧消息。SystemMessage 始终保留
 
-**Token 预算分配**:
+**Token 预算分配**（Phase 6.5 单 Agent，按 depth 分档）:
 
-| Agent | 总预算 | System Prompt | L2 注入 | 对话历史 | 输出缓冲 |
+| Depth | 总预算 | System Prompt | L2 注入 | 对话历史 | 输出缓冲 |
 |-------|--------|--------------|---------|---------|---------|
-| Research | 8000 | ~1200 | ≤500 | ~5300 | ~1000 |
-| Dialogue | 4000 | ~600 | ≤300 | ~2500 | ~600 |
+| deep | 8000 | ~1200 | ≤700 | ~5100 | ~1000 |
+| auto | 6000 | ~1000 | ≤300 | ~3700 | ~1000 |
+| quick | 4000 | ~800 | ≤200 | ~2400 | ~600 |
 
 **触发时机**: 每个 `reasoning_node` 开头，在 LLM 调用前。
 
@@ -53,7 +53,7 @@ Agent 返回 final_reply
       → 正则提取实体名（「」"" 引号内）
       → embedding API（Zhipu embedding-3, 2048 维）
       → INSERT session_memories
-      → UPSERT user_profiles（增量更新偏好/亲和度）
+      → ~~UPSERT user_profiles（L3 已废弃）~~
 ```
 
 **读取路径（同步）**:
@@ -69,13 +69,15 @@ reasoning_node 首轮
     → 格式化注入文本（≤ max_tokens）
 ```
 
-### L3 用户画像 — 增量偏好聚合
+### L3 用户画像 — ⛔ 已废弃（2026-07-20）
 
-**文件**: `agent/memory_manager.py`（同 L2 管理器）
+> **L3 已于 Phase 5.5 废弃。** 以下内容仅供历史参考。L2 语义记忆单独承担跨 session 上下文。
 
-**职责**: 跨 session 聚合用户偏好，提供"用户是谁"的长期上下文。
+**文件**: `agent/memory_manager.py`（同 L2 管理器，相关函数已 no-op）
 
-**画像结构** (`preferences_json`):
+**职责**: ~~跨 session 聚合用户偏好，提供"用户是谁"的长期上下文。~~
+
+**画像结构** (`preferences_json`，已不再写入）:
 ```json
 {
   "favorite_genres": [
@@ -173,7 +175,7 @@ last_active_at (datetime)
 updated_at (datetime)
 ```
 
-### public_memories (Phase 6 桩)
+### public_memories (表已建，Phase 7 预留)
 
 表已建，索引已建，代码为 no-op。Phase 6 实现群体智慧注入。
 
@@ -181,39 +183,26 @@ updated_at (datetime)
 
 ## Agent 集成点
 
-### Research Agent (`agent/research/nodes.py`)
+### Companion Agent (`agent/nodes.py`) — Phase 6 统一入口
 
 ```
 reasoning_node (首轮 iterations==0):
   ├── manage_memory (L1 截断)
   ├── classify_intent
-  ├── memory_manager.recall_for_prompt (L2 + L3 召回)  ← 仅首轮
-  ├── build_system_prompt (含 memory_context)
+  ├── memory_manager.recall_for_prompt (L2 召回, 按 depth 控制预算)  ← 仅首轮
+  ├── build_system_prompt (含 memory_context, 8 层)
   └── LLM invoke
 
 main.py 响应返回后:
   └── asyncio.create_task(_remember_session)  ← fire-and-forget
 ```
 
-### Dialogue Agent (`agent/dialogue/nodes.py`)
-
-```
-dialogue_reasoning_node (首轮 iterations==0):
-  ├── manage_memory (L1 截断)
-  ├── classify_intent
-  ├── memory_manager.recall_for_prompt (L2 + L3 召回)  ← 仅首轮，跳过 chitchat/factual
-  ├── build_dialogue_prompt (含 memory_context)
-  └── LLM invoke
-```
-
 **设计决策**: 记忆召回仅在首轮执行。后续轮次（工具消化、Critic REVISE）跳过——记忆已在首轮消费，重复注入浪费 embedding API 和 token 预算。
 
-### 为什么 Dialogue Agent 跳过 chitchat/factual？
+### 为什么 chitchat/factual 跳过 L2 召回？
 
-Research Agent 和 Dialogue Agent **均**按意图过滤记忆召回——`query_intent in {"chitchat", "factual"}` 时跳过 L2 语义检索。原因：
+`query_intent in {"chitchat", "factual"}` 时跳过 L2 语义检索。原因：
 
 1. **chitchat 不需要跨会话记忆**："早上好"、"今天天气怎么样"等寒暄与用户的历史话题无关，召回上周的机战番记忆反而是噪音。
-2. **短追问的指代由 L1 滑动窗口兜底**：同 session 内的追问（"你怎么看？"）——即使被分类器误判为 chitchat——通过 L1 同 session 消息窗口即可解析，无需跨 session 语义召回。
-3. **节省 embedding API 和 token 预算**：Dialogue Agent 总预算仅 4000 tokens，避免每次寒暄都消耗一次 embedding 调用 + 300 tokens 注入。
-
-> **历史对比**：此前本文档声称 "Dialogue Agent 不区分意图——即使是 chitchat 也召回"，理由是 recency fallback 可确保短追问找回上一轮话题。在实际测试中发现，分类器对短追问（"你怎么看？"）的判定准确率足够高，且 L1 同 session 窗口已覆盖这一场景，跨 session 召回对 chitchat 的边际收益为零。2026-06-16 修正文档以匹配实际代码行为。
+2. **短追问的指代由 L1 滑动窗口兜底**：同 session 内的追问通过 L1 同 session 消息窗口即可解析，无需跨 session 语义召回。
+3. **节省 embedding API 和 token 预算**：避免每次寒暄都消耗一次 embedding 调用 + L2 注入 token。

@@ -160,11 +160,15 @@ L1 + L2 活跃，L3 废弃。
 | 文档 | 内容 |
 |------|------|
 | [`CLAUDE.md`](../../CLAUDE.md) | 项目架构、四层详解、调参速查、编码规范 |
-| [`docs/design/ROADMAP.md`](ROADMAP.md) | 本文档 |
-| [`docs/design/architecture-review-2026-07-22.md`](architecture-review-2026-07-22.md) | 宏观架构 review |
+| [`docs/design/ROADMAP.md`](ROADMAP.md) | 本文档 — 架构状态 & 路线图 |
+| [`docs/design/architecture-review-2026-07-22.md`](architecture-review-2026-07-22.md) | 宏观架构 review（Phase 6 重构的决策依据） |
+| [`docs/design/phase1-3-audit.md`](phase1-3-audit.md) | Phase 1-3 地基与 Companion Agent 兼容性审查 |
 | [`docs/design/phase5-memory-system-design.md`](phase5-memory-system-design.md) | Phase 5 记忆系统完整设计 |
 | [`docs/design/data-layer-redesign-discussion.md`](data-layer-redesign-discussion.md) | 工具层 str→dict 迁移决策过程 |
-| [`docs/design/bangumi-api-schema-methodology.md`](bangumi-api-schema-methodology.md) | A/B/C/D 字段方法论 |
-| [`docs/design/personality-rendering-layer.md`](personality-rendering-layer.md) | Output Boundary 原始设计（已废弃，历史参考） |
-| [`docs/tmp/real_data_test.md`](../tmp/real_data_test.md) | 9 个测试用例 + A/B 对照实验 |
+| [`docs/design/bangumi-api-schema-methodology.md`](bangumi-api-schema-methodology.md) | A/B/C/D 字段决策方法论 |
 | [`docs/memory/`](../memory/) | 记忆系统手册（6 文件） |
+| [`docs/tool-guide.md`](../tool-guide.md) | 工具增/改/删操作指南 |
+| [`docs/Tools/tools_file.md`](../Tools/tools_file.md) | 14 个工具设计详情 |
+| [`docs/database-admin.md`](../database-admin.md) | PostgreSQL + pgvector 运维手册 |
+| [`docs/Rag/`](../Rag/) | RAG 策略、表结构、上下文（3 文件） |
+| [`docs/tmp/real_data_test.md`](../tmp/real_data_test.md) | Phase 5 测试数据基线 |

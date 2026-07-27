@@ -1,5 +1,7 @@
 # 记忆系统调试指南
 
+> 2026-07-27：Phase 6.5 — L3 已废弃，相关日志不再出现。
+
 ## 日志关键字
 
 所有记忆相关日志使用 `bgm-agent.memory` 和 `bgm-agent.memory_manager` logger。
@@ -28,7 +30,7 @@ grep "embed_single 失败\|embedding 失败" app.log
 # 语义检索失败
 grep "语义检索失败" app.log
 
-# 画像更新失败
+# 画像更新失败 ⛔ L3 已废弃
 grep "画像更新失败\|画像读取失败" app.log
 
 # 摘要生成失败
