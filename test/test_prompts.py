@@ -1,8 +1,8 @@
 """
-系统提示词测试 — Phase 6 统一架构
+系统提示词测试 — Phase 6 统一架构 + Phase 6.5 Render 层
 
 验证 prompt_builder 组装逻辑、profile 完整性、意图策略变体、
-CRITIC_SYSTEM_PROMPT、output_style 四象限。
+CRITIC_SYSTEM_PROMPT、output_style 四象限、render prompt。
 可独立运行: python -m pytest test/test_prompts.py -v
 """
 
@@ -20,6 +20,7 @@ from agent.profiles import (
 )
 from agent.prompt_builder import build_system_prompt as _build
 from agent.prompts import COMPANION_INTENT_PROMPTS
+from agent.render import build_render_prompt
 from agent.research.prompts import (
     CRITIC_SYSTEM_PROMPT,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
@@ -216,8 +217,19 @@ class TestPromptBuilder:
         assert "毒舌吐槽役" not in result
         assert "Bangumi娘" not in result
 
-    def test_builder_deep_has_data_guide(self):
-        """deep 模式应包含数据解读指南。"""
+    def test_builder_no_data_guide(self):
+        """所有模式均不应包含数据解读指南（已移到 render 层）。"""
+        # auto mode
+        result = _build(
+            agent_profile=COMPANION_PROFILE,
+            character=BANGUMI_CHARACTER,
+            depth="auto",
+            intent="lookup",
+            intent_strategies=COMPANION_INTENT_PROMPTS,
+        )
+        assert "数据解读指南" not in result
+
+        # deep mode
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=NEUTRAL_CHARACTER,
@@ -225,18 +237,6 @@ class TestPromptBuilder:
             intent="lookup",
             intent_strategies=DEEP_INTENT_PROMPTS,
             tool_constraint=TOOL_DEPENDENCY_CONSTRAINT,
-            data_guide="## 数据解读指南\ntest data guide content",
-        )
-        assert "数据解读指南" in result
-
-    def test_builder_shallow_no_data_guide(self):
-        """非 deep 模式不应包含数据解读指南。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-            depth="auto",
-            intent="lookup",
-            intent_strategies=COMPANION_INTENT_PROMPTS,
         )
         assert "数据解读指南" not in result
 
@@ -280,12 +280,6 @@ class TestDeepPrompt:
         assert "emotional" in DEEP_INTENT_PROMPTS
         result = build_deep_prompt("emotional")
         assert "情绪" in result
-
-    def test_deep_prompt_has_data_guide(self):
-        """深度 prompt 应包含数据解读指南。"""
-        result = build_deep_prompt("lookup")
-        assert "数据解读指南" in result
-
 
 class TestIntentPrompts:
     """INTENT_PROMPTS 完整性。"""
@@ -355,3 +349,65 @@ class TestHonestyPrinciple:
         result = build_deep_prompt("lookup")
         assert "诚实比瞎编" in result
         assert "不要编造" in result
+
+
+class TestRenderPrompt:
+    """Render prompt 构建（Phase 6.5）。"""
+
+    def test_render_prompt_non_empty(self):
+        """build_render_prompt 应返回非空 prompt。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "EVA 怎么样？", "EVA 评分 9.1，排名第一。")
+        assert len(result) > 100
+
+    def test_render_prompt_includes_identity(self):
+        """Render prompt 应包含角色身份。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "test response")
+        assert "Bangumi娘" in result
+
+    def test_render_prompt_includes_user_query(self):
+        """Render prompt 应包含用户问题。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "EVA 评分怎么样", "9.1 分")
+        assert "EVA 评分怎么样" in result
+
+    def test_render_prompt_includes_agent_response(self):
+        """Render prompt 应包含原始回复。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "EVA 评分 9.1，排名 #1")
+        assert "EVA 评分 9.1" in result
+
+    def test_render_prompt_neutral_no_bangumi_persona(self):
+        """Neutral 角色 render prompt 不应包含损友吐槽。"""
+        result = build_render_prompt(NEUTRAL_CHARACTER, "test", "response")
+        assert "腹黑" not in result
+        assert "吐槽" not in result
+
+    def test_render_prompt_bangumi_has_style(self):
+        """Bangumi 角色 render prompt 应包含吐槽风格。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
+        assert "损友" in result or "吐槽" in result
+
+    def test_render_prompt_no_data_interpretation(self):
+        """Render prompt 不应包含数据解读教科书。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
+        assert "数据解读指南" not in result
+        assert "rating_count" not in result
+
+    def test_render_prompt_has_hard_constraints(self):
+        """Render prompt 应包含硬约束。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
+        assert "硬约束" in result
+        assert "emoji" in result
+
+    def test_render_prompt_word_limit_by_depth(self):
+        """字数限制应按 depth 分档。"""
+        q = build_render_prompt(BANGUMI_CHARACTER, "test", "r", depth="quick")
+        a = build_render_prompt(BANGUMI_CHARACTER, "test", "r", depth="auto")
+        d = build_render_prompt(BANGUMI_CHARACTER, "test", "r", depth="deep")
+        assert "120 字" in q
+        assert "200 字" in a
+        assert "350 字" in d
+
+    def test_render_prompt_ending_not_always_question(self):
+        """结尾规则应允许反问、判断、冷吐槽——而非只允许反问。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
+        assert "可以是一个冷吐槽" in result
+        assert "不要用" in result  # "不要用'你还想查什么'"

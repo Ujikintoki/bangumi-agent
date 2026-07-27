@@ -32,7 +32,6 @@ from agent.reasoning_core import (
     guard_xml_leak,
     recall_memory_step,
 )
-from agent.prompt_builder import _DATA_INTERPRETATION
 from agent.research.prompts import (
     CRITIC_SYSTEM_PROMPT,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
@@ -137,7 +136,6 @@ async def reasoning_node(state: AgentState) -> dict:
             intent=query_intent,
             intent_strategies=DEEP_INTENT_PROMPTS,
             tool_constraint=TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT,
-            data_guide=_DATA_INTERPRETATION,
             memory_context=memory_context,
             critic_feedback=critic_feedback,
         )

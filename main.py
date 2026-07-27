@@ -336,6 +336,9 @@ async def chat_stream(request: ChatRequest):
                         feedback = node_output.get("critic_feedback", "")
                         yield f"data: {json.dumps({'node': 'critic', 'status': status, 'feedback': feedback[:200]}, ensure_ascii=False)}\n\n"
 
+                    elif node_name == "render_node":
+                        yield f"data: {json.dumps({'node': 'render'}, ensure_ascii=False)}\n\n"
+
             yield "data: [DONE]\n\n"
 
         except Exception as e:

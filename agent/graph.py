@@ -4,6 +4,9 @@ Companion Agent 图谱编排 — 统一 ReAct 拓扑
 Phase 6: 合并 Research 和 Dialogue 两个 graph 为单一 StateGraph。
 critic_node 仅 depth=="deep" 时条件注册。
 
+Phase 6.5: 新增 render_node。工具调用后的回复在输出前过 render，
+将 agent 的"数据报告"改写为角色聊天风格。
+
 核心拓扑
 ========
 
@@ -23,27 +26,38 @@ critic_node 仅 depth=="deep" 时条件注册。
               │   │     │                        │
               │  YES    NO                       │
               │   │     │                        │
+              │   ▼     │                        │
+              │ critic  │                        │
+              │   │     │                        │
               │   ▼     ▼                        │
-              │ critic  END                      │
-              │   │                              │
-              │   ▼                              │
-              │ (PASS→END, REVISE→reasoning) ────┘
+              │ PASS?  有工具调用?                │
+              │  │  ┌──┴──┐                      │
+              │  │ YES   NO                      │
+              │  │  │    │                       │
+              │  │  ▼    ▼                       │
+              │  │ render END                    │
+              │  │  │                            │
+              │  └──┘                            │
+              │                                  │
+              │ REVISE → reasoning_node ─────────┘
               │
               └──→ reasoning_node（消化工具结果）
 
 决策矩阵
 ========
 
-route_after_reasoning（原生消息路由，读 messages[-1]）:
-    - AIMessage.tool_calls 非空 → tool_node → reasoning_node（消化结果）
-    - intent = chitchat         → END（快速通道）
-    - depth == "deep"           → critic_node
-    - 其他                      → END
+route_after_reasoning:
+    1. AIMessage.tool_calls 非空 → tool_node
+    2. intent = chitchat         → END（快速通道）
+    3. depth == "deep"           → critic_node
+    4. 当前轮有工具调用           → render_node → END    ← NEW
+    5. 其他                      → END
 
-route_after_critic（仅 depth=="deep" 时有效）:
-    - PASS               → END
-    - REVISE + iter < 12 → reasoning_node（重试）
-    - REVISE + iter >= 12→ END（熔断）
+route_after_critic:
+    - PASS + 有工具调用 → render_node → END              ← NEW
+    - PASS + 无工具调用 → END
+    - REVISE + iter < N  → reasoning_node（重试）
+    - REVISE + iter >= N → END（熔断）
 """
 
 from __future__ import annotations
@@ -56,6 +70,7 @@ from langgraph.prebuilt import ToolNode
 
 from agent.guardrails import format_tool_error
 from agent.nodes import critic_node, reasoning_node
+from agent.render import render_node
 from agent.state import AgentState, get_max_iterations
 from tools.bgm_tools import get_agent_tools
 
@@ -64,19 +79,49 @@ logger = logging.getLogger("bgm-agent.graph")
 _FAST_PATH_INTENTS = frozenset({"chitchat"})
 
 
-# ── 条件路由: reasoning → tool / critic / END ──────────────
+def _has_tool_calls_in_current_turn(messages: list) -> bool:
+    """检查当前轮次是否有工具调用。
+
+    从最后一条真实用户消息（跳过系统注入的 HumanMessage）开始查找 ToolMessage。
+    仅检测当前轮次的工具调用，避免历史轮次的 ToolMessage 触发 render。
+
+    Args:
+        messages: 完整消息历史。
+
+    Returns:
+        True 如果当前轮次中存在 ToolMessage。
+    """
+    from langchain_core.messages import HumanMessage, ToolMessage
+
+    # 找到最后一条"真实"用户消息（跳过系统注入的指令）
+    last_user_idx = 0
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            content = messages[i].content if hasattr(messages[i], "content") else ""
+            if content and not str(content).startswith("（系统指令："):
+                last_user_idx = i
+                break
+
+    for m in messages[last_user_idx:]:
+        if isinstance(m, ToolMessage):
+            return True
+    return False
+
+
+# ── 条件路由: reasoning → tool / critic / render / END ──────
 
 
 def route_after_reasoning(
     state: AgentState,
-) -> Literal["tool_node", "critic_node", "__end__"]:
+) -> Literal["tool_node", "critic_node", "render_node", "__end__"]:
     """reasoning_node 后的条件边（原生消息路由）。
 
-    四级路由（优先级从高到低）：
+    五级路由（优先级从高到低）：
         1. AIMessage.tool_calls 非空 → tool_node
-        2. query_intent = chitchat   → END（快速通道）
-        3. depth == "deep"          → critic_node
-        4. 其他                     → END
+        2. query_intent = chitchat   → END（快速通道，不过 render）
+        3. depth == "deep"          → critic_node（由 critic 决定是否 render）
+        4. 当前轮有工具调用           → render_node → END
+        5. 其他                     → END
     """
     from langchain_core.messages import AIMessage
 
@@ -109,6 +154,14 @@ def route_after_reasoning(
         )
         return "critic_node"
 
+    # 非 deep 模式：有工具调用 → render 后结束
+    if _has_tool_calls_in_current_turn(messages):
+        logger.debug(
+            "route_after_reasoning: depth=%s intent=%s 有工具调用 → render_node",
+            depth, query_intent,
+        )
+        return "render_node"
+
     logger.debug(
         "route_after_reasoning: depth=%s intent=%s 无工具调用 → END",
         depth, query_intent,
@@ -119,28 +172,38 @@ def route_after_reasoning(
 # ── 条件路由: critic → retry / END ──────────────────────────
 
 
-def route_after_critic(state: AgentState) -> Literal["reasoning_node", "__end__"]:
+def route_after_critic(
+    state: AgentState,
+) -> Literal["reasoning_node", "render_node", "__end__"]:
     """critic_node 后的条件边。
 
     决策矩阵：
-        +----------------+----------------+----------------+
-        | critic_status  | iterations < N | iterations >= N |
-        +================+================+================+
-        | PASS           | → END          | → END          |
-        +----------------+----------------+----------------+
-        | REVISE         | → reasoning    | → END（强制）  |
-        +----------------+----------------+----------------+
+        +----------------+---------------------------+
+        | critic_status  | 路由                       |
+        +================+===========================+
+        | PASS + 有工具   | → render_node → END       |
+        +----------------+---------------------------+
+        | PASS + 无工具   | → END                     |
+        +----------------+---------------------------+
+        | REVISE + iter<N | → reasoning_node（重试）  |
+        +----------------+---------------------------+
+        | REVISE + iter>=N| → END（熔断）             |
+        +----------------+---------------------------+
     """
     depth = state.get("depth", "deep")
     max_iterations = get_max_iterations(depth)
     iterations = state.get("iterations", 0)
     status = state.get("critic_status", "PENDING")
+    messages = state.get("messages", [])
 
     if iterations >= max_iterations:
         logger.info("迭代次数已达上限 %d，强制终止", max_iterations)
         return END
 
     if status == "PASS":
+        if _has_tool_calls_in_current_turn(messages):
+            logger.info("自省通过 + 有工具调用 → render_node")
+            return "render_node"
         logger.info("自省通过 (iterations=%d)，结束图谱", iterations)
         return END
 
@@ -172,28 +235,32 @@ def build_graph(tools: list | None = None) -> StateGraph:
     graph.add_node("reasoning_node", reasoning_node)
     graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=format_tool_error))
     graph.add_node("critic_node", critic_node)
+    graph.add_node("render_node", render_node)
 
     # ── 固定边 ────────────────────────────────────────────
     graph.add_edge(START, "reasoning_node")
     graph.add_edge("tool_node", "reasoning_node")
+    graph.add_edge("render_node", END)
 
-    # ── 条件边 1: reasoning → tool / critic / END ──────────
+    # ── 条件边 1: reasoning → tool / critic / render / END ──
     graph.add_conditional_edges(
         "reasoning_node",
         route_after_reasoning,
         {
             "tool_node": "tool_node",
             "critic_node": "critic_node",
+            "render_node": "render_node",
             END: END,
         },
     )
 
-    # ── 条件边 2: critic → retry / END ─────────────────────
+    # ── 条件边 2: critic → retry / render / END ────────────
     graph.add_conditional_edges(
         "critic_node",
         route_after_critic,
         {
             "reasoning_node": "reasoning_node",
+            "render_node": "render_node",
             END: END,
         },
     )

@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 
 from agent.profiles import get_agent_profile, get_character
-from agent.prompt_builder import _DATA_INTERPRETATION, build_system_prompt as _build
+from agent.prompt_builder import build_system_prompt as _build
 
 logger = logging.getLogger("bgm-agent.prompts")
 
@@ -274,7 +274,6 @@ def build_system_prompt(
         intent=intent,
         intent_strategies=INTENT_PROMPTS,
         tool_constraint=TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT,
-        data_guide=_DATA_INTERPRETATION,
         memory_context=memory_context,
         critic_feedback=critic_feedback,
     )

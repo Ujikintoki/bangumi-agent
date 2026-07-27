@@ -143,23 +143,24 @@ def build_system_prompt(
     intent: str | None = None,
     intent_strategies: dict[str, str] | None = None,
     tool_constraint: str = "",
-    data_guide: str = "",
     memory_context: str = "",
     critic_feedback: str = "",
 ) -> str:
     """组装完整的 System Prompt（8 层）。
 
     角色优先——角色身份在最前面，表达风格紧跟其后。
-    depth 参数控制工具策略分支和数据解读指南注入。
+    depth 参数控制工具策略分支。
+
+    Phase 6.5: 移除 ``data_guide`` 参数。数据呈现规则移到 render 层，
+    主 prompt 专注工具策略和对话规则。
 
     Args:
         agent_profile: Agent 配置。
         character: 当前使用的角色人格。
-        depth: 深度模式（"auto" | "quick" | "deep"），影响 data_guide 注入。
+        depth: 深度模式（"auto" | "quick" | "deep"）。
         intent: 查询意图。
         intent_strategies: 意图策略变体 dict。
         tool_constraint: 工具依赖约束（仅 deep 模式传入）。
-        data_guide: 数据解读指南（仅 deep 模式传入）。
         memory_context: L2 记忆召回 + tone 提示的格式化文本。
         critic_feedback: Critic 的定向反馈（仅 deep 模式传入）。
 
@@ -192,9 +193,7 @@ def build_system_prompt(
     # ── Layer 5: 关键规则（合并层） ─────────────────────────
     parts.append(_TOOL_CALLING_RULES + "\n" + _CONTINUITY_RULES)
 
-    # ── Layer 6: 当前场景（data_guide + intent 策略） ─────
-    if data_guide:
-        parts.append(data_guide)
+    # ── Layer 6: 当前场景（intent 策略） ─────
     if intent and intent_strategies:
         strategy = intent_strategies.get(intent, intent_strategies.get("unknown", ""))
         if strategy:
