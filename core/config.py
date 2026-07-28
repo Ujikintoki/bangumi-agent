@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "BGM Agent"
     """项目名称，用于日志、API 文档标题等场景。"""
 
-    VERSION: str = "0.1.0"
+    VERSION: str = "0.1.1"
     """当前版本号。"""
 
     ENVIRONMENT: str = "development"
