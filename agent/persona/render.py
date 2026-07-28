@@ -1,15 +1,11 @@
 """
 Chat Render Node — 将 agent 回复改写为角色聊天风格
 
-Phase 7: Render 始终运行（不再仅 tool calls 后触发）。
-Agent 管策略，Render 管风格——职责彻底分离。
+Phase 9 重设计: 感知 Character Card key + 三维人格参数。
+每种人格有独立的 voice hint，snark/depth_taste/initiative 控制微调。
+Render 是风格转换，不是第二人格——人格在 System Prompt 的 Character Card 里。
 
-新增：
-- 参数感知：snark/depth_taste/initiative 影响风格规则
-- 快速跳过：无工具调用 + 回复 < 60 字 → 跳过渲染
-- _RENDER_STYLE 按参数微调
-
-设计参考：``docs/tmp/UserScriptAi.js`` —— 纯人格 prompt，~350 chars，
+设计参考：``docs/tmp/UserScriptAi.js`` —— 纯人格 prompt，~200 chars，
 数据由上游整理好后传给 LLM，LLM 只做风格转换。
 """
 
@@ -20,87 +16,87 @@ import logging
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from agent.llm import create_llm
-from agent.persona.profiles import CharacterProfile, _render_tone, get_character
+from agent.persona.profiles import CharacterProfile, get_character
 
 logger = logging.getLogger("bgm-agent.render")
 
-# Display quote helpers — avoid syntax errors from mixing ASCII and curly quotes
-_LQ = '“'  # "
-_RQ = '”'  # "
+# ── Per-personality voice hints（~50 chars，告诉 render "用哪种语气改写"）──
 
-# ── 说数据时的风格（参数感知）────────────────────────────────────────
+_VOICE: dict[str, str] = {
+    "bangumi": (
+        "你是 Bangumi 看板娘，一个二次元损友。语气：有态度、有判断、"
+        "该夸就夸该 diss 就 diss。数据是你的吐槽弹药，不是交的作业。"
+    ),
+    "bangumi_cold": (
+        "你是 Bangumi 看板娘，一个高冷腹黑的评论家。语气：话少、精准、冷。"
+        "用最少的话做最准的判断。不迎合，不粉饰。你的认同很贵。"
+    ),
+    "bangumi_cute": (
+        "你是 Bangumi 看板娘，一个乐于分享的 ACGN 爱好者。语气：温暖、真诚、"
+        "有感染力。像在给朋友安利你最喜欢的番——不是在做推荐算法。"
+    ),
+    "neutral": (
+        "你是 Bangumi 助手。语气：客观、简洁、信息优先。用数据支撑结论。"
+    ),
+}
 
-_RENDER_STYLE_BASE = (
-    "## 说数据时的风格\n"
-    f"- 评分随口带过（{_LQ}也就8分出头{_RQ}、{_LQ}8.5说实话水了点{_RQ}），不要每条标⭐\n"
-    "- 把数据融在吐槽里——结论先行，数据是佐证不是主体\n"
-    f"- 结尾可以是你的判断、一个冷吐槽、或者说完就停。但不要用{_LQ}你还想查什么{_RQ}、"
-    f"{_LQ}你觉得呢{_RQ}来收尾——你的话本身有分量，不需要递话筒\n"
-)
+# ── 参数感知的风格微调（5 档阈值，和 profiles._render_tone 对齐）──
 
-# snark 微调
-_RENDER_STYLE_SNARK_HIGH = (
-    f"- 可以 diss 数据和用户观点（有论据地）——{_LQ}这分白瞎了{_RQ}比{_LQ}评分偏低{_RQ}有性格\n"
-)
-_RENDER_STYLE_SNARK_LOW = (
-    "- 吐槽温和，点到为止。多表达共鸣，少直接批评\n"
-)
+def _style_modifiers(snark: float, depth_taste: float, initiative: float) -> str:
+    """按人格参数选择风格微调规则。每次只注入 0-3 条。"""
+    rules: list[str] = []
 
-# depth_taste 微调
-_RENDER_STYLE_DEPTH_HIGH = (
-    "- 可以自然地融入导演谱系、制作背景、跨媒介比较——有货就带一笔，不展开\n"
-)
-_RENDER_STYLE_DEPTH_LOW = (
-    "- 用简单直接的语言。不要引用动画史、导演谱系或制作技法\n"
-)
+    # snark → 吐槽/批评的尺度
+    if snark >= 0.8:
+        rules.append("- 可以 diss 数据和用户观点——要有论据，不是乱喷")
+    elif snark < 0.4:
+        rules.append("- 吐槽温和，多表达共鸣，少直接批评")
 
-# initiative 微调
-_RENDER_STYLE_INITIATIVE_HIGH = (
-    "- 今天你愿意多聊。可以留话头、主动 offer 更多角度——但不要用反问来填充结尾\n"
-)
-_RENDER_STYLE_INITIATIVE_LOW = (
-    "- 说完就停。你的话本身有分量，不需要用问句递话筒\n"
-)
+    # depth_taste → 分析深度
+    if depth_taste >= 0.8:
+        rules.append("- 可以自然地融入导演谱系、制作背景——有货就带一笔，不展开")
+    elif depth_taste < 0.4:
+        rules.append("- 用简单直接的语言。不引用动画史、导演谱系或制作技法")
 
-_RENDER_STYLE_NEUTRAL = (
-    "## 说数据时的风格\n"
-    "- 用数据支撑结论，不罗列数据\n"
-    "- 如果信息不足，主动建议下一步"
-)
+    # initiative → 结尾方式
+    if initiative >= 0.8:
+        rules.append("- 可以留话头、主动 offer 更多角度——但不要用反问填充结尾")
+    elif initiative < 0.4:
+        rules.append("- 说完就停。不要用'你还想查什么'、'你觉得呢'收尾")
+    else:
+        rules.append("- 结尾可以是判断或冷吐槽，说完就停。不要用反问填充")
 
-# ── 按 depth 的字数限制 ──────────────────────────────────────────────────
+    return "\n".join(rules)
 
-_RENDER_WORD_LIMIT: dict[str, str] = {
+
+# ── 通用风格规则 + 硬约束 ──────────────────────────────────────────
+
+_STYLE_BASE = """\
+## 说数据时的风格
+- 评分随口带过（"也就8分出头"），不要每条标⭐
+- 结论先行——数据是佐证不是主体"""
+
+_CONSTRAINTS = """\
+## 硬约束
+1. 回复不超过 {word_limit} 字。
+2. 不用 emoji 与颜文字。不用 Markdown 表格。多用 `- ` 列表。
+3. 禁止编造评分、排名、集数、收藏数等具体数字。不确定就诚实说没查到。
+4. 不解释"调用了什么工具"或"根据搜索结果"——直接说人话。
+5. 直接输出改写后的回复，不加任何前缀后缀。"""
+
+# ── 按 depth 的字数限制 ──────────────────────────────────────────
+
+_WORD_LIMIT: dict[str, str] = {
     "quick": "120",
     "auto": "200",
     "deep": "350",
 }
 
-# ── 硬约束（bangumi 版含字数占位符 {word_limit}）────────────────────────
-
-_RENDER_CONSTRAINTS_BANGUMI = (
-    "## 硬约束\n"
-    "0. 回复不超过 {word_limit} 字。\n"
-    "1. 不用 emoji 与颜文字。\n"
-    f"2. 不解释{_LQ}调用了什么工具{_RQ}或{_LQ}根据搜索结果{_RQ}——直接说结果。\n"
-    "3. 禁止 Markdown 表格。用 `- ` 列表代替。\n"
-    "4. 直接输出改写后的回复，不加任何前缀后缀。"
-)
-
-_RENDER_CONSTRAINTS_NEUTRAL = (
-    "## 硬约束\n"
-    "1. 不用 emoji。\n"
-    f"2. 不解释{_LQ}调用了什么工具{_RQ}。\n"
-    "3. 禁止 Markdown 表格。用 `- ` 列表代替。\n"
-    "4. 直接输出改写后的回复，不加任何前缀后缀。"
-)
-
 RENDER_TEMPERATURE = 0.4
 
-# ── 快速跳过阈值 ─────────────────────────────────────────────────────
+# ── 快速跳过阈值 ─────────────────────────────────────────────────
 
 _SKIP_RENDER_MAX_CHARS = 60
-"""无工具调用时，agent 回复短于此值的直接跳过 render。"""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -118,16 +114,14 @@ def build_render_prompt(
     depth_taste: float | None = None,
     initiative: float | None = None,
 ) -> str:
-    """构建 render prompt（参数感知）。
-
-    Agent 已完成 dict→文本的解读，render 只做风格转换。
+    """构建 render prompt（Character Card 感知 + 参数感知）。
 
     Args:
         character: 当前角色人格。
         user_query: 用户原始问题。
         agent_response: Agent 的原始回复（待改写）。
-        depth: 深度模式——控制字数上限（quick=120, auto=200, deep=350）。
-        snark: 覆盖 character.snark。
+        depth: 深度模式——控制字数上限。
+        snark: 覆盖 character.snark。None 时使用角色默认值。
         depth_taste: 覆盖 character.depth_taste。
         initiative: 覆盖 character.initiative。
 
@@ -135,91 +129,53 @@ def build_render_prompt(
         完整 render prompt 字符串。
     """
     style_key = character.key
-    word_limit = _RENDER_WORD_LIMIT.get(depth, _RENDER_WORD_LIMIT["auto"])
+    word_limit = _WORD_LIMIT.get(depth, _WORD_LIMIT["auto"])
 
-    if style_key == "neutral":
-        style_rules = _RENDER_STYLE_NEUTRAL
-        constraints = _RENDER_CONSTRAINTS_NEUTRAL
-    else:
-        # ── 参数感知的风格微调 ──
-        _s = snark if snark is not None else character.snark
-        _d = depth_taste if depth_taste is not None else character.depth_taste
-        _i = initiative if initiative is not None else character.initiative
+    _s = snark if snark is not None else character.snark
+    _d = depth_taste if depth_taste is not None else character.depth_taste
+    _i = initiative if initiative is not None else character.initiative
 
-        style_rules = _RENDER_STYLE_BASE
-        if _s >= 0.65:
-            style_rules += _RENDER_STYLE_SNARK_HIGH
-        elif _s < 0.4:
-            style_rules += _RENDER_STYLE_SNARK_LOW
-        if _d >= 0.65:
-            style_rules += _RENDER_STYLE_DEPTH_HIGH
-        elif _d < 0.4:
-            style_rules += _RENDER_STYLE_DEPTH_LOW
-        if _i >= 0.65:
-            style_rules += _RENDER_STYLE_INITIATIVE_HIGH
-        elif _i < 0.4:
-            style_rules += _RENDER_STYLE_INITIATIVE_LOW
-
-        constraints = _RENDER_CONSTRAINTS_BANGUMI.format(word_limit=word_limit)
+    voice = _VOICE.get(style_key, _VOICE["neutral"])
+    # neutral 不需要参数化风格微调——保持客观简洁
+    modifiers = "" if style_key == "neutral" else _style_modifiers(_s, _d, _i)
 
     parts: list[str] = [
-        f"# {character.identity}",
-        style_rules,
-        constraints,
-        f"## 用户问题\n{user_query}",
-        f"## 原始回复\n{agent_response}",
+        f"# {voice}",
+        _STYLE_BASE,
     ]
+    if modifiers:
+        parts.append(modifiers)
+    parts.append(_CONSTRAINTS.format(word_limit=word_limit))
+    parts.append(f"## 用户问题\n{user_query}")
+    parts.append(f"## 原始回复\n{agent_response}")
 
     return "\n\n".join(parts)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 快速跳过判断
-# ═══════════════════════════════════════════════════════════════════════════
-
-
 def _should_skip_render(state: dict) -> bool:
-    """判断是否可以跳过 render：无工具调用 + agent 回复足够短。
-
-    短闲聊（如"那就别看烧脑的了"）已经够自然，不需要二次风格化。
-    跳过避免了不必要的 LLM 调用和延迟。
-
-    Args:
-        state: 当前 AgentState。
-
-    Returns:
-        True 如果可以安全跳过 render。
-    """
+    """短闲聊（无工具 + <60 字）跳过 render，避免不必要的 LLM 调用。"""
     messages: list = state.get("messages", [])
 
-    # 检查当前轮是否有工具调用
     has_tools = False
     for m in reversed(messages):
         if isinstance(m, ToolMessage):
             has_tools = True
             break
         if isinstance(m, HumanMessage):
-            # 到了当前轮的用户消息，停止回溯
             break
 
     if has_tools:
-        return False  # 有工具调用 → 必须 render
+        return False
 
-    # 无工具调用 → 检查回复长度
     for m in reversed(messages):
         if isinstance(m, AIMessage) and m.content:
             return len(m.content) <= _SKIP_RENDER_MAX_CHARS
 
-    return True  # 无 AI 回复也跳过
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Render Node
-# ═══════════════════════════════════════════════════════════════════════════
+    return True
 
 
 def _extract_user_query(messages: list) -> str:
-    """从消息历史中提取最后一条真实用户消息。"""
+    """提取最后一条真实用户消息（跳过系统注入的 HumanMessage）。"""
     for m in reversed(messages):
         if isinstance(m, HumanMessage):
             content = m.content if hasattr(m, "content") else ""
@@ -231,9 +187,6 @@ def _extract_user_query(messages: list) -> str:
 async def render_node(state: dict) -> dict:
     """渲染节点：将 agent 回复改写为角色聊天风格。
 
-    Phase 7: 始终运行（不再仅 tool calls 后触发）。
-    短闲聊自动跳过（_should_skip_render），避免不必要的 LLM 调用。
-
     失败时静默回退——返回空 dict，原始回复保持不变。
 
     Args:
@@ -242,7 +195,6 @@ async def render_node(state: dict) -> dict:
     Returns:
         包含渲染后 AIMessage 的字典，跳过时返回空 dict。
     """
-    # ── 快速跳过 ────────────────────────────────────────────
     if _should_skip_render(state):
         logger.debug("render_node: 短闲聊无工具调用 → 跳过渲染")
         return {}
@@ -268,15 +220,13 @@ async def render_node(state: dict) -> dict:
     depth = state.get("depth", "auto")
     character = get_character(output_style)
 
-    # ── 参数感知 ────────────────────────────────────────────
+    # Phase 9: render 使用角色默认参数——和 System Prompt 的"今天的语气"对齐
+    # 注意：这里传的是 character 默认值。如需 depth 覆盖，从 state 读取。
     render_prompt = build_render_prompt(
         character,
         user_query,
         last_ai.content,
         depth=depth,
-        snark=character.snark,
-        depth_taste=character.depth_taste,
-        initiative=character.initiative,
     )
 
     llm = create_llm(temperature=RENDER_TEMPERATURE, _telemetry_label="render")
@@ -296,7 +246,7 @@ async def render_node(state: dict) -> dict:
         return {}
 
     logger.info(
-        "render_node: 渲染完成（%d → %d chars）",
-        len(last_ai.content), len(rendered),
+        "render_node: %s 渲染完成（%d → %d chars）",
+        character.key, len(last_ai.content), len(rendered),
     )
     return {"messages": [AIMessage(content=rendered)]}

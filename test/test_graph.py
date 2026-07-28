@@ -35,7 +35,7 @@ class TestGraphIntegration:
 
     @patch("agent.orchestrate.nodes.create_llm")
     async def test_chitchat_deep_routes_to_render(self, mock_create_llm):
-        """chitchat + depth=deep → render_node（Phase 9: 纯 ReAct，无 Critic）"""
+        """chitchat + depth=deep → render_node → END"""
         mock_create_llm.return_value = make_mock_llm(content="你好！")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -43,12 +43,11 @@ class TestGraphIntegration:
             query_intent="chitchat", iterations=1, depth="deep",
         )
         result = await graph.ainvoke(state)
-        # deep 路由到 render_node → END，不再经过 critic
         assert "reply" in result or "messages" in result
 
     @patch("agent.orchestrate.nodes.create_llm")
-    async def test_deep_completes_without_critic(self, mock_create_llm):
-        """deep 模式无 Critic——纯 ReAct 循环自然终止。"""
+    async def test_deep_completes_with_render(self, mock_create_llm):
+        """deep 模式——reasoning → render → END。"""
         mock_create_llm.return_value = make_mock_llm(content="三集定律是指...")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -56,7 +55,6 @@ class TestGraphIntegration:
             depth="deep",
         )
         result = await graph.ainvoke(state)
-        # 无工具调用 → render_node → END，正常完成
         messages = result.get("messages", [])
         assert len(messages) > 0
 
@@ -156,7 +154,7 @@ class TestStateLifecycle:
     """验证跨轮次 state 字段的完整性"""
 
     async def test_tool_to_reasoning_to_render_pipeline(self):
-        """Phase 9: tool → reasoning → render 完整链路（无 Critic）"""
+        """tool → reasoning → render 完整链路"""
         from agent.graph import build_graph
 
         @patch("agent.orchestrate.nodes.create_llm")
@@ -176,7 +174,6 @@ class TestStateLifecycle:
                 depth="deep",
             )
             result = await graph.ainvoke(state)
-            # 纯 ReAct: tool → reasoning → render → END
             messages = result.get("messages", [])
             assert len(messages) > 0
 

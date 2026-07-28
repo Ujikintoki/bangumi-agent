@@ -54,7 +54,7 @@ class TestRouteAfterReasoning:
         assert route_after_reasoning(state) == "tool_node"
 
     def test_deep_routes_to_render_when_no_tool_calls(self):
-        """AIMessage 无 tool_calls + depth=deep → render_node（Phase 9: Critic 屏蔽，纯 ReAct）"""
+        """AIMessage 无 tool_calls + depth=deep → render_node"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -67,7 +67,7 @@ class TestRouteAfterReasoning:
         assert route_after_reasoning(state) == "render_node"
 
     def test_routes_to_render_when_shallow_no_tool_calls(self):
-        """AIMessage 无 tool_calls + depth=auto → render_node（Phase 7: 始终走 render）"""
+        """AIMessage 无 tool_calls + depth=auto → render_node"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -80,12 +80,12 @@ class TestRouteAfterReasoning:
         assert route_after_reasoning(state) == "render_node"
 
     def test_routes_to_render_when_empty_messages(self):
-        """空消息列表 + depth=auto → render_node（Phase 7: 始终走 render）"""
+        """空消息列表 + depth=auto → render_node"""
         state = make_state(messages=[], depth="auto")
         assert route_after_reasoning(state) == "render_node"
 
     def test_chitchat_routes_to_render(self):
-        """chitchat 无工具调用 → render_node（Phase 7: 快速通道移除，短闲聊由 _should_skip_render 跳过）"""
+        """chitchat 无工具调用 → render_node"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -97,7 +97,7 @@ class TestRouteAfterReasoning:
         assert route_after_reasoning(state) == "render_node"
 
     def test_factual_deep_routes_to_render(self):
-        """factual + depth=deep → render_node（Phase 9: 统一 ReAct 路由）"""
+        """factual + depth=deep → render_node"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),

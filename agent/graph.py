@@ -1,9 +1,9 @@
 """
 Companion Agent 图谱编排 — 纯 ReAct 拓扑
 
-Phase 6: 合并 Research 和 Dialogue 两个 graph 为单一 StateGraph。
-Phase 6.5: 新增 render_node——工具调用后的回复过 render 做风格转换。
-Phase 9: Critic 暂时屏蔽——三种 depth 共享同一拓扑，仅通过参数区分行为。
+Phase 9: Critic 屏蔽。Character Card + Render 两层人格表达：
+  - Character Card（System Prompt）→ 决定 agent 怎么思考
+  - Render Node（独立 LLM 调用）→ 决定输出怎么表达
 
 核心拓扑
 ========
@@ -22,18 +22,7 @@ Phase 9: Critic 暂时屏蔽——三种 depth 共享同一拓扑，仅通过参
               │
               └──→ reasoning_node（消化工具结果）
 
-三种 depth 的区别不在拓扑——在参数：
-
-| 维度         | quick         | auto          | deep          |
-|-------------|---------------|---------------|---------------|
-| Token 预算   | 6,000         | 10,000        | 16,000        |
-| 最大迭代     | 3             | 5             | 12            |
-| depth_taste  | 0.30          | 0.70（默认）   | 0.90          |
-| initiative   | 0.20          | 0.60（默认）   | 0.80          |
-| Scene Hints  | COMPANION     | COMPANION     | DEEP          |
-| 字数上限     | 120           | 200           | 350           |
-
-Critic 节点保留在图中（用于未来重新激活），当前不被路由到。
+critic_node 保留在图中，当前不被路由到。
 """
 
 from __future__ import annotations
@@ -88,11 +77,10 @@ def _has_tool_calls_in_current_turn(messages: list) -> bool:
 def route_after_reasoning(
     state: AgentState,
 ) -> Literal["tool_node", "critic_node", "render_node", "__end__"]:
-    """reasoning_node 后的条件边。纯 ReAct 路由。
+    """reasoning_node 后的条件边。纯 ReAct 拓扑。
 
-    Phase 9: Critic 暂时屏蔽——三种 depth 共享同一拓扑。
         1. AIMessage.tool_calls 非空 → tool_node
-        2. 其他                      → render_node → END
+        2. 其他                      → render_node（风格渲染后输出）
     """
     from langchain_core.messages import AIMessage
 
@@ -110,8 +98,6 @@ def route_after_reasoning(
         )
         return "tool_node"
 
-    # 所有非工具路径统一走 render_node
-    # _should_skip_render 在 render_node 内部自动跳过短闲聊
     logger.debug(
         "route_after_reasoning: depth=%s intent=%s → render_node",
         state.get("depth", "auto"), state.get("query_intent", "unknown"),
