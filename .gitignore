@@ -25,6 +25,7 @@ docs/tmp/
 docs/phase3/
 docs/DEPRECATED/
 test/AI.js
+docs/test_output/
 
 # ── Logs ─────────────────────────────────────────────────
 *.log

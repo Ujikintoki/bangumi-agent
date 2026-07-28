@@ -163,7 +163,7 @@ class Settings(BaseSettings):
     MEMORY_DIALOGUE_MAX_INJECT_TOKENS: int = 300
     """Dialogue Agent 的记忆注入 Token 预算上限。
 
-    Research Agent 使用 MEMORY_MAX_INJECT_TOKENS (700)；
+    Deep 模式使用 MEMORY_MAX_INJECT_TOKENS (500)；
     Dialogue 消息长度较短，使用 300 的较紧预算。"""
 
     # ── Critic 模式 ───────────────────────────────────────────

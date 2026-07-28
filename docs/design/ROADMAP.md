@@ -1,23 +1,24 @@
 # 架构状态 & 路线图
 
-> 最后更新: 2026-07-27
+> 最后更新: 2026-07-28
 
 ## 当前状态快照
 
 | 指标 | 值 |
 |------|-----|
-| 测试 | 573 passed + 23 skipped |
 | Agent 入口 | 1 个（`depth` 参数控制深度: auto/quick/deep） |
-| Graph 节点 | 5（reasoning + tool + critic + render + START/END） |
+| Graph 节点 | 5（reasoning + tool + critic + render + START/END；critic 保留注册但未路由） |
+| 拓扑 | 纯 ReAct：reasoning ⇄ tool → render → END |
 | 工具 | 16 个 LangChain `@tool`（13 无条件 + 3 token 门控），返回结构化 dict（A/B/C/D 方法论） |
-| 记忆 | L1 滑动窗口 + L2 语义召回（双通道 + 时间衰减），L3 废弃 |
-| 人格 | 2 个角色（bangumi/neutral）+ Render 层风格转换 |
+| 记忆 | L1 滑动窗口 + 压缩 + SystemMessage 免疫（按 depth 三级预算：6000/10000/16000 tok）+ L2 语义召回（双通道 + 时间衰减），L3 废弃 |
+| 人格 | 4 个角色（bangumi / bangumi_cold / bangumi_cute / neutral）+ 5 档离散人格参数 + Render 层 per-personality voice hints |
+| 测试 | 573 passed + 23 skipped |
 
 ### 四层状态
 
 | 层 | 文件 | 稳定 | 待解决 |
 |---|------|------|--------|
-| **编排层** | `orchestrate/nodes.py`, `state.py`, `orchestrate/strategies.py`, `orchestrate/classifier.py`, `orchestrate/guardrails.py`, `orchestrate/prompt_builder.py`, `orchestrate/helpers.py` | 🟡 刚稳定 | 3 项 |
+| **编排层** | `orchestrate/nodes.py`, `state.py`, `orchestrate/strategies.py`, `orchestrate/classifier.py`, `orchestrate/guardrails.py`, `orchestrate/prompt_builder.py`, `orchestrate/helpers.py` | 🟡 刚稳定 | 2 项 |
 | **人格层** | `persona/profiles.py`, `persona/render.py` | 🟡 活跃调参 | 1 项 |
 | **记忆层** | `memory/short_term.py`, `memory/long_term.py`, `memory/cache.py` | ✅ 稳 | 1 项 |
 | **数据层** | `clients/`, `tools/`, `rag/`, `database/`, `schemas/` | ✅ 稳 | 2 项 |
@@ -27,19 +28,19 @@
 ## 演化时间线
 
 ```
-2026-05~06    06-09          07-21        06-17~07-22    07-25/26        07-27
-Phase 1-3      Phase 4        Phase 5      Phase 5.5      Phase 6         Phase 6.5
-地基            双 Agent       记忆          人格化          纠正错配         解耦风格
-──■───────────■─────────────■────────────■──────────────■──────────────■────────→
-FastAPI        拆 Research   L1 滑动窗口   CharacterProfile 合并双 Agent    render_node
-BangumiClient  + Dialogue    L2 语义召回   AgentProfile      depth 参数      风格解耦
-RAG + pgvector 引入 Critic   L3 废弃       角色优先          Critic 条件路由  极简 prompt
-第一个 ReAct    ← Tool Agent 错配开始 →                                    四层架构清晰
+2026-05~06    06-09          07-21        06-17~07-22    07-25/26        07-27            07-27          07-27
+Phase 1-3      Phase 4        Phase 5      Phase 5.5      Phase 6         Phase 6.5        Phase 8         Phase 9
+地基            双 Agent       记忆          人格化          纠正错配         解耦风格          Context重构      人格深化
+──■───────────■─────────────■────────────■──────────────■──────────────■───────────────■──────────────■────→
+FastAPI        拆 Research   L1 滑动窗口   CharacterProfile 合并双 Agent    render_node      三级预算         Critic 屏蔽
+BangumiClient  + Dialogue    L2 语义召回   AgentProfile      depth 参数      风格解耦          TOOL_GUIDANCE   5档离散人格
+RAG + pgvector 引入 Critic   L3 废弃       角色优先          纯 ReAct 拓扑    极简 prompt      工具压缩         四种人格模式
+第一个 ReAct    ← Tool Agent 错配开始 →                                                   SystemMsg免疫    Render重设计
 ```
 
 **核心教训**：Phase 4 的双 Agent 是按 Tool Agent 心智模型（"深度链式"、"数据完整性优先"）设计的，
 但产品定位是 Companion Agent（"查数据是为了聊天"）。Phase 6 纠正了拓扑错配，
-Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再预设"查数据是为了交报告"。
+Phase 6.5 纠正了输出风格错配，Phase 8 纠正了 Context 管理错配，Phase 9 深化了人格表达系统。
 
 ---
 
@@ -47,15 +48,17 @@ Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再�
 
 ### 当前
 
-5 节点 StateGraph：reasoning → tool → (条件 critic) → (条件 render) → END。
+纯 ReAct 拓扑：reasoning ⇄ tool → render → END。Critic 屏蔽——三种 depth 共享同一推理逻辑，差异仅在参数。
 
-| 模式 | 迭代上限 | Critic | Render | 工具策略 |
-|------|---------|--------|--------|---------|
-| quick | 3 | 无 | 有工具时触发 | 1 轮 |
-| auto | 5 | 无 | 有工具时触发 | 1-2 轮 |
-| deep | 12 | 有 | 有工具时触发 | 深度链式 |
+| 模式 | 迭代上限 | Critic | Token 预算 | 人格参数覆盖 | 工具策略 |
+|------|---------|--------|-----------|-------------|---------|
+| quick | 3 | 无 | 6000 | depth_taste=0.35, initiative=0.15 | 1 轮够用就停，最后一轮强制回复 |
+| auto | 5 | 无 | 10000 | 角色默认值 | 1-2 轮，最后一轮强制回复 |
+| deep | 12 | 无（屏蔽） | 16000 | depth_taste=0.90, initiative=0.85 | 高预算高迭代，消化态引导 |
 
-**路由**：五级优先级（tool_calls → chitchat → deep/critic → render → END）。
+**路由**：两级（tool_calls → tool_node，其他 → render_node → END）。
+
+**depth 本质**：不是行为逻辑不同，是预算和人格参数不同。三种模式跑同一段 ReAct 代码。
 
 **文件**：`agent/graph.py`, `agent/orchestrate/nodes.py`, `agent/state.py`, `agent/orchestrate/strategies.py`, `agent/orchestrate/deep_strategies.py`, `agent/orchestrate/prompt_builder.py`, `agent/orchestrate/classifier.py`, `agent/orchestrate/guardrails.py`, `agent/orchestrate/helpers.py`
 
@@ -63,9 +66,8 @@ Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再�
 
 | # | 问题 | 文件 | 改动量 |
 |---|------|------|--------|
-| 1 | Deep 模式未充分触发链式调用（仅 1-2 轮 search，没走 detail） | `orchestrate/deep_strategies.py` | 策略调整 |
+| 1 | Deep 模式偶发超出迭代上限（13-14 轮 vs max 12），无 Critic 兜底 | `orchestrate/deep_strategies.py` | 策略调整 |
 | 2 | Bare title 仍直接搜而非先追问 | `orchestrate/strategies.py` + `persona/profiles.py` | ~10 行 |
-| 3 | Render 后历史中出现两条连续 AIMessage | `graph.py` 或 `persona/render.py` | 中等 |
 
 ---
 
@@ -73,22 +75,32 @@ Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再�
 
 ### 当前
 
-2 个 CharacterProfile（bangumi/neutral）+ Render 层风格转换。
+4 个 CharacterProfile + 5 档离散人格参数 + Render 层 per-personality voice hints。
 
-**CharacterProfile**（`agent/persona/profiles.py`）：
-- `BANGUMI_CHARACTER`：二次元损友——"让对话有趣"，"数据是吐槽的弹药"
-- `NEUTRAL_CHARACTER`：中性助手——准确、简洁、可操作
+**两层表达管线**：
+```
+Character Card (System Prompt) → 决定 agent 怎么思考（WHAT to think）
+Render Node (独立 LLM 调用)   → 决定输出怎么表达（HOW to say it）
+```
 
-**Render 层**（`agent/persona/render.py`）：
-- 仅工具调用后触发，极简 prompt（~380 chars）
-- 按 depth 分档字数：quick=120, auto=200, deep=350
-- expression_guide（通用语气）与 _RENDER_STYLE（数据呈现）职责分离、无重叠
+**四种人格模式**：
+
+| key | 人格 | snark | depth_taste | initiative |
+|-----|------|-------|-------------|------------|
+| `bangumi` | 二次元损友 | 0.65 (L4) | 0.70 (L4) | 0.60 (L3) |
+| `bangumi_cold` | 高冷腹黑评论家 | 0.95 (L5) | 0.90 (L5) | 0.25 (L2) |
+| `bangumi_cute` | 可爱安利爱好者 | 0.15 (L1) | 0.50 (L3) | 0.65 (L4) |
+| `neutral` | 中性助手 | 0.20 (L1) | 0.40 (L2) | 0.50 (L3) |
+
+**5 档离散参数**（`_render_tone()` in `profiles.py`）：每维 5 段 prompt 文本，按阈值查找——档位增加不改变 System Prompt 长度。
+
+**Render 层**（`agent/persona/render.py`）：per-personality voice hints（~50 chars）+ `_style_modifiers()` 按参数选 0-3 条微调规则。短闲聊（无工具 + <60 字）跳过 render。
 
 ### 待解决
 
 | # | 问题 | 文件 | 改动量 |
 |---|------|------|--------|
-| 1 | Neutral 风格 render 偏弱——仍可能罗列数据（`_RENDER_STYLE` 仅 2 条规则） | `persona/render.py` | ~5 行 |
+| 1 | bangumi_cold / bangumi_cute Character Card 措辞可进一步调优 | `persona/profiles.py` | ~20 行 |
 
 ---
 
@@ -98,7 +110,12 @@ Phase 6.5 纠正了输出风格错配。现在四层架构中，编排层不再�
 
 L1 + L2 活跃，L3 废弃。
 
-- **L1**：`agent/memory/short_term.py` — tiktoken 精确截断 + 滑动窗口
+- **L1**：`agent/memory/short_term.py` — Phase 8 重构：
+  - 按 depth 三级预算（quick 6000 / auto 10000 / deep 16000 tok）
+  - SystemMessage 永不截断
+  - 工具结果压缩（上一轮 ToolMessage → 关键字段摘要，2000→80 tokens）
+  - 孤儿 ToolMessage 清理（防止 API 400 错误）
+  - 管理入口 `manage_memory()`：压缩 → 截断超大 → 滑动窗口 → 清理孤儿
 - **L2**：`agent/memory/long_term.py` — 双通道召回（语义 + 时效回退）+ 时间衰减
 - **Session 缓存**：`agent/memory/cache.py` — 跨 HTTP 请求多轮上下文
 
@@ -106,7 +123,7 @@ L1 + L2 活跃，L3 废弃。
 
 | # | 问题 | 文件 | 改动量 |
 |---|------|------|--------|
-| 1 | 双套记忆阈值（Research/Dialogue）继承自 Phase 4 — 应合并为 depth 分支 | `config.py` + `memory/long_term.py` | 中等 |
+| 1 | `_memory_context` 空字符串缓存：`""` 是 falsy → 重复触发 embedding 调用 | `cache.py` | ~5 行 |
 
 ---
 
@@ -129,7 +146,7 @@ L1 + L2 活跃，L3 废弃。
 
 ---
 
-## 未来工作（原 Phase 7）
+## 未来工作
 
 ### 数据层：更多工具
 
@@ -144,14 +161,19 @@ L1 + L2 活跃，L3 废弃。
 | 配置项 | 问题 | 建议 |
 |--------|------|------|
 | `LLM_TEMPERATURE=0.3` | Tool Agent 优化值，压制 Companion 人味 | 按 depth 分支：0.5-0.7 (auto), 0.3 (deep) |
-| `MEMORY_MAX_INJECT_TOKENS=700` | 旧 Research Agent 默认值 | ~300 匹配 Companion 回复长度 |
-| `MEMORY_DIALOGUE_*` (2 项) | 命名过时 | 改名 `MEMORY_QUICK_*` |
-| `CRITIC_MODE="llm"` | 注释未说明仅 deep 生效 | 更新注释 |
+| `MEMORY_DIALOGUE_*` (2 项) | 命名过时（继承 Phase 4 "Dialogue Agent"） | 改名 `MEMORY_QUICK_*` |
+| `CRITIC_MODE="llm"` | 注释未说明 Critic 已屏蔽 | 更新注释 |
 | `MEMORY_MIN_SESSIONS_FOR_PROFILE=5` | L3 废弃，零消费者 | 删除 |
 
 ### 记忆层：受益
 
 - Group 分析结果走 `remember_public()` 写入 `public_memories`（表已建，索引已就绪）
+
+### 人格层：可能的扩展
+
+- 第三种自定义人格模式（如 "玩梗资历/老宅" otaku mode）
+- 场景自适应人格切换（按 intent 自动选人格参数）
+- Render prompt 进一步精简（当前 ~200-250 tokens，目标 ~150）
 
 ---
 

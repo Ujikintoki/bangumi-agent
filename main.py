@@ -70,15 +70,15 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="用户消息", min_length=1)
     depth: Literal["auto", "quick", "deep"] = Field(
         default="auto",
-        description="深度控制。auto=LLM 自行判断，quick=强制浅层 1-3 轮，deep=激活 Research Skill",
+        description="深度控制。auto=默认 5 轮，quick=3 轮快速，deep=12 轮高预算深度",
     )
     agent_type: Literal["dialogue", "research"] | None = Field(
         default=None,
         description="[deprecated] 使用 depth 替代。dialogue→quick, research→deep",
     )
-    output_style: Literal["neutral", "bangumi"] | None = Field(
+    output_style: Literal["neutral", "bangumi", "bangumi_cold", "bangumi_cute"] | None = Field(
         default=None,
-        description="输出风格。None=走默认值（bangumi），neutral=中性输出，bangumi=Bangumi娘腹黑吐槽",
+        description="输出风格。None=走默认值（bangumi），neutral=中性输出，bangumi=Bangumi娘腹黑吐槽，bangumi_cold=高冷腹黑，bangumi_cute=可爱安利",
     )
     session_id: str = Field(
         default="",
@@ -201,7 +201,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     - ``"auto"``（默认）：LLM 自行判断，轻量 ReAct ≤5 轮，无 Critic
     - ``"quick"``：强制浅层 1-3 轮，速度快
-    - ``"deep"``：激活 Research Skill，深度链式调用 + Critic 质量自省
+    - ``"deep"``：高预算（16000 tok）+ 深度人格参数，12 轮迭代上限
 
     ``agent_type`` 参数保留但已 deprecated，会自动映射到 depth。
 
