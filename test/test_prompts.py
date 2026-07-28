@@ -96,13 +96,14 @@ class TestProfiles:
         assert "数据完整性优先" not in BANGUMI_CHARACTER.tool_behavior
 
     def test_character_card_exists_for_bangumi(self):
-        """Bangumi 应有 Character Card。"""
+        """Bangumi 应有 Character Card（Phase 7.5: 人格描述，非台词范本）。"""
         card = get_character_card("bangumi")
         assert card is not None
-        assert "ACGN 老害" in card or "Bangumi 看板娘" in card
-        # 应包含对话示例
-        assert "EVA" in card
-        assert "CLANNAD" in card
+        assert "Bangumi 看板娘" in card or "ACGN 爱好者" in card
+        # 应包含审美体系关键词
+        assert "好不好看" in card or "重不重要" in card
+        # 应包含数据态度
+        assert "注脚" in card or "正文" in card
 
     def test_character_card_exists_for_neutral(self):
         """Neutral 应有 Character Card。"""
@@ -171,12 +172,12 @@ class TestPromptBuilder:
         assert "200 字" in result or "120 字" in result or "350 字" in result
 
     def test_builder_includes_tool_strategy(self):
-        """应包含够了就停原则。"""
+        """应包含够了就停原则——TOOL_GUIDANCE 已覆盖。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
         )
-        assert "够了就停" in result or "最多 1-2 轮" in result
+        assert "够了" in result or "数据够了直接回复" in result
 
     def test_builder_includes_continuity_rules(self):
         """应包含对话连续性规则。"""
@@ -188,12 +189,12 @@ class TestPromptBuilder:
         assert "明确指代" in result
 
     def test_builder_includes_tool_intuition(self):
-        """应包含 TOOL_INTUITION（行为性工具指引）。"""
+        """应包含 TOOL_GUIDANCE（Phase 8: 五合一工具指引）。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=NEUTRAL_CHARACTER,
         )
-        assert "查数据就像聊天时掏出手机" in result
+        assert "你的工具" in result
         assert "没查到" in result
 
     def test_builder_with_deep_scene_hint(self):
@@ -205,12 +206,11 @@ class TestPromptBuilder:
             intent="lookup",
             intent_strategies=DEEP_INTENT_PROMPTS,
             scene_hints=DEEP_SCENE_HINTS,
-            tool_constraint=TOOL_DEPENDENCY_CONSTRAINT,
         )
-        # Scene Hint 格式: [场景：查数据...]
-        assert "[场景：" in result
-        assert "查数据" in result
-        assert "工具依赖规则" in result  # tool_constraint 单独注入
+        # Scene Hint 格式: [当前：...]
+        assert "[当前：" in result
+        # Phase 8: 工具规则由 TOOL_GUIDANCE 覆盖，不再单独注入
+        assert "你的工具" in result
 
     def test_builder_with_companion_scene_hint(self):
         """Companion 浅层模式应注入 Scene Hints，不含工具依赖规则。"""
@@ -222,8 +222,7 @@ class TestPromptBuilder:
             intent_strategies=COMPANION_INTENT_PROMPTS,
             scene_hints=COMPANION_SCENE_HINTS,
         )
-        assert "[场景：" in result
-        assert "查数据" in result
+        assert "[当前：" in result
         assert "工具依赖规则" not in result
 
     def test_builder_with_critic_feedback(self):
@@ -303,11 +302,12 @@ class TestDeepPrompt:
 
     def test_includes_scene_hint(self):
         result = build_deep_prompt("discovery")
-        assert "[场景：" in result
+        assert "[当前：" in result
 
     def test_includes_tool_constraint(self):
+        """Phase 8: 工具约束已合并到 TOOL_GUIDANCE，检查并行规则存在。"""
         result = build_deep_prompt("lookup")
-        assert "工具依赖规则" in result
+        assert "并行规则" in result or "你的工具" in result
 
     def test_includes_critic_feedback(self):
         result = build_deep_prompt(
@@ -318,13 +318,12 @@ class TestDeepPrompt:
     def test_debate_intent_exists(self):
         assert "debate" in DEEP_INTENT_PROMPTS
         result = build_deep_prompt("debate")
-        assert "[场景：" in result
-        assert "争论" in result or "立场" in result
+        assert "[当前：" in result
 
     def test_emotional_intent_exists(self):
         assert "emotional" in DEEP_INTENT_PROMPTS
         result = build_deep_prompt("emotional")
-        assert "[场景：" in result
+        assert "[当前：" in result
 
 
 class TestIntentPrompts:
@@ -353,21 +352,21 @@ class TestIntentPrompts:
             assert intent in DEEP_SCENE_HINTS, f"缺少 deep scene_hint: {intent}"
 
     def test_lookup_and_unknown_have_tool_constraint(self):
-        """Deep lookup/unknown 的 Scene Hints 不嵌入 TOOL_DEPENDENCY_CONSTRAINT——
-        它由 build_system_prompt() 单独注入 tool_constraint 参数。"""
-        # TOOL_DEPENDENCY_CONSTRAINT 不应嵌入在 Scene Hints 中
+        """Deep lookup/unknown 的 Scene Hints 不嵌入工具约束——
+        Phase 8: TOOL_DEPENDENCY_CONSTRAINT 已合并到 TOOL_GUIDANCE。"""
         for intent in ["lookup", "unknown"]:
-            assert TOOL_DEPENDENCY_CONSTRAINT.strip() not in DEEP_INTENT_PROMPTS[intent]
+            assert "[当前：" in DEEP_INTENT_PROMPTS[intent]
 
     def test_chitchat_factual_exclude_tool_constraint(self):
-        assert TOOL_DEPENDENCY_CONSTRAINT.strip() not in DEEP_INTENT_PROMPTS["chitchat"]
-        assert TOOL_DEPENDENCY_CONSTRAINT.strip() not in DEEP_INTENT_PROMPTS["factual"]
+        """chitchat/factual 的 Scene Hints 应为简短视角提示。"""
+        assert "[当前：" in DEEP_INTENT_PROMPTS["chitchat"]
+        assert "[当前：" in DEEP_INTENT_PROMPTS["factual"]
 
     def test_companion_intents_exclude_tool_constraint(self):
-        """Companion 浅层策略不应包含工具依赖约束。"""
+        """Companion 浅层策略：Scene Hints 应为视角提示，不含工具约束（Phase 8: 工具规则统一在 TOOL_GUIDANCE）。"""
         for intent in COMPANION_INTENT_PROMPTS:
-            assert TOOL_DEPENDENCY_CONSTRAINT.strip() not in COMPANION_INTENT_PROMPTS[intent], \
-                f"companion intent {intent} 不应包含工具依赖约束"
+            assert "[当前：" in COMPANION_INTENT_PROMPTS[intent] or COMPANION_INTENT_PROMPTS[intent] == "", \
+                f"companion intent {intent} 格式不正确"
 
     def test_critic_prompt_has_escape_hatch(self):
         assert "逃逸舱" in CRITIC_SYSTEM_PROMPT or "Escape Hatch" in CRITIC_SYSTEM_PROMPT
@@ -379,18 +378,17 @@ class TestIntentPrompts:
         assert "角色" in result
 
     def test_deep_lookup_has_exit_conditions(self):
-        """Deep lookup Scene Hint 应包含退出条件的关键词。"""
+        """Deep lookup Scene Hint 应包含深入挖掘的关键词。"""
         lookup = DEEP_INTENT_PROMPTS["lookup"]
-        assert "两次搜索" in lookup or "搜索无果" in lookup
-        assert "诚实告知" in lookup or "名称有歧义" in lookup
+        assert "深入" in lookup or "值得" in lookup
 
     def test_debate_scene_hint_data_backs_opinion(self):
         debate = DEEP_INTENT_PROMPTS["debate"]
-        assert "数据" in debate
+        assert "数据" in debate or "判断" in debate
 
     def test_emotional_scene_hint_empathy_first(self):
         emotional = DEEP_INTENT_PROMPTS["emotional"]
-        assert "共情" in emotional
+        assert "朋友" in emotional or "真心" in emotional
 
     def test_companion_scene_hints_are_short(self):
         """Companion Scene Hints 应短于 deep 版（~50 chars vs ~100 chars）。"""
@@ -408,9 +406,9 @@ class TestHonestyPrinciple:
     """Prompt 中数据不足时的诚实兜底原则。"""
 
     def test_tool_intuition_has_honesty_principle(self):
-        """TOOL_INTUITION 应包含诚实兜底原则。"""
+        """TOOL_GUIDANCE 应包含诚实兜底原则。"""
         assert "没查到" in TOOL_INTUITION
-        assert "编造数据" in TOOL_INTUITION
+        assert "不编造" in TOOL_INTUITION
         assert "诚实说" in TOOL_INTUITION
 
     def test_companion_prompt_has_honesty_principle(self):

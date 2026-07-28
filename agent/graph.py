@@ -1,11 +1,9 @@
 """
-Companion Agent 图谱编排 — 统一 ReAct 拓扑
+Companion Agent 图谱编排 — 纯 ReAct 拓扑
 
 Phase 6: 合并 Research 和 Dialogue 两个 graph 为单一 StateGraph。
-critic_node 仅 depth=="deep" 时条件注册。
-
-Phase 6.5: 新增 render_node。工具调用后的回复在输出前过 render，
-将 agent 的"数据报告"改写为角色聊天风格。
+Phase 6.5: 新增 render_node——工具调用后的回复过 render 做风格转换。
+Phase 9: Critic 暂时屏蔽——三种 depth 共享同一拓扑，仅通过参数区分行为。
 
 核心拓扑
 ========
@@ -13,51 +11,29 @@ Phase 6.5: 新增 render_node。工具调用后的回复在输出前过 render�
                    START
                      │
                      ▼
-              reasoning_node ◄──────────────────┐
-                     │                           │
-                     ▼                           │
-              ┌──────┼──────────┐                │
-              │      │          │                │
-         tool_node   │     chitchat              │
-              │      │     (快速通道)             │
-              │      │          │                │
-              │  depth=="deep"?  END             │
-              │   ┌──┴──┐                        │
-              │   │     │                        │
-              │  YES    NO                       │
-              │   │     │                        │
-              │   ▼     │                        │
-              │ critic  │                        │
-              │   │     │                        │
-              │   ▼     ▼                        │
-              │ PASS?  有工具调用?                │
-              │  │  ┌──┴──┐                      │
-              │  │ YES   NO                      │
-              │  │  │    │                       │
-              │  │  ▼    ▼                       │
-              │  │ render END                    │
-              │  │  │                            │
-              │  └──┘                            │
-              │                                  │
-              │ REVISE → reasoning_node ─────────┘
+              reasoning_node ◄──────────┐
+                     │                   │
+                     ▼                   │
+              ┌──────┼──────┐            │
+              │      │      │            │
+         tool_node  render  END          │
+              │      │                   │
+              │      └───────────────────┘
               │
               └──→ reasoning_node（消化工具结果）
 
-决策矩阵
-========
+三种 depth 的区别不在拓扑——在参数：
 
-route_after_reasoning:
-    1. AIMessage.tool_calls 非空 → tool_node
-    2. intent = chitchat         → END（快速通道）
-    3. depth == "deep"           → critic_node
-    4. 当前轮有工具调用           → render_node → END    ← NEW
-    5. 其他                      → END
+| 维度         | quick         | auto          | deep          |
+|-------------|---------------|---------------|---------------|
+| Token 预算   | 6,000         | 10,000        | 16,000        |
+| 最大迭代     | 3             | 5             | 12            |
+| depth_taste  | 0.30          | 0.70（默认）   | 0.90          |
+| initiative   | 0.20          | 0.60（默认）   | 0.80          |
+| Scene Hints  | COMPANION     | COMPANION     | DEEP          |
+| 字数上限     | 120           | 200           | 350           |
 
-route_after_critic:
-    - PASS + 有工具调用 → render_node → END              ← NEW
-    - PASS + 无工具调用 → END
-    - REVISE + iter < N  → reasoning_node（重试）
-    - REVISE + iter >= N → END（熔断）
+Critic 节点保留在图中（用于未来重新激活），当前不被路由到。
 """
 
 from __future__ import annotations
@@ -112,12 +88,11 @@ def _has_tool_calls_in_current_turn(messages: list) -> bool:
 def route_after_reasoning(
     state: AgentState,
 ) -> Literal["tool_node", "critic_node", "render_node", "__end__"]:
-    """reasoning_node 后的条件边。
+    """reasoning_node 后的条件边。纯 ReAct 路由。
 
-    四级路由（Phase 7：chitchat 不再走快速通道到 END——统一过 render）：
+    Phase 9: Critic 暂时屏蔽——三种 depth 共享同一拓扑。
         1. AIMessage.tool_calls 非空 → tool_node
-        2. depth == "deep"          → critic_node（由 critic 决定是否 render）
-        3. 其他                     → render_node → END（短闲聊由 _should_skip_render 自动跳过）
+        2. 其他                      → render_node → END
     """
     from langchain_core.messages import AIMessage
 
@@ -135,20 +110,11 @@ def route_after_reasoning(
         )
         return "tool_node"
 
-    depth = state.get("depth", "auto")
-    if depth == "deep":
-        query_intent = state.get("query_intent", "unknown")
-        logger.debug(
-            "route_after_reasoning: depth=deep intent=%s 无工具调用 → critic_node",
-            query_intent,
-        )
-        return "critic_node"
-
-    # Phase 7: 所有非 deep、非工具路径统一走 render_node
+    # 所有非工具路径统一走 render_node
     # _should_skip_render 在 render_node 内部自动跳过短闲聊
     logger.debug(
         "route_after_reasoning: depth=%s intent=%s → render_node",
-        depth, state.get("query_intent", "unknown"),
+        state.get("depth", "auto"), state.get("query_intent", "unknown"),
     )
     return "render_node"
 

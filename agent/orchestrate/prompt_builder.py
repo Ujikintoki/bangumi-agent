@@ -36,49 +36,65 @@ from agent.persona.profiles import (
 # Tool Intuition — 行为性工具使用指引（替代 _TOOL_CALLING_RULES）
 # ═══════════════════════════════════════════════════════════════════════════
 
-TOOL_INTUITION = """\
-## 你什么时候查数据
+# ═══════════════════════════════════════════════════════════════════════════
+# Tool Guidance — 统一工具使用指引（Phase 8: 五合一合并）
+#
+# 替换：TOOL_INTUITION + tool_strategy + tool_behavior +
+#       TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT
+# ═══════════════════════════════════════════════════════════════════════════
 
-你查数据就像聊天时掏出手机核实一个事实——自然而短促。
+TOOL_GUIDANCE = """\
+## 你的工具
 
-- 用户问到了你不知道的 → 查一下，查到就放回去继续聊
-- 用户没问到的 → 不主动扩展。你不是在做调研报告
-- search 返回的信息通常已经够用——评分、排名、基本信息都在里面
-- 只有用户**明确**问了 search 结果里没有的（\"简介\"、\"评分分布\"、\"标签\"），才调 detail
-- 一次搜索能回答的问题就不要两次
-- \"没查到\"不是你的失败——诚实说没找到，比编造数据强一百倍
-- 数据够了就直接回，不要无意义地继续调工具
+你查数据不是为了报数据——是为了验证你的直觉。查到数据后，说你的判断。\
+数据是注脚，不是正文。一个恰到好处的数据点比三个无关的数据点有说服力得多。
 
-调用工具时：
-- 依赖 subject_id 的工具（detail、characters、opinions）必须先 search 拿到 id，**绝对不要**在同一轮并行
-- 互不依赖的工具可以并行（如 search + trending、多个不同关键词的 search）
-- 时效类工具（calendar、trending）直接调，不需要先搜 id"""
+**什么时候查**
+- 用户问到了你不知道的 → 查一下，结果放回去就继续聊
+- 用户没问到的 → 不主动扩展
+- 常识问题 → 基于训练知识直接回答，不查
+
+**多少算够**
+- search 返回的信息通常已够用——评分、排名、基本信息都在里面
+- 只有用户**明确**问了 search 里没有的（详情、角色列表、评论），才调 detail 类工具
+- 一次搜索能回答就不两次
+- 数据够了直接回复，不要无意义地继续调工具
+- "没查到"不是你的失败——诚实说没找到
+
+**并行规则**
+- 依赖 subject_id / person_id 的工具（detail、characters、opinions）\
+不能和 search 在同一轮并行——必须先 search 拿 id
+- 互不依赖的工具可以并行，但同一轮最多 3 个——更多的分批进行
+- 时效类工具（calendar、trending）直接调，不需要先搜 id
+
+**数据真实性**
+- 时效性问题（"今季新番"、"当前热门"）——只使用工具返回的最新数据，\
+工具没返回就诚实说无法获取。不要用训练知识编造"当前"的作品列表
+- 评分和排名只从工具数据中引用，工具没返回的数字不编造
+- 角色和声优没有评分——只有作品有"""
+
+# Phase 8 向后兼容别名
+TOOL_INTUITION = TOOL_GUIDANCE
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Continuity Rules — 话题绑定（保留，略精简）
 # ═══════════════════════════════════════════════════════════════════════════
 
 _CONTINUITY_RULES = """\
-## 对话连续性规则
+## 对话连续性
 
-如果本轮对话历史中包含你之前的回复，先判断用户当前问题与历史的关系。
-
-### 话题绑定检测
+如果对话历史中有你的回复，先判断用户当前问题与历史的关系。
 
 **明确指代 → 使用对话历史**
 - 代词回指：\"这部\"、\"那个\"、\"它\"、\"这些\"
 - 省略主语：\"评分怎么样？\"、\"评论呢？\"、\"还有吗？\"
-- 集合操作：\"评分最高的\"、\"8分以上的\"、\"里面哪个\"
-- 显式引用：\"你刚提到的\"、\"第一个\"
-从你上一轮回复中提取对应实体继续。
+- 集合操作：\"评分最高的\"、\"8分以上的\"
+从上一轮回复中提取对应实体继续。
 
-**全新话题 → 忽略对话历史**
-新作品名、新类型、新人物 → 独立处理，**严禁**将旧话题混入新回答。
+**全新话题 → 忽略旧历史**
+新作品名、新类型、新人物 → 独立处理，不将旧话题混入新回答。
 
-**模糊边界 → 保守处理**
-无法确定时默认当作全新问题，宁可追问确认也不错误关联。
-
-**原则：宁可少用历史（让用户补一句），不要错误关联（污染无关回答）。**"""
+**无法确定 → 宁可追问，不错误关联。**"""
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Word limits per depth（与 render._RENDER_WORD_LIMIT 保持一致）
@@ -103,17 +119,16 @@ def build_system_prompt(
     intent: str | None = None,
     intent_strategies: dict[str, str] | None = None,
     scene_hints: dict[str, str] | None = None,
-    tool_constraint: str = "",
     memory_context: str = "",
     critic_feedback: str = "",
     snark: float | None = None,
     depth_taste: float | None = None,
     initiative: float | None = None,
 ) -> str:
-    """组装 System Prompt — 5 段结构。
+    """组装 System Prompt — 4 段结构。
 
-    Phase 7: Character Card 替代碎片化字段，TOOL_INTUITION 替代过程式规则，
-    Scene Hint 替代冗长 intent strategy，guardrails 按 depth 格式化字数。
+    Phase 8: TOOL_GUIDANCE 五合一替代碎片化工具指引，
+    tool_constraint 参数移除——TOOL_GUIDANCE 覆盖所有深度模式需求。
 
     Args:
         agent_profile: Agent 配置。
@@ -123,7 +138,6 @@ def build_system_prompt(
         intent_strategies: [deprecated] 意图策略变体 dict。
             向后兼容——传入但未传 scene_hints 时作为 fallback。
         scene_hints: Phase 7 新增——意图对应的简短场景提示。
-        tool_constraint: 工具依赖约束（仅 deep 模式传入）。
         memory_context: L2 记忆召回 + tone 提示的格式化文本。
         critic_feedback: Critic 的定向反馈（仅 deep 模式传入）。
         snark: 覆盖 character.snark。None 时使用角色默认值。
@@ -154,16 +168,9 @@ def build_system_prompt(
     # ── Section 1.5: 今天的语气（轻量，从参数生成） ─────────
     parts.append(f"## 今天的语气\n{tone_parts['tone']}")
 
-    # ── Section 2: Capabilities + Tool Guidance ──────────────
+    # ── Section 2: Capabilities + Tool Guidance（Phase 8 合并） ──
     parts.append(agent_profile.capabilities)
-
-    tool_section_parts: list[str] = [TOOL_INTUITION]
-    if character.tool_behavior:
-        tool_section_parts.append(f"## 你对工具的态度\n{character.tool_behavior}")
-    tool_section_parts.append(agent_profile.tool_strategy)
-    if tool_constraint:
-        tool_section_parts.append(tool_constraint)
-    parts.append("\n\n".join(tool_section_parts))
+    parts.append(TOOL_GUIDANCE)
 
     # ── Section 2.5: 输出格式（纯格式，不含风格） ────────────
     if agent_profile.output_format_guide:

@@ -53,8 +53,8 @@ class TestRouteAfterReasoning:
         )
         assert route_after_reasoning(state) == "tool_node"
 
-    def test_routes_to_critic_when_no_tool_calls(self):
-        """AIMessage 无 tool_calls + lookup intent + depth=deep → critic_node"""
+    def test_deep_routes_to_render_when_no_tool_calls(self):
+        """AIMessage 无 tool_calls + depth=deep → render_node（Phase 9: Critic 屏蔽，纯 ReAct）"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -64,7 +64,7 @@ class TestRouteAfterReasoning:
             query_intent="lookup",
             depth="deep",
         )
-        assert route_after_reasoning(state) == "critic_node"
+        assert route_after_reasoning(state) == "render_node"
 
     def test_routes_to_render_when_shallow_no_tool_calls(self):
         """AIMessage 无 tool_calls + depth=auto → render_node（Phase 7: 始终走 render）"""
@@ -96,8 +96,8 @@ class TestRouteAfterReasoning:
         )
         assert route_after_reasoning(state) == "render_node"
 
-    def test_factual_still_goes_to_critic(self):
-        """factual + depth=deep → critic_node"""
+    def test_factual_deep_routes_to_render(self):
+        """factual + depth=deep → render_node（Phase 9: 统一 ReAct 路由）"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -107,7 +107,7 @@ class TestRouteAfterReasoning:
             query_intent="factual",
             depth="deep",
         )
-        assert route_after_reasoning(state) == "critic_node"
+        assert route_after_reasoning(state) == "render_node"
 
     def test_tool_calls_override_fast_path(self):
         """即使 chitchat 意图，有 tool_calls 时仍然走 tool_node"""

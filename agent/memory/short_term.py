@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 import tiktoken
@@ -37,32 +38,28 @@ except Exception:
     )
     _ENCODER = None
 
-# ── Token 预算分配（Phase 5 显式划分） ─
-DEFAULT_MAX_TOKENS = 8000
-"""Research Agent 总 Token 预算。
+# ── Token 预算分配（Phase 8: 按 depth 分级，与 system prompt 大小解耦） ─
+DEPTH_TOKEN_BUDGETS: dict[str, int] = {
+    "quick": 6000,
+    "auto": 10000,
+    "deep": 16000,
+}
+"""按深度模式的 Token 预算。
 
-分配：
-  System Prompt (BASE + intent):  ~1200 tokens
-  L2 记忆注入:                    ≤700 tokens
-  对话历史:                       ~5100 tokens
-  LLM 输出缓冲:                   ~1000 tokens
+Phase 8: 替代 Phase 5 的双常量（DEFAULT_MAX_TOKENS / DIALOGUE_MAX_TOKENS）。
+DeepSeek v4 128K 上下文窗口，这些数字仍然保守。
+
+分配逻辑（以 deep 为例）：
+  System Prompt:    ≤2,200 tokens
+  对话历史 + tool:  ~12,800 tokens
+  LLM 输出缓冲:     ~1,000 tokens
 """
 
-DIALOGUE_MAX_TOKENS = 4000
-"""Dialogue Agent 总 Token 预算。
+DEFAULT_MAX_TOKENS = 10000
+"""默认 Token 预算（auto 模式，向后兼容旧常量引用）。"""
 
-分配：
-  System Prompt (Bangumi娘人格):   ~600 tokens
-  L2 记忆注入:                    ≤300 tokens
-  对话历史:                       ~2500 tokens
-  LLM 输出缓冲:                    ~600 tokens
-"""
-
-L2_MEMORY_BUDGET_TOKENS = 700
-"""L2 记忆注入预留 Token 数（Research Agent）。"""
-
-L2_MEMORY_BUDGET_DIALOGUE = 300
-"""L2 记忆注入预留 Token 数（Dialogue Agent）。"""
+L2_MEMORY_BUDGET_TOKENS = 500
+"""L2 记忆注入预留 Token 数上限。Phase 8 收紧至 500（原 700）。"""
 
 # 单条消息最大 Token 数（超出则截断内容，主要针对 ToolMessage 返回的海量 JSON）
 _MAX_SINGLE_MESSAGE_TOKENS = 1500
@@ -195,6 +192,10 @@ def _truncate_oversized_messages(
     changed = False
     result: list[BaseMessage] = []
     for m in messages:
+        # Phase 8: System prompt is sacred — never truncate
+        if isinstance(m, SystemMessage):
+            result.append(m)
+            continue
         content = m.content if hasattr(m, "content") else str(m)
         if isinstance(content, str) and count_tokens(content) > max_single_tokens:
             result.append(_truncate_message_content(m, max_single_tokens))
@@ -341,17 +342,159 @@ def trim_messages(
     return result
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Tool Result 压缩（Phase 8: 提取关键字段，2000 tokens → ~80 tokens）
+# ═══════════════════════════════════════════════════════════════════════════
+
+_COMPRESSION_MARKER = "[已压缩] "
+
+
+def _compress_tool_result(msg: ToolMessage) -> ToolMessage:
+    """将 ToolMessage 的 content 压缩为关键字段摘要。
+
+    当前轮的工具结果保留完整；上一轮的工具结果调用此函数压缩。
+    不是丢弃信息——是提取 agent 后续引用时最可能需要的关键字段。
+
+    Args:
+        msg: 原始 ToolMessage。
+
+    Returns:
+        压缩后的 ToolMessage（新对象）。无需压缩时返回原消息。
+    """
+    content = msg.content if hasattr(msg, "content") else ""
+    if not isinstance(content, str) or not content.strip():
+        return msg
+
+    tool_name = getattr(msg, "name", "") or ""
+
+    # search_bangumi_subject: 提取作品列表关键字段
+    if tool_name == "search_bangumi_subject":
+        return _compress_search_result(msg, content)
+
+    # get_person_detail / get_character_detail: 保留前 400 tokens
+    if tool_name in ("get_person_detail", "get_character_detail"):
+        return _compress_by_truncation(msg, content, max_tokens=400)
+
+    # 其他工具: 保留前 300 tokens
+    return _compress_by_truncation(msg, content, max_tokens=300)
+
+
+def _compress_search_result(msg: ToolMessage, content: str) -> ToolMessage:
+    """压缩 search_bangumi_subject 返回的 dict。"""
+    try:
+        data = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return _compress_by_truncation(msg, content, max_tokens=300)
+
+    if not isinstance(data, dict):
+        return _compress_by_truncation(msg, content, max_tokens=300)
+
+    results = data.get("results") or data.get("data") or []
+    if isinstance(results, dict):
+        results = [results]
+    if not isinstance(results, list) or not results:
+        return _compress_by_truncation(msg, content, max_tokens=200)
+
+    compressed_items: list[str] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        parts: list[str] = []
+        name = item.get("name_cn") or item.get("name") or "?"
+        parts.append(str(name))
+        if "type" in item and item["type"]:
+            parts.append(str(item["type"]))
+        if "date" in item and item["date"]:
+            parts.append(str(item["date"]))
+        rating = item.get("rating")
+        if isinstance(rating, dict):
+            score = rating.get("score")
+            rank = rating.get("rank")
+            if score is not None:
+                parts.append(f"⭐{score}")
+            if rank is not None:
+                parts.append(f"#{rank}")
+        item_id = item.get("id")
+        if item_id is not None:
+            parts.append(f"id={item_id}")
+        compressed_items.append(" | ".join(parts))
+
+    summary = _COMPRESSION_MARKER + "\n".join(f"- {c}" for c in compressed_items[:20])
+    if len(compressed_items) > 20:
+        summary += f"\n… 共 {len(compressed_items)} 条结果"
+
+    return ToolMessage(
+        content=summary,
+        tool_call_id=getattr(msg, "tool_call_id", ""),
+        name=getattr(msg, "name", None),
+    )
+
+
+def _compress_by_truncation(msg: ToolMessage, content: str, max_tokens: int) -> ToolMessage:
+    """按 token 截断内容，添加压缩标记。"""
+    current = count_tokens(content)
+    if current <= max_tokens:
+        return msg
+    truncated = _truncate_text_by_tokens(content, max_tokens - count_tokens(_COMPRESSION_MARKER))
+    return ToolMessage(
+        content=_COMPRESSION_MARKER + truncated,
+        tool_call_id=getattr(msg, "tool_call_id", ""),
+        name=getattr(msg, "name", None),
+    )
+
+
+def _find_last_real_human_idx(messages: list[BaseMessage]) -> int:
+    """找到最后一条真实用户消息的索引（跳过系统注入的 HumanMessage）。"""
+    for i in range(len(messages) - 1, -1, -1):
+        m = messages[i]
+        if isinstance(m, HumanMessage):
+            content = m.content if hasattr(m, "content") else ""
+            if content and not str(content).startswith("（系统指令："):
+                return i
+    return -1
+
+
+def _compress_previous_round_tools(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """压缩上一轮的 ToolMessage，当前轮的保留完整。
+
+    判断当前轮：最后一条真实 HumanMessage 之后的所有消息视为当前轮。
+    """
+    last_human_idx = _find_last_real_human_idx(messages)
+    if last_human_idx < 0:
+        return messages
+
+    changed = False
+    result: list[BaseMessage] = []
+    for i, m in enumerate(messages):
+        if isinstance(m, ToolMessage) and i < last_human_idx:
+            compressed = _compress_tool_result(m)
+            if compressed is not m:
+                changed = True
+            result.append(compressed)
+        else:
+            result.append(m)
+
+    if changed:
+        before = estimate_tokens(messages)
+        after = estimate_tokens(result)
+        logger.info(
+            "memory: 压缩历史 ToolMessage — %d → %d tokens (节省 %d%%)",
+            before, after, int((1 - after / max(before, 1)) * 100),
+        )
+
+    return result
+
+
 def manage_memory(
     messages: list[BaseMessage],
     max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> list[BaseMessage]:
-    """记忆管理入口：先截断超大单条消息，再检查总预算。
+    """记忆管理入口：压缩历史工具结果 → 截断超大消息 → 滑动窗口。
 
-    两步策略：
-        1. 单条截断：ToolMessage 超过 ``_MAX_SINGLE_MESSAGE_TOKENS``
-           的内容先被截断，防止一条消息挤占全部上下文。
-        2. 列表截断：总 Token 超预算时滑动窗口丢弃旧消息，
-           ToolMessage 优先截断而非丢弃。
+    Phase 8 三步策略：
+        1. 压缩上一轮 ToolMessage——提取关键字段，2000→80 tokens
+        2. 截断当前轮超大消息（SystemMessage 除外）
+        3. 滑动窗口截断
 
     在 reasoning_node 开头调用。
 
@@ -360,12 +503,15 @@ def manage_memory(
         max_tokens: Token 预算上限。
 
     Returns:
-        可能截断后的消息列表。
+        可能压缩/截断后的消息列表。
     """
-    # Step 0: 截断超大单条消息（主要针对 ToolMessage）
+    # Step 0: 压缩上一轮工具结果（Phase 8: 保留语义骨架）
+    messages = _compress_previous_round_tools(messages)
+
+    # Step 1: 截断超大单条消息（SystemMessage 除外）
     messages = _truncate_oversized_messages(messages)
 
-    # Step 1: 检查总预算
+    # Step 2: 检查总预算
     current_tokens = estimate_tokens(messages)
     if current_tokens <= max_tokens:
         logger.debug("memory: Token %d ≤ 预算 %d，无需截断", current_tokens, max_tokens)

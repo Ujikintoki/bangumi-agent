@@ -5,7 +5,7 @@ L1 短记忆（滑动窗口截断）+ L2 跨会话语义记忆（pgvector 语义
 
 from agent.memory.short_term import (  # noqa: F401
     DEFAULT_MAX_TOKENS,
-    DIALOGUE_MAX_TOKENS,
+    DEPTH_TOKEN_BUDGETS,
     count_tokens,
     estimate_tokens,
     manage_memory,
@@ -16,7 +16,7 @@ from agent.memory.cache import get_session_cache  # noqa: F401
 
 __all__ = [
     "DEFAULT_MAX_TOKENS",
-    "DIALOGUE_MAX_TOKENS",
+    "DEPTH_TOKEN_BUDGETS",
     "MemoryManager",
     "count_tokens",
     "estimate_tokens",

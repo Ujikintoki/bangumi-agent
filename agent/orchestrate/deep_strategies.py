@@ -1,11 +1,8 @@
 """
 Research Skill 深度意图策略 — 仅 depth=="deep" 激活
 
-Phase 7: INTENT_PROMPTS 长段落改为 DEEP_SCENE_HINTS（~100 chars/条）。
-TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT 保留（deep 模式必需）。
-CRITIC_SYSTEM_PROMPT 不变。
-
-保留 INTENT_PROMPTS 别名 + build_system_prompt() 薄封装向后兼容。
+Phase 8: TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT 已合并到
+prompt_builder.TOOL_GUIDANCE。本文件仅保留 DEEP_SCENE_HINTS + CRITIC_SYSTEM_PROMPT。
 """
 
 from __future__ import annotations
@@ -18,80 +15,48 @@ from agent.orchestrate.prompt_builder import build_system_prompt as _build
 logger = logging.getLogger("bgm-agent.prompts")
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 工具依赖约束（仅 deep 模式，不变）
+# Phase 8 向后兼容别名（已合并到 prompt_builder.TOOL_GUIDANCE）
 # ═══════════════════════════════════════════════════════════════════════════
 
-TOOL_DEPENDENCY_CONSTRAINT = """
-## ⚠️ 工具依赖规则（必须遵守）
-
-1. 以下工具需要 subject_id 参数，**必须先通过 search_bangumi_subject 获取**：
-   - get_bangumi_subject_detail
-   - get_subject_characters
-   - get_subject_opinions
-   - get_episode_comments
-
-2. 以下工具需要 character_id / person_id 参数，**必须先通过 search_bangumi_subject 获取**：
-   - get_character_detail（需要 character_id，先用 search(entity_type="character") 搜索）
-   - get_person_detail（需要 person_id，先用 search(entity_type="person") 搜索）
-
-3. **绝对不要**将这些工具与 search_bangumi_subject 在同一轮中并行调用。
-   错误示例：同时调用 search(name="花泽香菜") + get_person_detail(person_id=???)
-   正确做法：第一轮 search → 拿到 id → 第二轮 detail
-
-4. 可以安全并行调用的组合：
-   - search_local_bangumi + get_trending_subjects（互不依赖）
-   - get_calendar + get_trending_subjects（时效数据，互不依赖）
-   - 多个不同关键词的 search_bangumi_subject 同时进行
-   - 多个不同 ID 的 get_character_detail 同时调用（互不依赖）"""
-
+TOOL_DEPENDENCY_CONSTRAINT = ""
+_DATA_MODEL_CONSTRAINT = ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 数据模型约束（仅 deep 模式，不变）
-# ═══════════════════════════════════════════════════════════════════════════
-
-_DATA_MODEL_CONSTRAINT = """
-## ⚠️ Bangumi 数据模型约束
-
-- **只有"条目/作品"（subject）有评分（rating）和排名（rank）**
-- **"角色"（character）和"声优/真人"（person）有收藏数（collects），没有评分**
-- 如果用户询问可能是角色或声优的实体的"评分"，先判断实体类型：
-  - 如果搜索结果显示是角色 → 查找其所属作品的评分，并告知用户"角色本身没有评分，其所属作品评分为 X"
-  - 如果搜索结果显示是声优 → 查找其配音作品的评分
-- 对于番组/游戏等条目（subject），评分字段为 ``rating.score``，排名字段为 ``rating.rank``"""
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Deep Scene Hints — 比 companion 稍多工具链提示（Phase 7）
+# Deep Scene Hints — Phase 7.5: 视角提示 + 必要的工具链指引
 # ═══════════════════════════════════════════════════════════════════════════
 
 DEEP_SCENE_HINTS: dict[str, str] = {
-    "chitchat": "[场景：闲聊。直接回应，不调工具——除非用户混入了数据查询。]",
-    "factual": "[场景：常识问答。基于知识回答。不确定时优先搜索而非猜测。]",
+    "chitchat": (
+        "[当前：闲聊。你不是在回答问题——你是在和一个认识的人说话。]"
+    ),
+    "factual": (
+        "[当前：常识问答。基于你的知识回答——不是每个问题都需要查数据。]"
+    ),
     "lookup": (
-        "[场景：查数据。先 search 定位，search 结果够用就直接答。"
-        "用户明确问了简介/评分分布/标签才调 detail。角色/人物用对应 entity_type。"
-        "两次搜索无果 → 诚实告知。名称有歧义 → 追问。]"
+        "[当前：用户在问你一个具体作品。想想关于这部作品，什么是最值得说的——"
+        "评分只是一个维度，还有它在导演作品序列里的位置、它被误解的地方、"
+        "它和同类作品的对位关系。需要更多数据时可以深入挖掘。]"
     ),
     "discovery": (
-        "[场景：推荐。串行流程：search 参考作品 → detail 拿标签 → search 同类。"
-        "无参考作品时用 search_local_bangumi 语义搜索。"
-        "推荐 3-5 部，每部一句话理由。结果少就诚实说明。]"
+        "[当前：用户在寻找新作品。你不是在做算法推荐——你是在分享你觉得"
+        "真正值得看的东西。可以串行深挖：search 参考作品 → detail 拿标签"
+        "→ 按标签搜同类。推荐不在多，在你说得清楚为什么。]"
     ),
     "realtime": (
-        "[场景：时效数据。时效类工具直接调、可并行。"
-        "拿到结果后不要逐个展开每个条目——这不是年度盘点。"
-        "列表最多 10 条，评分高的在前。]"
+        "[当前：时效数据。你需要最新的信息——只使用工具返回的数据。"
+        "你的训练数据不是当前季度的。工具数据充足就挑最有意思的说，"
+        "数据不足就说数据不足。时效类工具可并行调。]"
     ),
     "debate": (
-        "[场景：争论。先亮立场，用数据佐证。"
-        "搜索评分和评论来支撑论点——有数据背书的毒舌比空口争论有力。]"
+        "[当前：用户在争论。你有自己的立场——说出来，用你的判断和查到的数据支撑它。"
+        "不需要赢，需要的是有质量的对话。搜索评分和评论来了解站内共识。]"
     ),
     "emotional": (
-        "[场景：陪伴。先共情，再推荐。工具是附属品——情感连接优先于数据完整性。"
-        "用户情绪低落时暂缓毒舌。推荐要有温度，说'为什么适合现在的你'。]"
+        "[当前：用户有些情绪。你不是来解决问题的——你是来当朋友的。"
+        "说一句真心话比推荐三部番有用。情感连接优先。]"
     ),
     "unknown": (
-        "[场景：通用。自行判断是否需要工具。不确定时优先搜索而非猜测。]"
+        "[当前：通用。想想用户真正需要的是什么——有时候不是数据，是一个视角。]"
     ),
 }
 
@@ -153,8 +118,7 @@ def build_system_prompt(
     实际组装由 agent.prompt_builder.build_system_prompt() 完成。
     本函数作为薄封装，保持与 nodes.py 的接口兼容。
 
-    Phase 7: 新增 scene_hints 参数（DEEP_SCENE_HINTS），
-    同时传 intent_strategies 以向后兼容旧 prompt_builder。
+    Phase 8: tool_constraint 参数移除——TOOL_GUIDANCE 已覆盖所有需求。
 
     Args:
         intent: 查询意图，如 "lookup"、"discovery" 等。
@@ -174,8 +138,7 @@ def build_system_prompt(
         depth="deep",
         intent=intent,
         intent_strategies=INTENT_PROMPTS,  # 向后兼容
-        scene_hints=DEEP_SCENE_HINTS,  # Phase 7 新路径
-        tool_constraint=TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT,
+        scene_hints=DEEP_SCENE_HINTS,
         memory_context=memory_context,
         critic_feedback=critic_feedback,
     )

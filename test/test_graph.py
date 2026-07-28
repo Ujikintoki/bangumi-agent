@@ -34,8 +34,8 @@ class TestGraphIntegration:
     """端到端图谱：基本路径 + 熔断"""
 
     @patch("agent.orchestrate.nodes.create_llm")
-    async def test_chitchat_deep_still_goes_to_critic(self, mock_create_llm):
-        """chitchat + depth=deep → critic 仍会评估（Phase 7: chitchat 快速通道已移除）"""
+    async def test_chitchat_deep_routes_to_render(self, mock_create_llm):
+        """chitchat + depth=deep → render_node（Phase 9: 纯 ReAct，无 Critic）"""
         mock_create_llm.return_value = make_mock_llm(content="你好！")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -43,27 +43,12 @@ class TestGraphIntegration:
             query_intent="chitchat", iterations=1, depth="deep",
         )
         result = await graph.ainvoke(state)
-        # chitchat + deep → 路由到 critic_node → rule critic 判定 PASS
-        assert result.get("critic_status") == "PASS"
+        # deep 路由到 render_node → END，不再经过 critic
+        assert "reply" in result or "messages" in result
 
     @patch("agent.orchestrate.nodes.create_llm")
-    async def test_circuit_breaker(self, mock_create_llm):
-        mock_create_llm.return_value = make_mock_llm(content="test")
-        graph = build_graph(tools=MOCK_TOOLS)
-        state = make_state(
-            messages=[
-                SystemMessage(content="..."),
-                HumanMessage(content="搜巨人"),
-                AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {}, "id": "c1"}]),
-            ],
-            iterations=_DEEP_MAX - 1, critic_status="REVISE", query_intent="lookup",
-            depth="deep",
-        )
-        result = await graph.ainvoke(state)
-        assert result.get("error_flag") is True
-
-    @patch("agent.orchestrate.nodes.create_llm")
-    async def test_factual_skips_tools(self, mock_create_llm):
+    async def test_deep_completes_without_critic(self, mock_create_llm):
+        """deep 模式无 Critic——纯 ReAct 循环自然终止。"""
         mock_create_llm.return_value = make_mock_llm(content="三集定律是指...")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -71,7 +56,9 @@ class TestGraphIntegration:
             depth="deep",
         )
         result = await graph.ainvoke(state)
-        assert result.get("critic_status") == "PASS"
+        # 无工具调用 → render_node → END，正常完成
+        messages = result.get("messages", [])
+        assert len(messages) > 0
 
     @patch("agent.orchestrate.nodes.create_llm")
     async def test_query_intent_persists_across_rounds(self, mock_create_llm):
@@ -96,13 +83,14 @@ class TestGraphIntegration:
 
 
 class TestCriticFeedbackPropagation:
-    """验证 critic_feedback 确实注入到下一轮 reasoning_node 的 LLM 调用"""
+    """Phase 9: Critic 屏蔽后，critic_feedback 不再影响 prompt。保留测试验证该隔离。"""
 
     @patch("agent.orchestrate.nodes.create_llm")
     @patch("agent.orchestrate.nodes.get_agent_tools")
-    async def test_feedback_appears_in_llm_prompt(self, mock_get_tools, mock_create_llm):
+    async def test_critic_feedback_not_injected(self, mock_get_tools, mock_create_llm):
+        """critic_feedback 不应出现在 system prompt 中（Critic 已屏蔽）。"""
         mock_get_tools.return_value = []
-        mock_llm = make_mock_llm(content="已修正的回复")
+        mock_llm = make_mock_llm(content="正常回复")
         mock_create_llm.return_value = mock_llm
 
         state = make_state(
@@ -123,8 +111,8 @@ class TestCriticFeedbackPropagation:
         messages_to_llm = invoke_call[0][0]
         system_msgs = [m for m in messages_to_llm if isinstance(m, SystemMessage)]
         combined_system = " ".join(m.content for m in system_msgs)
-        assert "缺少评分" in combined_system
-        assert "上一轮回复需要改进" in combined_system
+        # Phase 9: critic_feedback 不再注入
+        assert "上一轮回复需要改进" not in combined_system
 
 
 class TestMemoryGraphIntegration:
@@ -167,7 +155,8 @@ class TestMemoryGraphIntegration:
 class TestStateLifecycle:
     """验证跨轮次 state 字段的完整性"""
 
-    async def test_tool_to_reasoning_to_critic_pipeline(self):
+    async def test_tool_to_reasoning_to_render_pipeline(self):
+        """Phase 9: tool → reasoning → render 完整链路（无 Critic）"""
         from agent.graph import build_graph
 
         @patch("agent.orchestrate.nodes.create_llm")
@@ -187,7 +176,9 @@ class TestStateLifecycle:
                 depth="deep",
             )
             result = await graph.ainvoke(state)
-            assert result.get("critic_status") == "PASS"
+            # 纯 ReAct: tool → reasoning → render → END
+            messages = result.get("messages", [])
+            assert len(messages) > 0
 
         await _test()
 

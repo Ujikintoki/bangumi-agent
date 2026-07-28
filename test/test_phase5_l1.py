@@ -12,6 +12,7 @@ Phase 5 L1 短记忆模块 — 验证测试
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
 from unittest import mock
@@ -21,8 +22,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from agent.memory.short_term import (
     DEFAULT_MAX_TOKENS,
-    DIALOGUE_MAX_TOKENS,
-    L2_MEMORY_BUDGET_DIALOGUE,
+    DEPTH_TOKEN_BUDGETS,
     L2_MEMORY_BUDGET_TOKENS,
     count_tokens,
     estimate_tokens,
@@ -32,24 +32,25 @@ from agent.memory.short_term import (
 
 
 class TestBudgetConstants:
-    """预算常量定义验证"""
+    """预算常量定义验证（Phase 8: 按 depth 分级）"""
 
-    def test_default_max_is_8000(self):
-        assert DEFAULT_MAX_TOKENS == 8000
+    def test_default_max_is_10000(self):
+        assert DEFAULT_MAX_TOKENS == 10000
 
-    def test_dialogue_max_is_4000(self):
-        assert DIALOGUE_MAX_TOKENS == 4000
+    def test_depth_budgets_structure(self):
+        """DEPTH_TOKEN_BUDGETS 包含三种模式且 deep > auto > quick"""
+        assert DEPTH_TOKEN_BUDGETS["quick"] == 6000
+        assert DEPTH_TOKEN_BUDGETS["auto"] == 10000
+        assert DEPTH_TOKEN_BUDGETS["deep"] == 16000
+        assert DEPTH_TOKEN_BUDGETS["deep"] > DEPTH_TOKEN_BUDGETS["auto"] > DEPTH_TOKEN_BUDGETS["quick"]
 
-    def test_l2_budget_research_is_700(self):
-        assert L2_MEMORY_BUDGET_TOKENS == 700
+    def test_l2_budget_is_500(self):
+        assert L2_MEMORY_BUDGET_TOKENS == 500
 
     def test_l2_budget_equals_config_default(self):
         """确保 memory.py 常量与 config.py Settings 默认值一致，防止两处定义漂移。"""
         from core.config import Settings
         assert L2_MEMORY_BUDGET_TOKENS == Settings().MEMORY_MAX_INJECT_TOKENS
-
-    def test_l2_budget_dialogue_is_300(self):
-        assert L2_MEMORY_BUDGET_DIALOGUE == 300
 
 
 class TestCompleteMessageListTruncation:
@@ -228,8 +229,8 @@ class TestCompleteMessageListTruncation:
 class TestDialogueBudget:
     """Dialogue Agent 专用预算 4000 tokens"""
 
-    def test_dialogue_budget_is_stricter(self):
-        """Dialogue 预算 4000 < Research 8000，同等对话历史时应截断更多"""
+    def test_depth_budget_stricter_for_quick(self):
+        """quick 预算 6000 < deep 16000，同等对话历史时应截断更多"""
         conversation = []
         for i in range(25):
             conversation.append(HumanMessage(content=f"问题{i}: 查询番剧数据 " * 6))
@@ -242,22 +243,18 @@ class TestDialogueBudget:
             if not isinstance(m, SystemMessage):
                 messages.append(m)
 
-        research_trimmed = manage_memory(messages.copy(), max_tokens=DEFAULT_MAX_TOKENS)
-        dialogue_trimmed = manage_memory(messages.copy(), max_tokens=DIALOGUE_MAX_TOKENS)
+        deep_trimmed = manage_memory(messages.copy(), max_tokens=DEPTH_TOKEN_BUDGETS["deep"])
+        quick_trimmed = manage_memory(messages.copy(), max_tokens=DEPTH_TOKEN_BUDGETS["quick"])
 
-        assert estimate_tokens(research_trimmed) <= DEFAULT_MAX_TOKENS
-        assert estimate_tokens(dialogue_trimmed) <= DIALOGUE_MAX_TOKENS
+        assert estimate_tokens(deep_trimmed) <= DEPTH_TOKEN_BUDGETS["deep"]
+        assert estimate_tokens(quick_trimmed) <= DEPTH_TOKEN_BUDGETS["quick"]
 
-        # Dialogue 应该保留更少对话历史
-        r_count = len([m for m in research_trimmed if not isinstance(m, SystemMessage)])
-        d_count = len([m for m in dialogue_trimmed if not isinstance(m, SystemMessage)])
-        assert d_count <= r_count, (
-            f"Dialogue 对话数 ({d_count}) 应 ≤ Research 对话数 ({r_count})"
+        # quick 应该保留更少对话历史
+        d_count = len([m for m in deep_trimmed if not isinstance(m, SystemMessage)])
+        q_count = len([m for m in quick_trimmed if not isinstance(m, SystemMessage)])
+        assert q_count <= d_count, (
+            f"quick 对话数 ({q_count}) 应 ≤ deep 对话数 ({d_count})"
         )
-
-    def test_dialogue_budget_is_4000(self):
-        """DIALOGUE_MAX_TOKENS 确为 4000"""
-        assert DIALOGUE_MAX_TOKENS == 4000
 
 
 class TestTiktokenFaultTolerance:
@@ -353,3 +350,111 @@ class TestDigestionGuidanceInBudget:
             ]
             pytest.fail(f"消化态引导指令应被保留。截断后消息列表: {contents}")
         assert found, "消化态引导指令应被保留（它在列表尾部）"
+
+
+class TestToolResultCompression:
+    """Phase 8: 历史 ToolMessage 压缩为关键字段摘要。"""
+
+    def test_compress_search_result_reduces_size(self):
+        """search_bangumi_subject 的 dict 结果应被压缩为关键字段。"""
+        from agent.memory.short_term import _compress_tool_result
+
+        # 模拟 search_bangumi_subject 返回
+        content = json.dumps({
+            "results": [
+                {
+                    "id": 876, "name": "Bakemonogatari", "name_cn": "化物语",
+                    "type": "TV", "date": "2009-07-03",
+                    "rating": {"score": 8.4, "rank": 61, "count": 15000},
+                    "summary": "长篇大论的摘要文本 " * 50,  # padding
+                },
+                {
+                    "id": 1234, "name": "Nisemonogatari", "name_cn": "伪物语",
+                    "type": "TV", "date": "2012-01-07",
+                    "rating": {"score": 8.2, "rank": 120},
+                    "summary": "更多摘要 " * 50,
+                },
+            ]
+        })
+        msg = ToolMessage(content=content, tool_call_id="t1", name="search_bangumi_subject")
+        compressed = _compress_tool_result(msg)
+
+        assert compressed is not msg  # 新对象
+        assert "[已压缩]" in compressed.content
+        assert "化物语" in compressed.content
+        assert "⭐8.4" in compressed.content
+        assert "#61" in compressed.content
+        assert "伪物语" in compressed.content
+        # 应远小于原始
+        assert count_tokens(compressed.content) < count_tokens(content) // 3
+
+    def test_compress_skips_current_round(self):
+        """当前轮的 ToolMessage 保留完整——只有上一轮的才压缩。"""
+        messages = [
+            SystemMessage(content="You are Bangumi娘"),
+            HumanMessage(content="EVA 评分怎么样"),
+            AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
+            ToolMessage(
+                content=json.dumps({"results": [
+                    {"id": 1, "name": "EVA", "name_cn": "新世纪福音战士",
+                     "type": "TV", "rating": {"score": 9.1, "rank": 1}}
+                ]}),
+                tool_call_id="c1", name="search_bangumi_subject",
+            ),
+            # R2: 新问题——之前的 ToolMessage 变为"上一轮"
+            HumanMessage(content="那排名呢"),
+        ]
+
+        from agent.memory.short_term import _compress_previous_round_tools
+        result = _compress_previous_round_tools(messages)
+
+        # EVA 的 ToolMessage 在第二个人类消息之前 → 应被压缩
+        tool_msgs = [m for m in result if isinstance(m, ToolMessage)]
+        assert len(tool_msgs) == 1
+        assert "[已压缩]" in tool_msgs[0].content
+
+    def test_compress_person_detail(self):
+        """get_person_detail 应保留前 400 tokens。"""
+        from agent.memory.short_term import _compress_tool_result
+
+        content = "person detail data " * 200  # long content
+        msg = ToolMessage(content=content, tool_call_id="t1", name="get_person_detail")
+
+        compressed = _compress_tool_result(msg)
+        assert count_tokens(compressed.content) <= 450  # 400 + marker
+        assert "[已压缩]" in compressed.content
+
+    def test_compress_empty_content_noop(self):
+        """空 content 的 ToolMessage 不压缩。"""
+        from agent.memory.short_term import _compress_tool_result
+
+        msg = ToolMessage(content="", tool_call_id="t1", name="search_bangumi_subject")
+        result = _compress_tool_result(msg)
+        assert result is msg  # 返回原对象
+
+    def test_manage_memory_includes_compression(self):
+        """manage_memory 应在截断前先压缩历史工具结果。"""
+        fat_search = json.dumps({"results": [
+            {"id": i, "name": f"Anime{i}", "type": "TV",
+             "rating": {"score": 7.5, "rank": i * 10},
+             "summary": "padding " * 100}
+            for i in range(10)
+        ]})
+
+        messages = [
+            SystemMessage(content="System prompt " * 80),
+            HumanMessage(content="R1: 推荐动画"),
+            AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
+            ToolMessage(content=fat_search, tool_call_id="c1", name="search_bangumi_subject"),
+            AIMessage(content="这里是推荐列表……"),
+            HumanMessage(content="R2: 第一部评分怎么样"),
+        ]
+
+        result = manage_memory(messages, max_tokens=DEPTH_TOKEN_BUDGETS["auto"])
+        assert estimate_tokens(result) <= DEPTH_TOKEN_BUDGETS["auto"]
+
+        # 压缩后的 R1 ToolMessage 应保留关键信息
+        tool_msgs = [m for m in result if isinstance(m, ToolMessage)]
+        compressed = [m for m in tool_msgs if "[已压缩]" in m.content]
+        assert len(compressed) >= 1
+        assert "⭐7.5" in compressed[0].content  # 关键数据保留

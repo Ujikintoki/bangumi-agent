@@ -1,12 +1,16 @@
 """
-Companion Agent 节点函数
+Companion Agent 节点函数 — 纯 ReAct 推理
 
-Phase 6: 合并 research_reasoning_node 和 dialogue_reasoning_node 为单一
-reasoning_node，按 depth 分支：
-- depth=="deep": error_flag 兜底、critic_feedback 消费、深度 prompt、12 轮上限
-- depth!="deep": last_chance 逻辑、浅层 prompt、5 轮上限
+Phase 6: 合并双 Agent 为单一 reasoning_node。
+Phase 9: Critic 暂时屏蔽。三种 depth 共享同一推理逻辑，
+仅通过参数（预算/迭代/personality/scene_hints）区分行为。
 
-critic_node 保持不变（仅 depth=="deep" 时由 graph 注册）。
+深度模式差异：
+- quick:  深度感知低 (0.3)、被动回答 (0.2)、3 轮上限、6000 tok
+- auto:   角色默认 (0.7/0.6)、5 轮上限、10000 tok
+- deep:   深度感知高 (0.9)、主动展开 (0.8)、12 轮上限、16000 tok
+
+critic_node 保留在 graph 中但当前不被路由到。
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from agent.orchestrate.guardrails import (
     is_terminal_response,
 )
 from agent.llm import create_llm
-from agent.memory.short_term import DEFAULT_MAX_TOKENS, DIALOGUE_MAX_TOKENS, manage_memory
+from agent.memory.short_term import DEFAULT_MAX_TOKENS, DEPTH_TOKEN_BUDGETS, manage_memory
 from agent.persona.profiles import get_agent_profile, get_character
 from agent.orchestrate.prompt_builder import build_system_prompt
 from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
@@ -36,8 +40,6 @@ from agent.orchestrate.deep_strategies import (
     CRITIC_SYSTEM_PROMPT,
     DEEP_SCENE_HINTS,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
-    TOOL_DEPENDENCY_CONSTRAINT,
-    _DATA_MODEL_CONSTRAINT,
 )
 from agent.state import AgentState, get_max_iterations
 from core.config import get_settings
@@ -62,21 +64,19 @@ _LAST_CHANCE_INSTRUCTION = """## ⚠️ 最后一轮——必须现在回复
 
 
 async def reasoning_node(state: AgentState) -> dict:
-    """推理节点：意图分类 + LLM function-calling 决策。
+    """推理节点：意图分类 + LLM function-calling 决策。纯 ReAct。
 
-    按 depth 分支：
-    - depth=="deep": 深度模式——error_flag 兜底、critic_feedback 消费、
-      深度 intent 策略、12 轮上限、无 last_chance
-    - depth!="deep": 轻量模式——浅层 intent 策略、5 轮上限、
-      last_chance 强制回复
+    三种 depth 共享同一逻辑，差异在参数：
+    - quick:  depth_taste=0.3 initiative=0.2 3轮上限 last_chance强制回复
+    - auto:   角色默认值 5轮上限 last_chance强制回复
+    - deep:   depth_taste=0.9 initiative=0.8 12轮上限 无last_chance
 
     流程：
-        1. 兜底检查（deep 模式 error_flag）
-        2. 意图分类（仅首轮）
-        3. L2 记忆召回（depth 分支阈值和预算）
-        4. 构建 System Prompt（depth 分支内容和策略）
-        5. 调用 LLM（始终绑定工具，LLM 自主判断）
-        6. last_chance / XML 泄漏防护
+        1. 意图分类（仅首轮）
+        2. L2 记忆召回
+        3. 构建 System Prompt（按 depth 传不同的 personality 参数和 scene hints）
+        4. LLM 调用（始终绑定工具，除非 last_chance）
+        5. XML 泄漏防护
 
     Args:
         state: 当前 Agent 全局状态。
@@ -87,17 +87,6 @@ async def reasoning_node(state: AgentState) -> dict:
     depth = state.get("depth", "auto")
     max_iterations = get_max_iterations(depth)
     is_deep = depth == "deep"
-
-    # ── Step 0: 兜底模式（仅 deep 模式） ────────────────────
-    if is_deep and state.get("error_flag", False):
-        logger.warning("reasoning_node: error_flag=True，进入兜底模式")
-        return {
-            "messages": [AIMessage(content="抱歉，系统当前繁忙，请稍后再试。")],
-            "iterations": state.get("iterations", 0),
-            "query_intent": state.get("query_intent", "unknown"),
-            "critic_feedback": "",
-            "_memory_context": state.get("_memory_context", ""),
-        }
 
     new_iterations = state.get("iterations", 0) + 1
     messages = state.get("messages", [])
@@ -128,8 +117,19 @@ async def reasoning_node(state: AgentState) -> dict:
     character = get_character(output_style)
     agent_profile = get_agent_profile("companion")
 
+    # Phase 9: 按 depth 拧 personality 旋钮（5 档离散）
+    # quick → 简单直接 L2、问什么答什么 L1
+    # auto  → 角色默认 L4/L3
+    # deep  → 动画史视角 L5、话痨 L5
+    # snark 不传，三个 depth 共用角色默认 snark=0.65 (L4: 标准很高)
+    if depth == "quick":
+        tone_kwargs = {"depth_taste": 0.35, "initiative": 0.15}
+    elif depth == "deep":
+        tone_kwargs = {"depth_taste": 0.90, "initiative": 0.85}
+    else:
+        tone_kwargs = {}  # auto: 使用角色默认值 (0.65, 0.70, 0.60)
+
     if is_deep:
-        critic_feedback = state.get("critic_feedback", "")
         system_content = build_system_prompt(
             agent_profile=agent_profile,
             character=character,
@@ -137,9 +137,8 @@ async def reasoning_node(state: AgentState) -> dict:
             intent=query_intent,
             intent_strategies=DEEP_INTENT_PROMPTS,
             scene_hints=DEEP_SCENE_HINTS,
-            tool_constraint=TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT,
             memory_context=memory_context,
-            critic_feedback=critic_feedback,
+            **tone_kwargs,
         )
     else:
         system_content = build_system_prompt(
@@ -150,6 +149,7 @@ async def reasoning_node(state: AgentState) -> dict:
             intent_strategies=COMPANION_INTENT_PROMPTS,
             scene_hints=COMPANION_SCENE_HINTS,
             memory_context=memory_context,
+            **tone_kwargs,
         )
 
     # ── Step 3: 构建消息列表 ───────────────────────────────
@@ -188,13 +188,17 @@ async def reasoning_node(state: AgentState) -> dict:
 
     # ── 消化态引导指令 ────────────────────────────────────
     if is_digesting:
-        messages_for_llm.append(
-            HumanMessage(
-                content=(
-                    "（系统指令：工具数据已返回。数据充分则直接回复；不足可继续调用工具。）"
-                )
+        if is_deep:
+            digest_hint = (
+                "（系统指令：工具数据已返回。如果已拿到完整信息——比如人物详情里已有"
+                "作品列表——直接基于数据组织回答，不需要逐个搜索每部作品。"
+                "数据确实不足时才继续调用工具。）"
             )
-        )
+        else:
+            digest_hint = (
+                "（系统指令：工具数据已返回。数据充分则直接回复；不足可继续调用工具。）"
+            )
+        messages_for_llm.append(HumanMessage(content=digest_hint))
 
     # ── 重复工具调用检测 ───────────────────────────────────
     dup_feedback = check_duplicate_tool_calls(messages)
@@ -209,8 +213,8 @@ async def reasoning_node(state: AgentState) -> dict:
             )
         )
 
-    # ── Step 4.5: 记忆截断 ──────────────────────────────────
-    token_budget = DEFAULT_MAX_TOKENS if is_deep else DIALOGUE_MAX_TOKENS
+    # ── Step 4.5: 记忆截断（Phase 8: 按 depth 选预算） ──────
+    token_budget = DEPTH_TOKEN_BUDGETS.get(depth, DEFAULT_MAX_TOKENS)
     messages_for_llm = manage_memory(messages_for_llm, max_tokens=token_budget)
 
     # ── 消息状态日志 ────────────────────────────────────────
@@ -231,8 +235,6 @@ async def reasoning_node(state: AgentState) -> dict:
             "iterations": new_iterations,
             "_memory_context": memory_context,
         }
-        if is_deep:
-            result["critic_feedback"] = state.get("critic_feedback", "")
         return result
 
     # ── 终端回复逃逸舱（非 deep 模式） ────────────────────
@@ -268,8 +270,6 @@ async def reasoning_node(state: AgentState) -> dict:
         "query_intent": query_intent,
         "_memory_context": memory_context,
     }
-    if is_deep:
-        result["critic_feedback"] = ""  # 已消费
     return result
 
 

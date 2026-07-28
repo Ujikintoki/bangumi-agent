@@ -126,8 +126,8 @@ class Settings(BaseSettings):
     MEMORY_ENABLED: bool = True
     """是否启用 L2 记忆系统。关闭后所有记忆操作变为 no-op，Agent 退化回无记忆模式。"""
 
-    MEMORY_MAX_INJECT_TOKENS: int = 700
-    """注入 System Prompt 的记忆文本最大 Token 数。Research 用 700，Dialogue 用 300。"""
+    MEMORY_MAX_INJECT_TOKENS: int = 500
+    """注入 System Prompt 的记忆文本最大 Token 数。Phase 8 收紧至 500（原 700）。"""
 
     MEMORY_RECALL_TOP_K: int = 5
     """语义检索召回的候选 session 摘要数。"""
