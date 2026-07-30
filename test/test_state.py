@@ -10,7 +10,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END
 
-from agent.graph import route_after_critic, route_after_reasoning
+from agent.graph import route_after_reasoning
 from agent.orchestrate.nodes import _extract_user_input
 from agent.state import _MAX_ITERATIONS_DEEP as _MAX_ITERATIONS
 from test.conftest import make_state
@@ -132,20 +132,6 @@ class TestRouteAfterReasoning:
             query_intent="lookup",
         )
         assert route_after_reasoning(state) == "tool_node"
-
-
-class TestRouteAfterCritic:
-    def test_pass_goes_to_end(self):
-        assert route_after_critic(make_state(critic_status="PASS", iterations=1)) == END
-
-    def test_revise_goes_to_reasoning(self):
-        assert route_after_critic(make_state(critic_status="REVISE", iterations=1)) == "reasoning_node"
-
-    def test_circuit_breaker_at_max(self):
-        assert route_after_critic(make_state(critic_status="REVISE", iterations=_MAX_ITERATIONS)) == END
-
-    def test_circuit_breaker_beyond_max(self):
-        assert route_after_critic(make_state(critic_status="REVISE", iterations=_MAX_ITERATIONS + 1)) == END
 
 
 class TestExtractUserInput:

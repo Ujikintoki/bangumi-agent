@@ -31,7 +31,7 @@ from sqlmodel import Field, SQLModel
 from core.config import get_settings
 
 # 从配置中读取 embedding 维度，与 pgvector Vector(n) 列定义保持一致
-# 智谱 embedding-3 → 2048
+# 智谱 embedding-2 → 1024, embedding-3 → 2048
 # 备选项 OpenAI ada-002/3-small → 1536, 3-large → 3072
 _EMBEDDING_DIM = get_settings().EMBEDDING_DIMENSION
 
@@ -72,7 +72,7 @@ class RagEntity(SQLModel, table=True):
         name: 实体原文名称，建立 B-Tree 索引。
         name_cn: 实体中文名称，可为空。
         chunk_text: 文本块原始内容（摘要分块后的片段，非完整摘要）。
-        embedding: 文本块的向量嵌入，维度 2048，由 pgvector 存储。
+        embedding: 文本块的向量嵌入，由 pgvector 存储。
         meta_info: 反范式化元数据，JSONB 格式。入库前由 Pydantic 契约校验。
     """
 

@@ -297,7 +297,7 @@ class TestRAGDataIntegrity:
         entity = RagEntity(
             id=test_id, entity_type="subject", name="Test Entity",
             chunk_text="A test chunk for integration testing.",
-            embedding=[0.1] * 2048,
+            embedding=[0.1] * 1024,
             nsfw=False,
             meta_info=SubjectMeta().model_dump(),
         )

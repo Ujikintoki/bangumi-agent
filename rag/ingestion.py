@@ -148,7 +148,9 @@ class RagEntityIngestor:
         if not texts:
             return []
         try:
-            response = self.client.embeddings.create(model="embedding-3", input=texts)
+            from core.config import get_settings as _gs
+            model = _gs().EMBEDDING_MODEL
+            response = self.client.embeddings.create(model=model, input=texts)
             return [item.embedding for item in response.data]
         except Exception as exc:
             logger.error("embedding API 调用失败: %s", exc)
@@ -581,8 +583,10 @@ class BangumiIngestor:
 
         # ── Step 2: 批量 Embedding ─────────────────────────────
         try:
+            from core.config import get_settings as _gs
+            model = _gs().EMBEDDING_MODEL
             response = self.client.embeddings.create(
-                model="embedding-3",
+                model=model,
                 input=raw_texts,
             )
             embeddings: list[list[float]] = [item.embedding for item in response.data]

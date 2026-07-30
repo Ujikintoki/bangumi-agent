@@ -10,8 +10,8 @@ state["messages"]，使 L1 manage_memory 有数据可管理。
       用户重新开始对话不需要旧上下文；L2 负责跨 session 语义记忆
     - TTL 淘汰：默认 1 小时。清理僵尸 session，防止内存泄漏
     - 容量上限：最多 1000 个 session。超限时淘汰最旧条目
-    - 不缓存 SystemMessage：SystemMessage 每轮重建（含最新 L2 记忆 +
-      critic feedback），缓存无意义且浪费内存
+    - 不缓存 SystemMessage：SystemMessage 每轮重建（含最新 L2 记忆），
+      缓存无意义且浪费内存
     - asyncio.Lock 保护：并发请求读写同一 session 时串行化
 
 用法::

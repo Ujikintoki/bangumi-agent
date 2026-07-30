@@ -126,16 +126,16 @@ class TestReasoningNode:
     @patch("agent.orchestrate.nodes.create_llm")
     @patch("agent.orchestrate.nodes.get_agent_tools")
     async def test_critic_feedback_injected_and_cleared(self, mock_get_tools, mock_create_llm):
+        """[DEPRECATED Phase 10] critic_feedback 已废弃——验证 reasoning_node 正常运行。"""
         mock_get_tools.return_value = []
         mock = make_mock_llm(content="已修正的回复")
         mock_create_llm.return_value = mock
 
         state = make_state(
             query_intent="lookup", iterations=1, depth="deep",
-            critic_feedback="缺少评分 | 调用 get_detail | 缺失评分",
         )
         result = await reasoning_node(state)
-        assert result["critic_feedback"] == ""
+        # Phase 10: critic_feedback 不再由 reasoning_node 管理
 
     @patch("agent.orchestrate.nodes.create_llm")
     async def test_preserves_existing_query_intent(self, mock_create_llm):

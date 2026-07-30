@@ -120,7 +120,6 @@ def build_system_prompt(
     intent_strategies: dict[str, str] | None = None,
     scene_hints: dict[str, str] | None = None,
     memory_context: str = "",
-    critic_feedback: str = "",
     snark: float | None = None,
     depth_taste: float | None = None,
     initiative: float | None = None,
@@ -139,7 +138,6 @@ def build_system_prompt(
             向后兼容——传入但未传 scene_hints 时作为 fallback。
         scene_hints: Phase 7 新增——意图对应的简短场景提示。
         memory_context: L2 记忆召回 + tone 提示的格式化文本。
-        critic_feedback: Critic 的定向反馈（仅 deep 模式传入）。
         snark: 覆盖 character.snark。None 时使用角色默认值。
         depth_taste: 覆盖 character.depth_taste。
         initiative: 覆盖 character.initiative。
@@ -189,16 +187,9 @@ def build_system_prompt(
     if hint:
         parts.append(hint)
 
-    # ── Section 5: Context（memory + critic_feedback） ──────
+    # ── Section 5: Context（memory） ────────────────────────
     if memory_context:
         parts.append(memory_context)
-    if critic_feedback:
-        safe_feedback = critic_feedback
-        if "|" not in critic_feedback and len(critic_feedback) > 200:
-            safe_feedback = critic_feedback[:200] + "\n…[反馈过长已截断]"
-        parts.append(
-            f"\n## ⚠️ 上一轮回复需要改进\n{safe_feedback}\n请针对以上问题修正你的回复。"
-        )
 
     # ── Section 6: Guardrails ───────────────────────────────
     word_limit = _WORD_LIMITS.get(depth, _WORD_LIMITS["auto"])

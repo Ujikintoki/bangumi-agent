@@ -31,7 +31,7 @@ from sqlmodel import Field, SQLModel
 from core.config import get_settings
 
 _EMBEDDING_DIM = get_settings().EMBEDDING_DIMENSION
-"""当前 embedding 模型维度，与 pgvector Vector(n) 列定义一致。"""
+"""当前 embedding 模型维度，与 pgvector Vector(n) 列定义一致。智谱 embedding-2 → 1024。"""
 
 
 # ============================================================================
@@ -43,7 +43,7 @@ class SessionMemory(SQLModel, table=True):
     """单次对话的 LLM 摘要记忆。
 
     每次 Agent 返回 final_reply 后，MemoryManager 异步生成 ~200 字
-    中文摘要并写入此表。摘要经 Zhipu embedding-3 向量化后存入
+    中文摘要并写入此表。摘要经 Zhipu embedding-2 向量化后存入
     ``embedding`` 列，用于后续语义检索召回。
 
     写入可靠性：

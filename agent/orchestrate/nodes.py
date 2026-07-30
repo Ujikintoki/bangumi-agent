@@ -51,7 +51,7 @@ logger = logging.getLogger("bgm-agent.nodes")
 _LAST_CHANCE_INSTRUCTION = """## ⚠️ 最后一轮——必须现在回复
 
 你已经没有更多轮次了。**绝对禁止**调用任何工具。
-基于已经获取的数据直接回复用户，不要追求"完整"。
+基于已经获取的数据直接回复用户，不要追求"完整"。**回复必须精简——只写最核心的判断，不要展开分析。**
 
 如果之前的工具调用没有获取到任何有效数据——不要编造评分、排名、具体数字。
 用你的角色语气诚实表达没找到，并给出替代方向（换关键词、换话题）。
@@ -190,13 +190,14 @@ async def reasoning_node(state: AgentState) -> dict:
     if is_digesting:
         if is_deep:
             digest_hint = (
-                "（系统指令：工具数据已返回。如果已拿到完整信息——比如人物详情里已有"
-                "作品列表——直接基于数据组织回答，不需要逐个搜索每部作品。"
+                "（系统指令：工具数据已返回。精简回复——只写最核心的判断，不要展开。"
+                "如果已拿到完整信息直接基于数据回答，不需要逐个搜索每部作品。"
                 "数据确实不足时才继续调用工具。）"
             )
         else:
             digest_hint = (
-                "（系统指令：工具数据已返回。数据充分则直接回复；不足可继续调用工具。）"
+                "（系统指令：工具数据已返回。精简回复——只写最核心的判断。"
+                "数据充分则直接回复；不足可继续调用工具。）"
             )
         messages_for_llm.append(HumanMessage(content=digest_hint))
 
@@ -278,22 +279,18 @@ _extract_user_input = extract_user_input
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 自省节点（仅 depth=="deep" 时注册）
+# [DEPRECATED Phase 10] 自省节点（已从图谱中移除）
+#
+# critic_node、_critic_node_rule、_critic_node_llm 及其辅助函数
+# 保留在代码中以备未来恢复。当前纯 ReAct 拓扑不再路由到这些函数。
+# 如需恢复 Critic，在 graph.py 中重新注册节点并添加条件边即可。
 # ═══════════════════════════════════════════════════════════════════
 
 
 async def critic_node(state: AgentState) -> dict:
-    """自省节点：评估 LLM 输出质量，输出定向反馈。
+    """[DEPRECATED Phase 10] 自省节点。已从图谱中移除，保留以备恢复。
 
-    支持双模式（通过 config.CRITIC_MODE 切换）：
-    - ``"rule"``：零 Token 规则评估
-    - ``"llm"``：LLM 四维度评估 + 逃逸舱 + 定向反馈
-
-    Args:
-        state: 当前 Agent 全局状态。
-
-    Returns:
-        包含 ``critic_status``、``critic_feedback`` 等更新的字典。
+    原功能：评估 LLM 输出质量，输出定向反馈。支持双模式（rule/llm）。
     """
     settings = get_settings()
     if settings.CRITIC_MODE == "llm":

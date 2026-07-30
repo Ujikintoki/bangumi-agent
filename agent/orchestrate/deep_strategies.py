@@ -109,7 +109,6 @@ CRITIC_SYSTEM_PROMPT = """你是 Bangumi 助手的输出质量控制专家。按
 
 def build_system_prompt(
     intent: str,
-    critic_feedback: str = "",
     memory_context: str = "",
     output_style: str = "neutral",
 ) -> str:
@@ -122,7 +121,6 @@ def build_system_prompt(
 
     Args:
         intent: 查询意图，如 "lookup"、"discovery" 等。
-        critic_feedback: Critic 的定向反馈。空字符串表示无反馈。
         memory_context: L2 语义召回的格式化文本。仅首轮非空。
         output_style: 输出渲染风格（"neutral" | "bangumi"）。默认 "neutral"。
 
@@ -140,5 +138,4 @@ def build_system_prompt(
         intent_strategies=INTENT_PROMPTS,  # 向后兼容
         scene_hints=DEEP_SCENE_HINTS,
         memory_context=memory_context,
-        critic_feedback=critic_feedback,
     )

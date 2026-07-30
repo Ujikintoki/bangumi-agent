@@ -226,15 +226,14 @@ class TestPromptBuilder:
         assert "工具依赖规则" not in result
 
     def test_builder_with_critic_feedback(self):
-        """传入 critic_feedback 时应注入改进指令。"""
+        """[DEPRECATED Phase 10] critic_feedback 参数已从 build_system_prompt 移除。"""
+        # Critic 已从图谱中移除，critic_feedback 不再注入 prompt
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=NEUTRAL_CHARACTER,
             depth="deep",
-            critic_feedback="缺少评分 | 调用 get_detail | 不够具体",
         )
-        assert "缺少评分" in result
-        assert "请针对以上问题修正" in result
+        assert "上一轮回复需要改进" not in result  # 不再注入 critic 改进指令
 
     def test_builder_without_critic_feedback(self):
         """无 critic_feedback 时不应注入改进指令。"""
@@ -310,10 +309,9 @@ class TestDeepPrompt:
         assert "并行规则" in result or "你的工具" in result
 
     def test_includes_critic_feedback(self):
-        result = build_deep_prompt(
-            "lookup", critic_feedback="缺少评分 | 调用 get_detail"
-        )
-        assert "缺少评分" in result
+        """[DEPRECATED Phase 10] deep prompt 不再支持 critic_feedback 参数。"""
+        result = build_deep_prompt("lookup")
+        assert "你的工具" in result or "[当前：" in result
 
     def test_debate_intent_exists(self):
         assert "debate" in DEEP_INTENT_PROMPTS

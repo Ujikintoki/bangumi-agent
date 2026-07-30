@@ -49,10 +49,10 @@ class AgentState(TypedDict):
     """当前循环轮次，从 0 开始计数。"""
 
     critic_status: str
-    """自省判定：PENDING / PASS / REVISE。"""
+    """[DEPRECATED Phase 10] 自省判定：PENDING / PASS / REVISE。Critic 节点已从图谱中移除，此字段不再被写入。"""
 
     critic_feedback: str
-    """Critic 的具体改进建议。REVISE 时为定向反馈，下一轮注入 reasoning prompt。"""
+    """[DEPRECATED Phase 10] Critic 的具体改进建议。Critic 节点已从图谱中移除，此字段不再被写入。"""
 
     query_intent: str
     """查询意图分类：chitchat | factual | lookup | discovery | realtime | unknown。"""

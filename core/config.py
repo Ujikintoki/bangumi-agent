@@ -175,7 +175,7 @@ class Settings(BaseSettings):
 
     # ── 智谱 AI 配置 ──────────────────────────────────────────
     ZHIPU_API_KEY: str = ""
-    """智谱 API 密钥，用于调用 embedding-3 等模型生成向量嵌入。
+    """智谱 API 密钥，用于调用 embedding-2 等模型生成向量嵌入。
 
     可通过环境变量 ZHIPU_API_KEY 或 .env 文件注入。
     在尚未缴费的开发阶段可留空，此时 embedding 功能不可用。
@@ -185,19 +185,22 @@ class Settings(BaseSettings):
     """智谱 API 基础 URL，默认使用官方地址。"""
 
     # ── Embedding 模型配置 ────────────────────────────────────
-    EMBEDDING_MODEL: str = "embedding-3"
-    """embedding 模型编码，默认智谱 embedding-3 (2048 维)。
+    EMBEDDING_MODEL: str = "embedding-2"
+    """embedding 模型编码。默认智谱 embedding-2 (1024 维)。
 
-    常用备选: OpenAI text-embedding-3-small (1536 维) 或
-    text-embedding-3-large (3072 维)。切换模型时需同步修改
-    EMBEDDING_DIMENSION 以匹配 pgvector 列定义。
+    embedding-2 输出 1024d，远低于 pgvector HNSW 索引 2000d 上限，
+    无需截断。相比 embedding-3 (2048d)，维度减半但语义质量差异在
+    ACGN 领域检索场景中可忽略。
+
+    备选: embedding-3 (2048d)，OpenAI text-embedding-3-small (1536d)。
+    切换模型时需同步修改 EMBEDDING_DIMENSION。
     """
 
-    EMBEDDING_DIMENSION: int = 2048
+    EMBEDDING_DIMENSION: int = 1024
     """embedding 向量维度，必须与 EMBEDDING_MODEL 的实际输出一致。
 
-    智谱 embedding-3 → 2048, OpenAI ada-002 / 3-small → 1536,
-    OpenAI 3-large → 3072。
+    智谱 embedding-2 → 1024, embedding-3 → 2048,
+    OpenAI ada-002 / 3-small → 1536, OpenAI 3-large → 3072。
     """
 
 

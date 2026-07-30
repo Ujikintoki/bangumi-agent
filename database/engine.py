@@ -65,6 +65,25 @@ def init_db() -> None:
     except OperationalError:
         raise
 
+    # ── Phase 10 迁移: embedding 模型切换（2026-07-30）───
+    # embedding-3 (2048d) → embedding-2 (1024d)。1024d 远低于 pgvector HNSW 2000d 上限。
+    _VECTOR_DIM_MIGRATION = [
+        "ALTER TABLE rag_entities ALTER COLUMN embedding TYPE vector(1024);",
+        "ALTER TABLE bangumi_chunks ALTER COLUMN embedding TYPE vector(1024);",
+        "ALTER TABLE session_memories ALTER COLUMN embedding TYPE vector(1024);",
+        "ALTER TABLE public_memories ALTER COLUMN embedding TYPE vector(1024);",
+    ]
+    try:
+        for ddl in _VECTOR_DIM_MIGRATION:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(ddl))
+                    conn.commit()
+            except (OperationalError, ProgrammingError) as dim_exc:
+                logger.debug("向量维度迁移跳过: %s", str(dim_exc).split("\n")[0][:120])
+    except Exception:
+        logger.debug("向量维度迁移块异常——非关键路径")
+
     # ── Phase 5.4 迁移: nsfw JSONB → 列级字段（2026-06-14）───
     # 为已有数据库添加 nsfw 列并回填历史数据
     _MIGRATION_DDL = [

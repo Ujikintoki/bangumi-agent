@@ -1,7 +1,7 @@
 """
 Companion Agent 图谱编排 — 纯 ReAct 拓扑
 
-Phase 9: Critic 屏蔽。Character Card + Render 两层人格表达：
+Phase 9+: Critic 已移除。Character Card + Render 两层人格表达：
   - Character Card（System Prompt）→ 决定 agent 怎么思考
   - Render Node（独立 LLM 调用）→ 决定输出怎么表达
 
@@ -21,8 +21,6 @@ Phase 9: Critic 屏蔽。Character Card + Render 两层人格表达：
               │      └───────────────────┘
               │
               └──→ reasoning_node（消化工具结果）
-
-critic_node 保留在图中，当前不被路由到。
 """
 
 from __future__ import annotations
@@ -34,7 +32,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from agent.orchestrate.guardrails import format_tool_error
-from agent.orchestrate.nodes import critic_node, reasoning_node
+from agent.orchestrate.nodes import reasoning_node
 from agent.persona.render import render_node
 from agent.state import AgentState, get_max_iterations
 from tools.bgm_tools import get_agent_tools
@@ -71,12 +69,12 @@ def _has_tool_calls_in_current_turn(messages: list) -> bool:
     return False
 
 
-# ── 条件路由: reasoning → tool / critic / render / END ──────
+# ── 条件路由: reasoning → tool / render / END ──────────────
 
 
 def route_after_reasoning(
     state: AgentState,
-) -> Literal["tool_node", "critic_node", "render_node", "__end__"]:
+) -> Literal["tool_node", "render_node", "__end__"]:
     """reasoning_node 后的条件边。纯 ReAct 拓扑。
 
         1. AIMessage.tool_calls 非空 → tool_node
@@ -105,56 +103,16 @@ def route_after_reasoning(
     return "render_node"
 
 
-# ── 条件路由: critic → retry / END ──────────────────────────
-
-
-def route_after_critic(
-    state: AgentState,
-) -> Literal["reasoning_node", "render_node", "__end__"]:
-    """critic_node 后的条件边。
-
-    决策矩阵：
-        +----------------+---------------------------+
-        | critic_status  | 路由                       |
-        +================+===========================+
-        | PASS + 有工具   | → render_node → END       |
-        +----------------+---------------------------+
-        | PASS + 无工具   | → END                     |
-        +----------------+---------------------------+
-        | REVISE + iter<N | → reasoning_node（重试）  |
-        +----------------+---------------------------+
-        | REVISE + iter>=N| → END（熔断）             |
-        +----------------+---------------------------+
-    """
-    depth = state.get("depth", "deep")
-    max_iterations = get_max_iterations(depth)
-    iterations = state.get("iterations", 0)
-    status = state.get("critic_status", "PENDING")
-    messages = state.get("messages", [])
-
-    if iterations >= max_iterations:
-        logger.info("迭代次数已达上限 %d，强制终止", max_iterations)
-        return END
-
-    if status == "PASS":
-        if _has_tool_calls_in_current_turn(messages):
-            logger.info("自省通过 + 有工具调用 → render_node")
-            return "render_node"
-        logger.info("自省通过 (iterations=%d)，结束图谱", iterations)
-        return END
-
-    logger.info("自省要求修正 (iterations=%d)，返回 reasoning_node", iterations)
-    return "reasoning_node"
+# ── route_after_critic 已移除（Phase 10, 2026-07-30） ──
+# critic_node 及相关路由已从纯 ReAct 拓扑中移除。
+# 如需恢复 Critic，参考 git history (Phase 9 之前)。
 
 
 # ── 图谱构建 ──────────────────────────────────────────────
 
 
 def build_graph(tools: list | None = None) -> StateGraph:
-    """构建并编译 LangGraph 状态图。
-
-    critic_node 始终注册到 graph 中（LangGraph 编译时节点必须存在），
-    但实际运行时 depth!="deep" 的请求不会路由到 critic_node。
+    """构建并编译 LangGraph 状态图。纯 ReAct 拓扑，无 Critic。
 
     Args:
         tools: LangChain 工具列表。None 时自动加载 ``get_agent_tools()``。
@@ -170,7 +128,6 @@ def build_graph(tools: list | None = None) -> StateGraph:
     # ── 注册节点 ──────────────────────────────────────────
     graph.add_node("reasoning_node", reasoning_node)
     graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=format_tool_error))
-    graph.add_node("critic_node", critic_node)
     graph.add_node("render_node", render_node)
 
     # ── 固定边 ────────────────────────────────────────────
@@ -178,24 +135,12 @@ def build_graph(tools: list | None = None) -> StateGraph:
     graph.add_edge("tool_node", "reasoning_node")
     graph.add_edge("render_node", END)
 
-    # ── 条件边 1: reasoning → tool / critic / render / END ──
+    # ── 条件边: reasoning → tool / render / END ─────────
     graph.add_conditional_edges(
         "reasoning_node",
         route_after_reasoning,
         {
             "tool_node": "tool_node",
-            "critic_node": "critic_node",
-            "render_node": "render_node",
-            END: END,
-        },
-    )
-
-    # ── 条件边 2: critic → retry / render / END ────────────
-    graph.add_conditional_edges(
-        "critic_node",
-        route_after_critic,
-        {
-            "reasoning_node": "reasoning_node",
             "render_node": "render_node",
             END: END,
         },

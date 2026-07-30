@@ -172,8 +172,10 @@ class RagEntityRetriever:
 
         # ── Step 1: 查询向量化 ────────────────────────────────
         try:
+            from core.config import get_settings as _gs
+            model = _gs().EMBEDDING_MODEL
             response = self.client.embeddings.create(
-                model="embedding-3",
+                model=model,
                 input=[query.strip()],
             )
             query_embedding: list[float] = response.data[0].embedding
@@ -452,7 +454,10 @@ class BangumiRetriever:
                 model="embedding-3",
                 input=[query.strip()],
             )
-            query_embedding: list[float] = response.data[0].embedding
+            from core.config import get_settings as _gs
+            _dim = _gs().EMBEDDING_DIMENSION
+            full_vec = response.data[0].embedding
+            query_embedding: list[float] = full_vec[:_dim] if len(full_vec) > _dim else full_vec
             logger.debug(
                 "查询向量化完成: '%s' → %d 维", query[:50], len(query_embedding)
             )

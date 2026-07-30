@@ -98,14 +98,14 @@ def get_zhipu_client() -> Optional[object]:
 async def embed_single(
     text: str,
     client: Optional[object] = None,
-    model: str = "embedding-3",
+    model: str = "embedding-2",
 ) -> Optional[list[float]]:
     """将单条文本向量化。
 
     Args:
         text: 待向量化的文本。
         client: ZhipuAiClient 实例。为 None 时自动获取单例。
-        model: embedding 模型名，默认 embedding-3。
+        model: embedding 模型名，默认 embedding-2 (1024d)。
 
     Returns:
         向量（float 列表），或 None（失败时）。
@@ -126,14 +126,14 @@ async def embed_single(
 async def embed_batch(
     texts: list[str],
     client: Optional[object] = None,
-    model: str = "embedding-3",
+    model: str = "embedding-2",
 ) -> Optional[list[list[float]]]:
     """批量向量化多条文本。
 
     Args:
         texts: 待向量化的文本列表。
         client: ZhipuAiClient 实例。为 None 时自动获取单例。
-        model: embedding 模型名，默认 embedding-3。
+        model: embedding 模型名，默认 embedding-2 (1024d)。
 
     Returns:
         向量列表，或 None（失败时）。

@@ -29,7 +29,7 @@ logger = logging.getLogger("bgm-agent.devtools")
 class LLMCallRecord:
     """单次 LLM 调用记录。"""
 
-    label: str  # "reasoning#1", "render", "critic"
+    label: str  # "reasoning#1", "render"
     elapsed_ms: int
     prompt_tokens: int
     completion_tokens: int

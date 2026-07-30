@@ -242,8 +242,8 @@ class TestRouting:
         )
         assert route_after_reasoning(state) == "render_node"
 
-    def test_no_tool_calls_deep_routes_to_critic(self):
-        """AIMessage 无 tool_calls + depth="deep" → critic_node"""
+    def test_no_tool_calls_deep_routes_to_render(self):
+        """AIMessage 无 tool_calls + depth="deep" → render_node（Critic 已移除）"""
         from agent.graph import route_after_reasoning
 
         state = _make_state(
@@ -256,7 +256,7 @@ class TestRouting:
             query_intent="lookup",
             depth="deep",
         )
-        assert route_after_reasoning(state) == "critic_node"
+        assert route_after_reasoning(state) == "render_node"
 
     def test_max_iterations_enforced_in_node(self):
         """iterations 达上限时 reasoning_node 内 last_chance 解绑工具"""
