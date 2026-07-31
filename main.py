@@ -1,7 +1,7 @@
 """
 FastAPI 应用启动入口
 
-Phase 6: depth 参数替代 agent_type（agent_type 保留 deprecated 映射）。
+Phase 6: depth 参数控制深度（auto/quick/deep），单一 Companion Agent graph 处理所有请求。
 单一 Companion Agent graph 处理所有请求。
 """
 
@@ -63,20 +63,27 @@ logger = logging.getLogger("bgm-agent")
 
 class ChatRequest(BaseModel):
     """对话请求。
+    发起对话请求
+    有三个深度参数 quick、deep、auto，分别对应不同的对话深度和预算。
+    1. quick：快速模式，适合简单问题，预算较低，通常在 1-3 轮内完成对话。
+    2. deep：深度模式，适合复杂问题，预算较高，通常在 12 轮内完成对话。
+    3. auto：自动模式，在5轮内完成对话
 
-    Phase 6: ``depth`` 是主参数。``agent_type`` 保留 deprecated。
+    有四种输出风格，neutral、bangumi、bangumi_cold、bangumi_cute，分别对应不同的输出风格。
+    1. neutral：中性输出，适合正式场合。
+    2. bangumi：Bangumi娘腹黑吐槽，适合娱乐场合。
+    3. bangumi_cold：高冷腹黑，适合冷幽默场合。
+    4. bangumi_cute：可爱安利，适合可爱风格场合。
     """
 
     message: str = Field(..., description="用户消息", min_length=1)
     depth: Literal["auto", "quick", "deep"] = Field(
         default="auto",
-        description="深度控制。auto=默认 5 轮，quick=3 轮快速，deep=12 轮高预算深度",
+        description="    1. quick：快速模式，适合简单问题，预算较低，通常在 1-3 轮内完成对话, 2. deep：深度模式，适合复杂问题，预算较高，通常在 12 轮内完成对话, 3. auto：自动模式，在5轮内完成对话",
     )
-    agent_type: Literal["dialogue", "research"] | None = Field(
-        default=None,
-        description="[deprecated] 使用 depth 替代。dialogue→quick, research→deep",
-    )
-    output_style: Literal["neutral", "bangumi", "bangumi_cold", "bangumi_cute"] | None = Field(
+    output_style: (
+        Literal["neutral", "bangumi", "bangumi_cold", "bangumi_cute"] | None
+    ) = Field(
         default=None,
         description="输出风格。None=走默认值（bangumi），neutral=中性输出，bangumi=Bangumi娘腹黑吐槽，bangumi_cold=高冷腹黑，bangumi_cute=可爱安利",
     )
@@ -92,44 +99,15 @@ class ChatResponse(BaseModel):
 
     reply: str = Field(..., description="Agent 的最终回复")
     iterations: int = Field(..., description="ReAct 循环轮数")
-    tools_used: list[str] = Field(default_factory=list, description="本轮调用的工具名称")
+    tools_used: list[str] = Field(
+        default_factory=list, description="本轮调用的工具名称"
+    )
     query_intent: str = Field(default="unknown", description="查询意图分类结果")
     output_style: str = Field(default="bangumi", description="实际使用的输出渲染风格")
     depth: str = Field(default="auto", description="实际使用的深度模式")
     telemetry: dict | None = Field(
         default=None, description="开发者可观测性数据（仅 DEV_MODE=true 时返回）"
     )
-
-
-# ═══════════════════════════════════════════════════════════════════
-# agent_type → depth 映射（deprecated）
-# ═══════════════════════════════════════════════════════════════════
-
-_AGENT_TYPE_TO_DEPTH: dict[str, str] = {
-    "dialogue": "quick",
-    "research": "deep",
-}
-
-
-def _resolve_depth(request: ChatRequest) -> str:
-    """确定实际使用的深度模式。
-
-    优先级：agent_type（deprecated）> depth。
-
-    Args:
-        request: 用户请求。
-
-    Returns:
-        深度模式（"auto" | "quick" | "deep"）。
-    """
-    if request.agent_type is not None:
-        mapped = _AGENT_TYPE_TO_DEPTH.get(request.agent_type, "auto")
-        logger.info(
-            "[deprecated] agent_type='%s' → depth='%s'，请迁移到 depth 参数",
-            request.agent_type, mapped,
-        )
-        return mapped
-    return request.depth
 
 
 def _resolve_output_style(request: ChatRequest) -> str:
@@ -203,7 +181,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     - ``"quick"``：强制浅层 1-3 轮，速度快
     - ``"deep"``：高预算（16000 tok）+ 深度人格参数，12 轮迭代上限
 
-    ``agent_type`` 参数保留但已 deprecated，会自动映射到 depth。
+    通过 ``depth`` 参数控制：auto（默认 5 轮）、quick（3 轮）、deep（12 轮）。
 
     Args:
         request: 包含用户消息、深度模式、会话 ID 和用户 ID 的请求体。
@@ -211,7 +189,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     Returns:
         ChatResponse: 包含回复、迭代次数、工具列表、意图分类、深度模式的响应。
     """
-    depth = _resolve_depth(request)
+    depth = request.depth
     session_id = request.session_id or uuid.uuid4().hex
     output_style = _resolve_output_style(request)
 
@@ -228,8 +206,6 @@ async def chat(request: ChatRequest) -> ChatResponse:
             HumanMessage(content=request.message),
         ],
         "iterations": 0,
-        "critic_status": "PENDING",
-        "critic_feedback": "",
         "query_intent": "unknown",
         "session_id": session_id,
         "user_id": request.user_id,
@@ -306,7 +282,7 @@ async def chat_stream(request: ChatRequest):
     Returns:
         StreamingResponse: SSE 事件流（text/event-stream）。
     """
-    depth = _resolve_depth(request)
+    depth = request.depth
     output_style = _resolve_output_style(request)
 
     _seed = get_agent_profile("companion").capabilities
@@ -316,8 +292,6 @@ async def chat_stream(request: ChatRequest):
             HumanMessage(content=request.message),
         ],
         "iterations": 0,
-        "critic_status": "PENDING",
-        "critic_feedback": "",
         "query_intent": "unknown",
         "session_id": request.session_id,
         "user_id": request.user_id,
@@ -334,8 +308,14 @@ async def chat_stream(request: ChatRequest):
                         intent = node_output.get("query_intent", "unknown")
                         tool_calls = []
                         for msg in node_output.get("messages", []):
-                            if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
-                                tool_calls = [tc.get("name", "?") for tc in msg.tool_calls]
+                            if (
+                                isinstance(msg, AIMessage)
+                                and hasattr(msg, "tool_calls")
+                                and msg.tool_calls
+                            ):
+                                tool_calls = [
+                                    tc.get("name", "?") for tc in msg.tool_calls
+                                ]
                                 break
                         yield f"data: {json.dumps({'node': 'reasoning', 'intent': intent, 'tool_calls': tool_calls}, ensure_ascii=False)}\n\n"
 
@@ -343,14 +323,18 @@ async def chat_stream(request: ChatRequest):
                         tools = []
                         if "messages" in node_output:
                             for msg in node_output["messages"]:
-                                if isinstance(msg, ToolMessage) and hasattr(msg, "name"):
+                                if isinstance(msg, ToolMessage) and hasattr(
+                                    msg, "name"
+                                ):
                                     tools.append(msg.name)
                         yield f"data: {json.dumps({'node': 'tool', 'tools': list(dict.fromkeys(tools))}, ensure_ascii=False)}\n\n"
 
-                    elif node_name == "critic_node":
-                        status = node_output.get("critic_status", "PENDING")
-                        feedback = node_output.get("critic_feedback", "")
-                        yield f"data: {json.dumps({'node': 'critic', 'status': status, 'feedback': feedback[:200]}, ensure_ascii=False)}\n\n"
+                    # [DEPRECATED Phase 10] Critic 已从图谱中移除，此分支不再执行。
+                    # 保留以备未来恢复 Critic 时重新激活。
+                    # elif node_name == "critic_node":
+                    #     status = node_output.get("critic_status", "PENDING")
+                    #     feedback = node_output.get("critic_feedback", "")
+                    #     yield f"data: {json.dumps({'node': 'critic', 'status': status, 'feedback': feedback[:200]}, ensure_ascii=False)}\n\n"
 
                     elif node_name == "render_node":
                         yield f"data: {json.dumps({'node': 'render'}, ensure_ascii=False)}\n\n"
@@ -370,9 +354,7 @@ async def chat_stream(request: ChatRequest):
 # ═══════════════════════════════════════════════════════════════════
 
 
-async def _run_with_telemetry(
-    initial_state: dict, telemetry: RequestTelemetry
-) -> dict:
+async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) -> dict:
     """用 ``astream()`` 跑 graph，记录每个节点的起止时间。
 
     和 ``ainvoke()`` 的最终结果一致，但额外在过程中记录 NodeTiming。
@@ -388,7 +370,9 @@ async def _run_with_telemetry(
             from agent.devtools import NodeTiming
 
             elapsed = (now - prev_time) * 1000
-            telemetry.add_node_timing(NodeTiming(node=node_name, elapsed_ms=int(elapsed)))
+            telemetry.add_node_timing(
+                NodeTiming(node=node_name, elapsed_ms=int(elapsed))
+            )
             prev_time = now
             final_state = node_output
 
@@ -427,9 +411,7 @@ def _extract_final_reply(
     if iterations >= max_iterations:
         return "查询达到最大处理轮次，请尝试更具体的提问方式。"
 
-    has_tool_results = any(
-        isinstance(m, ToolMessage) for m in messages
-    )
+    has_tool_results = any(isinstance(m, ToolMessage) for m in messages)
     if has_tool_results:
         return "工具执行完成但未能生成文本回复，请重试或换个方式提问。"
 
@@ -506,8 +488,7 @@ async def _remember_session(
         )
     except Exception:
         logger.warning(
-            "[Memory] remember_session fire-and-forget 异常 "
-            "(user=%s, session=%s)",
+            "[Memory] remember_session fire-and-forget 异常 (user=%s, session=%s)",
             request.user_id,
             request.session_id,
             exc_info=True,

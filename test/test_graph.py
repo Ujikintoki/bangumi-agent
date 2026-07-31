@@ -227,7 +227,11 @@ class TestStateLifecycle:
 
     @patch("agent.orchestrate.nodes.create_llm")
     async def test_shallow_mode_skips_critic(self, mock_create_llm):
-        """depth="auto" 模式：无工具调用 → 直接 END，不进入 critic"""
+        """[DEPRECATED Phase 10] depth="auto" 模式：Critic 已移除，验证 graph 正常完成。
+
+        原测试验证 critic_status 保持 PENDING。Critic 已从图谱中移除，
+        graph 直接从 reasoning_node → render_node → END。
+        """
         mock_create_llm.return_value = make_mock_llm(content="根据搜索结果，巨人评分 8.5 分。")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -240,5 +244,8 @@ class TestStateLifecycle:
             depth="auto",
         )
         result = await graph.ainvoke(state)
-        # auto 模式：工具消化后无 critic → critic_status 保持 PENDING
-        assert result.get("critic_status") == "PENDING"
+        # Critic 已移除：graph 应正常完成，返回有效回复
+        messages = result.get("messages", [])
+        last_ai = [m for m in messages if isinstance(m, AIMessage) and m.content]
+        assert len(last_ai) > 0
+        assert "巨人" in str(last_ai[-1].content)

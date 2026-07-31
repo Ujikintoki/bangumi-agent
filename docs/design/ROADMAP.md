@@ -25,24 +25,7 @@
 
 ---
 
-## 演化时间线
-
-```
-2026-05~06    06-09          07-21        06-17~07-22    07-25/26        07-27            07-27          07-27
-Phase 1-3      Phase 4        Phase 5      Phase 5.5      Phase 6         Phase 6.5        Phase 8         Phase 9
-地基            双 Agent       记忆          人格化          纠正错配         解耦风格          Context重构      人格深化
-──■───────────■─────────────■────────────■──────────────■──────────────■───────────────■──────────────■────→
-FastAPI        拆 Research   L1 滑动窗口   CharacterProfile 合并双 Agent    render_node      三级预算         Critic 屏蔽
-BangumiClient  + Dialogue    L2 语义召回   AgentProfile      depth 参数      风格解耦          TOOL_GUIDANCE   5档离散人格
-RAG + pgvector 引入 Critic   L3 废弃       角色优先          纯 ReAct 拓扑    极简 prompt      工具压缩         四种人格模式
-第一个 ReAct    ← Tool Agent 错配开始 →                                                   SystemMsg免疫    Render重设计
-```
-
-**核心教训**：Phase 4 的双 Agent 是按 Tool Agent 心智模型（"深度链式"、"数据完整性优先"）设计的，
-但产品定位是 Companion Agent（"查数据是为了聊天"）。Phase 6 纠正了拓扑错配，
-Phase 6.5 纠正了输出风格错配，Phase 8 纠正了 Context 管理错配，Phase 9 深化了人格表达系统。
-
----
+> 演化历史见 [`docs/design/architecture-evolution.md`](architecture-evolution.md)。
 
 ## 编排层
 
@@ -64,10 +47,31 @@ Phase 6.5 纠正了输出风格错配，Phase 8 纠正了 Context 管理错配�
 
 ### 待解决
 
-| # | 问题 | 文件 | 改动量 |
-|---|------|------|--------|
-| 1 | Deep 模式偶发超出迭代上限（13-14 轮 vs max 12），无 Critic 兜底 | `orchestrate/deep_strategies.py` | 策略调整 |
-| 2 | Bare title 仍直接搜而非先追问 | `orchestrate/strategies.py` + `persona/profiles.py` | ~10 行 |
+**P0 — 必须修（产品级 bug）**
+
+| # | 问题 | 严重度 | 文件 | 改动量 |
+|---|------|--------|------|--------|
+| 1 | 字数控制形同虚设——auto 模式近半数回复超过 200 字限制 | 🔴 P0 | `persona/render.py` `_WORD_LIMIT` | prompt 强化或硬截断 |
+| 2 | Deep 模式偶发 0 工具调用，闭卷答深度问题 | 🔴 P0 | `orchestrate/prompt_builder.py` `TOOL_GUIDANCE` | prompt 策略调整 |
+| 3 | "今天星期几"等常识问题被误分类为 realtime，触发 get_calendar | 🔴 P0 | `orchestrate/classifier.py` | 加纯常识判断 |
+| 4 | 搜索不存在的条目跑满 5 轮才放弃 | 🔴 P0 | `orchestrate/strategies.py` | 空结果 2 轮后终止 |
+
+**P1 — 影响体验**
+
+| # | 问题 | 严重度 | 文件 | 改动量 |
+|---|------|--------|------|--------|
+| 5 | 长程多轮（8 轮+）话题跳转后 R8 完全失忆 | 🟡 P1 | `memory/short_term.py` 预算策略 | auto 预算可能不足 |
+| 6 | Deep 模式偶发超出迭代上限（13-14 轮 vs max 12），无 Critic 兜底 | 🟡 | `orchestrate/strategies.py` | 策略调整 |
+| 7 | Bare title 仍直接搜而非先追问确认 | 🟡 | `orchestrate/strategies.py` + `persona/profiles.py` | ~10 行 |
+
+**P2 — 技术债**
+
+| # | 问题 | 严重度 | 文件 | 改动量 |
+|---|------|--------|------|--------|
+| 8 | Render 后消息在历史中出现两次（原始 + 渲染后） | 🟡 | `graph.py` / `render.py` | Render 追加而非替换 |
+| 9 | Streaming 仅节点级（非逐 token），用户体验差 | 🟡 | `main.py` `/chat/stream` | 升级到 astream_events |
+| 10 | 双套记忆阈值命名过时（`MEMORY_DIALOGUE_*` 继承自 Phase 4） | 🟢 | `core/config.py` | 重命名为 `MEMORY_NON_DEEP_*` |
+| 11 | `create_llm()` 无缓存——每次调用新建 `ChatOpenAI` 实例 | 🟢 | `agent/llm.py` | 加 lru_cache |
 
 ---
 
@@ -121,9 +125,10 @@ L1 + L2 活跃，L3 废弃。
 
 ### 待解决
 
-| # | 问题 | 文件 | 改动量 |
-|---|------|------|--------|
-| 1 | `_memory_context` 空字符串缓存：`""` 是 falsy → 重复触发 embedding 调用 | `cache.py` | ~5 行 |
+| # | 问题 | 严重度 | 文件 | 改动量 |
+|---|------|--------|------|--------|
+| 1 | 长程多轮（8 轮+）话题跳转后 R8 完全失忆——auto 10000 tok 预算对多话题对话不足 | 🟡 P1 | `memory/short_term.py` | 预算策略或前 N 轮摘要注入 |
+| 2 | `_memory_context` 空字符串缓存：`""` 是 falsy → 重复触发 embedding 调用 | 🟡 | `cache.py` | ~5 行，用 `is not None` 判断 |
 
 ---
 

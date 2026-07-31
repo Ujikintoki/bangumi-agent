@@ -1,7 +1,8 @@
 """
-Companion Agent 图谱编排 — 纯 ReAct 拓扑
+Bangumi Agent 图谱编排 — 纯 ReAct 拓扑
 
-Phase 9+: Critic 已移除。Character Card + Render 两层人格表达：
+    System Prompt的组装方式：
+  - Character Card + Render 两层人格表达：
   - Character Card（System Prompt）→ 决定 agent 怎么思考
   - Render Node（独立 LLM 调用）→ 决定输出怎么表达
 
@@ -34,39 +35,31 @@ from langgraph.prebuilt import ToolNode
 from agent.orchestrate.guardrails import format_tool_error
 from agent.orchestrate.nodes import reasoning_node
 from agent.persona.render import render_node
-from agent.state import AgentState, get_max_iterations
+from agent.state import AgentState
 from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.graph")
 
 
-def _has_tool_calls_in_current_turn(messages: list) -> bool:
-    """检查当前轮次是否有工具调用。
-
-    从最后一条真实用户消息（跳过系统注入的 HumanMessage）开始查找 ToolMessage。
-    仅检测当前轮次的工具调用，避免历史轮次的 ToolMessage 触发 render。
-
-    Args:
-        messages: 完整消息历史。
-
-    Returns:
-        True 如果当前轮次中存在 ToolMessage。
-    """
-    from langchain_core.messages import HumanMessage, ToolMessage
-
-    # 找到最后一条"真实"用户消息（跳过系统注入的指令）
-    last_user_idx = 0
-    for i in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[i], HumanMessage):
-            content = messages[i].content if hasattr(messages[i], "content") else ""
-            if content and not str(content).startswith("（系统指令："):
-                last_user_idx = i
-                break
-
-    for m in messages[last_user_idx:]:
-        if isinstance(m, ToolMessage):
-            return True
-    return False
+# [CLEANUP Phase 10+] _has_tool_calls_in_current_turn 已不再使用。
+# route_after_reasoning 简化为只检查 last_msg.tool_calls，
+# 不再需要区分当前轮/历史轮的工具调用。
+# 保留注释以备未来需要此逻辑时参考。
+#
+# def _has_tool_calls_in_current_turn(messages: list) -> bool:
+#     """检查当前轮次是否有工具调用。"""
+#     from langchain_core.messages import HumanMessage, ToolMessage
+#     last_user_idx = 0
+#     for i in range(len(messages) - 1, -1, -1):
+#         if isinstance(messages[i], HumanMessage):
+#             content = messages[i].content if hasattr(messages[i], "content") else ""
+#             if content and not str(content).startswith("（系统指令："):
+#                 last_user_idx = i
+#                 break
+#     for m in messages[last_user_idx:]:
+#         if isinstance(m, ToolMessage):
+#             return True
+#     return False
 
 
 # ── 条件路由: reasoning → tool / render / END ──────────────
@@ -77,8 +70,8 @@ def route_after_reasoning(
 ) -> Literal["tool_node", "render_node", "__end__"]:
     """reasoning_node 后的条件边。纯 ReAct 拓扑。
 
-        1. AIMessage.tool_calls 非空 → tool_node
-        2. 其他                      → render_node（风格渲染后输出）
+    1. AIMessage.tool_calls 非空 → tool_node
+    2. 其他                      → render_node（风格渲染后输出）
     """
     from langchain_core.messages import AIMessage
 
@@ -98,7 +91,8 @@ def route_after_reasoning(
 
     logger.debug(
         "route_after_reasoning: depth=%s intent=%s → render_node",
-        state.get("depth", "auto"), state.get("query_intent", "unknown"),
+        state.get("depth", "auto"),
+        state.get("query_intent", "unknown"),
     )
     return "render_node"
 
@@ -112,7 +106,7 @@ def route_after_reasoning(
 
 
 def build_graph(tools: list | None = None) -> StateGraph:
-    """构建并编译 LangGraph 状态图。纯 ReAct 拓扑，无 Critic。
+    """构建并编译 LangGraph 状态图。纯 ReAct 拓扑。
 
     Args:
         tools: LangChain 工具列表。None 时自动加载 ``get_agent_tools()``。
@@ -146,11 +140,11 @@ def build_graph(tools: list | None = None) -> StateGraph:
         },
     )
 
-    logger.info("Companion Agent 图谱编译完成（%d 个工具）", len(tools))
+    logger.info("Bangumi Agent 图谱编译完成（%d 个工具）", len(tools))
     return graph.compile()
 
 
 # ── 模块级编译实例 ──────────────────────────────────────────
 
 agent_app = build_graph()
-"""预编译的 Companion Agent 图谱实例，可直接 ``agent_app.invoke(state)`` 调用。"""
+"""预编译的 Bangumi Agent 图谱实例，可直接 ``agent_app.invoke(state)`` 调用。"""

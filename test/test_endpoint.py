@@ -89,7 +89,7 @@ class TestChatEndpoint:
             "query_intent": "lookup",
         }
 
-        response = client.post("/chat", json={"message": "搜进击的巨人", "agent_type": "research"})
+        response = client.post("/chat", json={"message": "搜进击的巨人", "depth": "deep"})
         data = response.json()
         assert "8.5" in data["reply"]
 
@@ -110,7 +110,7 @@ class TestChatEndpoint:
             "query_intent": "lookup",
         }
 
-        response = client.post("/chat", json={"message": "搜进击的巨人", "agent_type": "research"})
+        response = client.post("/chat", json={"message": "搜进击的巨人", "depth": "deep"})
         data = response.json()
         assert "search_bangumi_subject" in data["tools_used"]
         assert "get_bangumi_subject_detail" in data["tools_used"]
@@ -120,7 +120,7 @@ class TestChatEndpoint:
         """Agent 异常时返回错误消息而不是 500"""
         mock_invoke.side_effect = RuntimeError("模拟的 Agent 崩溃")
 
-        response = client.post("/chat", json={"message": "测试", "agent_type": "research"})
+        response = client.post("/chat", json={"message": "测试", "depth": "deep"})
         assert response.status_code == 200
         data = response.json()
         assert ("出错" in data["reply"] or "异常" in data["reply"])
@@ -172,7 +172,7 @@ class TestChatStreamEndpoint:
 
         mock_astream.return_value = mock_stream(0)
 
-        with client.stream("POST", "/chat/stream", json={"message": "搜巨人", "agent_type": "research"}) as response:
+        with client.stream("POST", "/chat/stream", json={"message": "搜巨人", "depth": "deep"}) as response:
             body = response.read().decode()
             assert "reasoning" in body
             assert "lookup" in body

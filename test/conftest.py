@@ -61,8 +61,6 @@ def make_state(**overrides) -> AgentState:
     defaults: dict = {
         "messages": [SystemMessage(content="You are Bangumi assistant."), HumanMessage(content="你好")],
         "iterations": 0,
-        "critic_status": "PENDING",
-        "critic_feedback": "",
         "query_intent": "unknown",
         "session_id": "test-session",
         "user_id": "test-user",

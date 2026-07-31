@@ -1,8 +1,6 @@
 """
-Companion Agent 节点函数 — 纯 ReAct 推理
+Bangumi Agent 节点函数 — 纯 ReAct 推理
 
-Phase 6: 合并双 Agent 为单一 reasoning_node。
-Phase 9: Critic 暂时屏蔽。三种 depth 共享同一推理逻辑，
 仅通过参数（预算/迭代/personality/scene_hints）区分行为。
 
 深度模式差异：
@@ -10,7 +8,6 @@ Phase 9: Critic 暂时屏蔽。三种 depth 共享同一推理逻辑，
 - auto:   角色默认 (0.7/0.6)、5 轮上限、10000 tok
 - deep:   深度感知高 (0.9)、主动展开 (0.8)、12 轮上限、16000 tok
 
-critic_node 保留在 graph 中但当前不被路由到。
 """
 
 from __future__ import annotations
@@ -19,16 +16,19 @@ import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
+from agent.llm import create_llm
+from agent.memory.short_term import (
+    DEFAULT_MAX_TOKENS,
+    DEPTH_TOKEN_BUDGETS,
+    manage_memory,
+)
+from agent.orchestrate.deep_strategies import CRITIC_SYSTEM_PROMPT, DEEP_SCENE_HINTS
+from agent.orchestrate.deep_strategies import INTENT_PROMPTS as DEEP_INTENT_PROMPTS
 from agent.orchestrate.guardrails import (
     TOOL_CALL_XML_RESIDUE,
     check_duplicate_tool_calls,
     is_terminal_response,
 )
-from agent.llm import create_llm
-from agent.memory.short_term import DEFAULT_MAX_TOKENS, DEPTH_TOKEN_BUDGETS, manage_memory
-from agent.persona.profiles import get_agent_profile, get_character
-from agent.orchestrate.prompt_builder import build_system_prompt
-from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
 from agent.orchestrate.helpers import (
     build_message_list,
     classify_intent_step,
@@ -36,11 +36,9 @@ from agent.orchestrate.helpers import (
     guard_xml_leak,
     recall_memory_step,
 )
-from agent.orchestrate.deep_strategies import (
-    CRITIC_SYSTEM_PROMPT,
-    DEEP_SCENE_HINTS,
-    INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
-)
+from agent.orchestrate.prompt_builder import build_system_prompt
+from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
+from agent.persona.profiles import get_agent_profile, get_character
 from agent.state import AgentState, get_max_iterations
 from core.config import get_settings
 from tools.bgm_tools import get_agent_tools
@@ -97,13 +95,17 @@ async def reasoning_node(state: AgentState) -> dict:
         user_input = extract_user_input(state)
         logger.info(
             "[Intent] depth=%s query='%s' → intent=%s (method=%s)",
-            depth, user_input[:80], query_intent, intent_method,
+            depth,
+            user_input[:80],
+            query_intent,
+            intent_method,
         )
 
     # ── Step 1.5: 记忆召回（depth 分支）──────────────────
     if is_deep:
         memory_context = await recall_memory_step(
-            state, max_tokens=get_settings().MEMORY_MAX_INJECT_TOKENS,
+            state,
+            max_tokens=get_settings().MEMORY_MAX_INJECT_TOKENS,
         )
     else:
         memory_context = await recall_memory_step(
@@ -160,7 +162,9 @@ async def reasoning_node(state: AgentState) -> dict:
     if is_last_chance:
         logger.info(
             "reasoning_node: 最后一轮 (depth=%s iter=%d/%d) → 注入强制回复指令",
-            depth, new_iterations, max_iterations,
+            depth,
+            new_iterations,
+            max_iterations,
         )
         system_content += "\n\n" + _LAST_CHANCE_INSTRUCTION
         # 重新构建消息列表以包含更新后的 system_content
@@ -182,7 +186,9 @@ async def reasoning_node(state: AgentState) -> dict:
         llm_to_use = llm.bind_tools(tools)
         logger.debug(
             "reasoning_node: depth=%s intent=%s → 绑定 %d 个工具%s",
-            depth, query_intent, len(tools),
+            depth,
+            query_intent,
+            len(tools),
             " (消化态)" if is_digesting else "",
         )
 
@@ -226,9 +232,7 @@ async def reasoning_node(state: AgentState) -> dict:
     except Exception as e:
         logger.exception("reasoning_node: LLM 调用失败")
         fallback = (
-            f"抱歉，AI 服务暂时不可用：{e}"
-            if is_deep
-            else f"啧，脑子短路了。{e}"
+            f"抱歉，AI 服务暂时不可用：{e}" if is_deep else f"啧，脑子短路了。{e}"
         )
         result: dict = {
             "messages": [AIMessage(content=fallback)],
@@ -239,7 +243,12 @@ async def reasoning_node(state: AgentState) -> dict:
         return result
 
     # ── 终端回复逃逸舱（非 deep 模式） ────────────────────
-    if (not is_deep) and is_digesting and response.content and is_terminal_response(response.content):
+    if (
+        (not is_deep)
+        and is_digesting
+        and response.content
+        and is_terminal_response(response.content)
+    ):
         logger.info("reasoning_node: 终端回复（逃逸舱）→ 强制结束")
         new_iterations = max_iterations  # 让路由函数熔断到 END
 
@@ -250,7 +259,10 @@ async def reasoning_node(state: AgentState) -> dict:
         else "啧，脑子有点乱，你再说一遍？"
     )
     response = guard_xml_leak(
-        response, is_digesting=is_digesting, fallback_text=fallback, log=logger,
+        response,
+        is_digesting=is_digesting,
+        fallback_text=fallback,
+        log=logger,
     )
 
     # ── Step 5: 日志 ────────────────────────────────────────
@@ -261,7 +273,9 @@ async def reasoning_node(state: AgentState) -> dict:
     )
     logger.info(
         "[Reasoning] depth=%s intent=%s iterations=%d tool_calls=%s",
-        depth, query_intent, new_iterations,
+        depth,
+        query_intent,
+        new_iterations,
         [tc.get("name", "?") for tc in tool_calls],
     )
 
@@ -324,7 +338,7 @@ def _critic_node_rule(state: AgentState) -> dict:
         if isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls:
             _last_tc_idx = i
     has_tool_msgs = (
-        any(isinstance(m, ToolMessage) for m in messages[_last_tc_idx + 1:])
+        any(isinstance(m, ToolMessage) for m in messages[_last_tc_idx + 1 :])
         if _last_tc_idx >= 0
         else False
     )
@@ -536,7 +550,10 @@ def _log_message_state(messages: list, iteration: int) -> None:
             name = getattr(m, "name", "?")
             logger.debug(
                 "  [%d] %s name=%s tc_id=%s content=%s",
-                i, mtype, name, tc_id,
+                i,
+                mtype,
+                name,
+                tc_id,
                 content if isinstance(content, str) else str(content),
             )
         elif isinstance(m, AIMessage):
@@ -549,7 +566,7 @@ def _log_message_state(messages: list, iteration: int) -> None:
             logger.debug("  [%d] %s preview=%s", i, mtype, preview)
 
 
-def _get_last_ai_response(messages: list) -> "AIMessage | None":
+def _get_last_ai_response(messages: list) -> AIMessage | None:
     """提取最后一条有实质内容的 AI 回复。"""
     for m in reversed(messages):
         if isinstance(m, AIMessage) and m.content:

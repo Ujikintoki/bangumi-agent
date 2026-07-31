@@ -21,7 +21,7 @@ class TestAgentStateStructure:
 
     def test_all_required_keys_present(self):
         state = make_state()
-        for key in ("messages", "iterations", "critic_status", "critic_feedback",
+        for key in ("messages", "iterations",
                      "query_intent", "session_id", "user_id", "error_flag",
                      "_memory_context", "output_style", "depth"):
             assert key in state, f"缺少必需字段: {key}"
@@ -34,7 +34,6 @@ class TestAgentStateStructure:
     def test_defaults(self):
         state = make_state()
         assert state["query_intent"] == "unknown"
-        assert state["critic_feedback"] == ""
         assert state["session_id"] == "test-session"
         assert state["user_id"] == "test-user"
 
