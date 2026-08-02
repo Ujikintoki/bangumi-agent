@@ -159,6 +159,56 @@ _INITIATIVE_LEVELS = [
 ]
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 搜索深度指令 — Aggregator 行为控制（v2: 分离合成架构）
+#
+# 告诉 Aggregator 查多深、调哪些工具、何时停止。
+# 与 _DEPTH_LEVELS 不同——后者是人格侧写（"今天你怎么想"），
+# 这里是行为指令（"你该调什么工具"）。
+# ═══════════════════════════════════════════════════════════════════════════
+
+_SEARCH_DEPTH_INSTRUCTIONS = [
+    (0.2, (
+        "搜索深度: SHALLOW（浅层）。\n"
+        "- 调用一次 search_bangumi_subject 获取基本评分和排名即可\n"
+        "- 不要拉取 detail——搜索结果里的 score/rank/info 已经够用\n"
+        "- 不要主动扩展搜索——只查用户明确问到的\n"
+        "- 数据拿到后立即调用 submit_facts_to_render 提交"
+    )),
+    (0.4, (
+        "搜索深度: BASIC（基础）。\n"
+        "- search 拿到基本评分和排名\n"
+        "- 用户明确问了详情（简介、标签、制作团队）时才调一次 detail\n"
+        "- 不要主动搜索同类对标作品\n"
+        "- 一次查询够用就停，不要追求完整覆盖"
+    )),
+    (0.6, (
+        "搜索深度: STANDARD（标准）。\n"
+        "- search 拿到候选列表后，对排名最高的 1-2 部调 detail 获取标签和简介\n"
+        "- 用户问到口碑时调 opinions 获取社区评论\n"
+        "- 可以有选择地扩展——但只在用户暗示了兴趣方向时才加查\n"
+        "- 数据充分就直接提交，不追求穷尽"
+    )),
+    (0.8, (
+        "搜索深度: THOROUGH（深入）。\n"
+        "- search 后对相关条目逐一调 detail 获取完整数据（评分分布、标签、简介、制作团队）\n"
+        "- 用户问到口碑/社区反应时调 opinions\n"
+        "- 如有导演/声优相关信息，主动查 person_detail\n"
+        "- 可主动检索同类型对标作品 1-2 部作为参考\n"
+        "- 确保拿到完整数据后再提交 submit_facts_to_render"
+    )),
+    (1.0, (
+        "搜索深度: EXHAUSTIVE（全面）。\n"
+        "- search 后对全部候选条目调 detail（评分分布、标签、制作团队、关联条目）\n"
+        "- 调 opinions 获取社区评论和口碑分布\n"
+        "- 调 characters 获取角色和声优信息\n"
+        "- 主动检索同导演/同类型对标作品 2-3 部\n"
+        "- 对知名条目检索导演前作谱系\n"
+        "- 确保数据完整覆盖用户可能追问的所有方向后，再提交 submit_facts_to_render"
+    )),
+]
+
+
 def _pick_level(value: float, levels: list[tuple[float, str]]) -> str:
     """按阈值选中一档。"""
     for threshold, text in levels:
@@ -167,10 +217,50 @@ def _pick_level(value: float, levels: list[tuple[float, str]]) -> str:
     return levels[-1][1]  # fallback to highest
 
 
-def _render_tone(snark: float, depth_taste: float, initiative: float) -> dict[str, str]:
-    """将人格参数映射为 prompt 文本片段。5 档离散查找。
+def get_aggregator_depth_instruction(depth_taste: float) -> str:
+    """获取 Aggregator 的搜索深度行为指令（v2 分离合成架构）。
 
-    每次只注入 3 个片段（每维 1 档），System prompt 长度不随档位数变化。
+    这是 depth_taste 参数在 Aggregator 层的唯一作用点——
+    它不参与人格表达，只控制工具调用策略。
+
+    Args:
+        depth_taste: 搜索深度 0.0-1.0 (5 档)。
+
+    Returns:
+        行为指令文本。
+    """
+    return _pick_level(depth_taste, _SEARCH_DEPTH_INSTRUCTIONS)
+
+
+def get_render_tone_variables(
+    snark: float,
+    initiative: float,
+) -> dict[str, str]:
+    """获取 Render 层的人格语气变量（v2 分离合成架构）。
+
+    snark 和 initiative 是纯风格参数——它们不控制数据收集行为，
+    只决定最终回复的语气和长度。
+
+    Args:
+        snark: 毒舌度 0.0-1.0 (5 档)。
+        initiative: 主动性 0.0-1.0 (5 档)。
+
+    Returns:
+        {"snark_tone": str, "initiative_tone": str}
+    """
+    return {
+        "snark_tone": _pick_level(snark, _SNARK_LEVELS),
+        "initiative_tone": _pick_level(initiative, _INITIATIVE_LEVELS),
+    }
+
+
+def _render_tone(snark: float, depth_taste: float, initiative: float) -> dict[str, str]:
+    """[兼容] 将人格参数映射为 prompt 文本片段。5 档离散查找。
+
+    v2 分离合成架构中，此函数仅保留向后兼容。
+    新代码应使用:
+    - ``get_aggregator_depth_instruction(depth_taste)`` → Aggregator 行为
+    - ``get_render_tone_variables(snark, initiative)`` → Render 风格
 
     Args:
         snark: 毒舌度 0.0-1.0 (5 档)。

@@ -65,7 +65,7 @@ def make_state(**overrides) -> AgentState:
         "session_id": "test-session",
         "user_id": "test-user",
         "error_flag": False,
-        "_memory_context": "",
+        "_memory_context": None,
         "output_style": "neutral",
         "depth": "auto",
     }

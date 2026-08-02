@@ -1,7 +1,7 @@
 """
 系统提示词测试 — Phase 7 Prompt Engineering 重设计
 
-验证 Character Card、TOOL_INTUITION、Scene Hints、参数映射、
+验证 Character Card、TOOL_GUIDANCE、Scene Hints、参数映射、
 render prompt（参数感知 + 快速跳过）、guardrails 字数占位符。
 可独立运行: python -m pytest test/test_prompts.py -v
 """
@@ -20,7 +20,8 @@ from agent.persona.profiles import (
     get_character,
     get_character_card,
 )
-from agent.orchestrate.prompt_builder import TOOL_INTUITION, build_system_prompt as _build
+from agent.orchestrate.prompt_builder import TOOL_GUIDANCE, build_aggregator_prompt as _build_agg
+from agent.orchestrate.prompt_builder import build_system_prompt as _build
 from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
 from agent.persona.render import (
     _should_skip_render,
@@ -172,12 +173,12 @@ class TestPromptBuilder:
         assert "200 字" in result or "120 字" in result or "350 字" in result
 
     def test_builder_includes_tool_strategy(self):
-        """应包含够了就停原则——TOOL_GUIDANCE 已覆盖。"""
+        """应包含够了就停原则——v2 通过 submit_facts_to_render 终止。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
         )
-        assert "够了" in result or "数据够了直接回复" in result
+        assert "够了" in result or "一次搜索能回答就不两次" in result
 
     def test_builder_includes_continuity_rules(self):
         """应包含对话连续性规则。"""
@@ -405,9 +406,9 @@ class TestHonestyPrinciple:
 
     def test_tool_intuition_has_honesty_principle(self):
         """TOOL_GUIDANCE 应包含诚实兜底原则。"""
-        assert "没查到" in TOOL_INTUITION
-        assert "不编造" in TOOL_INTUITION
-        assert "诚实说" in TOOL_INTUITION
+        assert "没查到" in TOOL_GUIDANCE
+        assert "不编造" in TOOL_GUIDANCE
+        assert "诚实" in TOOL_GUIDANCE
 
     def test_companion_prompt_has_honesty_principle(self):
         """Companion prompt 应包含诚实原则。"""
@@ -430,96 +431,79 @@ class TestRenderPrompt:
 
     def test_render_prompt_non_empty(self):
         """build_render_prompt 应返回非空 prompt。"""
-        result = build_render_prompt(BANGUMI_CHARACTER, "EVA 怎么样？", "EVA 评分 9.1，排名第一。")
+        result = build_render_prompt("bangumi", "EVA 怎么样？", "EVA 评分 9.1，排名第一。")
         assert len(result) > 100
 
     def test_render_prompt_includes_identity(self):
         """Render prompt 应包含角色身份。"""
-        result = build_render_prompt(BANGUMI_CHARACTER, "test", "test response")
+        result = build_render_prompt("bangumi", "test", "test response")
         assert "Bangumi娘" in result or "看板娘" in result
 
     def test_render_prompt_includes_user_query(self):
         """Render prompt 应包含用户问题。"""
-        result = build_render_prompt(BANGUMI_CHARACTER, "EVA 评分怎么样", "9.1 分")
+        result = build_render_prompt("bangumi", "EVA 评分怎么样", "9.1 分")
         assert "EVA 评分怎么样" in result
 
     def test_render_prompt_includes_agent_response(self):
         """Render prompt 应包含原始回复。"""
-        result = build_render_prompt(BANGUMI_CHARACTER, "test", "EVA 评分 9.1，排名 #1")
+        result = build_render_prompt("bangumi", "test", "EVA 评分 9.1，排名 #1")
         assert "EVA 评分 9.1" in result
 
     def test_render_prompt_neutral_no_bangumi_persona(self):
         """Neutral 角色 render prompt 不应包含损友吐槽。"""
-        result = build_render_prompt(NEUTRAL_CHARACTER, "test", "response")
+        result = build_render_prompt("neutral", "test", "response")
         assert "腹黑" not in result
         assert "吐槽" not in result
 
     def test_render_prompt_bangumi_has_style(self):
-        """Bangumi 角色 render prompt 应包含吐槽风格。"""
-        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
-        assert "损友" in result or "吐槽" in result or "水了点" in result
+        """Bangumi 角色 render prompt 应包含角色身份和审美体系。"""
+        result = build_render_prompt("bangumi", "test", "## 数据清单\n- 测试条目")
+        # v2: Character Card 包含完整的审美体系描述
+        assert "Bangumi 看板娘" in result or "ACGN 爱好者" in result or "审美" in result
 
     def test_render_prompt_no_data_interpretation(self):
         """Render prompt 不应包含数据解读教科书。"""
-        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
+        result = build_render_prompt("bangumi", "test", "response")
         assert "rating_count" not in result
 
     def test_render_prompt_has_hard_constraints(self):
         """Render prompt 应包含硬约束。"""
-        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
+        result = build_render_prompt("bangumi", "test", "response")
         assert "硬约束" in result
         assert "emoji" in result
 
     def test_render_prompt_word_limit_by_depth(self):
         """字数限制应按 depth 分档。"""
-        q = build_render_prompt(BANGUMI_CHARACTER, "test", "r", depth="quick")
-        a = build_render_prompt(BANGUMI_CHARACTER, "test", "r", depth="auto")
-        d = build_render_prompt(BANGUMI_CHARACTER, "test", "r", depth="deep")
+        q = build_render_prompt("bangumi", "test", "r", depth="quick")
+        a = build_render_prompt("bangumi", "test", "r", depth="auto")
+        d = build_render_prompt("bangumi", "test", "r", depth="deep")
         assert "120 字" in q
         assert "200 字" in a
         assert "350 字" in d
         assert "{word_limit}" not in q
 
     def test_render_prompt_ending_not_always_question(self):
-        """结尾规则应允许反问、判断、冷吐槽。"""
-        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
-        assert "冷吐槽" in result or "反问" in result
+        """结尾规则应允许判断或冷吐槽。"""
+        result = build_render_prompt("bangumi", "test", "## 数据清单\n- 条目")
+        # v2: initiative tone 包含结尾方式指引
+        assert "说完就停" in result or "冷吐槽" in result or "反问" in result
 
     def test_render_prompt_snark_affects_style(self):
-        """高 snark 时 render prompt 应有更犀利的风格指引。"""
-        low = build_render_prompt(BANGUMI_CHARACTER, "test", "r", snark=0.2)
-        high = build_render_prompt(BANGUMI_CHARACTER, "test", "r", snark=0.9)
-        # 高 snark 应有额外的毒舌规则
-        assert len(high) >= len(low)
+        """不同 snark 值应产生不同的render prompt（语调文本不同）。"""
+        low = build_render_prompt("bangumi", "test", "## 数据清单\n- r", snark=0.2)
+        high = build_render_prompt("bangumi", "test", "## 数据清单\n- r", snark=0.9)
+        # 不同 snark 注入不同文本
+        assert low != high
 
     def test_should_skip_render_short_chitchat(self):
-        """短闲聊无工具调用应跳过 render。"""
-        from langchain_core.messages import AIMessage, HumanMessage
+        """短输入（≤60 字）应跳过 render。"""
+        assert _should_skip_render("短回复") is True
 
-        state = {"messages": [
-            HumanMessage(content="今天好累"),
-            AIMessage(content="那就别看烧脑的了。"),
-        ]}
-        assert _should_skip_render(state) is True
-
-    def test_should_not_skip_render_with_tools(self):
-        """有工具调用时不应跳过 render。"""
-        from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-
-        state = {"messages": [
-            HumanMessage(content="EVA 评分"),
-            AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "tc1"}]),
-            ToolMessage(content="...", tool_call_id="1", name="search"),
-            AIMessage(content="EVA 9.1 分。"),
-        ]}
-        assert _should_skip_render(state) is False
+    def test_should_not_skip_render_with_data(self):
+        """有数据清单时不应跳过 render（>60 字）。"""
+        long_data = "## 数据清单\n- 葬送的芙莉莲 | 8.8分 | #3 | 标签: 奇幻/冒险/治愈\n- 迷宫饭 | 8.3分 | #22 | 标签: 奇幻/美食\n## 检索概况\n搜索深度: L2"
+        assert _should_skip_render(long_data) is False
 
     def test_should_not_skip_render_long_chitchat(self):
-        """长闲聊（>60 字）不应跳过 render。"""
-        from langchain_core.messages import AIMessage, HumanMessage
-
-        state = {"messages": [
-            HumanMessage(content="讲讲 EVA"),
-            AIMessage(content="EVA 是一部非常有意思的作品，它的深度和复杂度远超一般的机甲动画。" * 5),
-        ]}
-        assert _should_skip_render(state) is False
+        """长输入（>60 字）不应跳过 render。"""
+        assert _should_skip_render("这是一段很长的输入" * 10) is False

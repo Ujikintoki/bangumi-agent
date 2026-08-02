@@ -34,8 +34,8 @@ class TestGraphIntegration:
     """端到端图谱：基本路径 + 熔断"""
 
     @patch("agent.orchestrate.nodes.create_llm")
-    async def test_chitchat_deep_routes_to_render(self, mock_create_llm):
-        """chitchat + depth=deep → render_node → END"""
+    async def test_chitchat_deep_routes_to_end(self, mock_create_llm):
+        """chitchat + depth=deep → END"""
         mock_create_llm.return_value = make_mock_llm(content="你好！")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -46,8 +46,8 @@ class TestGraphIntegration:
         assert "reply" in result or "messages" in result
 
     @patch("agent.orchestrate.nodes.create_llm")
-    async def test_deep_completes_with_render(self, mock_create_llm):
-        """deep 模式——reasoning → render → END。"""
+    async def test_deep_completes_to_end(self, mock_create_llm):
+        """deep 模式——reasoning → END。"""
         mock_create_llm.return_value = make_mock_llm(content="三集定律是指...")
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
@@ -153,8 +153,8 @@ class TestMemoryGraphIntegration:
 class TestStateLifecycle:
     """验证跨轮次 state 字段的完整性"""
 
-    async def test_tool_to_reasoning_to_render_pipeline(self):
-        """tool → reasoning → render 完整链路"""
+    async def test_tool_to_reasoning_to_end_pipeline(self):
+        """tool → reasoning → END 完整链路"""
         from agent.graph import build_graph
 
         @patch("agent.orchestrate.nodes.create_llm")
@@ -230,7 +230,7 @@ class TestStateLifecycle:
         """[DEPRECATED Phase 10] depth="auto" 模式：Critic 已移除，验证 graph 正常完成。
 
         原测试验证 critic_status 保持 PENDING。Critic 已从图谱中移除，
-        graph 直接从 reasoning_node → render_node → END。
+        graph 直接从 reasoning_node → END。
         """
         mock_create_llm.return_value = make_mock_llm(content="根据搜索结果，巨人评分 8.5 分。")
         graph = build_graph(tools=MOCK_TOOLS)

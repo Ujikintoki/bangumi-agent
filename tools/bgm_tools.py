@@ -23,6 +23,7 @@ from langchain_core.tools import tool
 from clients import BangumiClient
 from core.config import get_settings
 from schemas.tools_input import (
+    FactItem,
     GetBlogInput,
     GetCalendarInput,
     GetCharacterDetailInput,
@@ -38,6 +39,7 @@ from schemas.tools_input import (
     GetUserProfileInput,
     LocalSearchInput,
     SearchBangumiInput,
+    SubmitFactsInput,
     UserTimelineInput,
 )
 
@@ -1058,6 +1060,56 @@ def _search_local_bangumi_sync(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 终止工具 — submit_facts_to_render（分离合成架构 v2）
+# ═══════════════════════════════════════════════════════════════════
+
+
+@tool(args_schema=SubmitFactsInput)
+async def submit_facts_to_render(
+    facts: list[dict],
+    intent: str,
+    missing: str = "",
+) -> dict:
+    """数据收集完成。将事实清单提交给下游 Render 系统。必须调用此工具来结束数据收集。
+
+    调用此工具后你的工作完成——系统将自动结束数据收集阶段并进入人格化回复生成阶段。
+    不要尝试直接输出文本回答用户。你的唯一出口是这个工具。
+
+    典型使用：
+    - 数据充分 → 整理 facts 列表，调用此工具提交
+    - 2 次搜索空结果 → 立即调用此工具，用 missing 注明"未找到该关键词"
+    - 数据部分缺失 → 提交已有 facts，用 missing 注明缺失项
+
+    Args:
+        facts: 事实列表，每条至少包含 name 字段。
+            示例: [{"name": "葬送的芙莉莲", "score": 8.8, "rank": 3,
+                   "summary": "2024年奇幻动画，讲述精灵魔法使的旅程",
+                   "tags": "奇幻,冒险,治愈", "source": "search"}]
+        intent: 用户查询意图概括，5-15 字。如"推荐2024高分奇幻""查询条目详情"。
+        missing: 用户明确想问但数据中缺失的信息。无缺失时留空。
+
+    Returns:
+        dict: 包含 facts、intent、missing 的结构化提交记录。
+    """
+    # 序列化：LangChain 可能将 facts 元素转为 Pydantic FactItem 实例，
+    # 必须转为纯 dict 再返回，否则 ToolNode 的 str() 会输出不可解析的 repr
+    clean_facts: list[dict] = []
+    for f in facts:
+        if isinstance(f, dict):
+            clean_facts.append(f)
+        elif hasattr(f, "model_dump"):
+            clean_facts.append(f.model_dump())
+        else:
+            clean_facts.append({"name": str(f)})
+
+    return {
+        "facts": clean_facts,
+        "intent": intent,
+        "missing": missing,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 动态工具注册表
 # ═══════════════════════════════════════════════════════════════════
 
@@ -1098,6 +1150,7 @@ def get_agent_tools() -> list:
         get_entity_comments,
         get_subject_characters,
         search_local_bangumi,
+        submit_facts_to_render,
     ]
 
     token = get_settings().BANGUMI_ACCESS_TOKEN

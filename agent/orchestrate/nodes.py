@@ -1,12 +1,13 @@
 """
-Bangumi Agent 节点函数 — 纯 ReAct 推理
+Bangumi Agent 节点函数 — v2 分离合成架构
 
-仅通过参数（预算/迭代/personality/scene_hints）区分行为。
+Reasoning 层是 Data Aggregator（数据聚合器）。
+通过 submit_facts_to_render 工具提交结构化事实清单，由下游 Render 层做人格化表达。
 
-深度模式差异：
-- quick:  深度感知低 (0.3)、被动回答 (0.2)、3 轮上限、6000 tok
-- auto:   角色默认 (0.7/0.6)、5 轮上限、10000 tok
-- deep:   深度感知高 (0.9)、主动展开 (0.8)、12 轮上限、16000 tok
+深度模式差异仅在于搜索深度（depth_taste）和机械参数（预算/迭代）：
+- quick: 搜索深度 0.35、3 轮上限、6000 tok
+- auto:  搜索深度 0.70（默认）、5 轮上限、10000 tok
+- deep:  搜索深度 0.90、12 轮上限、16000 tok
 
 """
 
@@ -36,24 +37,28 @@ from agent.orchestrate.helpers import (
     guard_xml_leak,
     recall_memory_step,
 )
-from agent.orchestrate.prompt_builder import build_system_prompt
+from agent.orchestrate.prompt_builder import build_aggregator_prompt
 from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
-from agent.persona.profiles import get_agent_profile, get_character
 from agent.state import AgentState, get_max_iterations
 from core.config import get_settings
 from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.nodes")
 
-# 最后一轮强制回复指令（非 deep 模式用）
-_LAST_CHANCE_INSTRUCTION = """## ⚠️ 最后一轮——必须现在回复
+# 提前 2 轮警告 + 最后一轮强制提交
+_EARLY_TERMINATION_HINT = """## ⚠️ 剩余轮次不多——尽快收尾
 
-你已经没有更多轮次了。**绝对禁止**调用任何工具。
-基于已经获取的数据直接回复用户，不要追求"完整"。**回复必须精简——只写最核心的判断，不要展开分析。**
+你的思考轮次即将耗尽。现在就应该开始收尾：
+- 如果已有数据能部分回答用户问题 → 立即调用 submit_facts_to_render 提交
+- 不要为了"查全"而继续——完整性不重要，及时回复才重要
+- 在 missing 字段注明缺失部分即可"""
 
-如果之前的工具调用没有获取到任何有效数据——不要编造评分、排名、具体数字。
-用你的角色语气诚实表达没找到，并给出替代方向（换关键词、换话题）。
-诚实比瞎编更让用户信任你。"""
+_LAST_CHANCE_INSTRUCTION = """## 🛑 最后一轮——必须立即提交
+
+你没有下一轮了。**立即调用 submit_facts_to_render**。
+- facts 中填入已有全部数据（哪怕是空的）
+- missing 注明："受限于轮次未能查全"
+- 不要在 content 中写任何文字——你的 content 不会显示给用户，只有 submit_facts_to_render 的数据会被使用"""
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -114,41 +119,28 @@ async def reasoning_node(state: AgentState) -> dict:
             recall_threshold=get_settings().MEMORY_DIALOGUE_RECALL_THRESHOLD,
         )
 
-    # ── Step 2: 构建 System Prompt（depth 分支） ───────────
-    output_style = state.get("output_style", "bangumi")
-    character = get_character(output_style)
-    agent_profile = get_agent_profile("companion")
-
-    # Phase 9: 按 depth 拧 personality 旋钮（5 档离散）
-    # quick → 简单直接 L2、问什么答什么 L1
-    # auto  → 角色默认 L4/L3
-    # deep  → 动画史视角 L5、话痨 L5
-    # snark 不传，三个 depth 共用角色默认 snark=0.65 (L4: 标准很高)
+    # ── Step 2: 构建 Aggregator System Prompt（v2 分离合成）──────────
+    # Aggregator 只接收 depth_taste——控制搜索深度。
+    # snark 和 initiative 属于 Render 层，不在此注入。
     if depth == "quick":
-        tone_kwargs = {"depth_taste": 0.35, "initiative": 0.15}
+        tone_kwargs = {"depth_taste": 0.35}
     elif depth == "deep":
-        tone_kwargs = {"depth_taste": 0.90, "initiative": 0.85}
+        tone_kwargs = {"depth_taste": 0.90}
     else:
-        tone_kwargs = {}  # auto: 使用角色默认值 (0.65, 0.70, 0.60)
+        tone_kwargs = {}  # auto: 使用默认值 0.70
 
     if is_deep:
-        system_content = build_system_prompt(
-            agent_profile=agent_profile,
-            character=character,
+        system_content = build_aggregator_prompt(
             depth="deep",
             intent=query_intent,
-            intent_strategies=DEEP_INTENT_PROMPTS,
             scene_hints=DEEP_SCENE_HINTS,
             memory_context=memory_context,
             **tone_kwargs,
         )
     else:
-        system_content = build_system_prompt(
-            agent_profile=agent_profile,
-            character=character,
+        system_content = build_aggregator_prompt(
             depth=depth,
             intent=query_intent,
-            intent_strategies=COMPANION_INTENT_PROMPTS,
             scene_hints=COMPANION_SCENE_HINTS,
             memory_context=memory_context,
             **tone_kwargs,
@@ -157,17 +149,25 @@ async def reasoning_node(state: AgentState) -> dict:
     # ── Step 3: 构建消息列表 ───────────────────────────────
     messages_for_llm = build_message_list(messages, system_content)
 
-    # ── Step 3.5: 最后一轮强制回复（仅非 deep 模式） ─────
-    is_last_chance = (not is_deep) and (new_iterations >= max_iterations - 1)
-    if is_last_chance:
+    # ── Step 3.5: 提前终止压力（仅非 deep 模式） ─────
+    is_deep_mode = is_deep
+    rounds_left = max_iterations - new_iterations if not is_deep_mode else 999
+
+    if not is_deep_mode and rounds_left <= 1:
+        # 最后一轮
         logger.info(
-            "reasoning_node: 最后一轮 (depth=%s iter=%d/%d) → 注入强制回复指令",
-            depth,
-            new_iterations,
-            max_iterations,
+            "reasoning_node: 最后一轮 (depth=%s iter=%d/%d) → 注入强制提交指令",
+            depth, new_iterations, max_iterations,
         )
         system_content += "\n\n" + _LAST_CHANCE_INSTRUCTION
-        # 重新构建消息列表以包含更新后的 system_content
+        messages_for_llm = build_message_list(messages, system_content)
+    elif not is_deep_mode and rounds_left <= 2:
+        # 提前 2 轮警告
+        logger.info(
+            "reasoning_node: 剩余 %d 轮 (depth=%s iter=%d/%d) → 注入早期收尾指令",
+            rounds_left, depth, new_iterations, max_iterations,
+        )
+        system_content += "\n\n" + _EARLY_TERMINATION_HINT
         messages_for_llm = build_message_list(messages, system_content)
 
     # ── Step 4: LLM 调用 ────────────────────────────────────
@@ -177,45 +177,59 @@ async def reasoning_node(state: AgentState) -> dict:
     if is_digesting:
         logger.debug("reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
 
-    # 工具绑定：非 deep 最后一轮解绑，其余始终绑定
-    if is_last_chance:
-        llm_to_use = llm
-        logger.info("reasoning_node: 最后一轮 → 强制解绑工具")
-    else:
-        tools = get_agent_tools()
-        llm_to_use = llm.bind_tools(tools)
-        logger.debug(
-            "reasoning_node: depth=%s intent=%s → 绑定 %d 个工具%s",
-            depth,
-            query_intent,
-            len(tools),
-            " (消化态)" if is_digesting else "",
-        )
+    # 工具绑定：始终绑定——submit_facts_to_render 是唯一出口
+    tools = get_agent_tools()
+    llm_to_use = llm.bind_tools(tools)
+    logger.debug(
+        "reasoning_node: depth=%s intent=%s → 绑定 %d 个工具%s",
+        depth,
+        query_intent,
+        len(tools),
+        " (消化态)" if is_digesting else "",
+    )
 
     # ── 消化态引导指令 ────────────────────────────────────
     if is_digesting:
         if is_deep:
             digest_hint = (
-                "（系统指令：工具数据已返回。精简回复——只写最核心的判断，不要展开。"
-                "如果已拿到完整信息直接基于数据回答，不需要逐个搜索每部作品。"
+                "（系统指令：工具数据已返回。如果已拿到足够数据回答用户问题，"
+                "立即调用 submit_facts_to_render 提交。不要逐个搜索每部作品。"
                 "数据确实不足时才继续调用工具。）"
             )
         else:
             digest_hint = (
-                "（系统指令：工具数据已返回。精简回复——只写最核心的判断。"
-                "数据充分则直接回复；不足可继续调用工具。）"
+                "（系统指令：工具数据已返回。数据充分则立即调用 submit_facts_to_render 提交；"
+                "不足可继续调用工具。）"
             )
         messages_for_llm.append(HumanMessage(content=digest_hint))
+
+    # ── 空结果升级策略 ───────────────────────────────────
+    consecutive_empty = _count_consecutive_empty_searches(messages)
+    if consecutive_empty >= 2:
+        logger.info(
+            "reasoning_node: 连续 %d 次空搜索结果 → 注入强制提交指令", consecutive_empty
+        )
+        messages_for_llm.append(
+            HumanMessage(
+                content=(
+                    "（系统指令：已连续多次搜索未找到有效结果。"
+                    "该关键词很可能在 Bangumi 中不存在。"
+                    "你必须立即调用 submit_facts_to_render，facts 传空列表，"
+                    "missing 注明'该关键词在数据库中不存在'。）"
+                )
+            )
+        )
 
     # ── 重复工具调用检测 ───────────────────────────────────
     dup_feedback = check_duplicate_tool_calls(messages)
     if dup_feedback:
-        logger.info("reasoning_node: 检测到重复工具调用 → 注入引导指令")
+        logger.info("reasoning_node: 检测到重复工具调用 → 注入强制提交指令")
         messages_for_llm.append(
             HumanMessage(
                 content=(
                     f"（系统指令：{dup_feedback}。"
-                    "如果数据确实不存在，直接告诉用户并给出建议，不要继续搜索。）"
+                    "必须立即调用 submit_facts_to_render 提交已有数据，"
+                    "missing 注明重复搜索的数据项。不要继续搜索。）"
                 )
             )
         )
@@ -238,7 +252,7 @@ async def reasoning_node(state: AgentState) -> dict:
             "messages": [AIMessage(content=fallback)],
             "query_intent": query_intent,
             "iterations": new_iterations,
-            "_memory_context": memory_context,
+            "_memory_context": memory_context or "",
         }
         return result
 
@@ -265,6 +279,32 @@ async def reasoning_node(state: AgentState) -> dict:
         log=logger,
     )
 
+    # ── Deep 模式最少工具调用检查 ──────────────────────────
+    if (
+        is_deep
+        and new_iterations == 1
+        and not (hasattr(response, "tool_calls") and response.tool_calls)
+        and query_intent not in ("chitchat", "factual", "emotional", "unknown")
+    ):
+        logger.info(
+            "reasoning_node: deep 首轮 0 工具调用 (intent=%s) → 自循环重试",
+            query_intent,
+        )
+        messages.append(
+            HumanMessage(
+                content=(
+                    "（系统指令：deep 模式下，即使是常识也应至少调用一次工具获取最新数据。"
+                    "请先查一下相关数据，再形成判断。）"
+                )
+            )
+        )
+        return {
+            "messages": [],
+            "iterations": new_iterations,
+            "query_intent": query_intent,
+            "_memory_context": memory_context or "",
+        }
+
     # ── Step 5: 日志 ────────────────────────────────────────
     tool_calls = (
         list(response.tool_calls)
@@ -283,7 +323,7 @@ async def reasoning_node(state: AgentState) -> dict:
         "messages": [response],
         "iterations": new_iterations,
         "query_intent": query_intent,
-        "_memory_context": memory_context,
+        "_memory_context": memory_context or "",
     }
     return result
 
@@ -572,3 +612,46 @@ def _get_last_ai_response(messages: list) -> AIMessage | None:
         if isinstance(m, AIMessage) and m.content:
             return m
     return None
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 空结果检测（Phase 10+ 改进 2）
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _count_consecutive_empty_searches(messages: list) -> int:
+    """检测最近连续多少次 ``search_bangumi_subject`` 返回空结果。
+
+    从最近的 ToolMessage 往前数，检查 JSON content 中的
+    ``"results": []``、``"total": 0`` 或 ``"_error"`` 信号。
+    遇到 AIMessage（含 tool_calls）时说明开始新一轮 → 计数器重置。
+
+    Args:
+        messages: 消息历史列表。
+
+    Returns:
+        连续空结果次数。非 search 工具的 ToolMessage 不计数但也不打断。
+    """
+    count = 0
+    for m in reversed(messages):
+        if isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls:
+            # 新一轮搜索 → 重置
+            break
+        if isinstance(m, ToolMessage):
+            name = getattr(m, "name", "") or ""
+            if name != "search_bangumi_subject":
+                continue
+            content = getattr(m, "content", "") or ""
+            # 检测空结果信号
+            if not content:
+                continue
+            if (
+                '"results":[]' in content.replace(" ", "")
+                or '"total":0' in content.replace(" ", "")
+                or '"_error"' in content
+            ):
+                count += 1
+            else:
+                # 非空结果 → 不是"连续"空
+                break
+    return count

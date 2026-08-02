@@ -34,7 +34,7 @@ class AgentState(TypedDict):
         session_id: 会话标识（L1 多轮上下文缓存）。(未来可考虑优化)
         user_id: 用户标识（L2 跨会话记忆）。(未来可考虑优化)
         error_flag: 降级标记。底层组件异常或循环超限时置 True。
-        _memory_context: 首轮 L2 记忆召回缓存。空字符串表示未召回。（未来可考虑优化）
+        _memory_context: 首轮 L2 记忆召回缓存。None 表示未初始化，空字符串表示已召回但无记忆。
         output_style: 输出渲染风格：neutral | bangumi | bangumi_cold | bangumi_cute
         depth: 深度模式：auto | quick | deep。
     """
@@ -63,8 +63,8 @@ class AgentState(TypedDict):
     error_flag: bool
     """降级标记，默认 False。置 True 时 reasoning_node 进入兜底模式。"""
 
-    _memory_context: str
-    """首轮 L2 记忆召回缓存。空字符串表示未召回或无需召回。"""
+    _memory_context: str | None
+    """首轮 L2 记忆召回缓存。None 表示未初始化，空字符串表示已召回但无记忆。"""
 
     output_style: str
     """输出渲染风格：neutral | bangumi | bangumi_cold | bangumi_cute。控制 System Prompt 中风格附录的注入。"""

@@ -52,8 +52,8 @@ class TestRouteAfterReasoning:
         )
         assert route_after_reasoning(state) == "tool_node"
 
-    def test_deep_routes_to_render_when_no_tool_calls(self):
-        """AIMessage 无 tool_calls + depth=deep → render_node"""
+    def test_deep_routes_to_end_when_no_tool_calls(self):
+        """AIMessage 无 tool_calls + depth=deep → END"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -63,10 +63,10 @@ class TestRouteAfterReasoning:
             query_intent="lookup",
             depth="deep",
         )
-        assert route_after_reasoning(state) == "render_node"
+        assert route_after_reasoning(state) == END
 
-    def test_routes_to_render_when_shallow_no_tool_calls(self):
-        """AIMessage 无 tool_calls + depth=auto → render_node"""
+    def test_routes_to_end_when_shallow_no_tool_calls(self):
+        """AIMessage 无 tool_calls + depth=auto → END"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -76,15 +76,15 @@ class TestRouteAfterReasoning:
             query_intent="lookup",
             depth="auto",
         )
-        assert route_after_reasoning(state) == "render_node"
+        assert route_after_reasoning(state) == END
 
-    def test_routes_to_render_when_empty_messages(self):
-        """空消息列表 + depth=auto → render_node"""
+    def test_routes_to_end_when_empty_messages(self):
+        """空消息列表 + depth=auto → END"""
         state = make_state(messages=[], depth="auto")
-        assert route_after_reasoning(state) == "render_node"
+        assert route_after_reasoning(state) == END
 
-    def test_chitchat_routes_to_render(self):
-        """chitchat 无工具调用 → render_node"""
+    def test_chitchat_routes_to_end(self):
+        """chitchat 无工具调用 → END"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -93,10 +93,10 @@ class TestRouteAfterReasoning:
             ],
             query_intent="chitchat",
         )
-        assert route_after_reasoning(state) == "render_node"
+        assert route_after_reasoning(state) == END
 
-    def test_factual_deep_routes_to_render(self):
-        """factual + depth=deep → render_node"""
+    def test_factual_deep_routes_to_end(self):
+        """factual + depth=deep → END"""
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
@@ -106,7 +106,7 @@ class TestRouteAfterReasoning:
             query_intent="factual",
             depth="deep",
         )
-        assert route_after_reasoning(state) == "render_node"
+        assert route_after_reasoning(state) == END
 
     def test_tool_calls_override_fast_path(self):
         """即使 chitchat 意图，有 tool_calls 时仍然走 tool_node"""

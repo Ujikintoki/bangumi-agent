@@ -1,89 +1,94 @@
 """
-Unified System Prompt Builder — Phase 7 重设计
+Aggregator Prompt Builder — v2 分离合成架构
 
-5 段组装（从 8 层简化）：Character Card → Tool Intuition → Continuity →
-Scene Hint → Guardrails。
+Reasoning 层是 Data Aggregator（数据聚合器），不是 Agent Persona。
+它的唯一工作：调用工具 → 收集数据 → 通过 submit_facts_to_render 提交事实清单。
 
-核心变化：
-- Character Card（SHOW 风格）替代碎片化的 identity + motivation + expression_guide
-- TOOL_INTUITION（行为性描述）替代 _TOOL_CALLING_RULES 的过程式规则
-- Scene Hint（一句话提示）替代冗长的 intent strategy 段落
-- _DATA_INTERPRETATION 删除——数据呈现规则完全属于 render 层
-- guardrails {word_limit} 按 depth 格式化
+人格内容（Character Card、snark、initiative）全部属于 Render 层。
 
 ==== 使用方式 ====
 
 ::
 
-    from agent.persona.profiles import get_character, get_agent_profile
-    from agent.orchestrate.prompt_builder import build_system_prompt
+    from agent.orchestrate.prompt_builder import build_aggregator_prompt
 
-    character = get_character("bangumi")
-    agent = get_agent_profile("companion")
-    prompt = build_system_prompt(agent_profile=agent, character=character, depth="auto")
+    prompt = build_aggregator_prompt(depth_taste=0.90, depth="deep", intent="recommendation")
 """
 
 from __future__ import annotations
 
-from agent.persona.profiles import (
-    AgentProfile,
-    CharacterProfile,
-    _render_tone,
-    get_character_card,
-)
+from agent.persona.profiles import get_aggregator_depth_instruction
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Tool Intuition — 行为性工具使用指引（替代 _TOOL_CALLING_RULES）
+# Aggregator 身份定义 — 数据聚合引擎
 # ═══════════════════════════════════════════════════════════════════════════
 
+_AGGREGATOR_IDENTITY = """\
+# 你是谁
+
+你是数据聚合引擎。你的唯一工作：调用工具获取数据，整理后通过 submit_facts_to_render 提交事实清单。
+
+不要尝试直接回答用户的问题。不要编造数据。不要输出自然语言回复。
+你的输出只有两种形式：
+1. 工具调用（tool_calls）——搜索、拉取详情、获取评论
+2. submit_facts_to_render ——提交整理好的事实清单，结束你的工作
+
+用户的问题会附在下方供你理解查询意图——但你不是回答者，你是数据收集者。"""
+
 # ═══════════════════════════════════════════════════════════════════════════
-# Tool Guidance — 统一工具使用指引（Phase 8: 五合一合并）
-#
-# 替换：TOOL_INTUITION + tool_strategy + tool_behavior +
-#       TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT
+# 终止规则 — submit_facts_to_render 是唯一出口
+# ═══════════════════════════════════════════════════════════════════════════
+
+_TERMINATION_RULES = """\
+## 终止规则
+
+你的唯一出口是 **submit_facts_to_render**。在以下情况必须调用它：
+
+1. **数据充分** → 整理所有 facts，填写 intent 和 missing（无缺失则留空），提交
+2. **连续 2 次搜索返回空结果** → 立即提交，intent 如实写，missing 注明"该关键词未找到"
+3. **工具返回了足够回答用户问题的数据** → 不要继续搜索，立即提交
+
+**禁止**：直接输出文本回复——你没有这个能力。想结束就必须调 submit_facts_to_render。"""
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tool Guidance — 工具使用指引（精简版，从 v1 继承）
 # ═══════════════════════════════════════════════════════════════════════════
 
 TOOL_GUIDANCE = """\
 ## 你的工具
 
-你查数据不是为了报数据——是为了验证你的直觉。查到数据后，说你的判断。\
-数据是注脚，不是正文。一个恰到好处的数据点比三个无关的数据点有说服力得多。
-
 **什么时候查**
-- 用户问到了你不知道的 → 查一下，结果放回去就继续聊
-- 用户没问到的 → 不主动扩展
-- 常识问题 → 基于训练知识直接回答，不查
+- 用户问到了你不知道的 → 查一下
+- 用户没问到的 → 不主动扩展（除非搜索深度指令要求）
+- 常识问题 → 基于搜索深度指令判断是否需要查
 
 **多少算够**
 - search 返回的信息通常已够用——评分、排名、基本信息都在里面
 - 只有用户**明确**问了 search 里没有的（详情、角色列表、评论），才调 detail 类工具
 - 一次搜索能回答就不两次
-- 数据够了直接回复，不要无意义地继续调工具
-- "没查到"不是你的失败——诚实说没找到
+- "没查到"不是你的失败——在 missing 里诚实注明
+- **速度比完整重要**——2轮内拿到核心数据就提交，不要为了"查全"拖延
 
 **并行规则**
-- 依赖 subject_id / person_id 的工具（detail、characters、opinions）\
-不能和 search 在同一轮并行——必须先 search 拿 id
-- 互不依赖的工具可以并行，但同一轮最多 3 个——更多的分批进行
+- 拿到 subject_id 后，detail + opinions + characters **必须同一轮并行调用**，不要串行
+- 依赖 subject_id / person_id 的工具不能和 search 同一轮并行——但拿到 id 后的下一轮就必须全部并行
+- 互不依赖的工具可以并行，同一轮最多 4 个
 - 时效类工具（calendar、trending）直接调，不需要先搜 id
+- **关键**：每轮思考是否需要更多数据。如果不需要 → 立即 submit_facts_to_render
 
 **数据真实性**
 - 时效性问题（"今季新番"、"当前热门"）——只使用工具返回的最新数据，\
-工具没返回就诚实说无法获取。不要用训练知识编造"当前"的作品列表
-- 评分和排名只从工具数据中引用，工具没返回的数字不编造
-- 角色和声优没有评分——只有作品有"""
-
-# Phase 8 向后兼容别名
-TOOL_INTUITION = TOOL_GUIDANCE
+工具没返回就在 missing 里注明
+- 评分和排名只从工具数据中引用，工具没返回的数字不编造"""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Continuity Rules — 话题绑定（保留，略精简）
+# Continuity Rules — 话题绑定
 # ═══════════════════════════════════════════════════════════════════════════
 
 _CONTINUITY_RULES = """\
 ## 对话连续性
 
-如果对话历史中有你的回复，先判断用户当前问题与历史的关系。
+如果对话历史中有之前的回复，先判断用户当前问题与历史的关系。
 
 **明确指代 → 使用对话历史**
 - 代词回指：\"这部\"、\"那个\"、\"它\"、\"这些\"
@@ -94,10 +99,10 @@ _CONTINUITY_RULES = """\
 **全新话题 → 忽略旧历史**
 新作品名、新类型、新人物 → 独立处理，不将旧话题混入新回答。
 
-**无法确定 → 宁可追问，不错误关联。**"""
+**无法确定 → 宁可只提交已有数据，不错误关联。**"""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Word limits per depth（与 render._RENDER_WORD_LIMIT 保持一致）
+# Word limits per depth
 # ═══════════════════════════════════════════════════════════════════════════
 
 _WORD_LIMITS: dict[str, str] = {
@@ -107,8 +112,93 @@ _WORD_LIMITS: dict[str, str] = {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Builder — 5 段组装
+# Builder — v2: 数据聚合引擎
 # ═══════════════════════════════════════════════════════════════════════════
+
+
+def build_aggregator_prompt(
+    *,
+    depth: str = "auto",
+    depth_taste: float = 0.70,
+    intent: str | None = None,
+    scene_hints: dict[str, str] | None = None,
+    intent_strategies: dict[str, str] | None = None,
+    memory_context: str = "",
+) -> str:
+    """组装 Aggregator System Prompt — v2 分离合成架构。
+
+    Aggregator 是数据聚合引擎，不是人格化角色。
+    - 不含 Character Card（属于 Render）
+    - 不含 snark / initiative 语气（属于 Render）
+    - 含搜索深度行为指令（来自 depth_taste）
+    - 含 submit_facts_to_render 终止规则
+
+    Args:
+        depth: 深度模式（\"auto\" | \"quick\" | \"deep\"），控制字数上限。
+        depth_taste: 搜索深度 0.0-1.0 (5 档)，控制工具调用策略。
+        intent: 查询意图。
+        scene_hints: Phase 7 简短场景提示 dict。
+        intent_strategies: [deprecated] 旧意图策略 dict，向后兼容 fallback。
+        memory_context: L2 记忆召回 + tone 提示的格式化文本。
+
+    Returns:
+        完整的 Aggregator System Prompt 字符串。
+    """
+    parts: list[str] = []
+
+    # ── Section 1: Aggregator 身份 ──────────────────────────
+    parts.append(_AGGREGATOR_IDENTITY)
+
+    # ── Section 2: 搜索深度指令 ─────────────────────────────
+    depth_instruction = get_aggregator_depth_instruction(depth_taste)
+    parts.append(f"## 搜索深度\n{depth_instruction}")
+
+    # ── Section 3: 工具指引 ─────────────────────────────────
+    parts.append(TOOL_GUIDANCE)
+
+    # ── Section 4: 对话连续性 ───────────────────────────────
+    parts.append(_CONTINUITY_RULES)
+
+    # ── Section 5: Scene Hint ───────────────────────────────
+    hint = None
+    if scene_hints and intent:
+        hint = scene_hints.get(intent, scene_hints.get("unknown", ""))
+    elif intent_strategies and intent:
+        hint = intent_strategies.get(intent, intent_strategies.get("unknown", ""))
+    if hint:
+        parts.append(hint)
+
+    # ── Section 6: Memory Context ────────────────────────────
+    if memory_context:
+        parts.append(memory_context)
+
+    # ── Section 7: 输出约束 ─────────────────────────────────
+    word_limit = _WORD_LIMITS.get(depth, _WORD_LIMITS["auto"])
+    parts.append(f"## 输出约束\nfacts 中每条 summary 不超过 200 字。")
+
+    # ── Section 8: 终止规则（必须放在最后——近因效应）─────────
+    parts.append(_TERMINATION_RULES)
+
+    return "\n\n".join(parts)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# [DEPRECATED] build_system_prompt — 旧版统一 System Prompt Builder
+#
+# 在 v2 分离合成架构中已废弃。
+# 人格内容（Character Card、snark、initiative）全部迁移至 Render 层。
+# 新代码请使用 build_aggregator_prompt()。
+#
+# 保留此兼容包装以避免破坏旧调用路径（如测试、eval 脚本）。
+# 计划在 Phase 2 清理时移除。
+# ═══════════════════════════════════════════════════════════════════════════
+
+from agent.persona.profiles import (
+    AgentProfile,
+    CharacterProfile,
+    _render_tone,
+    get_character_card,
+)
 
 
 def build_system_prompt(
@@ -124,28 +214,16 @@ def build_system_prompt(
     depth_taste: float | None = None,
     initiative: float | None = None,
 ) -> str:
-    """组装 System Prompt — 4 段结构。
+    """[DEPRECATED v2] 旧版 System Prompt Builder。
 
-    Phase 8: TOOL_GUIDANCE 五合一替代碎片化工具指引，
-    tool_constraint 参数移除——TOOL_GUIDANCE 覆盖所有深度模式需求。
+    在分离合成架构中已由 build_aggregator_prompt() 替代。
+    保留此函数以保证测试和旧调用路径的向后兼容。
 
-    Args:
-        agent_profile: Agent 配置。
-        character: 当前使用的角色人格。
-        depth: 深度模式（\"auto\" | \"quick\" | \"deep\"）。
-        intent: 查询意图。
-        intent_strategies: [deprecated] 意图策略变体 dict。
-            向后兼容——传入但未传 scene_hints 时作为 fallback。
-        scene_hints: Phase 7 新增——意图对应的简短场景提示。
-        memory_context: L2 记忆召回 + tone 提示的格式化文本。
-        snark: 覆盖 character.snark。None 时使用角色默认值。
-        depth_taste: 覆盖 character.depth_taste。
-        initiative: 覆盖 character.initiative。
+    新代码请使用::
 
-    Returns:
-        完整的 System Prompt 字符串。
+        from agent.orchestrate.prompt_builder import build_aggregator_prompt
+        prompt = build_aggregator_prompt(depth_taste=0.70, depth="auto", intent="recommendation")
     """
-    # ── 参数解析 ─────────────────────────────────────────────
     _snark = snark if snark is not None else character.snark
     _dt = depth_taste if depth_taste is not None else character.depth_taste
     _init = initiative if initiative is not None else character.initiative
@@ -158,19 +236,18 @@ def build_system_prompt(
     if card:
         parts.append(f"# 你是谁\n\n{card}")
     else:
-        # 向后兼容：无 Character Card 时用旧字段
         parts.append(f"# {character.identity}\n\n{character.motivation}")
         if character.expression_guide:
             parts.append(f"## 表达风格\n{character.expression_guide}")
 
-    # ── Section 1.5: 今天的语气（轻量，从参数生成） ─────────
+    # ── Section 1.5: 今天的语气 ─────────────────────────────
     parts.append(f"## 今天的语气\n{tone_parts['tone']}")
 
-    # ── Section 2: Capabilities + Tool Guidance（Phase 8 合并） ──
+    # ── Section 2: Capabilities + Tool Guidance ──────────────
     parts.append(agent_profile.capabilities)
     parts.append(TOOL_GUIDANCE)
 
-    # ── Section 2.5: 输出格式（纯格式，不含风格） ────────────
+    # ── Section 2.5: 输出格式 ────────────────────────────────
     if agent_profile.output_format_guide:
         parts.append(agent_profile.output_format_guide)
 
@@ -182,16 +259,15 @@ def build_system_prompt(
     if scene_hints and intent:
         hint = scene_hints.get(intent, scene_hints.get("unknown", ""))
     elif intent_strategies and intent:
-        # 向后兼容：旧 intent_strategies → 完整注入（deprecated path）
         hint = intent_strategies.get(intent, intent_strategies.get("unknown", ""))
     if hint:
         parts.append(hint)
 
-    # ── Section 5: Context（memory） ────────────────────────
+    # ── Section 5: Memory Context ────────────────────────────
     if memory_context:
         parts.append(memory_context)
 
-    # ── Section 6: Guardrails ───────────────────────────────
+    # ── Section 6: Guardrails ────────────────────────────────
     word_limit = _WORD_LIMITS.get(depth, _WORD_LIMITS["auto"])
     parts.append(character.guardrails.format(word_limit=word_limit))
 

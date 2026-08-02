@@ -362,3 +362,56 @@ class UserTimelineInput(BaseModel):
         le=20,
         description="返回动态条数上限",
     )
+
+
+class FactItem(BaseModel):
+    """提交给 Render 层的单条事实。"""
+
+    name: str = Field(
+        ...,
+        description="条目名称（优先使用中文名，无中文名时用日文原名）",
+    )
+    score: float | None = Field(
+        default=None,
+        description="评分（0-10），无数据时为 null",
+    )
+    rank: int | None = Field(
+        default=None,
+        description="全站排名，无数据时为 null",
+    )
+    summary: str = Field(
+        default="",
+        description="简短摘要，不超过 200 字。包含最关键的 1-2 个信息点",
+    )
+    tags: str = Field(
+        default="",
+        description="标签列表，逗号分隔。如'奇幻,冒险,治愈'",
+    )
+    source: str = Field(
+        default="",
+        description="数据来源工具名：search / detail / opinions / characters 等",
+    )
+
+
+class SubmitFactsInput(BaseModel):
+    """
+    【数据提交工具—终止循环】数据收集完成后调用，将事实清单提交给下游 Render 系统。
+
+    这是 Aggregator 的唯一出口——调用此工具后，你的工作完成，
+    系统将自动结束数据收集阶段并进入人格化回复生成阶段。
+    不要尝试直接输出文本回答用户的问题。
+    """
+
+    facts: list[FactItem] = Field(
+        ...,
+        description="事实清单，每条对应一个条目或一个数据点。至少包含 name 字段",
+        min_length=1,
+    )
+    intent: str = Field(
+        ...,
+        description="用户查询意图概括，5-15 字。如'推荐2024高分奇幻''查询芙莉莲详情'",
+    )
+    missing: str = Field(
+        default="",
+        description="用户明确想问但数据中缺失的信息，如'未找到导演信息''评分数据缺失'。无缺失时留空",
+    )

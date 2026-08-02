@@ -1,10 +1,9 @@
 """
 Bangumi Agent 图谱编排 — 纯 ReAct 拓扑
 
-    System Prompt的组装方式：
-  - Character Card + Render 两层人格表达：
-  - Character Card（System Prompt）→ 决定 agent 怎么思考
-  - Render Node（独立 LLM 调用）→ 决定输出怎么表达
+    两层人格表达：
+  - Character Card（System Prompt）→ 决定 agent 怎么思考（WHAT）
+  - Render 后处理（main.py）        → 决定输出怎么表达（HOW）
 
 核心拓扑
 ========
@@ -15,14 +14,15 @@ Bangumi Agent 图谱编排 — 纯 ReAct 拓扑
               reasoning_node ◄──────────┐
                      │                   │
                      ▼                   │
-              ┌──────┼──────┐            │
-              │      │      │            │
-         tool_node  render  END          │
-              │      │                   │
-              │      └───────────────────┘
-              │
+              ┌──────┴──────┐            │
+              │             │            │
+         tool_node         END           │
+              │                          │
               └──→ reasoning_node（消化工具结果）
+
+Render 从图谱中移除，改为 main.py 在 graph 返回后的后处理步骤。
 """
+
 
 from __future__ import annotations
 
@@ -34,11 +34,33 @@ from langgraph.prebuilt import ToolNode
 
 from agent.orchestrate.guardrails import format_tool_error
 from agent.orchestrate.nodes import reasoning_node
-from agent.persona.render import render_node
 from agent.state import AgentState
 from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.graph")
+
+
+# ── 条件路由: tool_node → reasoning / END ──────────────────
+
+
+def route_after_tool(
+    state: AgentState,
+) -> Literal["reasoning_node", "__end__"]:
+    """tool_node 后的条件边。分离合成架构 v2。
+
+    检测到 submit_facts_to_render → 强制退出 ReAct 循环。
+    其他工具 → 继续 reasoning 消化结果。
+    """
+    from langchain_core.messages import ToolMessage
+
+    messages = state.get("messages", [])
+    for m in reversed(messages):
+        if isinstance(m, ToolMessage):
+            if getattr(m, "name", "") == "submit_facts_to_render":
+                logger.info("route_after_tool: 检测到 submit_facts_to_render → 强制 END")
+                return END
+            break  # 只看最后一个 ToolMessage
+    return "reasoning_node"
 
 
 # [CLEANUP Phase 10+] _has_tool_calls_in_current_turn 已不再使用。
@@ -67,11 +89,11 @@ logger = logging.getLogger("bgm-agent.graph")
 
 def route_after_reasoning(
     state: AgentState,
-) -> Literal["tool_node", "render_node", "__end__"]:
+) -> Literal["tool_node", "__end__"]:
     """reasoning_node 后的条件边。纯 ReAct 拓扑。
 
-    1. AIMessage.tool_calls 非空 → tool_node
-    2. 其他                      → render_node（风格渲染后输出）
+    1. AIMessage.tool_calls 非空 → tool_node（继续循环）
+    2. 其他                      → END（停止，main.py 后处理 render）
     """
     from langchain_core.messages import AIMessage
 
@@ -90,11 +112,11 @@ def route_after_reasoning(
         return "tool_node"
 
     logger.debug(
-        "route_after_reasoning: depth=%s intent=%s → render_node",
+        "route_after_reasoning: depth=%s intent=%s → END",
         state.get("depth", "auto"),
         state.get("query_intent", "unknown"),
     )
-    return "render_node"
+    return END
 
 
 # ── route_after_critic 已移除（Phase 10, 2026-07-30） ──
@@ -122,20 +144,27 @@ def build_graph(tools: list | None = None) -> StateGraph:
     # ── 注册节点 ──────────────────────────────────────────
     graph.add_node("reasoning_node", reasoning_node)
     graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=format_tool_error))
-    graph.add_node("render_node", render_node)
 
     # ── 固定边 ────────────────────────────────────────────
     graph.add_edge(START, "reasoning_node")
-    graph.add_edge("tool_node", "reasoning_node")
-    graph.add_edge("render_node", END)
 
-    # ── 条件边: reasoning → tool / render / END ─────────
+    # ── 条件边: tool_node → reasoning / END ───────────────
+    # v2: submit_facts_to_render 强制退出，其他工具继续 ReAct
+    graph.add_conditional_edges(
+        "tool_node",
+        route_after_tool,
+        {
+            "reasoning_node": "reasoning_node",
+            END: END,
+        },
+    )
+
+    # ── 条件边: reasoning → tool / END ────────────────────
     graph.add_conditional_edges(
         "reasoning_node",
         route_after_reasoning,
         {
             "tool_node": "tool_node",
-            "render_node": "render_node",
             END: END,
         },
     )

@@ -12,7 +12,7 @@ from agent.persona.profiles import (  # noqa: F401
     get_agent_profile,
     get_character,
 )
-from agent.persona.render import render_node  # noqa: F401
+from agent.persona.render import render_reply  # noqa: F401
 
 __all__ = [
     "AGENT_REGISTRY",
@@ -22,5 +22,5 @@ __all__ = [
     "NEUTRAL_CHARACTER",
     "get_agent_profile",
     "get_character",
-    "render_node",
+    "render_reply",
 ]

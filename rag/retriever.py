@@ -139,6 +139,10 @@ class RagEntityRetriever:
         exclude_nsfw: bool = True,
         distance_threshold: float = 0.65,
         semantic_bucket_size: float = 0.03,
+        # ── 消融控制 (eval 用，默认全开，生产零影响) ──
+        enable_threshold: bool = True,
+        enable_bucketing: bool = True,
+        enable_mmr: bool = True,
     ) -> list[RagSearchResult]:
         """多态混合检索：标量前置过滤 → 向量召回 → 多态分桶排序 → 阈值防爆。
 
@@ -148,10 +152,13 @@ class RagEntityRetriever:
           2. 查询向量化。
           3. 按 PGVector 余弦距离召回 limit * 2 候选集。
           4. **距离阈值防爆**：丢弃 cosine_distance > threshold 的候选。
+             (enable_threshold=False 时跳过)
           5. **多态阶梯分桶排序**：按 entity_type 动态选择次级热度信号：
              - subject → meta_info.rating_total
              - character / person → meta_info.collects
-          6. 截取 top ``limit`` 条返回。
+             (enable_bucketing=False 时仅按 cosine_distance 排序)
+          6. **MMR 同名去重** (enable_mmr=False 时跳过)。
+          7. 截取 top ``limit`` 条返回。
 
         Args:
             query: 自然语言查询。
@@ -160,6 +167,9 @@ class RagEntityRetriever:
             exclude_nsfw: 是否排除 R18（仅对 subject 生效）。
             distance_threshold: 余弦距离上限，默认 0.65。
             semantic_bucket_size: 语义梯队步长，默认 0.03。
+            enable_threshold: 消融开关——是否启用距离阈值过滤。
+            enable_bucketing: 消融开关——是否启用语义分桶+对数归一化。
+            enable_mmr: 消融开关——是否启用 MMR 同名去重。
 
         Returns:
             按 final_score 升序排列的 RagSearchResult 列表。
@@ -241,43 +251,51 @@ class RagEntityRetriever:
                 )
             )
 
-        # ── Step 4: 距离阈值防爆 ──────────────────────────────
-        within_threshold = [
-            r for r in raw_results if r.cosine_distance <= distance_threshold
-        ]
-        discarded = len(raw_results) - len(within_threshold)
-        if discarded > 0:
-            logger.debug(
-                "阈值预过滤: 丢弃 %d 条, 保留 %d 条", discarded, len(within_threshold)
+        # ── Step 4: 距离阈值防爆 (消融: enable_threshold=False 时跳过) ──
+        if enable_threshold:
+            within_threshold = [
+                r for r in raw_results if r.cosine_distance <= distance_threshold
+            ]
+            discarded = len(raw_results) - len(within_threshold)
+            if discarded > 0:
+                logger.debug(
+                    "阈值预过滤: 丢弃 %d 条, 保留 %d 条", discarded, len(within_threshold)
+                )
+            if not within_threshold:
+                logger.info("阈值过滤后无候选: query='%s'", query[:50])
+                return []
+        else:
+            within_threshold = raw_results
+
+        # ── Step 5: 多态阶梯分桶排序 (消融: enable_bucketing=False → 纯 cosine 排序) ──
+        if enable_bucketing:
+            within_threshold.sort(
+                key=lambda r: (
+                    int(r.cosine_distance / semantic_bucket_size),
+                    -_extract_heat_signal(r.meta_info, r.entity_type),
+                )
             )
+            for r in within_threshold:
+                r.final_score = float(int(r.cosine_distance / semantic_bucket_size))
+        else:
+            # 消融条件: 纯按 cosine_distance 升序 (vanilla pgvector 行为)
+            within_threshold.sort(key=lambda r: r.cosine_distance)
+            for r in within_threshold:
+                r.final_score = r.cosine_distance
 
-        if not within_threshold:
-            logger.info("阈值过滤后无候选: query='%s'", query[:50])
-            return []
-
-        # ── Step 5: 多态阶梯分桶排序 ───────────────────────────
-        within_threshold.sort(
-            key=lambda r: (
-                int(r.cosine_distance / semantic_bucket_size),
-                -_extract_heat_signal(r.meta_info, r.entity_type),
-            )
-        )
-
-        for r in within_threshold:
-            r.final_score = float(int(r.cosine_distance / semantic_bucket_size))
-
-        # ── Step 5.5: MMR 同源去重 ──────────────────────────────
-        # 同梯队内热度高的优先入选，跳过已选结果的同名（name_cn/name）
-        # 实体，防止 TV/OVA/剧场版等同一作品的不同版本刷屏。
-        seen_names: set[str] = set()
-        deduped: list[RagSearchResult] = []
-        for r in within_threshold:
-            dedup_key = (r.name_cn or r.name or "").strip()
-            if dedup_key and dedup_key in seen_names:
-                continue
-            if dedup_key:
-                seen_names.add(dedup_key)
-            deduped.append(r)
+        # ── Step 5.5: MMR 同源去重 (消融: enable_mmr=False 时跳过) ──
+        if enable_mmr:
+            seen_names: set[str] = set()
+            deduped: list[RagSearchResult] = []
+            for r in within_threshold:
+                dedup_key = (r.name_cn or r.name or "").strip()
+                if dedup_key and dedup_key in seen_names:
+                    continue
+                if dedup_key:
+                    seen_names.add(dedup_key)
+                deduped.append(r)
+        else:
+            deduped = within_threshold
 
         final_results = deduped[:limit]
 

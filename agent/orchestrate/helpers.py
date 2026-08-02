@@ -73,7 +73,7 @@ async def recall_memory_step(
 ) -> str:
     """L2 跨会话记忆召回：语义检索 + 格式化。
 
-    仅在 ``_memory_context`` 为空且 ``user_id != "anonymous"`` 时触发。
+    仅在 ``_memory_context`` 为 None（未初始化）且 ``user_id != "anonymous"`` 时触发。
     语义阈值自然过滤不相关查询，无需按 intent 跳过。
 
     Args:
@@ -84,8 +84,8 @@ async def recall_memory_step(
     Returns:
         格式化的记忆文本，无相关记忆或跳过时返回空字符串。
     """
-    memory_context = state.get("_memory_context", "")
-    if memory_context:
+    memory_context = state.get("_memory_context")
+    if memory_context is not None:
         return memory_context
 
     user_id = state.get("user_id", "anonymous")

@@ -21,10 +21,18 @@ from pydantic import BaseModel, Field
 from agent.devtools import RequestTelemetry, set_current_telemetry
 from agent.graph import agent_app
 from agent.memory.cache import get_session_cache
-from agent.persona.profiles import get_agent_profile
+from agent.orchestrate.nodes import _count_consecutive_empty_searches
+from agent.persona.profiles import get_agent_profile, get_character
+from agent.persona.render import render_reply
+from agent.persona.render import _extract_user_query as _extract_user_query_from_messages
 from agent.state import AgentState
 from core.config import get_settings
 from database.engine import init_db
+
+try:
+    from langgraph.errors import GraphRecursionError
+except ImportError:
+    GraphRecursionError = Exception  # type: ignore[assignment,misc]
 
 settings = get_settings()
 
@@ -157,6 +165,153 @@ app.add_middleware(
 )
 
 # ═══════════════════════════════════════════════════════════════════
+# v2 分离合成 — 代码中转层
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _find_submit_facts(messages: list) -> dict | None:
+    """从消息历史中找到 submit_facts_to_render 的 ToolMessage 并解析内容。
+
+    LangChain ToolNode 可能将 dict return 转为 Python repr（单引号）或 JSON 字符串，
+    两种格式都需要处理。
+
+    Args:
+        messages: graph 返回的消息列表。
+
+    Returns:
+        解析后的 facts dict，未找到时返回 None。
+    """
+    import ast
+
+    for m in reversed(messages):
+        if isinstance(m, ToolMessage) and getattr(m, "name", "") == "submit_facts_to_render":
+            content = m.content if hasattr(m, "content") else ""
+            if isinstance(content, dict):
+                return content
+            if isinstance(content, str) and content:
+                # 尝试 JSON 解析
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    pass
+                # 尝试 Python literal 解析（ToolNode 可能输出 repr 格式）
+                try:
+                    parsed = ast.literal_eval(content)
+                    if isinstance(parsed, dict):
+                        return parsed
+                except (ValueError, SyntaxError):
+                    pass
+                logger.warning("_find_submit_facts: 无法解析 ToolMessage content: %.100s", content)
+            break
+    return None
+
+
+def _extract_tools_used(messages: list) -> list[str]:
+    """从消息历史中提取本轮调用的工具名称列表（去重保序）。"""
+    start_idx = 0
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            start_idx = i
+            break
+
+    tools = []
+    for m in messages[start_idx:]:
+        if isinstance(m, ToolMessage) and hasattr(m, "name") and m.name:
+            tools.append(m.name)
+    return list(dict.fromkeys(tools))
+
+
+def _data_level_label(depth: str) -> str:
+    """depth 模式 → 数据等级标签。"""
+    return {"quick": "L1（摘要）", "auto": "L1-L2（摘要+详情）", "deep": "L1-L3（完整）"}.get(
+        depth, "L1-L2"
+    )
+
+
+def _build_render_input(
+    facts_json: dict | None,
+    state: dict,
+    user_query: str,
+    depth: str,
+) -> str:
+    """确定性拼接 Render 的输入 Markdown（v2 代码中转层）。
+
+    不从 LLM 拿文本——从 submit_facts JSON（Aggregator 的 ToolMessage）
+    和 AgentState（系统数据）确定性地构建。
+
+    Args:
+        facts_json: submit_facts_to_render 返回的 dict，None 则用空数据。
+        state: graph 返回的完整 state dict。
+        user_query: 用户原始消息。
+        depth: 深度模式。
+
+    Returns:
+        供 Render LLM 消费的 Markdown 字符串。
+    """
+    if facts_json is None:
+        facts_json = {"facts": [], "intent": "unknown", "missing": "数据收集未完成"}
+
+    facts = facts_json.get("facts", [])
+    intent = facts_json.get("intent", "未知")
+    missing = facts_json.get("missing", "")
+
+    # ── 系统状态（代码提取，不靠 LLM 自述）──
+    messages = state.get("messages", [])
+    iterations = state.get("iterations", 0)
+    tools_used = _extract_tools_used(messages)
+    empty_count = _count_consecutive_empty_searches(messages)
+    data_level = _data_level_label(depth)
+
+    # ── 拼接 ──
+    lines = [
+        "## 数据清单",
+        f"查询意图: {intent}",
+        "",
+    ]
+
+    if facts:
+        for i, f in enumerate(facts, 1):
+            if isinstance(f, dict):
+                name = f.get("name", "?")
+                score = f.get("score")
+                score_str = f"{score}分" if score is not None else "暂无评分"
+                rank = f.get("rank")
+                rank_str = f"#{rank}" if rank else ""
+                summary = f.get("summary", "")
+                tags = f.get("tags", "")
+                source = f.get("source", "")
+
+                line = f"{i}. {name} | {score_str}"
+                if rank_str:
+                    line += f" | {rank_str}"
+                if summary:
+                    line += f"\n   {summary[:300]}"
+                if tags:
+                    line += f"\n   标签: {tags}"
+                if source:
+                    line += f"  [{source}]"
+                lines.append(line)
+            else:
+                lines.append(f"{i}. {f}")
+        lines.append("")
+
+    lines.extend([
+        "## 检索概况（系统记录）",
+        f"搜索深度: {data_level} | 共 {iterations} 轮",
+    ])
+    if tools_used:
+        data_tools = [t for t in tools_used if t != "submit_facts_to_render"]
+        if data_tools:
+            lines.append(f"调用工具: {', '.join(data_tools)}")
+    if empty_count >= 2:
+        lines.append(f"⚠ 连续 {empty_count} 次搜索返回空结果——相关关键词可能不存在于数据库。")
+    if missing:
+        lines.append(f"数据缺失: {missing}")
+
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 端点
 # ═══════════════════════════════════════════════════════════════════
 
@@ -210,7 +365,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         "session_id": session_id,
         "user_id": request.user_id,
         "error_flag": False,
-        "_memory_context": "",
+        "_memory_context": None,
         "output_style": output_style,
         "depth": depth,
     }
@@ -224,7 +379,19 @@ async def chat(request: ChatRequest) -> ChatResponse:
         if telemetry:
             result = await _run_with_telemetry(initial_state, telemetry)
         else:
-            result = await agent_app.ainvoke(initial_state)
+            result = await agent_app.ainvoke(
+                initial_state, config={"recursion_limit": 50}
+            )
+    except GraphRecursionError:
+        logger.warning("/chat: recursion_limit 触发 (depth=%s)", depth)
+        return ChatResponse(
+            reply="查询处理超时，请尝试更具体的提问方式。",
+            iterations=0,
+            tools_used=[],
+            query_intent="unknown",
+            output_style=output_style,
+            depth=depth,
+        )
     except Exception as e:
         logger.exception("/chat: Agent 执行异常")
         return ChatResponse(
@@ -238,6 +405,38 @@ async def chat(request: ChatRequest) -> ChatResponse:
     finally:
         if telemetry:
             set_current_telemetry(None)
+
+    # ── 后处理：v2 代码中转 + Render 风格改写 ──
+    messages_for_render = result.get("messages", [])
+    user_query = _extract_user_query_from_messages(messages_for_render) or request.message
+
+    # v2: 从 submit_facts_to_render ToolMessage 提取结构化数据
+    facts_json = _find_submit_facts(messages_for_render)
+    if facts_json is not None:
+        # 正常路径: Aggregator 通过 submit_facts 提交了数据
+        render_input = _build_render_input(facts_json, result, user_query, depth)
+        force_render = True  # submit_facts 路径绝不跳过 Render
+    else:
+        # Fallback: Aggregator 未调 submit_facts（chitchat / 错误）
+        last_ai = _get_last_ai_message(messages_for_render)
+        render_input = last_ai.content if last_ai and last_ai.content else "（无数据）"
+        force_render = False
+        logger.info("render fallback: Aggregator 未调 submit_facts，使用 AIMessage content")
+
+    # 获取角色人格参数（snark/initiative 来自角色定义，不被 depth 覆盖）
+    character = get_character(output_style)
+
+    rendered = await render_reply(
+        render_input=render_input,
+        user_query=user_query,
+        output_style=output_style,
+        depth=depth,
+        snark=character.snark,
+        initiative=character.initiative,
+        force=force_render,
+    )
+    if rendered:
+        result["messages"] = _replace_last_ai_content(messages_for_render, rendered)
 
     # ── L1 Session 缓存：保存本轮消息 ──
     max_cached = 30 if depth == "deep" else 20
@@ -274,7 +473,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
 async def chat_stream(request: ChatRequest):
     """Agent 对话流式端点（SSE）。
 
-    按节点级别推送事件：reasoning → tool → (critic，仅 deep) → done。
+    按节点级别推送事件：reasoning → tool → render → done。
+    Render 已从图节点降级为后处理，由 generate() 在 graph 完成后调用。
 
     Args:
         request: 包含用户消息、深度模式、会话 ID 和用户 ID 的请求体。
@@ -283,27 +483,42 @@ async def chat_stream(request: ChatRequest):
         StreamingResponse: SSE 事件流（text/event-stream）。
     """
     depth = request.depth
+    session_id = request.session_id or uuid.uuid4().hex
     output_style = _resolve_output_style(request)
+
+    # ── L1 Session 缓存：恢复前序消息 ──
+    session_cache = get_session_cache()
+    cached = await session_cache.load(session_id)
 
     _seed = get_agent_profile("companion").capabilities
     initial_state: AgentState = {
         "messages": [
             SystemMessage(content=_seed),
+            *cached,
             HumanMessage(content=request.message),
         ],
         "iterations": 0,
         "query_intent": "unknown",
-        "session_id": request.session_id,
+        "session_id": session_id,
         "user_id": request.user_id,
         "error_flag": False,
+        "_memory_context": None,
         "output_style": output_style,
         "depth": depth,
     }
 
     async def generate():
+        final_state: dict = dict(initial_state)
         try:
-            async for event in agent_app.astream(initial_state):
+            async for event in agent_app.astream(initial_state, config={"recursion_limit": 50}):
                 for node_name, node_output in event.items():
+                    # 累积完整 state
+                    for key, value in node_output.items():
+                        if key == "messages" and key in final_state:
+                            final_state["messages"].extend(value)
+                        else:
+                            final_state[key] = value
+
                     if node_name == "reasoning_node":
                         intent = node_output.get("query_intent", "unknown")
                         tool_calls = []
@@ -329,17 +544,47 @@ async def chat_stream(request: ChatRequest):
                                     tools.append(msg.name)
                         yield f"data: {json.dumps({'node': 'tool', 'tools': list(dict.fromkeys(tools))}, ensure_ascii=False)}\n\n"
 
-                    # [DEPRECATED Phase 10] Critic 已从图谱中移除，此分支不再执行。
-                    # 保留以备未来恢复 Critic 时重新激活。
-                    # elif node_name == "critic_node":
-                    #     status = node_output.get("critic_status", "PENDING")
-                    #     feedback = node_output.get("critic_feedback", "")
-                    #     yield f"data: {json.dumps({'node': 'critic', 'status': status, 'feedback': feedback[:200]}, ensure_ascii=False)}\n\n"
+            # ── 后处理：v2 代码中转 + Render 风格改写 ──
+            messages_for_render = final_state.get("messages", [])
+            user_query = _extract_user_query_from_messages(messages_for_render) or request.message
 
-                    elif node_name == "render_node":
-                        yield f"data: {json.dumps({'node': 'render'}, ensure_ascii=False)}\n\n"
+            # v2: 从 submit_facts_to_render ToolMessage 提取结构化数据
+            facts_json = _find_submit_facts(messages_for_render)
+            if facts_json is not None:
+                render_input = _build_render_input(facts_json, final_state, user_query, depth)
+                force_render = True
+            else:
+                last_ai = _get_last_ai_message(messages_for_render)
+                render_input = last_ai.content if last_ai and last_ai.content else "（无数据）"
+                force_render = False
 
+            character = get_character(output_style)
+            rendered_reply = await render_reply(
+                render_input=render_input,
+                user_query=user_query,
+                output_style=output_style,
+                depth=depth,
+                snark=character.snark,
+                initiative=character.initiative,
+                force=force_render,
+            )
+            if rendered_reply:
+                final_state["messages"] = _replace_last_ai_content(
+                    messages_for_render, rendered_reply
+                )
+
+            # ── 发送 render 事件 + 最终回复 ──
+            yield f"data: {json.dumps({'node': 'render', 'reply': rendered_reply}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
+
+            # ── L1 Session 缓存 + L2 记忆写入 ──
+            max_cached = 30 if depth == "deep" else 20
+            await session_cache.store(
+                session_id,
+                final_state.get("messages", []),
+                max_messages=max_cached,
+            )
+            asyncio.create_task(_remember_session(final_state, request, depth))
 
         except Exception as e:
             logger.exception("/chat/stream: Agent 执行异常")
@@ -355,16 +600,20 @@ async def chat_stream(request: ChatRequest):
 
 
 async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) -> dict:
-    """用 ``astream()`` 跑 graph，记录每个节点的起止时间。
+    """用 ``astream()`` 跑 graph，记录每个节点的起止时间并累积完整 state。
 
     和 ``ainvoke()`` 的最终结果一致，但额外在过程中记录 NodeTiming。
+    ``stream_mode="updates"`` 每个事件仅是节点 delta，需累积合并为完整 state。
     """
     import time
 
     prev_time = telemetry.t_start
-    final_state = initial_state
+    final_state: dict = dict(initial_state)
+    messages_key = "messages"
 
-    async for event in agent_app.astream(initial_state):
+    async for event in agent_app.astream(
+        initial_state, config={"recursion_limit": 50}
+    ):
         now = time.monotonic()
         for node_name, node_output in event.items():
             from agent.devtools import NodeTiming
@@ -374,7 +623,12 @@ async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) 
                 NodeTiming(node=node_name, elapsed_ms=int(elapsed))
             )
             prev_time = now
-            final_state = node_output
+            # 累积合并：messages 追加，其余键覆盖
+            for key, value in node_output.items():
+                if key == messages_key and key in final_state:
+                    final_state[messages_key].extend(value)
+                else:
+                    final_state[key] = value
 
     return final_state
 
@@ -382,6 +636,35 @@ async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) 
 # ═══════════════════════════════════════════════════════════════════
 # 辅助函数
 # ═══════════════════════════════════════════════════════════════════
+
+
+def _get_last_ai_message(messages: list):
+    """从后往前取最后一条有 content 的 AIMessage。"""
+    for m in reversed(messages):
+        if isinstance(m, AIMessage) and m.content:
+            return m
+    return None
+
+
+def _replace_last_ai_content(messages: list, new_content: str) -> list:
+    """返回新列表，最后一条 AIMessage 被替换为只有 new_content 的 AIMessage。
+
+    v2: aggregator 最后一条 AIMessage 可能只有 tool_calls 而 content 为空。
+    此函数匹配任意 AIMessage（含空 content 的），替换为纯文本 AIMessage。
+    找不到时追加一条新的。
+    """
+    result = list(messages)
+    for i in range(len(result) - 1, -1, -1):
+        if isinstance(result[i], AIMessage):
+            result[i] = AIMessage(
+                content=new_content,
+                response_metadata=getattr(result[i], "response_metadata", {}),
+                id=getattr(result[i], "id", None),
+            )
+            return result
+    # 没有找到任何 AIMessage → 追加
+    result.append(AIMessage(content=new_content))
+    return result
 
 
 def _extract_final_reply(
@@ -416,28 +699,6 @@ def _extract_final_reply(
         return "工具执行完成但未能生成文本回复，请重试或换个方式提问。"
 
     return "抱歉，无法处理您的请求。"
-
-
-def _extract_tools_used(messages: list) -> list[str]:
-    """从消息历史中提取本轮调用的工具名称列表（去重保序）。
-
-    Args:
-        messages: 完整的消息历史列表。
-
-    Returns:
-        本轮工具名称列表。
-    """
-    start_idx = 0
-    for i in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[i], HumanMessage):
-            start_idx = i
-            break
-
-    tools = []
-    for m in messages[start_idx:]:
-        if isinstance(m, ToolMessage) and hasattr(m, "name") and m.name:
-            tools.append(m.name)
-    return list(dict.fromkeys(tools))
 
 
 # ═══════════════════════════════════════════════════════════════════
