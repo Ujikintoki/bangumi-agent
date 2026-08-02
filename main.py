@@ -437,6 +437,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
     )
     if rendered:
         result["messages"] = _replace_last_ai_content(messages_for_render, rendered)
+    elif facts_json is not None:
+        # submit_facts 路径 + Render 失败 → 降级为确定性 Markdown
+        # 绝不 fallback 到 Aggregator 的 AIMessage.content——那是内部草稿本
+        result["messages"] = _replace_last_ai_content(messages_for_render, render_input)
+        logger.warning("Render 失败 (submit_facts 路径)，降级为确定性 Markdown (%d chars)", len(render_input))
 
     # ── L1 Session 缓存：保存本轮消息 ──
     max_cached = 30 if depth == "deep" else 20
@@ -571,6 +576,11 @@ async def chat_stream(request: ChatRequest):
             if rendered_reply:
                 final_state["messages"] = _replace_last_ai_content(
                     messages_for_render, rendered_reply
+                )
+            elif facts_json is not None:
+                # submit_facts 路径 + Render 失败 → 降级为确定性 Markdown
+                final_state["messages"] = _replace_last_ai_content(
+                    messages_for_render, render_input
                 )
 
             # ── 发送 render 事件 + 最终回复 ──

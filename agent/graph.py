@@ -48,10 +48,24 @@ def route_after_tool(
 ) -> Literal["reasoning_node", "__end__"]:
     """tool_node 后的条件边。分离合成架构 v2。
 
-    检测到 submit_facts_to_render → 强制退出 ReAct 循环。
-    其他工具 → 继续 reasoning 消化结果。
+    1. 硬熔断：iteration >= max → 强制 END（不与模型协商）
+    2. 检测到 submit_facts_to_render → 强制退出 ReAct 循环
+    3. 其他工具 → 继续 reasoning 消化结果
     """
     from langchain_core.messages import ToolMessage
+
+    # ── 硬熔断：迭代上限是代码级强控制流，不是 prompt 建议 ──
+    from agent.state import get_max_iterations
+
+    depth = state.get("depth", "auto")
+    max_iter = get_max_iterations(depth)
+    current_iter = state.get("iterations", 0)
+    if current_iter >= max_iter:
+        logger.warning(
+            "route_after_tool: 硬熔断！iter=%d >= max=%d (depth=%s) → 强制 END",
+            current_iter, max_iter, depth,
+        )
+        return END
 
     messages = state.get("messages", [])
     for m in reversed(messages):
