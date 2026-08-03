@@ -93,6 +93,7 @@ _INTENT_MAX_ITERATIONS: dict[str, int] = {
     "fetch": 2,         # search → detail → 停
     "explore": 3,       # search → multi-detail → 停
     "discuss": 4,       # search → detail → comments → 停
+    "profile": 2,       # user_profile → user_timeline → 停
     "realtime": 2,      # calendar/trending → 停
     "fallback": 2,      # 同 fetch，保守
     # 向后兼容旧 intent

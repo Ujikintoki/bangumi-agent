@@ -132,6 +132,28 @@ def create_llm(
     return _maybe_wrap_telemetry(llm, _telemetry_label)
 
 
+def create_classifier_llm(
+    settings: Settings | None = None,
+) -> ChatOpenAI:
+    """创建分类器专用 LLM 实例。v4 intent classifier。
+
+    temperature=0, max_tokens=200, request_timeout=10s。
+    用于 classify_node 中的意图分类 LLM 调用。
+
+    Args:
+        settings: Settings 实例。None 时调用 get_settings()。
+
+    Returns:
+        配置好的 ChatOpenAI 实例。
+    """
+    return create_llm(
+        temperature=0,
+        max_tokens=200,
+        request_timeout=10,
+        settings=settings,
+    )
+
+
 def _resolve_api_key(settings: Settings) -> str:
     """按优先级查找 API Key。
 

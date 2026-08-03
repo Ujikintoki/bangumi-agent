@@ -131,6 +131,10 @@ TOOLS_BY_INTENT: dict[str, list[str]] = {
         "get_subject_persons", "get_subject_comments",
         "submit_facts_to_render",
     ],
+    "profile": [
+        "get_user_profile", "get_user_timeline",
+        "submit_facts_to_render",
+    ],
     "realtime": [
         "get_calendar", "get_trending_subjects",
         "submit_facts_to_render",

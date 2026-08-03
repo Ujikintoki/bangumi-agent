@@ -35,34 +35,33 @@ def extract_user_input(state: dict) -> str:
     return ""
 
 
-async def classify_intent_step(state: dict) -> tuple[str, str, bool]:
-    """意图分类：仅首轮（iterations==0）执行，后续轮次复用缓存。
-
-    使用轻量 LLM（temperature=0, max_tokens=10）做单阶段分类。
+async def classify_intent_step(state: dict) -> tuple[str, float, bool]:
+    """意图分类：仅首轮（iterations==0）执行，后续轮次复用缓存。v4: function calling + 置信度。
 
     Args:
         state: 包含 ``iterations``、``query_intent``、``messages`` 的字典。
 
     Returns:
-        ``(query_intent, method, did_classify)`` 三元组。
-        - ``method``: ``"cached"``（复用）、``"llm"``（新分类）
-        - ``did_classify``: True 表示本函数执行了分类（调用方据此决定是否打 log）
+        ``(query_intent, confidence, did_classify)`` 三元组。
+        - ``confidence``: 0.0-1.0（缓存命中时为 1.0）
+        - ``did_classify``: True 表示本函数执行了分类
     """
-    query_intent = state.get("query_intent", "unknown")
+    query_intent = state.get("query_intent", "fallback")
 
     # 后续轮次复用首轮结果
     if state.get("iterations", 0) != 0:
-        return query_intent, "cached", False
+        cached_confidence = state.get("classifier_confidence", 0.0) or 0.0
+        return query_intent, cached_confidence if cached_confidence > 0 else 1.0, False
 
     user_input = extract_user_input(state)
     if not user_input:
-        return "unknown", "llm", False
+        return "fallback", 0.0, False
 
-    from agent.llm import create_llm
+    from agent.llm import create_classifier_llm
 
-    classifier_llm = create_llm(temperature=0, max_tokens=10, request_timeout=10)
-    query_intent, method = await classify_intent(user_input, classifier_llm)
-    return query_intent, method, True
+    classifier_llm = create_classifier_llm()
+    intent, confidence = await classify_intent(user_input, classifier_llm)
+    return intent, confidence, True
 
 
 async def recall_memory_step(
