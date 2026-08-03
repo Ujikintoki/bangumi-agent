@@ -19,20 +19,18 @@ from agent.memory.short_term import (
     manage_memory,
 )
 from agent.orchestrate.deep_strategies import CRITIC_SYSTEM_PROMPT, DEEP_SCENE_HINTS
-from agent.orchestrate.deep_strategies import INTENT_PROMPTS as DEEP_INTENT_PROMPTS
-from agent.orchestrate.guardrails import (
-    TOOL_CALL_XML_RESIDUE,
-    check_duplicate_tool_calls,
-    is_terminal_response,
-)
+from agent.orchestrate.guardrails import TOOL_CALL_XML_RESIDUE
 from agent.orchestrate.helpers import (
     build_message_list,
-    classify_intent_step,
     extract_user_input,
     guard_xml_leak,
     recall_memory_step,
 )
-from agent.orchestrate.prompt_builder import build_aggregator_prompt
+from agent.orchestrate.prompt_builder import (
+    TOOLS_BY_INTENT,
+    build_aggregator_prompt,
+    get_tool_choice,
+)
 from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
 from agent.state import AgentState, get_max_iterations
 from core.config import get_settings
@@ -40,24 +38,50 @@ from tools.bgm_tools import get_agent_tools
 
 logger = logging.getLogger("bgm-agent.nodes")
 
-# 提前 2 轮警告 + 最后一轮强制提交
-_EARLY_TERMINATION_HINT = """## ⚠️ 剩余轮次不多——尽快收尾
 
-你的思考轮次即将耗尽。现在就应该开始收尾：
-- 如果已有数据能部分回答用户问题 → 立即调用 submit_facts_to_render 提交
-- 不要为了"查全"而继续——完整性不重要，及时回复才重要
-- 在 missing 字段注明缺失部分即可"""
+# ═══════════════════════════════════════════════════════════════════
+# 分类节点（v4: intent routing gate）
+# ═══════════════════════════════════════════════════════════════════
 
-_LAST_CHANCE_INSTRUCTION = """## 🛑 最后一轮——必须立即提交
 
-你没有下一轮了。**立即调用 submit_facts_to_render**。
-- facts 中填入已有全部数据（哪怕是空的）
-- missing 注明："受限于轮次未能查全"
-- 不要在 content 中写任何文字——你的 content 不会显示给用户，只有 submit_facts_to_render 的数据会被使用"""
+async def classify_node(state: AgentState) -> dict:
+    """分类节点：LLM function calling 分类 → 置信度路由。独立 LLM 调用。
+
+    输出写入 state 的 ``query_intent`` 和 ``classifier_confidence`` 字段，
+    后续 reasoning_node 读取这些字段决定行为。
+
+    Args:
+        state: 当前 Agent 全局状态。
+
+    Returns:
+        包含 query_intent、classifier_confidence、iterations 的字典。
+    """
+    from agent.llm import create_classifier_llm
+    from agent.orchestrate.classifier import classify_intent, route_by_classification
+
+    user_input = extract_user_input(state)
+
+    classifier_llm = create_classifier_llm()
+    intent, confidence = await classify_intent(user_input, classifier_llm)
+
+    # 置信度路由
+    routed_intent = route_by_classification(intent, confidence)
+
+    logger.info(
+        "[Classify] query='%s' → intent=%s (raw=%s, conf=%.2f)",
+        user_input[:80], routed_intent, intent, confidence,
+    )
+
+    return {
+        "query_intent": routed_intent,
+        "classifier_confidence": confidence,
+        "iterations": 1,
+        "_memory_context": None,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 统一推理节点（ReAct 路径）
+# 统一推理节点（ReAct 路径）— v4: 纯 Aggregator
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -82,157 +106,87 @@ async def reasoning_node(state: AgentState) -> dict:
         包含 messages、iterations、query_intent 等更新的字典。
     """
     depth = state.get("depth", "fast")
-    max_iterations = get_max_iterations(depth)
+    query_intent = state.get("query_intent", "fallback")
+    max_iterations = get_max_iterations(depth, query_intent)
     is_deep = depth == "deep"
 
     new_iterations = state.get("iterations", 0) + 1
     messages = state.get("messages", [])
 
-    # ── Step 1: 意图分类（仅首轮） ─────────────────────────
-    query_intent, intent_method, did_classify = await classify_intent_step(state)
-    if did_classify:
-        user_input = extract_user_input(state)
-        logger.info(
-            "[Intent] depth=%s query='%s' → intent=%s (method=%s)",
-            depth,
-            user_input[:80],
-            query_intent,
-            intent_method,
-        )
-
-    # ── Step 1.5: 记忆召回（depth 分支）──────────────────
-    if is_deep:
-        memory_context = await recall_memory_step(
-            state,
-            max_tokens=get_settings().MEMORY_MAX_INJECT_TOKENS,
-        )
+    # ── Step 1: 记忆召回（仅首轮） ─────────────────────────
+    if new_iterations == 1:
+        if is_deep:
+            memory_context = await recall_memory_step(
+                state,
+                max_tokens=get_settings().MEMORY_MAX_INJECT_TOKENS,
+            )
+        else:
+            memory_context = await recall_memory_step(
+                state,
+                max_tokens=get_settings().MEMORY_DIALOGUE_MAX_INJECT_TOKENS,
+                recall_threshold=get_settings().MEMORY_DIALOGUE_RECALL_THRESHOLD,
+            )
     else:
-        memory_context = await recall_memory_step(
-            state,
-            max_tokens=get_settings().MEMORY_DIALOGUE_MAX_INJECT_TOKENS,
-            recall_threshold=get_settings().MEMORY_DIALOGUE_RECALL_THRESHOLD,
-        )
+        memory_context = state.get("_memory_context", "") or ""
 
-    # ── Step 2: 构建 Aggregator System Prompt（v2 分离合成）──────────
-    # Aggregator 只接收 depth_taste——控制搜索深度。
-    # snark 和 initiative 属于 Render 层，不在此注入。
-    if depth == "deep":
-        tone_kwargs = {"depth_taste": 0.90}
-    else:
-        tone_kwargs = {}  # fast: 使用默认值 0.70
-
-    if is_deep:
+    # ── Step 2: 构建 Aggregator System Prompt（首轮） ──────
+    if new_iterations == 1:
+        tone_kwargs = {"depth_taste": 0.90} if depth == "deep" else {}
+        scene_hints = DEEP_SCENE_HINTS if is_deep else COMPANION_SCENE_HINTS
         system_content = build_aggregator_prompt(
-            depth="deep",
+            depth="deep" if is_deep else depth,
             intent=query_intent,
-            scene_hints=DEEP_SCENE_HINTS,
+            scene_hints=scene_hints,
             memory_context=memory_context,
             **tone_kwargs,
         )
     else:
-        system_content = build_aggregator_prompt(
-            depth=depth,
-            intent=query_intent,
-            scene_hints=COMPANION_SCENE_HINTS,
-            memory_context=memory_context,
-            **tone_kwargs,
-        )
+        system_content = None
 
     # ── Step 3: 构建消息列表 ───────────────────────────────
     messages_for_llm = build_message_list(messages, system_content)
 
-    # ── Step 3.5: 提前终止压力（仅非 deep 模式） ─────
-    is_deep_mode = is_deep
-    rounds_left = max_iterations - new_iterations if not is_deep_mode else 999
+    # ── Step 4: Dynamic Tool Binding + Forced Tool Choice ────
+    tool_names = TOOLS_BY_INTENT.get(query_intent, TOOLS_BY_INTENT["fallback"])
+    all_tools = get_agent_tools()
+    intent_tools = [t for t in all_tools if t.name in tool_names]
 
-    if not is_deep_mode and rounds_left <= 1:
-        # 最后一轮
-        logger.info(
-            "reasoning_node: 最后一轮 (depth=%s iter=%d/%d) → 注入强制提交指令",
-            depth, new_iterations, max_iterations,
-        )
-        system_content += "\n\n" + _LAST_CHANCE_INSTRUCTION
-        messages_for_llm = build_message_list(messages, system_content)
-    elif not is_deep_mode and rounds_left <= 2:
-        # 提前 2 轮警告
-        logger.info(
-            "reasoning_node: 剩余 %d 轮 (depth=%s iter=%d/%d) → 注入早期收尾指令",
-            rounds_left, depth, new_iterations, max_iterations,
-        )
-        system_content += "\n\n" + _EARLY_TERMINATION_HINT
-        messages_for_llm = build_message_list(messages, system_content)
-
-    # ── Step 4: LLM 调用 ────────────────────────────────────
-    llm = create_llm(_telemetry_label=f"reasoning#{state['iterations'] + 1}")
-
-    is_digesting = messages and isinstance(messages[-1], ToolMessage)
-    if is_digesting:
-        logger.debug("reasoning_node: 消化态 — 最后一条消息为 ToolMessage")
-
-    # 工具绑定：始终绑定——submit_facts_to_render 是唯一出口
-    tools = get_agent_tools()
-    llm_to_use = llm.bind_tools(tools)
-    logger.debug(
-        "reasoning_node: depth=%s intent=%s → 绑定 %d 个工具%s",
-        depth,
-        query_intent,
-        len(tools),
-        " (消化态)" if is_digesting else "",
+    tool_choice = get_tool_choice(
+        intent=query_intent,
+        iterations=new_iterations,
+        max_iterations=max_iterations,
     )
 
-    # ── 消化态引导指令 ────────────────────────────────────
+    llm = create_llm(
+        _telemetry_label=f"reasoning#{new_iterations}",
+        extra_body={"thinking": {"type": "disabled"}},
+    )
+    llm_to_use = llm.bind_tools(intent_tools, tool_choice=tool_choice)
+
+    is_digesting = messages and isinstance(messages[-1], ToolMessage)
+    logger.debug(
+        "reasoning_node: intent=%s iter=%d/%d tools=%d tool_choice=%s%s",
+        query_intent, new_iterations, max_iterations,
+        len(intent_tools), _tc_label(tool_choice),
+        " (digesting)" if is_digesting else "",
+    )
+
+    # ── 消化态软引导（唯一保留的 20% 部分） ────────────────
     if is_digesting:
-        if is_deep:
-            digest_hint = (
-                "（系统指令：工具数据已返回。如果已拿到足够数据回答用户问题，"
-                "立即调用 submit_facts_to_render 提交。不要逐个搜索每部作品。"
-                "数据确实不足时才继续调用工具。）"
-            )
-        else:
-            digest_hint = (
-                "（系统指令：工具数据已返回。数据充分则立即调用 submit_facts_to_render 提交；"
-                "不足可继续调用工具。）"
-            )
+        digest_hint = (
+            "（系统指令：工具数据已返回。判断是否够回答用户问题："
+            "够→submit_facts，不够→继续查。）"
+        )
         messages_for_llm.append(HumanMessage(content=digest_hint))
 
-    # ── 空结果升级策略 ───────────────────────────────────
-    consecutive_empty = _count_consecutive_empty_searches(messages)
-    if consecutive_empty >= 2:
-        logger.info(
-            "reasoning_node: 连续 %d 次空搜索结果 → 注入强制提交指令", consecutive_empty
-        )
-        messages_for_llm.append(
-            HumanMessage(
-                content=(
-                    "（系统指令：已连续多次搜索未找到有效结果。"
-                    "该关键词很可能在 Bangumi 中不存在。"
-                    "你必须立即调用 submit_facts_to_render，facts 传空列表，"
-                    "missing 注明'该关键词在数据库中不存在'。）"
-                )
-            )
-        )
-
-    # ── 重复工具调用检测 ───────────────────────────────────
-    dup_feedback = check_duplicate_tool_calls(messages)
-    if dup_feedback:
-        logger.info("reasoning_node: 检测到重复工具调用 → 注入强制提交指令")
-        messages_for_llm.append(
-            HumanMessage(
-                content=(
-                    f"（系统指令：{dup_feedback}。"
-                    "必须立即调用 submit_facts_to_render 提交已有数据，"
-                    "missing 注明重复搜索的数据项。不要继续搜索。）"
-                )
-            )
-        )
-
-    # ── Step 4.5: 记忆截断（Phase 8: 按 depth 选预算） ──────
+    # ── L1 记忆截断 ─────────────────────────────────────────
     token_budget = DEPTH_TOKEN_BUDGETS.get(depth, DEFAULT_MAX_TOKENS)
     messages_for_llm = manage_memory(messages_for_llm, max_tokens=token_budget)
 
     # ── 消息状态日志 ────────────────────────────────────────
     _log_message_state(messages_for_llm, new_iterations)
 
+    # ── LLM 调用 ────────────────────────────────────────────
     try:
         response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)
     except Exception as e:
@@ -240,62 +194,23 @@ async def reasoning_node(state: AgentState) -> dict:
         fallback = (
             f"抱歉，AI 服务暂时不可用：{e}" if is_deep else f"啧，脑子短路了。{e}"
         )
-        result: dict = {
+        return {
             "messages": [AIMessage(content=fallback)],
             "query_intent": query_intent,
             "iterations": new_iterations,
             "_memory_context": memory_context or "",
         }
-        return result
-
-    # ── 终端回复逃逸舱（非 deep 模式） ────────────────────
-    if (
-        (not is_deep)
-        and is_digesting
-        and response.content
-        and is_terminal_response(response.content)
-    ):
-        logger.info("reasoning_node: 终端回复（逃逸舱）→ 强制结束")
-        new_iterations = max_iterations  # 让路由函数熔断到 END
 
     # ── XML 泄漏防护 ────────────────────────────────────────
-    fallback = (
+    fallback_text = (
         "抱歉，我无法正确处理工具返回的数据。请尝试换个方式提问，或提供更具体的信息。"
         if is_deep
         else "啧，脑子有点乱，你再说一遍？"
     )
     response = guard_xml_leak(
-        response,
-        is_digesting=is_digesting,
-        fallback_text=fallback,
-        log=logger,
+        response, is_digesting=is_digesting,
+        fallback_text=fallback_text, log=logger,
     )
-
-    # ── Deep 模式最少工具调用检查 ──────────────────────────
-    if (
-        is_deep
-        and new_iterations == 1
-        and not (hasattr(response, "tool_calls") and response.tool_calls)
-        and query_intent not in ("chitchat",)  # chitchat 不需要工具
-    ):
-        logger.info(
-            "reasoning_node: deep 首轮 0 工具调用 (intent=%s) → 自循环重试",
-            query_intent,
-        )
-        messages.append(
-            HumanMessage(
-                content=(
-                    "（系统指令：deep 模式下，即使是常识也应至少调用一次工具获取最新数据。"
-                    "请先查一下相关数据，再形成判断。）"
-                )
-            )
-        )
-        return {
-            "messages": [],
-            "iterations": new_iterations,
-            "query_intent": query_intent,
-            "_memory_context": memory_context or "",
-        }
 
     # ── Step 5: 日志 ────────────────────────────────────────
     tool_calls = (
@@ -304,20 +219,17 @@ async def reasoning_node(state: AgentState) -> dict:
         else []
     )
     logger.info(
-        "[Reasoning] depth=%s intent=%s iterations=%d tool_calls=%s",
-        depth,
-        query_intent,
-        new_iterations,
+        "[Reasoning] depth=%s intent=%s iter=%d/%d tool_calls=%s",
+        depth, query_intent, new_iterations, max_iterations,
         [tc.get("name", "?") for tc in tool_calls],
     )
 
-    result = {
+    return {
         "messages": [response],
         "iterations": new_iterations,
         "query_intent": query_intent,
         "_memory_context": memory_context or "",
     }
-    return result
 
 
 # 兼容别名
@@ -606,8 +518,16 @@ def _get_last_ai_response(messages: list) -> AIMessage | None:
     return None
 
 
+def _tc_label(tool_choice) -> str:
+    """tool_choice → 可读标签。"""
+    if isinstance(tool_choice, dict):
+        fn = tool_choice.get("function", {}).get("name", "?")
+        return f"force:{fn}"
+    return str(tool_choice)
+
+
 # ═══════════════════════════════════════════════════════════════════
-# 空结果检测（Phase 10+ 改进 2）
+# 空结果检测
 # ═══════════════════════════════════════════════════════════════════
 
 

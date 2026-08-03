@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Optional
 
 from langchain_openai import ChatOpenAI
@@ -108,6 +109,14 @@ def _resolve_alias(raw: str) -> str:
     return _INTENT_ALIASES.get(raw, raw)
 
 
+_PROFILE_HINT = (
+    "\n\n注意：消息中包含 @用户名 或用户相关表述。"
+    "profile 是默认候选意图——除非你确信是其他意图（如讨论作品、纯提及），否则应归为 profile。"
+)
+
+_PROFILE_TRIGGER = re.compile(r"@|用户")
+
+
 async def classify_intent_llm(
     user_message: str,
     llm: ChatOpenAI,
@@ -126,9 +135,12 @@ async def classify_intent_llm(
     """
     try:
         safe_message = user_message.replace("{", "{{").replace("}", "}}")
+        prompt = CLASSIFIER_PROMPT
+        if _PROFILE_TRIGGER.search(user_message):
+            prompt += _PROFILE_HINT
         llm_with_tool = llm.bind_tools([CLASSIFY_INTENT_SCHEMA])
         response = await llm_with_tool.ainvoke(
-            [HumanMessage(content=CLASSIFIER_PROMPT + "\n\n用户消息: " + safe_message)]
+            [HumanMessage(content=prompt + "\n\n用户消息: " + safe_message)]
         )
 
         # 解析 tool_calls
