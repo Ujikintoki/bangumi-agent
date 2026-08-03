@@ -55,6 +55,9 @@ INTENT_CLASSIFIER_PROMPT = """将用户消息分类为以下类别之一，只�
 
 _VALID_ACTIONS = frozenset({"chitchat", "lookup", "discovery", "realtime"})
 
+# 向后兼容别名
+_VALID_INTENTS = _VALID_ACTIONS
+
 
 async def classify_intent_llm(user_message: str, llm: ChatOpenAI) -> str:
     """LLM Action 分类。v3: 4 Action。

@@ -112,6 +112,83 @@ _WORD_LIMITS: dict[str, str] = {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
+# v4: Per-intent 工具子集 + tool_choice 策略
+# ═══════════════════════════════════════════════════════════════════════════
+
+TOOLS_BY_INTENT: dict[str, list[str]] = {
+    "chat": [],
+    "fetch": [
+        "search_bangumi_subject", "get_subject_detail",
+        "get_subject_persons", "submit_facts_to_render",
+    ],
+    "explore": [
+        "search_bangumi_subject", "get_subject_detail",
+        "get_subject_persons", "get_subject_comments",
+        "get_trending_subjects", "submit_facts_to_render",
+    ],
+    "discuss": [
+        "search_bangumi_subject", "get_subject_detail",
+        "get_subject_persons", "get_subject_comments",
+        "submit_facts_to_render",
+    ],
+    "realtime": [
+        "get_calendar", "get_trending_subjects",
+        "submit_facts_to_render",
+    ],
+    "fallback": [
+        "search_bangumi_subject", "get_subject_detail",
+        "get_subject_persons", "submit_facts_to_render",
+    ],
+    # 向后兼容旧 intent
+    "chitchat": [],
+    "lookup": [
+        "search_bangumi_subject", "get_subject_detail",
+        "get_subject_persons", "submit_facts_to_render",
+    ],
+    "discovery": [
+        "search_bangumi_subject", "get_subject_detail",
+        "get_subject_persons", "get_subject_comments",
+        "get_trending_subjects", "submit_facts_to_render",
+    ],
+}
+"""Per-intent 工具子集。只有名单内的工具会绑定到 LLM。"""
+
+
+def get_tool_choice(
+    intent: str = "fallback",
+    iterations: int = 1,
+    max_iterations: int = 5,
+    force_submit: bool = False,
+) -> str | dict:
+    """按当前状态返回 ``tool_choice`` 值。
+
+    三种返回值：
+    - ``"auto"``: LLM 可输出文本或调工具（正常消化轮）
+    - ``"required"``: LLM 必须调工具（首轮，防止 0 工具调用）
+    - ``{"type": "function", "function": {"name": "submit_facts_to_render"}}``:
+      强制提交（最后一轮 / 异常熔断）
+
+    Args:
+        intent: 查询意图。
+        iterations: 当前轮次（reasoning_node 中 +1 后的值）。
+        max_iterations: 该 intent 的最大迭代轮次。
+        force_submit: 外部强制信号（route 层检测到异常时设为 True）。
+
+    Returns:
+        tool_choice 值。
+    """
+    # 外部强制 / 最后一轮 → 只能提交
+    if force_submit or iterations >= max_iterations:
+        return {"type": "function", "function": {"name": "submit_facts_to_render"}}
+
+    # 首轮（非 chat）→ 必须调工具
+    if iterations == 1 and intent != "chat":
+        return "required"
+
+    # 正常消化轮 → 自主判断
+    return "auto"
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Builder — v2: 数据聚合引擎
 # ═══════════════════════════════════════════════════════════════════════════
 
