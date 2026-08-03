@@ -1,7 +1,7 @@
 """
 FastAPI 应用启动入口
 
-Phase 6: depth 参数控制深度（auto/quick/deep），单一 Companion Agent graph 处理所有请求。
+Phase 6: depth 参数控制深度（fast/deep），单一 Companion Agent graph 处理所有请求。
 单一 Companion Agent graph 处理所有请求。
 """
 
@@ -72,10 +72,9 @@ logger = logging.getLogger("bgm-agent")
 class ChatRequest(BaseModel):
     """对话请求。
     发起对话请求
-    有三个深度参数 quick、deep、auto，分别对应不同的对话深度和预算。
-    1. quick：快速模式，适合简单问题，预算较低，通常在 1-3 轮内完成对话。
-    2. deep：深度模式，适合复杂问题，预算较高，通常在 12 轮内完成对话。
-    3. auto：自动模式，在5轮内完成对话
+    有两种深度模式 fast、deep，分别对应不同的对话深度和预算。
+    1. fast（默认）：轻量 ReAct ≤5 轮，快速获取核心数据。
+    2. deep：高预算（16000 tok），12 轮迭代上限，深度链式调用。
 
     有四种输出风格，neutral、bangumi、bangumi_cold、bangumi_cute，分别对应不同的输出风格。
     1. neutral：中性输出，适合正式场合。
@@ -85,9 +84,9 @@ class ChatRequest(BaseModel):
     """
 
     message: str = Field(..., description="用户消息", min_length=1)
-    depth: Literal["auto", "quick", "deep"] = Field(
-        default="auto",
-        description="    1. quick：快速模式，适合简单问题，预算较低，通常在 1-3 轮内完成对话, 2. deep：深度模式，适合复杂问题，预算较高，通常在 12 轮内完成对话, 3. auto：自动模式，在5轮内完成对话",
+    depth: Literal["fast", "deep"] = Field(
+        default="fast",
+        description="深度模式：fast（默认，5轮上限，快速获取核心数据）、deep（12轮上限，深度链式调用）",
     )
     output_style: (
         Literal["neutral", "bangumi", "bangumi_cold", "bangumi_cute"] | None
@@ -112,7 +111,7 @@ class ChatResponse(BaseModel):
     )
     query_intent: str = Field(default="unknown", description="查询意图分类结果")
     output_style: str = Field(default="bangumi", description="实际使用的输出渲染风格")
-    depth: str = Field(default="auto", description="实际使用的深度模式")
+    depth: str = Field(default="fast", description="实际使用的深度模式")
     telemetry: dict | None = Field(
         default=None, description="开发者可观测性数据（仅 DEV_MODE=true 时返回）"
     )
@@ -223,7 +222,7 @@ def _extract_tools_used(messages: list) -> list[str]:
 
 def _data_level_label(depth: str) -> str:
     """depth 模式 → 数据等级标签。"""
-    return {"quick": "L1（摘要）", "auto": "L1-L2（摘要+详情）", "deep": "L1-L3（完整）"}.get(
+    return {"fast": "L1-L2（摘要+详情）", "deep": "L1-L3（完整）"}.get(
         depth, "L1-L2"
     )
 
@@ -332,11 +331,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     通过 ``depth`` 控制深度模式：
 
-    - ``"auto"``（默认）：LLM 自行判断，轻量 ReAct ≤5 轮，无 Critic
-    - ``"quick"``：强制浅层 1-3 轮，速度快
+    - ``"fast"``（默认）：轻量 ReAct ≤5 轮，快速获取核心数据
     - ``"deep"``：高预算（16000 tok）+ 深度人格参数，12 轮迭代上限
-
-    通过 ``depth`` 参数控制：auto（默认 5 轮）、quick（3 轮）、deep（12 轮）。
 
     Args:
         request: 包含用户消息、深度模式、会话 ID 和用户 ID 的请求体。
@@ -626,6 +622,8 @@ async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) 
     ):
         now = time.monotonic()
         for node_name, node_output in event.items():
+            if node_output is None:
+                continue
             from agent.devtools import NodeTiming
 
             elapsed = (now - prev_time) * 1000
@@ -719,7 +717,7 @@ def _extract_final_reply(
 async def _remember_session(
     result: dict,
     request: ChatRequest,
-    depth: str = "auto",
+    depth: str = "fast",
 ) -> None:
     """Fire-and-forget: 写入 L2 session 摘要。"""
     try:

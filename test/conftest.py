@@ -67,7 +67,7 @@ def make_state(**overrides) -> AgentState:
         "error_flag": False,
         "_memory_context": None,
         "output_style": "neutral",
-        "depth": "auto",
+        "depth": "fast",
     }
     defaults.update(overrides)
     return defaults  # type: ignore[return-value]

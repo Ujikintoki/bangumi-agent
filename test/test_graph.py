@@ -227,7 +227,7 @@ class TestStateLifecycle:
 
     @patch("agent.orchestrate.nodes.create_llm")
     async def test_shallow_mode_skips_critic(self, mock_create_llm):
-        """[DEPRECATED Phase 10] depth="auto" 模式：Critic 已移除，验证 graph 正常完成。
+        """[DEPRECATED Phase 10] depth="fast" 模式：Critic 已移除，验证 graph 正常完成。
 
         原测试验证 critic_status 保持 PENDING。Critic 已从图谱中移除，
         graph 直接从 reasoning_node → END。
@@ -241,7 +241,7 @@ class TestStateLifecycle:
                 AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}]),
             ],
             query_intent="lookup",
-            depth="auto",
+            depth="fast",
         )
         result = await graph.ainvoke(state)
         # Critic 已移除：graph 应正常完成，返回有效回复

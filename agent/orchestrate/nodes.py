@@ -1,14 +1,9 @@
 """
-Bangumi Agent 节点函数 — v2 分离合成架构
+Bangumi Agent 节点函数 — v2 纯 ReAct
 
-Reasoning 层是 Data Aggregator（数据聚合器）。
-通过 submit_facts_to_render 工具提交结构化事实清单，由下游 Render 层做人格化表达。
-
-深度模式差异仅在于搜索深度（depth_taste）和机械参数（预算/迭代）：
-- quick: 搜索深度 0.35、3 轮上限、6000 tok
-- auto:  搜索深度 0.70（默认）、5 轮上限、10000 tok
-- deep:  搜索深度 0.90、12 轮上限、16000 tok
-
+fast / deep 两种深度模式共享同一推理逻辑，差异在参数：
+- fast: 5 轮上限、10000 tok、角色默认 depth_taste
+- deep: 12 轮上限、16000 tok、depth_taste=0.90、无强制终止
 """
 
 from __future__ import annotations
@@ -62,17 +57,16 @@ _LAST_CHANCE_INSTRUCTION = """## 🛑 最后一轮——必须立即提交
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 统一推理节点
+# 统一推理节点（ReAct 路径）
 # ═══════════════════════════════════════════════════════════════════
 
 
 async def reasoning_node(state: AgentState) -> dict:
     """推理节点：意图分类 + LLM function-calling 决策。纯 ReAct。
 
-    三种 depth 共享同一逻辑，差异在参数：
-    - quick:  depth_taste=0.3 initiative=0.2 3轮上限 last_chance强制回复
-    - auto:   角色默认值 5轮上限 last_chance强制回复
-    - deep:   depth_taste=0.9 initiative=0.8 12轮上限 无last_chance
+    两种 depth 共享同一逻辑，差异在参数：
+    - fast: 角色默认值 5轮上限 last_chance强制回复
+    - deep: depth_taste=0.90 12轮上限 无last_chance
 
     流程：
         1. 意图分类（仅首轮）
@@ -87,7 +81,7 @@ async def reasoning_node(state: AgentState) -> dict:
     Returns:
         包含 messages、iterations、query_intent 等更新的字典。
     """
-    depth = state.get("depth", "auto")
+    depth = state.get("depth", "fast")
     max_iterations = get_max_iterations(depth)
     is_deep = depth == "deep"
 
@@ -122,12 +116,10 @@ async def reasoning_node(state: AgentState) -> dict:
     # ── Step 2: 构建 Aggregator System Prompt（v2 分离合成）──────────
     # Aggregator 只接收 depth_taste——控制搜索深度。
     # snark 和 initiative 属于 Render 层，不在此注入。
-    if depth == "quick":
-        tone_kwargs = {"depth_taste": 0.35}
-    elif depth == "deep":
+    if depth == "deep":
         tone_kwargs = {"depth_taste": 0.90}
     else:
-        tone_kwargs = {}  # auto: 使用默认值 0.70
+        tone_kwargs = {}  # fast: 使用默认值 0.70
 
     if is_deep:
         system_content = build_aggregator_prompt(
@@ -284,7 +276,7 @@ async def reasoning_node(state: AgentState) -> dict:
         is_deep
         and new_iterations == 1
         and not (hasattr(response, "tool_calls") and response.tool_calls)
-        and query_intent not in ("chitchat", "factual", "emotional", "unknown")
+        and query_intent not in ("chitchat",)  # chitchat 不需要工具
     ):
         logger.info(
             "reasoning_node: deep 首轮 0 工具调用 (intent=%s) → 自循环重试",

@@ -40,14 +40,13 @@ except Exception:
 
 # ── Token 预算分配（Phase 8: 按 depth 分级，与 system prompt 大小解耦） ─
 DEPTH_TOKEN_BUDGETS: dict[str, int] = {
-    "quick": 6000,
-    "auto": 10000,
+    "fast": 10000,
     "deep": 16000,
 }
 """按深度模式的 Token 预算。
 
-Phase 8: 替代 Phase 5 的双常量（DEFAULT_MAX_TOKENS / DIALOGUE_MAX_TOKENS）。
-DeepSeek v4 128K 上下文窗口，这些数字仍然保守。
+fast: 10000 tok，覆盖日常精确查询和时效查询
+deep: 16000 tok，覆盖深度分析和探索
 
 分配逻辑（以 deep 为例）：
   System Prompt:    ≤2,200 tokens

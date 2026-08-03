@@ -38,11 +38,10 @@ class TestBudgetConstants:
         assert DEFAULT_MAX_TOKENS == 10000
 
     def test_depth_budgets_structure(self):
-        """DEPTH_TOKEN_BUDGETS 包含三种模式且 deep > auto > quick"""
-        assert DEPTH_TOKEN_BUDGETS["quick"] == 6000
-        assert DEPTH_TOKEN_BUDGETS["auto"] == 10000
+        """DEPTH_TOKEN_BUDGETS 包含两种模式且 deep > fast"""
+        assert DEPTH_TOKEN_BUDGETS["fast"] == 10000
         assert DEPTH_TOKEN_BUDGETS["deep"] == 16000
-        assert DEPTH_TOKEN_BUDGETS["deep"] > DEPTH_TOKEN_BUDGETS["auto"] > DEPTH_TOKEN_BUDGETS["quick"]
+        assert DEPTH_TOKEN_BUDGETS["deep"] > DEPTH_TOKEN_BUDGETS["fast"]
 
     def test_l2_budget_is_500(self):
         assert L2_MEMORY_BUDGET_TOKENS == 500
@@ -229,8 +228,8 @@ class TestCompleteMessageListTruncation:
 class TestDialogueBudget:
     """Dialogue Agent 专用预算 4000 tokens"""
 
-    def test_depth_budget_stricter_for_quick(self):
-        """quick 预算 6000 < deep 16000，同等对话历史时应截断更多"""
+    def test_depth_budget_less_for_fast(self):
+        """fast 预算 10000 < deep 16000，同等对话历史时应截断更多"""
         conversation = []
         for i in range(25):
             conversation.append(HumanMessage(content=f"问题{i}: 查询番剧数据 " * 6))
@@ -244,16 +243,16 @@ class TestDialogueBudget:
                 messages.append(m)
 
         deep_trimmed = manage_memory(messages.copy(), max_tokens=DEPTH_TOKEN_BUDGETS["deep"])
-        quick_trimmed = manage_memory(messages.copy(), max_tokens=DEPTH_TOKEN_BUDGETS["quick"])
+        fast_trimmed = manage_memory(messages.copy(), max_tokens=DEPTH_TOKEN_BUDGETS["fast"])
 
         assert estimate_tokens(deep_trimmed) <= DEPTH_TOKEN_BUDGETS["deep"]
-        assert estimate_tokens(quick_trimmed) <= DEPTH_TOKEN_BUDGETS["quick"]
+        assert estimate_tokens(fast_trimmed) <= DEPTH_TOKEN_BUDGETS["fast"]
 
-        # quick 应该保留更少对话历史
+        # fast 应该保留更少对话历史
         d_count = len([m for m in deep_trimmed if not isinstance(m, SystemMessage)])
-        q_count = len([m for m in quick_trimmed if not isinstance(m, SystemMessage)])
-        assert q_count <= d_count, (
-            f"quick 对话数 ({q_count}) 应 ≤ deep 对话数 ({d_count})"
+        f_count = len([m for m in fast_trimmed if not isinstance(m, SystemMessage)])
+        assert f_count <= d_count, (
+            f"fast 对话数 ({f_count}) 应 ≤ deep 对话数 ({d_count})"
         )
 
 
@@ -450,8 +449,8 @@ class TestToolResultCompression:
             HumanMessage(content="R2: 第一部评分怎么样"),
         ]
 
-        result = manage_memory(messages, max_tokens=DEPTH_TOKEN_BUDGETS["auto"])
-        assert estimate_tokens(result) <= DEPTH_TOKEN_BUDGETS["auto"]
+        result = manage_memory(messages, max_tokens=DEPTH_TOKEN_BUDGETS["fast"])
+        assert estimate_tokens(result) <= DEPTH_TOKEN_BUDGETS["fast"]
 
         # 压缩后的 R1 ToolMessage 应保留关键信息
         tool_msgs = [m for m in result if isinstance(m, ToolMessage)]

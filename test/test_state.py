@@ -74,13 +74,13 @@ class TestRouteAfterReasoning:
                 AIMessage(content="根据搜索结果..."),
             ],
             query_intent="lookup",
-            depth="auto",
+            depth="fast",
         )
         assert route_after_reasoning(state) == END
 
     def test_routes_to_end_when_empty_messages(self):
         """空消息列表 + depth=auto → END"""
-        state = make_state(messages=[], depth="auto")
+        state = make_state(messages=[], depth="fast")
         assert route_after_reasoning(state) == END
 
     def test_chitchat_routes_to_end(self):

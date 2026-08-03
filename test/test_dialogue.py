@@ -2,7 +2,7 @@
 reasoning_node 测试（mock LLM）— Phase 6 统一架构
 
 验证意图分类、bind_tools 开关、消化态行为、路由、熔断。
-覆盖 depth="quick"（原 Dialogue）和 depth="auto" 模式。
+覆盖 depth="fast"（原 fast）和 depth="fast" 模式。
 可独立运行: python -m pytest test/test_dialogue.py -v
 """
 
@@ -36,7 +36,7 @@ def _make_state(**overrides) -> dict:
         "error_flag": False,
         "_memory_context": None,
         "output_style": "bangumi",
-        "depth": "auto",
+        "depth": "fast",
     }
     defaults.update(overrides)
     return defaults
@@ -52,7 +52,7 @@ def _extract_tool_calls_from_result(result: dict) -> list[dict]:
 
 @pytest.mark.asyncio
 class TestReasoningNode:
-    """reasoning_node — mock LLM（depth="quick" 模式）"""
+    """reasoning_node — mock LLM（depth="fast" 模式）"""
 
     @patch("agent.orchestrate.nodes.create_llm")
     @patch("agent.orchestrate.nodes.get_agent_tools")
@@ -62,7 +62,7 @@ class TestReasoningNode:
         mock = make_mock_llm(content="哼，终于想起我了？")
         mock_create_llm.return_value = mock
 
-        state = _make_state(query_intent="chitchat", iterations=1, depth="auto")
+        state = _make_state(query_intent="chitchat", iterations=1, depth="fast")
         result = await reasoning_node(state)
 
         mock.bind_tools.assert_called_once()
@@ -148,12 +148,12 @@ class TestReasoningNode:
 
     @patch("agent.orchestrate.nodes.create_llm")
     async def test_last_chance_unbinds_tools(self, mock_create_llm):
-        """最后一轮（depth="quick", iter=2/3）→ 强制解绑工具"""
+        """最后一轮（depth="fast", iter=2/3）→ 强制解绑工具"""
         mock = make_mock_llm(content="好吧，就这样吧。")
         mock_create_llm.return_value = mock
 
-        # quick max=3, last_chance at iter>=2 (new_iterations=3 >= 2)
-        state = _make_state(query_intent="lookup", iterations=2, depth="quick")
+        # fast max=3, last_chance at iter>=2 (new_iterations=3 >= 2)
+        state = _make_state(query_intent="lookup", iterations=2, depth="fast")
         await reasoning_node(state)
 
         # 最后一轮不应调用 bind_tools
@@ -227,8 +227,8 @@ class TestRouting:
         )
         assert route_after_reasoning(state) == "tool_node"
 
-    def test_no_tool_calls_quick_routes_to_end(self):
-        """AIMessage 有 content 但无 tool_calls + depth="quick" → END（Phase 7: 始终走 render）"""
+    def test_no_tool_calls_routes_to_end(self):
+        """AIMessage 有 content 但无 tool_calls + depth="fast" → END（Phase 7: 始终走 render）"""
         from agent.graph import route_after_reasoning
 
         state = _make_state(
@@ -239,7 +239,7 @@ class TestRouting:
             ],
             iterations=1,
             query_intent="chitchat",
-            depth="quick",
+            depth="fast",
         )
         assert route_after_reasoning(state) == END
 
@@ -261,11 +261,11 @@ class TestRouting:
 
     def test_max_iterations_enforced_in_node(self):
         """iterations 达上限时 reasoning_node 内 last_chance 解绑工具"""
-        max_iter = get_max_iterations("quick")
+        max_iter = get_max_iterations("fast")
 
         # 仅测试 get_max_iterations 返回正确值
         assert max_iter == 3
-        assert get_max_iterations("auto") == 5
+        assert get_max_iterations("fast") == 5
         assert get_max_iterations("deep") == 12
 
 
@@ -284,7 +284,7 @@ class TestMemoryIntegration:
         mock = make_mock_llm(content="什么事？")
         mock_create_llm.return_value = mock
 
-        state = _make_state(query_intent="chitchat", iterations=1, depth="auto")
+        state = _make_state(query_intent="chitchat", iterations=1, depth="fast")
         await reasoning_node(state)
 
         mock_memory.assert_called_once()

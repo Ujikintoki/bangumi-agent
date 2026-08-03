@@ -58,7 +58,7 @@ except Exception as e:
 # ═══════════════════════════════════════════════════════════════
 print_header "1. 闲聊：今天好累啊"
 curl -s -X POST "$BASE" -H "$CT" \
-  -d '{"message": "今天...想看点比较火的新番", "depth": "quick", "output_style": "bangumi"}' \
+  -d '{"message": "今天好累啊", "depth": "fast", "output_style": "bangumi"}' \
   | print_reply
 
 # ═══════════════════════════════════════════════════════════════
@@ -67,7 +67,7 @@ curl -s -X POST "$BASE" -H "$CT" \
 # ═══════════════════════════════════════════════════════════════
 print_header "2. 快速查分：进击的巨人"
 curl -s -X POST "$BASE" -H "$CT" \
-  -d '{"message": "进击的巨人风评怎么样", "depth": "auto", "output_style": "bangumi"}' \
+  -d '{"message": "进击的巨人风评怎么样", "depth": "fast", "output_style": "bangumi"}' \
   | print_reply
 
 # ═══════════════════════════════════════════════════════════════
@@ -77,4 +77,13 @@ curl -s -X POST "$BASE" -H "$CT" \
 print_header "3. 问口碑：EVA 值得补吗"
 curl -s -X POST "$BASE" -H "$CT" \
   -d '{"message": "EVA 的宗教隐喻和哲学思考是怎样的？", "depth": "deep", "output_style": "bangumi"}' \
+  | print_reply
+
+# ═══════════════════════════════════════════════════════════════
+# 4. 问新番 — "吐槽尼古喵喵"
+#    预期：有评分数据 + 有主观判断，不能只报数字
+# ═══════════════════════════════════════════════════════════════
+print_header "4. 问新番：吐槽尼古喵喵"
+curl -s -X POST "$BASE" -H "$CT" \
+  -d '{"message": "你直接化身中二电波台，吐槽尼古喵喵火力全开", "depth": "deep", "output_style": "bangumi"}' \
   | print_reply

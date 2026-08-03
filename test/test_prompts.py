@@ -218,7 +218,7 @@ class TestPromptBuilder:
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,
-            depth="auto",
+            depth="fast",
             intent="lookup",
             intent_strategies=COMPANION_INTENT_PROMPTS,
             scene_hints=COMPANION_SCENE_HINTS,
@@ -265,8 +265,8 @@ class TestPromptBuilder:
 
     def test_builder_word_limit_by_depth(self):
         """Guardrails 的 {word_limit} 应按 depth 正确格式化。"""
-        q = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="quick")
-        a = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="auto")
+        q = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="fast")
+        a = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="fast")
         d = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="deep")
         assert "120 字" in q
         assert "200 字" in a
@@ -474,8 +474,8 @@ class TestRenderPrompt:
 
     def test_render_prompt_word_limit_by_depth(self):
         """字数限制应按 depth 分档。"""
-        q = build_render_prompt("bangumi", "test", "r", depth="quick")
-        a = build_render_prompt("bangumi", "test", "r", depth="auto")
+        q = build_render_prompt("bangumi", "test", "r", depth="fast")
+        a = build_render_prompt("bangumi", "test", "r", depth="fast")
         d = build_render_prompt("bangumi", "test", "r", depth="deep")
         assert "120 字" in q
         assert "200 字" in a
