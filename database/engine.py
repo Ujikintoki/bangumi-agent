@@ -2,26 +2,37 @@
 数据库连接层
 
 负责 SQLAlchemy Engine 的初始化、pgvector/pg_trgm 扩展的自动启用、
-rag_entities 表高性能索引的创建，以及 SQLModel Session 的生命周期管理。
+以及 SQLModel Session 的生命周期管理。
+
+Schema 变更由 Alembic 管理，init_db() 仅负责启用扩展并调用
+``alembic upgrade head`` 将数据库同步到最新版本。
+
+用法::
+
+    from database.engine import engine, init_db, get_session
+
+    init_db()                          # app 启动时调用一次
+    session = next(get_session())      # FastAPI 依赖注入
 """
 
 from collections.abc import Generator
+from pathlib import Path
 import logging
 
 from sqlalchemy import text
-
-logger = logging.getLogger("bgm-agent.database")
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlmodel import Session, SQLModel, create_engine
 
 from core.config import get_settings
 
-# 注册记忆系统 ORM 模型到 SQLModel.metadata
-# （create_all 通过元类自动发现，import 即注册）
+# 注册 ORM 模型到 SQLModel.metadata（create_all / Alembic autogenerate 通过
+# SQLModel 元类自动发现 table=True 的子类，import 即注册）
 from database.memory_tables import PublicMemory, SessionMemory, UserProfile  # noqa: F401
 
+logger = logging.getLogger("bgm-agent.database")
+
 # ── Engine 初始化 ──────────────────────────────────────────────
-# 拉取配置中的数据库 URL，允许通过环境变量覆盖
+
 settings = get_settings()
 database_url: str = settings.DATABASE_URL
 
@@ -29,220 +40,66 @@ engine = create_engine(
     database_url,
     pool_size=10,
     max_overflow=20,
-    pool_pre_ping=True,  # 每次从池中取出连接前先 ping，防止使用已断开的连接
+    pool_pre_ping=True,
     echo=(settings.ENVIRONMENT == "development"),
 )
 """SQLAlchemy Engine 实例，全局复用。"""
 
 
+# ── 数据库初始化 ──────────────────────────────────────────────
+
+
 def init_db() -> None:
-    """初始化数据库表结构、必要扩展及高性能索引。
+    """初始化数据库。
 
     执行顺序：
-    1. 启用 pgvector 扩展（幂等）。
-    2. 启用 pg_trgm 扩展，用于 GIN 三元组全文索引。
-    3. 根据所有注册的 SQLModel 子类自动建表。
-    4. 创建 HNSW 向量索引和 GIN trigram 全文索引（幂等）。
+    1. 启用 pgvector + pg_trgm 扩展（幂等）。
+    2. 运行 Alembic 迁移，将 schema 同步到最新版本。
+
+    所有表结构、索引、数据迁移均由 Alembic 迁移文件管理，
+    此函数不再包含任何手动 DDL。
 
     Raises:
-        OperationalError: 数据库连接失败时抛出。
-        ProgrammingError: SQL 执行错误（如权限不足）时抛出。
+        OperationalError: 数据库连接失败。
     """
+    # 启用必要扩展
     try:
         with engine.connect() as conn:
-            # 开启 pgvector 扩展以支持 Vector 列类型
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-            # 开启 pg_trgm 扩展以支持 GIN 三元组全文索引
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
             conn.commit()
     except OperationalError:
+        logger.error("数据库连接失败，请检查 DATABASE_URL 和数据库状态")
         raise
-    except ProgrammingError:
-        raise
-
-    try:
-        SQLModel.metadata.create_all(engine)
-    except OperationalError:
+    except ProgrammingError as e:
+        logger.error("扩展创建失败（可能权限不足）: %s", e)
         raise
 
-    # ── Phase 10 迁移: embedding 模型切换（2026-07-30）───
-    # embedding-3 (2048d) → embedding-2 (1024d)。1024d 远低于 pgvector HNSW 2000d 上限。
-    _VECTOR_DIM_MIGRATION = [
-        "ALTER TABLE rag_entities ALTER COLUMN embedding TYPE vector(1024);",
-        "ALTER TABLE bangumi_chunks ALTER COLUMN embedding TYPE vector(1024);",
-        "ALTER TABLE session_memories ALTER COLUMN embedding TYPE vector(1024);",
-        "ALTER TABLE public_memories ALTER COLUMN embedding TYPE vector(1024);",
-    ]
+    # 运行 Alembic 迁移
     try:
-        for ddl in _VECTOR_DIM_MIGRATION:
-            try:
-                with engine.connect() as conn:
-                    conn.execute(text(ddl))
-                    conn.commit()
-            except (OperationalError, ProgrammingError) as dim_exc:
-                logger.debug("向量维度迁移跳过: %s", str(dim_exc).split("\n")[0][:120])
-    except Exception:
-        logger.debug("向量维度迁移块异常——非关键路径")
+        from alembic.config import Config
+        from alembic import command
 
-    # ── Phase 5.4 迁移: nsfw JSONB → 列级字段（2026-06-14）───
-    # 为已有数据库添加 nsfw 列并回填历史数据
-    _MIGRATION_DDL = [
-        # 添加列（幂等——新库由 create_all 创建，旧库由此补充）
-        """
-        ALTER TABLE rag_entities ADD COLUMN IF NOT EXISTS nsfw
-            BOOLEAN NOT NULL DEFAULT FALSE
-        """,
-        # 将历史 meta_info 中的 nsfw 标记回填到新列
-        """
-        UPDATE rag_entities
-            SET nsfw = TRUE
-            WHERE meta_info @> '{"nsfw": true}' AND nsfw = FALSE
-        """,
-    ]
-    try:
-        for mig_ddl in _MIGRATION_DDL:
-            try:
-                with engine.connect() as conn:
-                    conn.execute(text(mig_ddl))
-                    conn.commit()
-            except (OperationalError, ProgrammingError) as mig_exc:
-                logger.debug("迁移步骤跳过: %s", str(mig_exc).split("\n")[0][:120])
-    except Exception:
-        logger.debug("迁移块异常——非关键路径")
+        alembic_ini = Path(__file__).resolve().parent / "migrations" / "alembic.ini"
+        alembic_cfg = Config(str(alembic_ini))
+        command.upgrade(alembic_cfg, "head")
+        logger.info("数据库迁移完成")
+    except Exception as e:
+        logger.error("Alembic 迁移失败: %s", e)
+        raise
 
-    # ── 高性能索引创建（幂等 DDL）──────────────────────────────
-    _INDEX_DDL_STATEMENTS = [
-        # HNSW 向量余弦距离索引 — 加速语义检索的向量最近邻查询
-        """
-        CREATE INDEX IF NOT EXISTS ix_rag_entities_embedding
-            ON rag_entities USING hnsw (embedding vector_cosine_ops);
-        """,
-        # GIN trigram 索引 — 加速 name 列的模糊匹配与 LIKE 查询
-        """
-        CREATE INDEX IF NOT EXISTS ix_rag_entities_name_trgm
-            ON rag_entities USING gin (name gin_trgm_ops);
-        """,
-        # GIN trigram 索引 — 加速 chunk_text 列的模糊匹配与 LIKE 查询
-        """
-        CREATE INDEX IF NOT EXISTS ix_rag_entities_chunk_text_trgm
-            ON rag_entities USING gin (chunk_text gin_trgm_ops);
-        """,
-        # B-Tree 索引 — 加速 nsfw 安全护栏过滤（100% 热路径）
-        """
-        CREATE INDEX IF NOT EXISTS ix_rag_entities_nsfw
-            ON rag_entities (nsfw);
-        """,
-        # ── Phase 5 记忆系统索引 ──────────────────────────
-        # HNSW 向量索引 — session_memories 语义检索
-        """
-        CREATE INDEX IF NOT EXISTS ix_session_memories_embedding
-            ON session_memories USING hnsw (embedding vector_cosine_ops);
-        """,
-        # B-tree 复合索引 — 按用户 ID + 创建时间降序检索最近 session
-        """
-        CREATE INDEX IF NOT EXISTS ix_session_memories_user_created
-            ON session_memories (user_id, created_at DESC);
-        """,
-        # B-tree 索引 — user_profiles 按 user_id 快速查找
-        """
-        CREATE INDEX IF NOT EXISTS ix_user_profiles_user_id
-            ON user_profiles (user_id);
-        """,
-        # B-tree 部分索引 — user_profiles 按最后活跃时间降序
-        """
-        CREATE INDEX IF NOT EXISTS ix_user_profiles_last_active
-            ON user_profiles (last_active_at DESC);
-        """,
-        # HNSW 向量索引 — public_memories 语义检索（Phase 6 用）
-        """
-        CREATE INDEX IF NOT EXISTS ix_public_memories_embedding
-            ON public_memories USING hnsw (embedding vector_cosine_ops);
-        """,
-        # B-tree 部分索引 — public_memories 活跃条目按时间降序
-        """
-        CREATE INDEX IF NOT EXISTS ix_public_memories_active
-            ON public_memories (is_active, created_at DESC)
-            WHERE is_active = TRUE;
-        """,
-    ]
 
-    try:
-        for idx_ddl in _INDEX_DDL_STATEMENTS:
-            # 每条索引独立事务——HNSW 等维度超限失败不影响其他索引
-            try:
-                with engine.connect() as conn:
-                    conn.execute(text(idx_ddl))
-                    conn.commit()
-            except (OperationalError, ProgrammingError) as idx_exc:
-                logger.warning(
-                    "索引创建跳过: %s",
-                    str(idx_exc).split("\n")[0][:120],
-                )
-    except Exception:
-        logger.warning("索引创建块异常——索引缺失不影响基本功能")
-
-    # ── Phase 5 Bug Fix: session_memories 去重 + 唯一约束（Bug 1）──
-    # 同一 session 多次写入产生重复行，污染 pgvector 检索空间。
-    # 去重后施加复合唯一约束，之后 UPSERT 会工作。
-    _SESSION_MEMORY_DEDUP_MIGRATIONS = [
-        # 删除重复行，每 (user_id, session_id) 只保留最新一条
-        """
-        DELETE FROM session_memories sm
-        USING (
-            SELECT id,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY user_id, session_id
-                       ORDER BY created_at DESC
-                   ) AS rn
-            FROM session_memories
-        ) dedup
-        WHERE sm.id = dedup.id AND dedup.rn > 1
-        """,
-        # 添加复合唯一约束（幂等——已存在则跳过）
-        """
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint
-                WHERE conname = 'uq_session_memories_user_session'
-            ) THEN
-                ALTER TABLE session_memories
-                ADD CONSTRAINT uq_session_memories_user_session
-                UNIQUE (user_id, session_id);
-            END IF;
-        END $$;
-        """,
-    ]
-
-    try:
-        for mig_ddl in _SESSION_MEMORY_DEDUP_MIGRATIONS:
-            try:
-                with engine.connect() as conn:
-                    conn.execute(text(mig_ddl))
-                    conn.commit()
-            except (OperationalError, ProgrammingError) as mig_exc:
-                logger.debug(
-                    "session_memories 迁移步骤跳过: %s",
-                    str(mig_exc).split("\n")[0][:120],
-                )
-    except Exception:
-        logger.debug("session_memories 迁移块异常——非关键路径")
+# ── Session 管理 ──────────────────────────────────────────────
 
 
 def get_session() -> Generator[Session, None, None]:
     """FastAPI 依赖注入用的 Session 生成器。
 
     每次调用 yield 一个全新的数据库会话实例，请求结束后自动关闭，
-    确保连接归还到连接池，避免连接泄漏。
+    确保连接归还到连接池。
 
     Yields:
         Session: SQLModel 数据库会话实例。
-
-    Example:
-        >>> from fastapi import Depends
-        >>> @app.get("/chunks")
-        >>> def list_chunks(session: Session = Depends(get_session)):
-        ...     return session.exec(select(BangumiChunk)).all()
     """
     with Session(engine) as session:
         try:
