@@ -1,0 +1,122 @@
+{
+  "id": 303,
+  "name": "綾波レイ",
+  "nameCN": "绫波零",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": "绫波零"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "绫波丽",
+          "k": "第二中文名"
+        },
+        {
+          "v": "",
+          "k": "英文名"
+        },
+        {
+          "v": "",
+          "k": "日文名"
+        },
+        {
+          "v": "あやなみ レイ",
+          "k": "纯假名"
+        },
+        {
+          "v": "Ayanami Rei",
+          "k": "罗马字"
+        },
+        {
+          "v": "",
+          "k": "昵称"
+        }
+      ]
+    },
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "女"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": "3月30日"
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": "不明"
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "BWH",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": [
+        {
+          "v": "wikipedia"
+        }
+      ]
+    },
+    {
+      "key": "所属",
+      "values": [
+        {
+          "v": "NERV/EVA零号機専属操縦者、第3新東京市立第壱中学校2年A組"
+        }
+      ]
+    }
+  ],
+  "info": "性别 女 / 生日 3月30日 / 血型 不明",
+  "summary": "有着蓝色短发与红色眼睛的瘦弱少女，EVA驾驶员第一适格者，驾驶零号机。EVA零号机启动实验事故中负重伤，初次登场时包扎有大量绷带。过去经历全部被抹消，资料显示为14岁，行为举止特别。\r\n\r\n出生日期不明，在CD『エヴァンゲリオン THE BIRTHDAY OF Rei AYANAMI』由声优林原惠提议为2001年3月30日。",
+  "comment": 197,
+  "collects": 1828,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/c6/36/303_crt_9USuE.jpg?r=1681232400",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/c6/36/303_crt_9USuE.jpg?r=1681232400",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/c6/36/303_crt_9USuE.jpg?r=1681232400",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/c6/36/303_crt_9USuE.jpg?r=1681232400"
+  }
+}

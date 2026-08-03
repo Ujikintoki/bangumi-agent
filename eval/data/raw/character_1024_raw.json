@@ -1,0 +1,118 @@
+{
+  "id": 1024,
+  "name": "岡崎直幸",
+  "nameCN": "冈崎直幸",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": "冈崎直幸"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "",
+          "k": "第二中文名"
+        },
+        {
+          "v": "",
+          "k": "英文名"
+        },
+        {
+          "v": "",
+          "k": "日文名"
+        },
+        {
+          "v": "おかざき なおゆき",
+          "k": "纯假名"
+        },
+        {
+          "v": "okazaki naoyuki",
+          "k": "罗马字"
+        },
+        {
+          "v": "",
+          "k": "昵称"
+        }
+      ]
+    },
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "男"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": "5月1日"
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": "A"
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": "170cm"
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": "60kg"
+        }
+      ]
+    },
+    {
+      "key": "BWH",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": []
+    },
+    {
+      "key": "声优",
+      "values": [
+        {
+          "v": "中博史"
+        }
+      ]
+    }
+  ],
+  "info": "性别 男 / 生日 5月1日 / 血型 A / 身高 170cm / 体重 60kg",
+  "summary": "朋也的父亲。妻子（朋也的母亲）因事故去世后，含辛茹苦一手把儿子抚养成人，但在那之后他失去了一切，堕落而颓废地生活着。内心还是很关心朋也的。",
+  "comment": 28,
+  "collects": 63,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/ee/e0/1024_crt_hUNUt.jpg",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/ee/e0/1024_crt_hUNUt.jpg",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/ee/e0/1024_crt_hUNUt.jpg",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/ee/e0/1024_crt_hUNUt.jpg"
+  }
+}

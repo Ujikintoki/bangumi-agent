@@ -1,0 +1,114 @@
+{
+  "id": 70604,
+  "name": "キョン",
+  "nameCN": "",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "",
+          "k": "第二中文名"
+        },
+        {
+          "v": "",
+          "k": "英文名"
+        },
+        {
+          "v": "",
+          "k": "日文名"
+        },
+        {
+          "v": "",
+          "k": "纯假名"
+        },
+        {
+          "v": "Kyon",
+          "k": "罗马字"
+        },
+        {
+          "v": "",
+          "k": "昵称"
+        }
+      ]
+    },
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "女"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "BWH",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    }
+  ],
+  "info": "性别 女",
+  "summary": "モモとともにラビ村に暮らすバニー。ニンジンの不作を九内に助けられ、彼に協力をする。\r\n語尾に“ピョン”を付けて話す。",
+  "comment": 0,
+  "collects": 3,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/0a/2b/70604_crt_W5WfQ.jpg",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/0a/2b/70604_crt_W5WfQ.jpg",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/0a/2b/70604_crt_W5WfQ.jpg",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/0a/2b/70604_crt_W5WfQ.jpg"
+  }
+}

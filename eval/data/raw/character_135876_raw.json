@@ -1,0 +1,114 @@
+{
+  "id": 135876,
+  "name": "ミカ・ルルーシュ",
+  "nameCN": "米卡·露露修",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": "米卡·露露修"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "",
+          "k": "第二中文名"
+        },
+        {
+          "v": "MIKA LELOUCH",
+          "k": "英文名"
+        },
+        {
+          "v": "",
+          "k": "日文名"
+        },
+        {
+          "v": "",
+          "k": "纯假名"
+        },
+        {
+          "v": "",
+          "k": "罗马字"
+        },
+        {
+          "v": "",
+          "k": "昵称"
+        }
+      ]
+    },
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "女"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "BWH",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    }
+  ],
+  "info": "性别 女",
+  "summary": "",
+  "comment": 0,
+  "collects": 0,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/2f/2d/135876_crt_AOx5p.jpg?r=1692447431",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/2f/2d/135876_crt_AOx5p.jpg?r=1692447431",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/2f/2d/135876_crt_AOx5p.jpg?r=1692447431",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/2f/2d/135876_crt_AOx5p.jpg?r=1692447431"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": 8376,
+  "name": "Bebop Crew",
+  "nameCN": "",
+  "role": 4,
+  "infobox": [
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "Bebop Crew",
+          "k": "英文名"
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": [
+        {
+          "v": "anidb.net"
+        }
+      ]
+    }
+  ],
+  "info": "",
+  "summary": "",
+  "comment": 2,
+  "collects": 23,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/c1/1c/8376_crt_anidb.jpg",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/c1/1c/8376_crt_anidb.jpg",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/c1/1c/8376_crt_anidb.jpg",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/c1/1c/8376_crt_anidb.jpg"
+  }
+}

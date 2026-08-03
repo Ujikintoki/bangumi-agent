@@ -1,0 +1,114 @@
+{
+  "id": 5954,
+  "name": "謎の少女",
+  "nameCN": "幻想世界的少女",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": "幻想世界的少女"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "",
+          "k": "第二中文名"
+        },
+        {
+          "v": "",
+          "k": "英文名"
+        },
+        {
+          "v": "謎の少女",
+          "k": "日文名"
+        },
+        {
+          "v": "",
+          "k": "纯假名"
+        },
+        {
+          "v": "Nazo no Shoujo",
+          "k": "罗马字"
+        },
+        {
+          "v": "",
+          "k": "昵称"
+        }
+      ]
+    },
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "女"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "BWH",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": [
+        {
+          "v": "anidb.net"
+        }
+      ]
+    }
+  ],
+  "info": "性别 女",
+  "summary": "幻想世界唯一的人，创造了拥有机器人外表的，在幻想世界以第一人称出现的“我”。",
+  "comment": 11,
+  "collects": 90,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/b7/39/5954_crt_010XX.jpg?r=1465127608",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/b7/39/5954_crt_010XX.jpg?r=1465127608",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/b7/39/5954_crt_010XX.jpg?r=1465127608",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/b7/39/5954_crt_010XX.jpg?r=1465127608"
+  }
+}

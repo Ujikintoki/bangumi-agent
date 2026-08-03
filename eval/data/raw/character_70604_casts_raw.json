@@ -1,0 +1,74 @@
+{
+  "data": [
+    {
+      "subject": {
+        "id": 260407,
+        "name": "魔王様、リトライ！",
+        "nameCN": "重来吧、魔王大人！",
+        "type": 2,
+        "info": "12话 / 2019年7月3日 / 木村寛 / 神埼黒音「魔王様、リトライ！」（双葉社 Mノベルス） / 中山知世",
+        "metaTags": [
+          "后宫",
+          "TV",
+          "日本",
+          "奇幻",
+          "小说改"
+        ],
+        "rating": {
+          "rank": 9655,
+          "count": [
+            33,
+            56,
+            151,
+            455,
+            864,
+            816,
+            252,
+            69,
+            10,
+            19
+          ],
+          "score": 5.22,
+          "total": 2725
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/3b/6e/260407_9InP0.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/3b/6e/260407_9InP0.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/3b/6e/260407_9InP0.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/3b/6e/260407_9InP0.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/3b/6e/260407_9InP0.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 5050,
+            "name": "荒浪和沙",
+            "nameCN": "荒浪和沙",
+            "type": 1,
+            "info": "性别 女 / 生日 1988-04-18 / 血型 A / 身高 160cm / BWH 85-60-85cm",
+            "career": [
+              "seiyu",
+              "actor"
+            ],
+            "comment": 17,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/27/61/5050_prsn_qQqev.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/27/61/5050_prsn_qQqev.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/27/61/5050_prsn_qQqev.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/27/61/5050_prsn_qQqev.jpg"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 2
+    }
+  ],
+  "total": 1
+}

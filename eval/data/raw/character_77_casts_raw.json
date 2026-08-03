@@ -1,0 +1,537 @@
+{
+  "data": [
+    {
+      "subject": {
+        "id": 860,
+        "name": "カウボーイビバップ 天国の扉",
+        "nameCN": "星际牛仔 天国之扉",
+        "type": 2,
+        "info": "1话 / 2001年9月1日 / 渡辺信一郎 / 矢立肇 / 川元利浩",
+        "metaTags": [
+          "科幻",
+          "剧场版",
+          "日本",
+          "原创"
+        ],
+        "rating": {
+          "rank": 137,
+          "count": [
+            7,
+            4,
+            8,
+            15,
+            51,
+            284,
+            1112,
+            3048,
+            1918,
+            713
+          ],
+          "score": 8.19,
+          "total": 7160
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/fc/49/860_gtiyS.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/fc/49/860_gtiyS.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/fc/49/860_gtiyS.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/fc/49/860_gtiyS.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/fc/49/860_gtiyS.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3914,
+            "name": "山寺宏一",
+            "nameCN": "山寺宏一",
+            "type": 1,
+            "info": "性别 男 / 生日 1961年6月17日 / 血型 A型 / 身高 176cm",
+            "career": [
+              "seiyu",
+              "actor"
+            ],
+            "comment": 72,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/36/d6/3914_prsn_pX74x.jpg"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        },
+        {
+          "person": {
+            "id": 28677,
+            "name": "Steven Blum",
+            "nameCN": "史蒂夫·布鲁姆",
+            "type": 1,
+            "info": "性别 男 / 生日 1960-04-29 / 身高 180cm",
+            "career": [
+              "seiyu",
+              "writer",
+              "actor"
+            ],
+            "comment": 0,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/86/c5/28677_prsn_M3L3M.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/86/c5/28677_prsn_M3L3M.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/86/c5/28677_prsn_M3L3M.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/86/c5/28677_prsn_M3L3M.jpg"
+            }
+          },
+          "relation": 5,
+          "summary": ""
+        },
+        {
+          "person": {
+            "id": 64736,
+            "name": "滕奎兴",
+            "nameCN": "滕奎兴",
+            "type": 1,
+            "info": "性别 男 / 生日 1973年4月29日",
+            "career": [
+              "seiyu"
+            ],
+            "comment": 0,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/74/f5/64736_prsn_n5G58.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/74/f5/64736_prsn_n5G58.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/74/f5/64736_prsn_n5G58.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/74/f5/64736_prsn_n5G58.jpg"
+            }
+          },
+          "relation": 3,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 18632,
+        "name": "COWBOY BEBOP 〜追憶の夜曲〜",
+        "nameCN": "星际牛仔 追忆的夜曲",
+        "type": 4,
+        "info": "2005年8月25日 / PS2 / AVG / バンダイ",
+        "metaTags": [
+          "AVG",
+          "PS2",
+          "游戏"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            2
+          ],
+          "score": 9,
+          "total": 3
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/be/19/18632_j2ZRm.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/be/19/18632_j2ZRm.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/be/19/18632_j2ZRm.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/be/19/18632_j2ZRm.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/be/19/18632_j2ZRm.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3914,
+            "name": "山寺宏一",
+            "nameCN": "山寺宏一",
+            "type": 1,
+            "info": "性别 男 / 生日 1961年6月17日 / 血型 A型 / 身高 176cm",
+            "career": [
+              "seiyu",
+              "actor"
+            ],
+            "comment": 72,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/36/d6/3914_prsn_pX74x.jpg"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 18653,
+        "name": "シューティングスタービバップ―カウボーイビバップ",
+        "nameCN": "",
+        "type": 1,
+        "info": "1998-05-01 / 久雅カイン / 角川書店",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          "score": 7,
+          "total": 1
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/c9/c0/18653_rgzIE.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/c9/c0/18653_rgzIE.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/c9/c0/18653_rgzIE.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/c9/c0/18653_rgzIE.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/c9/c0/18653_rgzIE.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 83382,
+        "name": "カウボーイビバップ",
+        "nameCN": "星际牛仔",
+        "type": 1,
+        "info": "12话 / 1999-04-01 / 南天佑 / 角川書店、東立出版社",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            3,
+            1,
+            3,
+            0,
+            1
+          ],
+          "score": 7.11,
+          "total": 9
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/3b/54/83382_aIHwB.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/3b/54/83382_aIHwB.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/3b/54/83382_aIHwB.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/3b/54/83382_aIHwB.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/3b/54/83382_aIHwB.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 216514,
+        "name": "Cowboy Bebop",
+        "nameCN": "星际牛仔",
+        "type": 6,
+        "info": "10话 / 2021-11-19 / Michael Katleman / Alex Garcia Lopez / 矢立肇 / Christopher L. Yost/ Alexandra E Hartman / John Cho / Mustafa Shakir / Daniella Pineda / Alex Hassell / Elena Satine / Tamara Tunie / Rachel House / Mason Alexander Park / Geoff Stults / 侯宣德 / Rodney Cook / Cali Nelle / Jay Paulson / Alvin Maharaj / Arlo Green / Ann Truong / Molly Moriarty",
+        "metaTags": [
+          "冒险",
+          "动作",
+          "奇幻",
+          "欧美",
+          "犯罪",
+          "电视剧",
+          "科幻",
+          "美国"
+        ],
+        "rating": {
+          "rank": 3530,
+          "count": [
+            10,
+            7,
+            3,
+            1,
+            3,
+            9,
+            1,
+            2,
+            0,
+            1
+          ],
+          "score": 3.76,
+          "total": 37
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/98/99/216514_zX3BU.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/98/99/216514_zX3BU.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/98/99/216514_zX3BU.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/98/99/216514_zX3BU.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/98/99/216514_zX3BU.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3914,
+            "name": "山寺宏一",
+            "nameCN": "山寺宏一",
+            "type": 1,
+            "info": "性别 男 / 生日 1961年6月17日 / 血型 A型 / 身高 176cm",
+            "career": [
+              "seiyu",
+              "actor"
+            ],
+            "comment": 72,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/36/d6/3914_prsn_pX74x.jpg"
+            }
+          },
+          "relation": 4,
+          "summary": ""
+        },
+        {
+          "person": {
+            "id": 44068,
+            "name": "John Cho",
+            "nameCN": "约翰·赵",
+            "type": 1,
+            "info": "性别 男 / 生日 1972年6月16日 / 身高 178cm",
+            "career": [
+              "producer",
+              "seiyu",
+              "actor"
+            ],
+            "comment": 0,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/9d/7f/44068_prsn_4QUE6.jpg?r=1756459168",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/9d/7f/44068_prsn_4QUE6.jpg?r=1756459168",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/9d/7f/44068_prsn_4QUE6.jpg?r=1756459168",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/9d/7f/44068_prsn_4QUE6.jpg?r=1756459168"
+            }
+          },
+          "relation": 2,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 239948,
+        "name": "cowboy bebop Extra Session",
+        "nameCN": "",
+        "type": 2,
+        "info": "1话 / 2005年1月28日",
+        "metaTags": [
+          "OVA"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            1,
+            0,
+            0,
+            0,
+            2,
+            6,
+            15,
+            3,
+            1,
+            2
+          ],
+          "score": 6.83,
+          "total": 30
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/c1/17/239948_68EFZ.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/c1/17/239948_68EFZ.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/c1/17/239948_68EFZ.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/c1/17/239948_68EFZ.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/c1/17/239948_68EFZ.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 253,
+        "name": "カウボーイビバップ",
+        "nameCN": "星际牛仔",
+        "type": 2,
+        "info": "26话 / 1998年10月23日 / 渡辺信一郎 / 矢立肇 / 川元利浩",
+        "metaTags": [
+          "科幻",
+          "TV",
+          "日本",
+          "原创"
+        ],
+        "rating": {
+          "rank": 4,
+          "count": [
+            62,
+            13,
+            15,
+            29,
+            110,
+            299,
+            943,
+            2919,
+            6264,
+            8774
+          ],
+          "score": 9.09,
+          "total": 19428
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/c2/4c/253_jJJj9.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/c2/4c/253_jJJj9.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/c2/4c/253_jJJj9.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/c2/4c/253_jJJj9.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/c2/4c/253_jJJj9.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3914,
+            "name": "山寺宏一",
+            "nameCN": "山寺宏一",
+            "type": 1,
+            "info": "性别 男 / 生日 1961年6月17日 / 血型 A型 / 身高 176cm",
+            "career": [
+              "seiyu",
+              "actor"
+            ],
+            "comment": 72,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/36/d6/3914_prsn_pX74x.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/36/d6/3914_prsn_pX74x.jpg"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        },
+        {
+          "person": {
+            "id": 28677,
+            "name": "Steven Blum",
+            "nameCN": "史蒂夫·布鲁姆",
+            "type": 1,
+            "info": "性别 男 / 生日 1960-04-29 / 身高 180cm",
+            "career": [
+              "seiyu",
+              "writer",
+              "actor"
+            ],
+            "comment": 0,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/86/c5/28677_prsn_M3L3M.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/86/c5/28677_prsn_M3L3M.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/86/c5/28677_prsn_M3L3M.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/86/c5/28677_prsn_M3L3M.jpg"
+            }
+          },
+          "relation": 5,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 267261,
+        "name": "スーパーロボット大戦T",
+        "nameCN": "超级机器人大战T",
+        "type": 4,
+        "info": "2019年3月20日 / Nintendo Switch、PS4 / SRPG / B.B.スタジオ",
+        "metaTags": [
+          "NS",
+          "PS4",
+          "SRPG",
+          "游戏"
+        ],
+        "rating": {
+          "rank": 3503,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            11,
+            19,
+            48,
+            34,
+            3,
+            1
+          ],
+          "score": 7.02,
+          "total": 116
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/cc/80/267261_z9znE.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/cc/80/267261_z9znE.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/cc/80/267261_z9znE.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/cc/80/267261_z9znE.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/cc/80/267261_z9znE.jpg"
+        }
+      },
+      "casts": [],
+      "type": 2
+    }
+  ],
+  "total": 8
+}

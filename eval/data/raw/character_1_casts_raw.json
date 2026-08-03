@@ -1,0 +1,1185 @@
+{
+  "data": [
+    {
+      "subject": {
+        "id": 118727,
+        "name": "コードギアス 反逆のルルーシュ Sound Episode 2",
+        "nameCN": "",
+        "type": 3,
+        "info": "2007-05-23 / 福山潤 / 櫻井孝宏 / ゆかな / 小清水亜美 / 名塚佳織 / 折笠富美子 / 大原さやか / 杉山紀彰",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            2,
+            0,
+            0,
+            1
+          ],
+          "score": 7.5,
+          "total": 4
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/3d/52/118727_jp.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/3d/52/118727_jp.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/3d/52/118727_jp.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/3d/52/118727_jp.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/3d/52/118727_jp.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 199231,
+        "name": "コードギアス 反逆のルルーシュ III 皇道",
+        "nameCN": "Code Geass 反叛的鲁路修 III 皇道",
+        "type": 2,
+        "info": "1话 / 2018年5月26日",
+        "metaTags": [
+          "剧场版",
+          "原创"
+        ],
+        "rating": {
+          "rank": 3310,
+          "count": [
+            9,
+            0,
+            7,
+            23,
+            86,
+            280,
+            403,
+            193,
+            37,
+            52
+          ],
+          "score": 6.83,
+          "total": 1090
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/4d/c4/199231_twxCh.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/4d/c4/199231_twxCh.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/4d/c4/199231_twxCh.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/4d/c4/199231_twxCh.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/4d/c4/199231_twxCh.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 199230,
+        "name": "コードギアス 反逆のルルーシュ II 叛道",
+        "nameCN": "Code Geass 反叛的鲁路修 II 叛道",
+        "type": 2,
+        "info": "1话 / 2018年2月10日",
+        "metaTags": [
+          "剧场版",
+          "原创"
+        ],
+        "rating": {
+          "rank": 4090,
+          "count": [
+            8,
+            2,
+            11,
+            24,
+            103,
+            321,
+            379,
+            151,
+            31,
+            50
+          ],
+          "score": 6.69,
+          "total": 1080
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/34/46/199230_ARJt5.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/34/46/199230_ARJt5.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/34/46/199230_ARJt5.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/34/46/199230_ARJt5.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/34/46/199230_ARJt5.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 199229,
+        "name": "コードギアス 反逆のルルーシュ I 興道",
+        "nameCN": "Code Geass 反叛的鲁路修 I 兴道",
+        "type": 2,
+        "info": "1话 / 2017年10月21日",
+        "metaTags": [
+          "剧场版",
+          "日本",
+          "原创"
+        ],
+        "rating": {
+          "rank": 3316,
+          "count": [
+            6,
+            1,
+            4,
+            29,
+            81,
+            322,
+            460,
+            183,
+            42,
+            55
+          ],
+          "score": 6.83,
+          "total": 1183
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/02/6a/199229_cHlVV.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/02/6a/199229_cHlVV.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/02/6a/199229_cHlVV.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/02/6a/199229_cHlVV.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/02/6a/199229_cHlVV.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 199228,
+        "name": "コードギアス 復活のルルーシュ",
+        "nameCN": "Code Geass 复活的鲁路修",
+        "type": 2,
+        "info": "1话 / 2019年2月9日 / 谷口悟朗 / 木村貴宏",
+        "metaTags": [
+          "剧场版",
+          "机战",
+          "日本",
+          "原创",
+          "战斗"
+        ],
+        "rating": {
+          "rank": 1225,
+          "count": [
+            17,
+            13,
+            14,
+            57,
+            170,
+            663,
+            1816,
+            1765,
+            426,
+            235
+          ],
+          "score": 7.37,
+          "total": 5176
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/4e/93/199228_co9kI.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/4e/93/199228_co9kI.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/4e/93/199228_co9kI.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/4e/93/199228_co9kI.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/4e/93/199228_co9kI.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 237827,
+        "name": "コードギアス 反逆のルルーシュ CODE BLACK+",
+        "nameCN": "",
+        "type": 3,
+        "info": "2018-02-21 / ルルーシュ(CV:福山潤)、コーネリア(CV:皆川純子)、ユーフェミア(CV:南央美)、カレン(CV:小清水亜美)、C.C.(CV:ゆかな)、ナナリー(CV:名塚佳織)、カグヤ(CV:かないみか)、天子(CV:松元環季)",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            2,
+            1,
+            1,
+            1,
+            0,
+            0,
+            1
+          ],
+          "score": 6,
+          "total": 6
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/bc/3e/237827_xoKxK.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/bc/3e/237827_xoKxK.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/bc/3e/237827_xoKxK.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/bc/3e/237827_xoKxK.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/bc/3e/237827_xoKxK.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 118735,
+        "name": "コードギアス 反逆のルルーシュR2 Sound Episode3",
+        "nameCN": "",
+        "type": 3,
+        "info": "2008-09-03 / ドラマ / 福山潤 / 櫻井孝宏 / 渡辺明乃 / 大原さやか / 折笠富美子 / 水島大宙 / 保志総一朗 / 白鳥哲",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            2,
+            0,
+            0,
+            1
+          ],
+          "score": 7.2,
+          "total": 5
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/bf/ec/118735_jp.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/bf/ec/118735_jp.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/bf/ec/118735_jp.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/bf/ec/118735_jp.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/bf/ec/118735_jp.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 35866,
+        "name": "コードギアス 反逆のルルーシュ ナナリーinワンダーランド",
+        "nameCN": "Code Geass 反叛的鲁路修 娜娜莉梦游仙境",
+        "type": 2,
+        "info": "1话 / 2012年7月27日",
+        "metaTags": [
+          "OVA",
+          "原创"
+        ],
+        "rating": {
+          "rank": 6737,
+          "count": [
+            14,
+            6,
+            30,
+            77,
+            234,
+            609,
+            426,
+            160,
+            24,
+            36
+          ],
+          "score": 6.24,
+          "total": 1616
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/3a/b3/35866_C6Kk7.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/3a/b3/35866_C6Kk7.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/3a/b3/35866_C6Kk7.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/3a/b3/35866_C6Kk7.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/3a/b3/35866_C6Kk7.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 32214,
+        "name": "コードギアス反逆のルルーシュ キャラクターソングベスト",
+        "nameCN": "",
+        "type": 3,
+        "info": "2009-07-01 / C.C.(CV:ゆかな)、ルルーシュ(CV:福山潤)、シャーリー(CV:折笠富美子)、カレン(CV:小清水亜美)、ミレイ(CV:大原さやか)、ナナリー(CV:名塚佳織)、ロロ(CV:水島大宙)、星刻&ジノ(CV:緑川光&保志総一朗)、天子(CV:松元環季)、カグヤ(CV:金井美香)",
+        "metaTags": [],
+        "rating": {
+          "rank": 7311,
+          "count": [
+            0,
+            0,
+            0,
+            1,
+            5,
+            15,
+            17,
+            2,
+            0,
+            2
+          ],
+          "score": 6.52,
+          "total": 42
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/d7/f5/32214_jp.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/d7/f5/32214_jp.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/d7/f5/32214_jp.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/d7/f5/32214_jp.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/d7/f5/32214_jp.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 8,
+        "name": "コードギアス 反逆のルルーシュR2",
+        "nameCN": "Code Geass 反叛的鲁路修R2",
+        "type": 2,
+        "info": "25话 / 2008年4月6日 / 谷口悟朗 / 木村貴宏",
+        "metaTags": [
+          "机战",
+          "TV",
+          "日本",
+          "原创",
+          "战斗"
+        ],
+        "rating": {
+          "rank": 85,
+          "count": [
+            53,
+            23,
+            44,
+            91,
+            217,
+            750,
+            2568,
+            6124,
+            5662,
+            3039
+          ],
+          "score": 8.32,
+          "total": 18571
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/c9/f0/8_wK0z3.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/c9/f0/8_wK0z3.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/c9/f0/8_wK0z3.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/c9/f0/8_wK0z3.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/c9/f0/8_wK0z3.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        },
+        {
+          "person": {
+            "id": 3890,
+            "name": "大原さやか",
+            "nameCN": "大原沙耶香",
+            "type": 1,
+            "info": "性别 女 / 生日 1975年12月6日 / 血型 B型 / 身高 158.5cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 65,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/cf/63/3890_prsn_Luylq.jpg?r=1595875512",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/cf/63/3890_prsn_Luylq.jpg?r=1595875512",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/cf/63/3890_prsn_Luylq.jpg?r=1595875512",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/cf/63/3890_prsn_Luylq.jpg?r=1595875512"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 793,
+        "name": "コードギアス 反逆のルルーシュ",
+        "nameCN": "Code Geass 反叛的鲁路修",
+        "type": 2,
+        "info": "25话 / 2006年10月5日 / 谷口悟朗 / 木村貴宏",
+        "metaTags": [
+          "机战",
+          "TV",
+          "日本",
+          "原创",
+          "战斗"
+        ],
+        "rating": {
+          "rank": 81,
+          "count": [
+            60,
+            16,
+            35,
+            74,
+            197,
+            853,
+            2977,
+            7799,
+            6908,
+            3328
+          ],
+          "score": 8.33,
+          "total": 22247
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/da/8c/793_3y432.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/da/8c/793_3y432.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/da/8c/793_3y432.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/da/8c/793_3y432.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/da/8c/793_3y432.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        },
+        {
+          "person": {
+            "id": 3890,
+            "name": "大原さやか",
+            "nameCN": "大原沙耶香",
+            "type": 1,
+            "info": "性别 女 / 生日 1975年12月6日 / 血型 B型 / 身高 158.5cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 65,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/cf/63/3890_prsn_Luylq.jpg?r=1595875512",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/cf/63/3890_prsn_Luylq.jpg?r=1595875512",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/cf/63/3890_prsn_Luylq.jpg?r=1595875512",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/cf/63/3890_prsn_Luylq.jpg?r=1595875512"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 86773,
+        "name": "コードギアス 亡国のアキト 第3章「輝くもの天より堕つ」",
+        "nameCN": "Code Geass 亡国的阿基德 第三章「辉芒陨落」",
+        "type": 2,
+        "info": "1话 / 2015年5月2日 / 赤根和樹 / サンライズ、大河内一楼、谷口悟朗 / 木村貴宏",
+        "metaTags": [
+          "剧场版",
+          "机战",
+          "原创"
+        ],
+        "rating": {
+          "rank": 8546,
+          "count": [
+            11,
+            15,
+            35,
+            106,
+            278,
+            509,
+            247,
+            57,
+            10,
+            6
+          ],
+          "score": 5.77,
+          "total": 1274
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/e1/29/86773_4l4mg.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/e1/29/86773_4l4mg.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/e1/29/86773_4l4mg.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/e1/29/86773_4l4mg.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/e1/29/86773_4l4mg.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 2
+    },
+    {
+      "subject": {
+        "id": 306532,
+        "name": "コードギアス 反逆のルルーシュ ロストストーリーズ",
+        "nameCN": "Code Geass 反叛的鲁路修 Lost Stories",
+        "type": 4,
+        "info": "2022年5月17日 / iOS、Android、PC (DMM GAMES) / ナイトメアフレームバトルRPG / f4samurai",
+        "metaTags": [
+          "Android",
+          "PC",
+          "RPG",
+          "iOS",
+          "游戏"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            1,
+            0,
+            2,
+            2,
+            0,
+            0,
+            0,
+            1
+          ],
+          "score": 5.83,
+          "total": 6
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/5a/05/306532_Z9pCM.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/5a/05/306532_Z9pCM.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/5a/05/306532_Z9pCM.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/5a/05/306532_Z9pCM.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/5a/05/306532_Z9pCM.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 2
+    },
+    {
+      "subject": {
+        "id": 63130,
+        "name": "コードギアス 亡国のアキト 第2章「引き裂かれし翼竜」",
+        "nameCN": "Code Geass 亡国的阿基德 第二章「翼龙折翅」",
+        "type": 2,
+        "info": "1话 / 2013年9月14日 / 赤根和樹 / サンライズ、大河内一楼、谷口悟朗 / 木村貴宏",
+        "metaTags": [
+          "剧场版",
+          "原创",
+          "机战"
+        ],
+        "rating": {
+          "rank": 6430,
+          "count": [
+            12,
+            9,
+            27,
+            76,
+            205,
+            552,
+            503,
+            201,
+            20,
+            13
+          ],
+          "score": 6.3,
+          "total": 1618
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/eb/9f/63130_b2700.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/eb/9f/63130_b2700.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/eb/9f/63130_b2700.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/eb/9f/63130_b2700.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/eb/9f/63130_b2700.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 2
+    },
+    {
+      "subject": {
+        "id": 187320,
+        "name": "コードギアス 双貌のオズO2 SIDE：オルドリン",
+        "nameCN": "Code Geass 双面的奥兹O2 SIDE:奥尔德林",
+        "type": 1,
+        "info": "19话 / 2015-04-25 / KADOKAWA",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            1,
+            0,
+            0,
+            0,
+            4,
+            2,
+            1,
+            0,
+            0,
+            1
+          ],
+          "score": 5.56,
+          "total": 9
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/dc/df/187320_5yybF.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/dc/df/187320_5yybF.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/dc/df/187320_5yybF.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/dc/df/187320_5yybF.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/dc/df/187320_5yybF.jpg"
+        }
+      },
+      "casts": [],
+      "type": 2
+    },
+    {
+      "subject": {
+        "id": 321523,
+        "name": "コードギアス Genesic Re;CODE",
+        "nameCN": "Code Geass Genesic Re;CODE",
+        "type": 4,
+        "info": "2021年10月4日 / iOS、Android / ギアスRPG / JORO",
+        "metaTags": [
+          "Android",
+          "RPG",
+          "iOS",
+          "游戏"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            2,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 1.75,
+          "total": 4
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/06/8a/321523_q6kkk.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/06/8a/321523_q6kkk.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/06/8a/321523_q6kkk.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/06/8a/321523_q6kkk.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/06/8a/321523_q6kkk.jpg"
+        }
+      },
+      "casts": [],
+      "type": 3
+    },
+    {
+      "subject": {
+        "id": 500557,
+        "name": "コードギアス 奪還のロゼ",
+        "nameCN": "Code Geass 夺还的罗赛",
+        "type": 2,
+        "info": "12话 / 2024年6月21日 / 大橋誉志光 / サンライズ / 木村貴宏、島村秀一",
+        "metaTags": [
+          "WEB",
+          "原创",
+          "机战"
+        ],
+        "rating": {
+          "rank": 9799,
+          "count": [
+            14,
+            18,
+            74,
+            166,
+            200,
+            216,
+            61,
+            8,
+            2,
+            8
+          ],
+          "score": 4.98,
+          "total": 767
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/eb/53/500557_V0jj2.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/eb/53/500557_V0jj2.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/eb/53/500557_V0jj2.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/eb/53/500557_V0jj2.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/eb/53/500557_V0jj2.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 3
+    },
+    {
+      "subject": {
+        "id": 185359,
+        "name": "シャドウバース",
+        "nameCN": "影之诗",
+        "type": 4,
+        "info": "2016年6月17日（日本） / PC、Android、iOS / 対戦型オンラインTCG / Cygames",
+        "metaTags": [
+          "Windows",
+          "PC",
+          "游戏",
+          "iOS",
+          "Android",
+          "TCG"
+        ],
+        "rating": {
+          "rank": 5660,
+          "count": [
+            12,
+            3,
+            8,
+            6,
+            42,
+            129,
+            210,
+            109,
+            12,
+            13
+          ],
+          "score": 6.67,
+          "total": 544
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/8d/26/185359_jRyxx.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/8d/26/185359_jRyxx.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/8d/26/185359_jRyxx.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/8d/26/185359_jRyxx.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/8d/26/185359_jRyxx.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 3818,
+            "name": "福山潤",
+            "nameCN": "福山润",
+            "type": 1,
+            "info": "性别 男 / 生日 1978年11月26日 / 血型 A型 / 身高 170cm",
+            "career": [
+              "artist",
+              "seiyu"
+            ],
+            "comment": 101,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/bf/00/3818_prsn_vlWlO.jpg?r=1669378022"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 3
+    },
+    {
+      "subject": {
+        "id": 130655,
+        "name": "実況パワフルプロ野球",
+        "nameCN": "实况野球Powerful Pro",
+        "type": 4,
+        "info": "Android、iOS / SPG",
+        "metaTags": [
+          "Android",
+          "SPG",
+          "iOS",
+          "游戏"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            1,
+            1,
+            0
+          ],
+          "score": 6.4,
+          "total": 5
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/cc/83/130655_o76Ik.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/cc/83/130655_o76Ik.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/cc/83/130655_o76Ik.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/cc/83/130655_o76Ik.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/cc/83/130655_o76Ik.jpg"
+        }
+      },
+      "casts": [],
+      "type": 3
+    },
+    {
+      "subject": {
+        "id": 103372,
+        "name": "GRANBLUE FANTASY",
+        "nameCN": "碧蓝幻想",
+        "type": 4,
+        "info": "2014年3月10日 / Android、iOS、PC / MMORPG",
+        "metaTags": [
+          "PC",
+          "MMORPG",
+          "游戏",
+          "iOS",
+          "Android"
+        ],
+        "rating": {
+          "rank": 2298,
+          "count": [
+            9,
+            2,
+            2,
+            8,
+            14,
+            63,
+            111,
+            121,
+            50,
+            25
+          ],
+          "score": 7.27,
+          "total": 405
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/ed/df/103372_Wpnwf.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/ed/df/103372_Wpnwf.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/ed/df/103372_Wpnwf.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/ed/df/103372_Wpnwf.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/ed/df/103372_Wpnwf.jpg"
+        }
+      },
+      "casts": [],
+      "type": 3
+    }
+  ],
+  "total": 23
+}

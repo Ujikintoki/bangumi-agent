@@ -1,0 +1,114 @@
+{
+  "id": 96309,
+  "name": "スパイク",
+  "nameCN": "史派克",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": "史派克"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "",
+          "k": "第二中文名"
+        },
+        {
+          "v": "Spike",
+          "k": "英文名"
+        },
+        {
+          "v": "",
+          "k": "日文名"
+        },
+        {
+          "v": "",
+          "k": "纯假名"
+        },
+        {
+          "v": "",
+          "k": "罗马字"
+        },
+        {
+          "v": "",
+          "k": "昵称"
+        }
+      ]
+    },
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "男"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "BWH",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": [
+        {
+          "v": "https://sevenknights-anime.jp/character/?id=12"
+        }
+      ]
+    }
+  ],
+  "info": "性别 男",
+  "summary": "「セブンナイツ」の一員。\r\n“吹雪の大地”を領地とする。\r\n巨大な斧と氷の魔法を操り「極寒の心臓」という異名を持ち、人間と氷の精霊のハーフ。\r\nある強者との戦いを通して感情を持ち、誰よりも強い戦士となった。",
+  "comment": 0,
+  "collects": 0,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/84/a4/96309_crt_08FWw.jpg?r=1621614033",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/84/a4/96309_crt_08FWw.jpg?r=1621614033",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/84/a4/96309_crt_08FWw.jpg?r=1621614033",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/84/a4/96309_crt_08FWw.jpg?r=1621614033"
+  }
+}

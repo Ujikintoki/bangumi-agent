@@ -1,0 +1,98 @@
+{
+  "id": 1714,
+  "name": "惣一郎（犬）",
+  "nameCN": "惣一郎",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "男"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "Souichirou-san",
+          "k": "罗马字"
+        },
+        {
+          "v": "惣一郎さん",
+          "k": "日文名"
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": [
+        {
+          "v": "anidb.net"
+        }
+      ]
+    },
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": "惣一郎"
+        }
+      ]
+    },
+    {
+      "key": "声优",
+      "values": [
+        {
+          "v": "千叶繁"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    }
+  ],
+  "info": "性别 男",
+  "summary": "最初是一隻流浪狗，因為響子的丈夫在街上拿著食物而一直跟著他回家。後來響子的丈夫 -- 惣一郎，決定收養牠並取名為小白。可惜叫牠惣一郎牠才會回應，之後便改名為惣一郎。響子的丈夫死後，響子便帶牠到一刻館居住。 \r\n性格 : 饞嘴、友善 \r\n嗜好 : 吃",
+  "comment": 3,
+  "collects": 3,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/79/8e/1714_s0e8O.jpg",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/79/8e/1714_s0e8O.jpg",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/79/8e/1714_s0e8O.jpg",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/79/8e/1714_s0e8O.jpg"
+  }
+}

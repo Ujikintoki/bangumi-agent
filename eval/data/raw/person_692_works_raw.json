@@ -1,0 +1,1181 @@
+{
+  "data": [
+    {
+      "subject": {
+        "id": 334105,
+        "name": "劇場版 魔法少女まどか☆マギカ〈ワルプルギスの廻天〉",
+        "nameCN": "剧场版 魔法少女小圆〈魔女之夜的回天〉",
+        "type": 2,
+        "info": "2026年8月28日 / 宮本幸裕 / Magica Quartet / 谷口淳一郎",
+        "metaTags": [
+          "百合",
+          "剧场版",
+          "日本",
+          "原创"
+        ],
+        "rating": {
+          "rank": 273,
+          "count": [
+            12,
+            1,
+            1,
+            1,
+            2,
+            7,
+            29,
+            91,
+            50,
+            63
+          ],
+          "score": 8.11,
+          "total": 257
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/df/56/334105_U5T14.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/df/56/334105_U5T14.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/df/56/334105_U5T14.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/df/56/334105_U5T14.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/df/56/334105_U5T14.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 579701,
+        "name": "魔法少女まどか☆マギカ 始まりの物語／永遠の物語 TV Edition",
+        "nameCN": "魔法少女小圆 起始的物语&永远的物语 TV剪辑版",
+        "type": 2,
+        "info": "11话 / 2025年10月12日 / 宮本幸裕 / Magica Quartet / 岸田隆宏、谷口淳一郎",
+        "metaTags": [
+          "TV"
+        ],
+        "rating": {
+          "rank": 2177,
+          "count": [
+            2,
+            3,
+            2,
+            3,
+            5,
+            16,
+            53,
+            43,
+            8,
+            9
+          ],
+          "score": 7.11,
+          "total": 144
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/42/b1/579701_eLN35.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/42/b1/579701_eLN35.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/42/b1/579701_eLN35.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/42/b1/579701_eLN35.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/42/b1/579701_eLN35.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 475354,
+        "name": "〈物語〉シリーズ オフ&モンスターシーズン",
+        "nameCN": "物语系列 外传季&怪物季",
+        "type": 2,
+        "info": "15话 / 2024年7月6日 / 吉澤翠 / 西尾維新『愚物語』『撫物語』『業物語』『忍物語』（講談社BOX） / 渡辺明夫",
+        "metaTags": [
+          "日本",
+          "奇幻",
+          "小说改",
+          "WEB"
+        ],
+        "rating": {
+          "rank": 124,
+          "count": [
+            12,
+            4,
+            2,
+            5,
+            39,
+            190,
+            924,
+            2689,
+            1564,
+            666
+          ],
+          "score": 8.22,
+          "total": 6095
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/85/c1/475354_QyO6r.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/85/c1/475354_QyO6r.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/85/c1/475354_QyO6r.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/85/c1/475354_QyO6r.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/85/c1/475354_QyO6r.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 10,
+            "en": "Series Composition",
+            "cn": "系列构成",
+            "jp": "シナリオディレクター  構成  シリーズ構成  脚本構成"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 4,
+            "en": "Storyboard",
+            "cn": "分镜",
+            "jp": "コンテ  ストーリーボード  画コンテ  絵コンテ"
+          },
+          "summary": "",
+          "appearEps": "7-8"
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 454045,
+        "name": "傷物語-こよみヴァンプ-",
+        "nameCN": "伤物语-历吸血鬼-",
+        "type": 2,
+        "info": "1话 / 2024年1月12日 / 尾石達也 / 西尾維新「傷物語」（講談社BOX） / 渡辺明夫、守岡英行",
+        "metaTags": [
+          "剧场版",
+          "小说改"
+        ],
+        "rating": {
+          "rank": 303,
+          "count": [
+            0,
+            3,
+            2,
+            4,
+            15,
+            46,
+            215,
+            482,
+            141,
+            98
+          ],
+          "score": 7.94,
+          "total": 1006
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/ea/d6/454045_l2CCI.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/ea/d6/454045_l2CCI.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/ea/d6/454045_l2CCI.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/ea/d6/454045_l2CCI.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/ea/d6/454045_l2CCI.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 127,
+            "en": "Planning Cooperation",
+            "cn": "企画协力",
+            "jp": "企画協力"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 339998,
+        "name": "マギアレコード 魔法少女まどか☆マギカ外伝 Final SEASON ‐浅き夢の暁‐",
+        "nameCN": "魔法纪录 魔法少女小圆外传 Final SEASON -浅梦的黎明-",
+        "type": 2,
+        "info": "4话 / 2022年4月3日 / 宮本幸裕 / Magica Quartet / 谷口淳一郎",
+        "metaTags": [
+          "百合",
+          "TV",
+          "日本",
+          "战斗",
+          "游戏改"
+        ],
+        "rating": {
+          "rank": 9711,
+          "count": [
+            33,
+            55,
+            140,
+            347,
+            543,
+            493,
+            150,
+            65,
+            18,
+            33
+          ],
+          "score": 5.16,
+          "total": 1877
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/0e/2c/339998_Rokv8.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/0e/2c/339998_Rokv8.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/0e/2c/339998_Rokv8.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/0e/2c/339998_Rokv8.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/0e/2c/339998_Rokv8.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 18,
+            "en": "Supervision/Supervisor",
+            "cn": "监修",
+            "jp": "シリーズ監修 スーパーバイザー"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 370413,
+        "name": "漫画『化物語』特別PV",
+        "nameCN": "漫画『化物语』特别PV",
+        "type": 2,
+        "info": "1话 / 新房昭之 / 西尾維新 / 渡辺明夫",
+        "metaTags": [
+          "日本",
+          "漫画改",
+          "PV"
+        ],
+        "rating": {
+          "rank": 3625,
+          "count": [
+            0,
+            2,
+            0,
+            10,
+            31,
+            79,
+            108,
+            40,
+            11,
+            14
+          ],
+          "score": 6.74,
+          "total": 295
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/b7/46/370413_6aK86.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/b7/46/370413_6aK86.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/b7/46/370413_6aK86.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/b7/46/370413_6aK86.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/b7/46/370413_6aK86.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4,
+            "en": "Storyboard",
+            "cn": "分镜",
+            "jp": "コンテ  ストーリーボード  画コンテ  絵コンテ"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 2,
+            "en": "Director/Direction",
+            "cn": "导演",
+            "jp": "監督 シリーズ監督"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 357568,
+        "name": "魔法少女まどか☆マギカ 10th Anniversary Book (3)",
+        "nameCN": "",
+        "type": 1,
+        "info": "2021-12-25 / 漫画选集: あfろ、和泉キリフ、うぐいす祥子[ひよどり祥子]、黄井ぴかち、塩山、タツノコッソ、ボブキャ、幌田、三島芳治 / 封面: 谷口淳一郎 / 芳文社 / 184",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 5,
+          "total": 1
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/65/8f/357568_tSIt8.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/65/8f/357568_tSIt8.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/65/8f/357568_tSIt8.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/65/8f/357568_tSIt8.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/65/8f/357568_tSIt8.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 2008,
+            "en": "Guest",
+            "cn": "客串",
+            "jp": "ゲスト"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 302875,
+        "name": "マギアレコード 魔法少女まどか☆マギカ外伝 2nd SEASON -覚醒前夜-",
+        "nameCN": "魔法纪录 魔法少女小圆外传 2nd SEASON -觉醒前夜-",
+        "type": 2,
+        "info": "8话 / 2021年7月31日 / 宮本幸裕 / Magica Quartet / 谷口淳一郎",
+        "metaTags": [
+          "百合",
+          "TV",
+          "日本",
+          "战斗",
+          "游戏改"
+        ],
+        "rating": {
+          "rank": 8063,
+          "count": [
+            14,
+            25,
+            57,
+            231,
+            523,
+            1069,
+            487,
+            169,
+            33,
+            36
+          ],
+          "score": 5.9,
+          "total": 2644
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/32/50/302875_SjaCT.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/32/50/302875_SjaCT.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/32/50/302875_SjaCT.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/32/50/302875_SjaCT.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/32/50/302875_SjaCT.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 18,
+            "en": "Supervision/Supervisor",
+            "cn": "监修",
+            "jp": "シリーズ監修 スーパーバイザー"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 334371,
+        "name": "魔法少女まどか☆マギカ 10th Anniversary Book (1)",
+        "nameCN": "",
+        "type": 1,
+        "info": "2021-06-25 / 漫画选集: アズモン、abua、春日沙生、ときわた、はせがゎ（わ）、PAPA、パン、まめべり、ユウズィ / 封面: 蒼樹うめ / 芳文社 / 184",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/8f/b6/334371_5IEbE.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/8f/b6/334371_5IEbE.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/8f/b6/334371_5IEbE.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/8f/b6/334371_5IEbE.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/8f/b6/334371_5IEbE.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 2008,
+            "en": "Guest",
+            "cn": "客串",
+            "jp": "ゲスト"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 295048,
+        "name": "美少年探偵団",
+        "nameCN": "美少年侦探团",
+        "type": 2,
+        "info": "12话 / 2021年4月10日 / 大谷肇 / 西尾維新 / 山村洋貴",
+        "metaTags": [
+          "TV",
+          "小说改",
+          "推理",
+          "日本"
+        ],
+        "rating": {
+          "rank": 2928,
+          "count": [
+            1,
+            2,
+            6,
+            22,
+            63,
+            262,
+            532,
+            288,
+            32,
+            15
+          ],
+          "score": 6.92,
+          "total": 1223
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/20/87/295048_PE4W9.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/20/87/295048_PE4W9.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/20/87/295048_PE4W9.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/20/87/295048_PE4W9.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/20/87/295048_PE4W9.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 10,
+            "en": "Series Composition",
+            "cn": "系列构成",
+            "jp": "シナリオディレクター  構成  シリーズ構成  脚本構成"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 159690,
+        "name": "マギアレコード 魔法少女まどか☆マギカ外伝",
+        "nameCN": "魔法纪录 魔法少女小圆外传",
+        "type": 2,
+        "info": "13话 / 2020年1月4日 / [ディレクター] 宮本幸裕(1,11-13)、岡田堅二朗(2-3,6-7)、吉澤翠(4-5,8-10) / Magica Quartet / 谷口淳一郎",
+        "metaTags": [
+          "百合",
+          "TV",
+          "日本",
+          "战斗",
+          "游戏改"
+        ],
+        "rating": {
+          "rank": 5245,
+          "count": [
+            14,
+            14,
+            27,
+            145,
+            433,
+            1482,
+            1689,
+            545,
+            71,
+            69
+          ],
+          "score": 6.52,
+          "total": 4489
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/35/5b/159690_2mim1.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/35/5b/159690_2mim1.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/35/5b/159690_2mim1.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/35/5b/159690_2mim1.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/35/5b/159690_2mim1.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 18,
+            "en": "Supervision/Supervisor",
+            "cn": "监修",
+            "jp": "シリーズ監修 スーパーバイザー"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 292937,
+        "name": "新房昭之×シャフト クロニクル",
+        "nameCN": "新房昭之×SHAFT CHRONICLE",
+        "type": 1,
+        "info": "2019-11-23 / 新房昭之 / シャフト(SHAFT) / 復刊ドットコム / 240",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            2
+          ],
+          "score": 8.5,
+          "total": 4
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/08/0d/292937_sU9Xv.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/08/0d/292937_sU9Xv.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/08/0d/292937_sU9Xv.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/08/0d/292937_sU9Xv.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/08/0d/292937_sU9Xv.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 2001,
+            "en": "",
+            "cn": "作者",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 233926,
+        "name": "続・終物語",
+        "nameCN": "续·终物语",
+        "type": 2,
+        "info": "6话 / 2018年11月10日 / 新房昭之 / 西尾維新「続・終物語」（講談社BOX） / 渡辺明夫",
+        "metaTags": [
+          "剧场版",
+          "后宫",
+          "日本",
+          "奇幻",
+          "小说改"
+        ],
+        "rating": {
+          "rank": 299,
+          "count": [
+            3,
+            2,
+            2,
+            15,
+            56,
+            283,
+            1463,
+            3095,
+            885,
+            433
+          ],
+          "score": 7.91,
+          "total": 6237
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/3a/7f/233926_V09ek.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/3a/7f/233926_V09ek.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/3a/7f/233926_V09ek.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/3a/7f/233926_V09ek.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/3a/7f/233926_V09ek.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 10,
+            "en": "Series Composition",
+            "cn": "系列构成",
+            "jp": "シナリオディレクター  構成  シリーズ構成  脚本構成"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 2,
+            "en": "Director/Direction",
+            "cn": "导演",
+            "jp": "監督 シリーズ監督"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 175601,
+        "name": "Fate/EXTRA Last Encore",
+        "nameCN": "Fate/EXTRA Last Encore",
+        "type": 2,
+        "info": "13话 / 2018年1月27日 / 奈須きのこ・TYPE-MOON／マーベラス / 滝山真哲、山村洋貴",
+        "metaTags": [
+          "TV",
+          "日本",
+          "奇幻",
+          "原创",
+          "战斗"
+        ],
+        "rating": {
+          "rank": 8538,
+          "count": [
+            48,
+            43,
+            146,
+            421,
+            1087,
+            1876,
+            951,
+            294,
+            36,
+            45
+          ],
+          "score": 5.81,
+          "total": 4947
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/ff/e7/175601_cshc8.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/ff/e7/175601_cshc8.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/ff/e7/175601_cshc8.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/ff/e7/175601_cshc8.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/ff/e7/175601_cshc8.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 4,
+            "en": "Storyboard",
+            "cn": "分镜",
+            "jp": "コンテ  ストーリーボード  画コンテ  絵コンテ"
+          },
+          "summary": "",
+          "appearEps": "NC"
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 211567,
+        "name": "3月のライオン 第2シリーズ",
+        "nameCN": "3月的狮子 第二季",
+        "type": 2,
+        "info": "22话 / 2017年10月14日 / 新房昭之 / 羽海野チカ（白泉社 ヤングアニマル連載） / 杉山延寛",
+        "metaTags": [
+          "TV",
+          "日本",
+          "漫画改",
+          "日常"
+        ],
+        "rating": {
+          "rank": 10,
+          "count": [
+            31,
+            9,
+            6,
+            22,
+            70,
+            191,
+            732,
+            2520,
+            3712,
+            3272
+          ],
+          "score": 8.81,
+          "total": 10565
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/5c/49/211567_pGm5Q.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/5c/49/211567_pGm5Q.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/5c/49/211567_pGm5Q.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/5c/49/211567_pGm5Q.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/5c/49/211567_pGm5Q.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 10,
+            "en": "Series Composition",
+            "cn": "系列构成",
+            "jp": "シナリオディレクター  構成  シリーズ構成  脚本構成"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 4,
+            "en": "Storyboard",
+            "cn": "分镜",
+            "jp": "コンテ  ストーリーボード  画コンテ  絵コンテ"
+          },
+          "summary": "",
+          "appearEps": "NC "
+        },
+        {
+          "type": {
+            "id": 2,
+            "en": "Director/Direction",
+            "cn": "导演",
+            "jp": "監督 シリーズ監督"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 200704,
+        "name": "打ち上げ花火、下から見るか？横から見るか？",
+        "nameCN": "烟花",
+        "type": 2,
+        "info": "1话 / 2017年8月18日 / 武内宣之 / 岩井俊二 / 渡辺明夫",
+        "metaTags": [
+          "剧场版",
+          "恋爱",
+          "日本",
+          "奇幻",
+          "影视改"
+        ],
+        "rating": {
+          "rank": 7948,
+          "count": [
+            57,
+            60,
+            172,
+            621,
+            1315,
+            2484,
+            1452,
+            526,
+            113,
+            102
+          ],
+          "score": 5.95,
+          "total": 6902
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/b1/ea/200704_bJl22.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/b1/ea/200704_bJl22.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/b1/ea/200704_bJl22.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/b1/ea/200704_bJl22.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/b1/ea/200704_bJl22.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 175596,
+        "name": "終物語(下)",
+        "nameCN": "终物语（下）",
+        "type": 2,
+        "info": "7话 / 2017年8月12日 / 板村智幸 / 西尾維新「終物語 下」（講談社BOX） / 渡辺明夫",
+        "metaTags": [
+          "后宫",
+          "TV",
+          "日本",
+          "奇幻",
+          "小说改"
+        ],
+        "rating": {
+          "rank": 166,
+          "count": [
+            6,
+            4,
+            4,
+            10,
+            40,
+            264,
+            1433,
+            3798,
+            1771,
+            713
+          ],
+          "score": 8.12,
+          "total": 8043
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/53/29/175596_Dp6j4.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/53/29/175596_Dp6j4.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/53/29/175596_Dp6j4.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/53/29/175596_Dp6j4.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/53/29/175596_Dp6j4.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 10,
+            "en": "Series Composition",
+            "cn": "系列构成",
+            "jp": "シナリオディレクター  構成  シリーズ構成  脚本構成"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 148037,
+        "name": "傷物語〈Ⅲ 冷血篇〉",
+        "nameCN": "伤物语〈Ⅲ 冷血篇〉",
+        "type": 2,
+        "info": "1话 / 2017年1月6日 / 尾石達也 / 西尾維新「傷物語」（講談社BOX） / 渡辺明夫、守岡英行",
+        "metaTags": [
+          "剧场版",
+          "日本",
+          "奇幻",
+          "战斗",
+          "小说改"
+        ],
+        "rating": {
+          "rank": 114,
+          "count": [
+            5,
+            3,
+            3,
+            16,
+            42,
+            238,
+            1292,
+            4517,
+            2406,
+            923
+          ],
+          "score": 8.24,
+          "total": 9445
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/b6/15/148037_RGxYY.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/b6/15/148037_RGxYY.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/b6/15/148037_RGxYY.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/b6/15/148037_RGxYY.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/b6/15/148037_RGxYY.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 10,
+            "en": "Series Composition",
+            "cn": "系列构成",
+            "jp": "シナリオディレクター  構成  シリーズ構成  脚本構成"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 181880,
+        "name": "クビキリサイクル 青色サヴァンと戯言遣い",
+        "nameCN": "斩首循环 蓝色学者与戏言跟班",
+        "type": 2,
+        "info": "8话 / 2016年10月26日 / 八瀬祐樹 / 西尾維新 / 渡辺明夫",
+        "metaTags": [
+          "OVA",
+          "推理",
+          "小说改"
+        ],
+        "rating": {
+          "rank": 3268,
+          "count": [
+            2,
+            7,
+            18,
+            53,
+            136,
+            491,
+            880,
+            443,
+            75,
+            40
+          ],
+          "score": 6.85,
+          "total": 2145
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/b6/79/181880_mnV17.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/b6/79/181880_mnV17.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/b6/79/181880_mnV17.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/b6/79/181880_mnV17.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/b6/79/181880_mnV17.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 74,
+            "en": "Chief Director",
+            "cn": "总导演",
+            "jp": "総監督 / チーフディレクター"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 10,
+            "en": "Series Composition",
+            "cn": "系列构成",
+            "jp": "シナリオディレクター  構成  シリーズ構成  脚本構成"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 147068,
+        "name": "3月のライオン",
+        "nameCN": "3月的狮子",
+        "type": 2,
+        "info": "22话 / 2016年10月8日 / 新房昭之 / 羽海野チカ（白泉社 ヤングアニマル連載） / 杉山延寛",
+        "metaTags": [
+          "TV",
+          "日本",
+          "漫画改",
+          "日常"
+        ],
+        "rating": {
+          "rank": 87,
+          "count": [
+            19,
+            6,
+            10,
+            35,
+            112,
+            354,
+            1386,
+            4415,
+            3425,
+            1432
+          ],
+          "score": 8.31,
+          "total": 11194
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/a7/86/147068_60GJJ.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/a7/86/147068_60GJJ.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/a7/86/147068_60GJJ.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/a7/86/147068_60GJJ.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/a7/86/147068_60GJJ.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 10,
+            "en": "Series Composition",
+            "cn": "系列构成",
+            "jp": "シナリオディレクター  構成  シリーズ構成  脚本構成"
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 4,
+            "en": "Storyboard",
+            "cn": "分镜",
+            "jp": "コンテ  ストーリーボード  画コンテ  絵コンテ"
+          },
+          "summary": "",
+          "appearEps": "NC"
+        },
+        {
+          "type": {
+            "id": 2,
+            "en": "Director/Direction",
+            "cn": "导演",
+            "jp": "監督 シリーズ監督"
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    }
+  ],
+  "total": 144
+}

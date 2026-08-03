@@ -1,0 +1,110 @@
+{
+  "id": 179271,
+  "name": "セイバー",
+  "nameCN": "Saber",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": "Saber"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "",
+          "k": "第二中文名"
+        },
+        {
+          "v": "",
+          "k": "英文名"
+        },
+        {
+          "v": "",
+          "k": "日文名"
+        },
+        {
+          "v": "",
+          "k": "纯假名"
+        },
+        {
+          "v": "",
+          "k": "罗马字"
+        },
+        {
+          "v": "",
+          "k": "昵称"
+        }
+      ]
+    },
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "男"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "BWH",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": []
+    }
+  ],
+  "info": "性别 男",
+  "summary": "特殊作戦群隊員。",
+  "comment": 0,
+  "collects": 0,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/20/e8/179271_crt_zQhW4.jpg?r=1752135380",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/20/e8/179271_crt_zQhW4.jpg?r=1752135380",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/20/e8/179271_crt_zQhW4.jpg?r=1752135380",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/20/e8/179271_crt_zQhW4.jpg?r=1752135380"
+  }
+}

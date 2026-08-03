@@ -1,0 +1,905 @@
+[
+  {
+    "character_id": 77,
+    "name": "スパイク・スピーゲル",
+    "name_cn": "史派克·斯皮格尔",
+    "chunk_text": "本作的主人公。体型消瘦，留着一头类似爆炸头的头发，是Bebop号上的最早成员之一。在赏金猎人的工作中，因为懂得类似李小龙截拳道的武术，常担任战斗前线的罪犯逮捕工作，在驾驶经过改装的红色高速战机「剑鱼II」（ソードフィッシュII）时也表现出了过人的水准，喜欢使用的手枪是经过改造的Jericho941。以李小龙为偶像的斯派克自己也是截拳道的高手。三年前为了离开黑社会组织「红龙」曾经一度游走在生死边缘。现在和杰特一起乘坐着「比博普」号，过着穷困潦倒的日子。对于自己的过去，斯派克不愿意对别人详细提起。虽然已经从黑道引退却仍然过着吊儿郎当的生活。以前的经历使得他总是过分自信，老是做一些火中取栗的事情，屡次身陷险境。。性别 男 / 生日 2044-06-26 / 血型 O型 / 身高 185cm / 体重 70kg",
+    "subject_name": "星际牛仔 天国之扉",
+    "role": 1,
+    "collects": 691,
+    "summary": "本作的主人公。体型消瘦，留着一头类似爆炸头的头发，是Bebop号上的最早成员之一。在赏金猎人的工作中，因为懂得类似李小龙截拳道的武术，常担任战斗前线的罪犯逮捕工作，在驾驶经过改装的红色高速战机「剑鱼II」（ソードフィッシュII）时也表现出了过人的水准，喜欢使用的手枪是经过改造的Jericho941。以李小龙为偶像的斯派克自己也是截拳道的高手。三年前为了离开黑社会组织「红龙」曾经一度游走在生死边缘。现在和杰特一起乘坐着「比博普」号，过着穷困潦倒的日子。对于自己的过去，斯派克不愿意对别人详细提起。虽然已经从黑道引退却仍然过着吊儿郎当的生活。以前的经历使得他总是过分自信，老是做一些火中取栗的事情，屡次身陷险境。",
+    "info": "性别 男 / 生日 2044-06-26 / 血型 O型 / 身高 185cm / 体重 70kg",
+    "casts_raw": [
+      {
+        "subject_id": 860,
+        "subject_name": "星际牛仔 天国之扉",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 18632,
+        "subject_name": "星际牛仔 追忆的夜曲",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 18653,
+        "subject_name": "シューティングスタービバップ―カウボーイビバップ",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 83382,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 216514,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 239948,
+        "subject_name": "cowboy bebop Extra Session",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 253,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 267261,
+        "subject_name": "超级机器人大战T",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 78,
+    "name": "ジェット・ブラック",
+    "name_cn": "杰特·布莱克",
+    "chunk_text": "史派克的搭档，「比博普」号的主人，原来是太阳系刑事警察机构的刑警。爱机是用掘土机改造的「榔头」，爱用的手枪是Walther P99。杰特以前作为ISSP(太阳系刑警警察机构)的警官在木卫三工作，有着「黑狗」的绰号。以一次事故为契机，辞去警察工作，凭借着之前的人际关系，成为了一名星际牛仔。那次事故让杰特失去了左手，虽然以当时的医疗技术可以移植一条有机手臂，不过他却选择了机械手臂，似乎是为了纪念什么。星际飞船「比博普」是他用一艘二手渔船改造成的。兴趣有盆栽、宇宙赛马、读书和料理，「没有肉丝的特制的青椒肉丝」是他的拿手好戏。因为没有女人缘而一直未婚的杰特是一位十足的家庭妇男。\r\n\r\n值得一提的是Cowboy Bebop初期在中国的盗版就曾经把片名翻译为“恶男杰特”。。性别 男 / 生日 2035-12-03 / 血型 A型 / 身高 188cm / 体重 90kg",
+    "subject_name": "星际牛仔 天国之扉",
+    "role": 1,
+    "collects": 134,
+    "summary": "史派克的搭档，「比博普」号的主人，原来是太阳系刑事警察机构的刑警。爱机是用掘土机改造的「榔头」，爱用的手枪是Walther P99。杰特以前作为ISSP(太阳系刑警警察机构)的警官在木卫三工作，有着「黑狗」的绰号。以一次事故为契机，辞去警察工作，凭借着之前的人际关系，成为了一名星际牛仔。那次事故让杰特失去了左手，虽然以当时的医疗技术可以移植一条有机手臂，不过他却选择了机械手臂，似乎是为了纪念什么。星际飞船「比博普」是他用一艘二手渔船改造成的。兴趣有盆栽、宇宙赛马、读书和料理，「没有肉丝的特制的青椒肉丝」是他的拿手好戏。因为没有女人缘而一直未婚的杰特是一位十足的家庭妇男。\r\n\r\n值得一提的是Cowboy Bebop初期在中国的盗版就曾经把片名翻译为“恶男杰特”。",
+    "info": "性别 男 / 生日 2035-12-03 / 血型 A型 / 身高 188cm / 体重 90kg",
+    "casts_raw": [
+      {
+        "subject_id": 860,
+        "subject_name": "星际牛仔 天国之扉",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 18632,
+        "subject_name": "星际牛仔 追忆的夜曲",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 18653,
+        "subject_name": "シューティングスタービバップ―カウボーイビバップ",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 83382,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 239948,
+        "subject_name": "cowboy bebop Extra Session",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 216514,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 253,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 79,
+    "name": "フェイ・ヴァレンタイン",
+    "name_cn": "菲·瓦伦坦",
+    "chunk_text": "曾经被悬赏的赏金猎人，原来是一名以诈骗和偷窃为生的美艳女郎，在一次赌场的犯罪中卷入了Bebop号的成员而入伙。性格上是个嗜财如命、非常开放的女人，可以为了钱不择手段。爱机是拥有2个火力口的「红尾」，爱枪是Glock 30。因为好赌和长达54年的冷冻睡眠的医疗费用使得菲背负着天文数字的债务。也许因为这个原因，菲对金钱的执着是斯派克和杰特无法相比的。在赌博时总是耍老千，和斯派克初次相遇时谎称自己是吉普塞人(流浪者)。事实上，漫长的睡眠使得她失去了之前的一切记忆，连名字也是醒来之后取的。失忆的她脾气非常火爆，然而菲也一直为失忆前的自己深深的烦恼着。菲寻找自我的旅行也正是故事的主线之一。。性别 女 / 生日 1994-08-14 / 血型 B型 / 身高 168cm / 体重 46kg",
+    "subject_name": "星际牛仔 天国之扉",
+    "role": 1,
+    "collects": 696,
+    "summary": "曾经被悬赏的赏金猎人，原来是一名以诈骗和偷窃为生的美艳女郎，在一次赌场的犯罪中卷入了Bebop号的成员而入伙。性格上是个嗜财如命、非常开放的女人，可以为了钱不择手段。爱机是拥有2个火力口的「红尾」，爱枪是Glock 30。因为好赌和长达54年的冷冻睡眠的医疗费用使得菲背负着天文数字的债务。也许因为这个原因，菲对金钱的执着是斯派克和杰特无法相比的。在赌博时总是耍老千，和斯派克初次相遇时谎称自己是吉普塞人(流浪者)。事实上，漫长的睡眠使得她失去了之前的一切记忆，连名字也是醒来之后取的。失忆的她脾气非常火爆，然而菲也一直为失忆前的自己深深的烦恼着。菲寻找自我的旅行也正是故事的主线之一。",
+    "info": "性别 女 / 生日 1994-08-14 / 血型 B型 / 身高 168cm / 体重 46kg",
+    "casts_raw": [
+      {
+        "subject_id": 860,
+        "subject_name": "星际牛仔 天国之扉",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 18632,
+        "subject_name": "星际牛仔 追忆的夜曲",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 18653,
+        "subject_name": "シューティングスタービバップ―カウボーイビバップ",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 83382,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 239948,
+        "subject_name": "cowboy bebop Extra Session",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 216514,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 253,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 80,
+    "name": "エドワード・ウォン・ハウ・ペペル・チブルスキー4世",
+    "name_cn": "艾德",
+    "chunk_text": "拥有男性名字的13岁地球少女，曾经被称作激进爱德华的天才黑客。因为父亲专注于记录陨石的掉落地点的工作，而连她是女孩这个事实都没弄清楚。惯用的电脑「番茄」是她自己制造的。从小就到处流浪，不喜欢待在同一个地方，是个电脑天才，几乎可以侵入任何安全系统，但在日常生活与人际关系上的常识，却有微妙程度的缺乏，言行举止有些微幼儿化。平时性格异常开朗，和资料犬爱因关系很好。虽然年纪小，但是心中也有自己对生活的看法。。性别 女 / 生日 2058-01-01 / 血型 AB型 / 身高 136cm / 体重 36kg",
+    "subject_name": "星际牛仔 天国之扉",
+    "role": 1,
+    "collects": 191,
+    "summary": "拥有男性名字的13岁地球少女，曾经被称作激进爱德华的天才黑客。因为父亲专注于记录陨石的掉落地点的工作，而连她是女孩这个事实都没弄清楚。惯用的电脑「番茄」是她自己制造的。从小就到处流浪，不喜欢待在同一个地方，是个电脑天才，几乎可以侵入任何安全系统，但在日常生活与人际关系上的常识，却有微妙程度的缺乏，言行举止有些微幼儿化。平时性格异常开朗，和资料犬爱因关系很好。虽然年纪小，但是心中也有自己对生活的看法。",
+    "info": "性别 女 / 生日 2058-01-01 / 血型 AB型 / 身高 136cm / 体重 36kg",
+    "casts_raw": [
+      {
+        "subject_id": 860,
+        "subject_name": "星际牛仔 天国之扉",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 18632,
+        "subject_name": "星际牛仔 追忆的夜曲",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 239948,
+        "subject_name": "cowboy bebop Extra Session",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 253,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 81,
+    "name": "アイン",
+    "name_cn": "爱因",
+    "chunk_text": "爱因表面上是一只雄性威尔士矮脚狗，然而实际上是一只被研究机关开发的，在狂热者(怎样的狂热者？)之间以天文价格交易的数据狗。因为本来是某实验机构的试验品（“Ein”在德语里是“一”的意思），而这里Ein的意思就是大科学家爱因斯坦的名字缩写，暗示该犬超级高智商，它比一般的狗拥有高出许多的智商，不但拥有资讯处理能力，也可以理解并在一定程度上与人类交流。但尽管拥有非常出众的智力，但是斯派克他们根本没察觉。其实没人看见的时候它甚至会去玩电脑…。性别 雄 / 生日 2069年 / 体重 9.8kg",
+    "subject_name": "星际牛仔 追忆的夜曲",
+    "role": 1,
+    "collects": 101,
+    "summary": "爱因表面上是一只雄性威尔士矮脚狗，然而实际上是一只被研究机关开发的，在狂热者(怎样的狂热者？)之间以天文价格交易的数据狗。因为本来是某实验机构的试验品（“Ein”在德语里是“一”的意思），而这里Ein的意思就是大科学家爱因斯坦的名字缩写，暗示该犬超级高智商，它比一般的狗拥有高出许多的智商，不但拥有资讯处理能力，也可以理解并在一定程度上与人类交流。但尽管拥有非常出众的智力，但是斯派克他们根本没察觉。其实没人看见的时候它甚至会去玩电脑…",
+    "info": "性别 雄 / 生日 2069年 / 体重 9.8kg",
+    "casts_raw": [
+      {
+        "subject_id": 18632,
+        "subject_name": "星际牛仔 追忆的夜曲",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 83382,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 239948,
+        "subject_name": "cowboy bebop Extra Session",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 216514,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 253,
+        "subject_name": "星际牛仔",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 860,
+        "subject_name": "星际牛仔 天国之扉",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 84,
+    "name": "草薙素子",
+    "name_cn": "草薙素子",
+    "chunk_text": "自卫军出身,军衔三佐.\r\n极其擅长电子战,作战经验丰富,领导能力优秀.\r\n幼年6岁时,遭遇空难,除脑和脊髓部分全身义体化.\r\n外部记忆装置,义体大小调整前所佩带女式手表。性别 女 / 生日 不详 / 身高 168 / 体重 不详 / BWH 不详",
+    "subject_name": "攻壳机动队 STAND ALONE COMPLEX 笑面男",
+    "role": 1,
+    "collects": 822,
+    "summary": "自卫军出身,军衔三佐.\r\n极其擅长电子战,作战经验丰富,领导能力优秀.\r\n幼年6岁时,遭遇空难,除脑和脊髓部分全身义体化.\r\n外部记忆装置,义体大小调整前所佩带女式手表",
+    "info": "性别 女 / 生日 不详 / 身高 168 / 体重 不详 / BWH 不详",
+    "casts_raw": [
+      {
+        "subject_id": 48745,
+        "subject_name": "攻壳机动队 STAND ALONE COMPLEX 笑面男",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 212610,
+        "subject_name": "攻壳机动队 SAC_2045",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 125807,
+        "subject_name": "攻壳机动队ARISE ALTERNATIVE ARCHITECTURE",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 304727,
+        "subject_name": "攻壳机动队 SAC_2045 第二季",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 107543,
+        "subject_name": "攻壳机动队ARISE border:4 Ghost Stands Alone",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 89486,
+        "subject_name": "攻壳机动队ARISE border:3 Ghost Tears",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 80550,
+        "subject_name": "攻壳机动队 SAC",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 77014,
+        "subject_name": "攻壳机动队ARISE border:2 Ghost Whispers",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 61498,
+        "subject_name": "攻壳机动队ARISE border:1 Ghost Pain",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 48746,
+        "subject_name": "攻壳机动队 S.A.C. 2nd GIG 个别的十一人",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 25259,
+        "subject_name": "攻壳机动队",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 25256,
+        "subject_name": "攻壳机动队",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 12885,
+        "subject_name": "攻壳机动队 S.A.C. SSS 3D",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 10291,
+        "subject_name": "攻壳机动队2.0",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 326,
+        "subject_name": "攻壳机动队 S.A.C. 2nd GIG",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 324,
+        "subject_name": "攻壳机动队 STAND ALONE COMPLEX",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 320,
+        "subject_name": "攻壳机动队 S.A.C. Solid State Society",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 237,
+        "subject_name": "攻壳机动队",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 496276,
+        "subject_name": "攻壳机动队 THE GHOST IN THE SHELL",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 148680,
+        "subject_name": "攻壳机动队 GHOST IN THE SHELL",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 302,
+    "name": "碇シンジ",
+    "name_cn": "碇真嗣",
+    "chunk_text": "本故事的主角，14岁，操纵EVA初号机的第三适格者（THIRD CHILDREN）。 \r\n\r\nNERV司令碇源堂的独子。母亲死后，他就住在亲戚家中，和碇源堂分居了十年，突然接到父亲的信而来到第三新东京都市。有着极端内向的性格，极其害怕与陌生人接触，不知如何和别人相处而感到害怕，一直只是照着别人的要求而生活，之后慢慢地敞開了心扉。\r\n\r\n作为驾驶员的他与EVA初号机的同步值最高，在歼灭使徒的各次战役中的表现亦最为突出。但其本人性格内向、处事态度消极、遇事总是用“对不起”来逃避现实成为明日香对其最为反感的原因。。性别 男 / 生日 2001年6月6日 / 血型 A / 身高 157cm",
+    "subject_name": "福音战士新剧场版：序",
+    "role": 1,
+    "collects": 780,
+    "summary": "本故事的主角，14岁，操纵EVA初号机的第三适格者（THIRD CHILDREN）。 \r\n\r\nNERV司令碇源堂的独子。母亲死后，他就住在亲戚家中，和碇源堂分居了十年，突然接到父亲的信而来到第三新东京都市。有着极端内向的性格，极其害怕与陌生人接触，不知如何和别人相处而感到害怕，一直只是照着别人的要求而生活，之后慢慢地敞開了心扉。\r\n\r\n作为驾驶员的他与EVA初号机的同步值最高，在歼灭使徒的各次战役中的表现亦最为突出。但其本人性格内向、处事态度消极、遇事总是用“对不起”来逃避现实成为明日香对其最为反感的原因。",
+    "info": "性别 男 / 生日 2001年6月6日 / 血型 A / 身高 157cm",
+    "casts_raw": [
+      {
+        "subject_id": 772,
+        "subject_name": "福音战士新剧场版：序",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 304340,
+        "subject_name": "福音战士战场",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 237067,
+        "subject_name": "新世纪福音战士 钢铁女友2nd",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 235657,
+        "subject_name": "Q版新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 119898,
+        "subject_name": "新世纪福音战士外传 第二印象",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 37583,
+        "subject_name": "RE-TAKE",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 22505,
+        "subject_name": "福音战士新剧场版：Q",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 13534,
+        "subject_name": "新世纪福音战士 钢铁女友",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6151,
+        "subject_name": "新世纪福音战士 碇真嗣育成计划",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6133,
+        "subject_name": "新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6049,
+        "subject_name": "新世纪福音战士剧场版 Air/真心为你",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6048,
+        "subject_name": "新世纪福音战士剧场版 死与新生",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 3302,
+        "subject_name": "福音战士新剧场版：破",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 2682,
+        "subject_name": "EVA爆笑学园",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 265,
+        "subject_name": "新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 29883,
+        "subject_name": "新・福音战士剧场版：终",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 616383,
+        "subject_name": "《新世纪福音战士》30周年纪念特别放映",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 271927,
+        "subject_name": "超级机器人大战DD",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 103372,
+        "subject_name": "碧蓝幻想",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 227240,
+        "subject_name": "新干线变形机器人",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 303,
+    "name": "綾波レイ",
+    "name_cn": "绫波零",
+    "chunk_text": "有着蓝色短发与红色眼睛的瘦弱少女，EVA驾驶员第一适格者，驾驶零号机。EVA零号机启动实验事故中负重伤，初次登场时包扎有大量绷带。过去经历全部被抹消，资料显示为14岁，行为举止特别。\r\n\r\n出生日期不明，在CD『エヴァンゲリオン THE BIRTHDAY OF Rei AYANAMI』由声优林原惠提议为2001年3月30日。。性别 女 / 生日 3月30日 / 血型 不明",
+    "subject_name": "新世纪福音战士 碇真嗣育成计划",
+    "role": 1,
+    "collects": 1828,
+    "summary": "有着蓝色短发与红色眼睛的瘦弱少女，EVA驾驶员第一适格者，驾驶零号机。EVA零号机启动实验事故中负重伤，初次登场时包扎有大量绷带。过去经历全部被抹消，资料显示为14岁，行为举止特别。\r\n\r\n出生日期不明，在CD『エヴァンゲリオン THE BIRTHDAY OF Rei AYANAMI』由声优林原惠提议为2001年3月30日。",
+    "info": "性别 女 / 生日 3月30日 / 血型 不明",
+    "casts_raw": [
+      {
+        "subject_id": 6151,
+        "subject_name": "新世纪福音战士 碇真嗣育成计划",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 235657,
+        "subject_name": "Q版新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 237067,
+        "subject_name": "新世纪福音战士 钢铁女友2nd",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 178242,
+        "subject_name": "新世纪福音战士二",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 119898,
+        "subject_name": "新世纪福音战士外传 第二印象",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 34218,
+        "subject_name": "NEON GENESIS EVANGELION ADDITION",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 304340,
+        "subject_name": "福音战士战场",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 318769,
+        "subject_name": "绫波丽，第一次的口红出镜",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 10573,
+        "subject_name": "林原惠 -《新世纪福音战士: 绫波丽的生日》",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6133,
+        "subject_name": "新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6049,
+        "subject_name": "新世纪福音战士剧场版 Air/真心为你",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6048,
+        "subject_name": "新世纪福音战士剧场版 死与新生",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 3302,
+        "subject_name": "福音战士新剧场版：破",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 2682,
+        "subject_name": "EVA爆笑学园",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 910,
+        "subject_name": "新世纪福音战士原声音乐 十周年纪念CD [DECADE]",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 772,
+        "subject_name": "福音战士新剧场版：序",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 363,
+        "subject_name": "新世纪福音战士 绫波育成计划",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 265,
+        "subject_name": "新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 37583,
+        "subject_name": "RE-TAKE",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 13534,
+        "subject_name": "新世纪福音战士 钢铁女友",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 304,
+    "name": "惣流・アスカ・ラングレー",
+    "name_cn": "惣流·明日香·兰格雷",
+    "chunk_text": "简称为明日香，作为第二适格者驾驶EVA贰号机。角色名［明日香］来源于和田慎二的漫画的主角，姓氏［惣流］和［兰格雷 (Langley)］分别来自于第二次世界大战时的日本航空母舰苍龙号（日语同音Sōryū）和美国航空母舰兰利号（Langley）。\r\n   \r\n明日香出生于德国12月4日，14岁，四分之一日本血统和四分之三德国血统的混血儿，美国国籍。设定为金发，实际情况多有变化。相貌端庄秀丽，活泼开朗，好胜，自尊心强，自傲于驾驶EVA的能力，经常把头部界面装置当作发箍配戴。自称「あたし」，称呼他人通常为「あんた」，部分「あなた」。口头禅是「あんたバカぁ?」（你白痴啊？）。\r\n\r\n明日香4岁时即被选为EVA驾驶员第二适格者，接受精英教育，14岁时大学毕业，在监护人加持良治的陪同下，与EVA贰号机前往第3新东京市NERV本部，2015年9月21日，转学至第3新东京市立第一中学2年A组。与贰号机交流语言为德语，日语亦十分流利。。性别 女 / 生日 2001年12月4日 / 血型 A型 / 身高 157cm",
+    "subject_name": "新世纪福音战士原声音乐 十周年纪念CD [DECADE]",
+    "role": 1,
+    "collects": 2507,
+    "summary": "简称为明日香，作为第二适格者驾驶EVA贰号机。角色名［明日香］来源于和田慎二的漫画的主角，姓氏［惣流］和［兰格雷 (Langley)］分别来自于第二次世界大战时的日本航空母舰苍龙号（日语同音Sōryū）和美国航空母舰兰利号（Langley）。\r\n   \r\n明日香出生于德国12月4日，14岁，四分之一日本血统和四分之三德国血统的混血儿，美国国籍。设定为金发，实际情况多有变化。相貌端庄秀丽，活泼开朗，好胜，自尊心强，自傲于驾驶EVA的能力，经常把头部界面装置当作发箍配戴。自称「あたし」，称呼他人通常为「あんた」，部分「あなた」。口头禅是「あんたバカぁ?」（你白痴啊？）。\r\n\r\n明日香4岁时即被选为EVA驾驶员第二适格者，接受精英教育，14岁时大学毕业，在监护人加持良治的陪同下，与EVA贰号机前往第3新东京市NERV本部，2015年9月21日，转学至第3新东京市立第一中学2年A组。与贰号机交流语言为德语，日语亦十分流利。",
+    "info": "性别 女 / 生日 2001年12月4日 / 血型 A型 / 身高 157cm",
+    "casts_raw": [
+      {
+        "subject_id": 910,
+        "subject_name": "新世纪福音战士原声音乐 十周年纪念CD [DECADE]",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 2682,
+        "subject_name": "EVA爆笑学园",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6048,
+        "subject_name": "新世纪福音战士剧场版 死与新生",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6049,
+        "subject_name": "新世纪福音战士剧场版 Air/真心为你",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6133,
+        "subject_name": "新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 6151,
+        "subject_name": "新世纪福音战士 碇真嗣育成计划",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 13534,
+        "subject_name": "新世纪福音战士 钢铁女友",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 34218,
+        "subject_name": "NEON GENESIS EVANGELION ADDITION",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 37583,
+        "subject_name": "RE-TAKE",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 119898,
+        "subject_name": "新世纪福音战士外传 第二印象",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 235657,
+        "subject_name": "Q版新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 237067,
+        "subject_name": "新世纪福音战士 钢铁女友2nd",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 616383,
+        "subject_name": "《新世纪福音战士》30周年纪念特别放映",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 265,
+        "subject_name": "新世纪福音战士",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 227240,
+        "subject_name": "新干线变形机器人",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  },
+  {
+    "character_id": 1714,
+    "name": "惣一郎（犬）",
+    "name_cn": "惣一郎",
+    "chunk_text": "最初是一隻流浪狗，因為響子的丈夫在街上拿著食物而一直跟著他回家。後來響子的丈夫 -- 惣一郎，決定收養牠並取名為小白。可惜叫牠惣一郎牠才會回應，之後便改名為惣一郎。響子的丈夫死後，響子便帶牠到一刻館居住。 \r\n性格 : 饞嘴、友善 \r\n嗜好 : 吃。性别 男",
+    "subject_name": "相聚一刻 完结篇",
+    "role": 1,
+    "collects": 3,
+    "summary": "最初是一隻流浪狗，因為響子的丈夫在街上拿著食物而一直跟著他回家。後來響子的丈夫 -- 惣一郎，決定收養牠並取名為小白。可惜叫牠惣一郎牠才會回應，之後便改名為惣一郎。響子的丈夫死後，響子便帶牠到一刻館居住。 \r\n性格 : 饞嘴、友善 \r\n嗜好 : 吃",
+    "info": "性别 男",
+    "casts_raw": [
+      {
+        "subject_id": 530,
+        "subject_name": "相聚一刻 完结篇",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      },
+      {
+        "subject_id": 2921,
+        "subject_name": "相聚一刻",
+        "person_id": null,
+        "person_name": null,
+        "type": 1
+      }
+    ],
+    "nsfw": false
+  }
+]

@@ -1,0 +1,48 @@
+{
+  "data": [
+    {
+      "subject": {
+        "id": 253,
+        "name": "カウボーイビバップ",
+        "nameCN": "星际牛仔",
+        "type": 2,
+        "info": "26话 / 1998年10月23日 / 渡辺信一郎 / 矢立肇 / 川元利浩",
+        "metaTags": [
+          "科幻",
+          "TV",
+          "日本",
+          "原创"
+        ],
+        "rating": {
+          "rank": 4,
+          "count": [
+            62,
+            13,
+            15,
+            29,
+            110,
+            299,
+            943,
+            2919,
+            6264,
+            8774
+          ],
+          "score": 9.09,
+          "total": 19428
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/c2/4c/253_jJJj9.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/c2/4c/253_jJJj9.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/c2/4c/253_jJJj9.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/c2/4c/253_jJJj9.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/c2/4c/253_jJJj9.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    }
+  ],
+  "total": 1
+}

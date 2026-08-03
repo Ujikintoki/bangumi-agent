@@ -1,0 +1,113 @@
+{
+  "data": [
+    {
+      "subject": {
+        "id": 530,
+        "name": "めぞん一刻 完結篇",
+        "nameCN": "相聚一刻 完结篇",
+        "type": 2,
+        "info": "1话 / 1988年2月6日 / 望月智充 / 高橋留美子",
+        "metaTags": [
+          "剧场版",
+          "漫画改"
+        ],
+        "rating": {
+          "rank": 3288,
+          "count": [
+            1,
+            0,
+            1,
+            3,
+            11,
+            46,
+            56,
+            26,
+            3,
+            7
+          ],
+          "score": 6.78,
+          "total": 154
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/d6/4a/530_HBzSj.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/d6/4a/530_HBzSj.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/d6/4a/530_HBzSj.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/d6/4a/530_HBzSj.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/d6/4a/530_HBzSj.jpg"
+        }
+      },
+      "casts": [],
+      "type": 1
+    },
+    {
+      "subject": {
+        "id": 2921,
+        "name": "めぞん一刻",
+        "nameCN": "相聚一刻",
+        "type": 2,
+        "info": "96话 / 1986年3月26日 / やまざきかずお（第1話 - 第26話）→安濃高志（第27話 - 第52話）→吉永尚之（第53話 - 第96話） / 高橋留美子 / もりやまゆうじ（第1話 - 第26話）→高田明美（第27話 - 第96話）",
+        "metaTags": [
+          "TV",
+          "日本",
+          "漫画改"
+        ],
+        "rating": {
+          "rank": 210,
+          "count": [
+            4,
+            2,
+            3,
+            9,
+            18,
+            33,
+            126,
+            221,
+            186,
+            113
+          ],
+          "score": 8.1,
+          "total": 715
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/17/d8/2921_Po9M8.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/17/d8/2921_Po9M8.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/17/d8/2921_Po9M8.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/17/d8/2921_Po9M8.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/17/d8/2921_Po9M8.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 4110,
+            "name": "千葉繁",
+            "nameCN": "千叶繁",
+            "type": 1,
+            "info": "性别 男 / 生日 1954年2月4日 / 血型 O型 / 身高 166 cm / 体重 50.5 kg",
+            "career": [
+              "producer",
+              "seiyu"
+            ],
+            "comment": 14,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/18/9c/4110_prsn_uhHLF.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/18/9c/4110_prsn_uhHLF.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/18/9c/4110_prsn_uhHLF.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/18/9c/4110_prsn_uhHLF.jpg"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 2
+    }
+  ],
+  "total": 2
+}

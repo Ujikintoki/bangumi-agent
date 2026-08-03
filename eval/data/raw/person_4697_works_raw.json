@@ -1,0 +1,1037 @@
+{
+  "data": [
+    {
+      "subject": {
+        "id": 541436,
+        "name": "逆賊の幕臣",
+        "nameCN": "逆贼的幕臣",
+        "type": 6,
+        "info": "2027年 / 西村武五郎 / 安達奈緒子 / 松坂桃李",
+        "metaTags": [
+          "日本",
+          "电视剧",
+          "历史"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/d0/f6/541436_4R751.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/d0/f6/541436_4R751.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/d0/f6/541436_4R751.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/d0/f6/541436_4R751.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/d0/f6/541436_4R751.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4017,
+            "en": "Supporting Actor",
+            "cn": "配角",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 614233,
+        "name": "We’ll be one！",
+        "nameCN": "",
+        "type": 3,
+        "info": "2026-01-28、2025-12-26 / ウルトラマンゼット(CV：畠中祐) with ボイジャー、Team with U (福沢良一(武村太郎)、真夏竜、ささきいさお、前田達也、つるの剛士、吉岡毅志、田中昌之、Project DMM、ボイジャー、宮野真守、高橋健介、濱田龍臣、寺島拓篤、佐久間貴生、SCREEN mode、ASH、杉浦太陽、高野八誠)",
+        "metaTags": [
+          "CD"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/ad/33/614233_cFS7e.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/ad/33/614233_cFS7e.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/ad/33/614233_cFS7e.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/ad/33/614233_cFS7e.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/ad/33/614233_cFS7e.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 608982,
+        "name": "FACE",
+        "nameCN": "",
+        "type": 3,
+        "info": "2025-11-19 / 宮野真守",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/11/8d/608982_V7PBR.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/11/8d/608982_V7PBR.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/11/8d/608982_V7PBR.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/11/8d/608982_V7PBR.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/11/8d/608982_V7PBR.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3006,
+            "en": "Lyric",
+            "cn": "作词",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": "1,6,10,12"
+        },
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": "1-14"
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 607039,
+        "name": "with U",
+        "nameCN": "",
+        "type": 3,
+        "info": "2025-11-13 / Team with U (福沢良一(武村太郎)、真夏竜、ささきいさお、前田達也、つるの剛士、吉岡毅志、田中昌之、Project DMM、ボイジャー、宮野真守、高橋健介、濱田龍臣、寺島拓篤、佐久間貴生、SCREEN mode、ASH、杉浦太陽、高野八誠)",
+        "metaTags": [
+          "日本",
+          "单曲",
+          "专辑",
+          "Digital"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0
+          ],
+          "score": 7.5,
+          "total": 2
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/4d/fd/607039_AvT6J.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/4d/fd/607039_AvT6J.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/4d/fd/607039_AvT6J.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/4d/fd/607039_AvT6J.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/4d/fd/607039_AvT6J.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 578247,
+        "name": "【ツブコン2025】ULTRAMAN MUSIC LIVE ～ウルトラマン魂2025～",
+        "nameCN": "【圆谷祭2025】奥特音乐会～奥特曼魂2025～",
+        "type": 6,
+        "info": "1话 / 2025-09-14 / 福沢良一(武村太郎)、真夏竜、ささきいさお、前田達也、つるの剛士、吉岡毅志、田中昌之、Project DMM(松原剛志、KATSUMI)、ボイジャー、宮野真守、高橋健介、濱田龍臣、寺島拓篤、佐久間貴生、SCREEN mode、ASH",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            2
+          ],
+          "score": 9.25,
+          "total": 4
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/f3/b0/578247_SnNt6.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/f3/b0/578247_SnNt6.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/f3/b0/578247_SnNt6.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/f3/b0/578247_SnNt6.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/f3/b0/578247_SnNt6.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4016,
+            "en": "Actor",
+            "cn": "主演",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 581235,
+        "name": "【ツブコン2025】ウルトラマンゼロ15th～Beyond the STARS～グランドフィナーレ",
+        "nameCN": "【圆谷祭2025】赛罗奥特曼15周年～超越星辰～最终盛典",
+        "type": 6,
+        "info": "1话 / 2025年9月14日 / 宮野真守、濱田龍臣、小野友樹、畠中祐、関智一",
+        "metaTags": [
+          "日本",
+          "演出",
+          "特摄"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            1
+          ],
+          "score": 9,
+          "total": 2
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/e9/ac/581235_6B0y1.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/e9/ac/581235_6B0y1.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/e9/ac/581235_6B0y1.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/e9/ac/581235_6B0y1.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/e9/ac/581235_6B0y1.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4016,
+            "en": "Actor",
+            "cn": "主演",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 578109,
+        "name": "デスキスゲーム いいキスしないと死んじゃうドラマ",
+        "nameCN": "接吻生死战",
+        "type": 6,
+        "info": "6话 / 2025-09-09 / 住田崇 / 伊达先生 / 剧团一人 / 森田哲矢 / 渡边隆 / 野田水晶 / 岛佐和也 / ぐんぴぃ / 矢作兼 / 山里亮太 / 池田美优 / 宮野真守 / 竹财辉之助 / 桥本润 / 结木滉星 / 野间口彻 / 八岛智人 / 寺岛进 / 西冈德马 / 八木奈奈 / 橘玛丽 / 金松季步 / 塔乃花铃 / 葵伊吹 / 纱仓真菜 / 月乃露娜 / MINAMO",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 6,
+          "total": 1
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/b0/09/578109_3Z987.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/b0/09/578109_3Z987.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/b0/09/578109_3Z987.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/b0/09/578109_3Z987.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/b0/09/578109_3Z987.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4016,
+            "en": "Actor",
+            "cn": "主演",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 564090,
+        "name": "Animelo Summer Live 2025 “ThanXX!”",
+        "nameCN": "",
+        "type": 6,
+        "info": "3话 / 2025-08-29 / i☆Ris、藍井エイル、オーイシマサヨシ（大石昌良）、奥井雅美、小倉唯、KOTOKO、TRUE（唐沢美帆）、西川貴教、氷川きよし＋KIINA.、fripSide、MyGO!!!!!、三森すずこ、May'n、ReoNa、Roselia、MOTSU／アイドルマスター ミリオンライブ！ ミリオンスターズ（MILLIONSTARS）、Ave Mujica、angela、Guilty Kiss、Saint Snow、GRANRODEO、ZAQ、JAM Project、スフィア、TrySail、FLOW、宮野真守、ミルキィホームズ（Milky Holmes）、フェザーズ（Milky Holmes Feathers）、森口博子、Lia、影山ヒロノブ／アイドルマスター SideM（315 STARS）、蒼井翔太、ALI PROJECT、石田燿子、内田真礼、栗林みな実、鈴木このみ、SPYAIR、茅原実里、fhána、Poppin'Party、水樹奈々、米倉千尋、LiSA、奥井雅美",
+        "metaTags": [
+          "演出"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            3,
+            0,
+            2
+          ],
+          "score": 8.5,
+          "total": 6
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/9f/2a/564090_fOaL5.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/9f/2a/564090_fOaL5.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/9f/2a/564090_fOaL5.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/9f/2a/564090_fOaL5.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/9f/2a/564090_fOaL5.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4016,
+            "en": "Actor",
+            "cn": "主演",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 537444,
+        "name": "TVアニメ｢キン肉マン 完璧超人始祖編｣ ORIGINAL SOUNDTRACK 2",
+        "nameCN": "",
+        "type": 3,
+        "info": "2025-05-28 / 遠藤正明、キン肉マン(CV:宮野真守)",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/f7/68/537444_LlyBx.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/f7/68/537444_LlyBx.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/f7/68/537444_LlyBx.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/f7/68/537444_LlyBx.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/f7/68/537444_LlyBx.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": "1.31"
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 525437,
+        "name": "パリピ孔明 THE MOVIE",
+        "nameCN": "派对浪客诸葛孔明 THE MOVIE",
+        "type": 6,
+        "info": "1话 / 2025年4月25日 / 渋江修平 / 根本ノンジ / 向井理",
+        "metaTags": [
+          "日本",
+          "喜剧",
+          "音乐",
+          "电影",
+          "歌舞",
+          "剧情",
+          "漫画改"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            1,
+            1,
+            0,
+            0,
+            1,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          "score": 3.75,
+          "total": 4
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/9c/ed/525437_E7r2r.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/9c/ed/525437_E7r2r.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/9c/ed/525437_E7r2r.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/9c/ed/525437_E7r2r.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/9c/ed/525437_E7r2r.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4017,
+            "en": "Supporting Actor",
+            "cn": "配角",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 531947,
+        "name": "全修。 サウンドコレクションCD",
+        "nameCN": "",
+        "type": 3,
+        "info": "2025-03-26 / 超実在イグジスト(CV:宮野真守)、メメルン(CV:鈴木みのり)、ヴォイド教信徒たち",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            3,
+            1,
+            1,
+            1,
+            0
+          ],
+          "score": 7,
+          "total": 6
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/69/28/531947_AeOAE.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/69/28/531947_AeOAE.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/69/28/531947_AeOAE.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/69/28/531947_AeOAE.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/69/28/531947_AeOAE.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": "23"
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 554972,
+        "name": "ゼロの覚醒",
+        "nameCN": "",
+        "type": 3,
+        "info": "2025-03-19 / ウルトラマンゼロ（CV:宮野真守） with ボイジャー",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/31/cf/554972_6KsRs.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/31/cf/554972_6KsRs.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/31/cf/554972_6KsRs.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/31/cf/554972_6KsRs.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/31/cf/554972_6KsRs.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 560980,
+        "name": "ULTRAMAN MUSIC LIVE ウルトラマンゼロ15周年～Beyond the STARS～",
+        "nameCN": "",
+        "type": 6,
+        "info": "1话 / 2025年3月11日 / 高見沢俊彦、宮野真守、つるの剛士、DAIGO、ボイジャー",
+        "metaTags": [
+          "日本",
+          "演出"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/8a/ac/560980_ZllL8.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/8a/ac/560980_ZllL8.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/8a/ac/560980_ZllL8.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/8a/ac/560980_ZllL8.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/8a/ac/560980_ZllL8.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4016,
+            "en": "Actor",
+            "cn": "主演",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 528454,
+        "name": "キン肉マン英雄(ヒーロー)/29(にく)",
+        "nameCN": "",
+        "type": 3,
+        "info": "2025-02-05 / 遠藤正明、キン肉マン(CV:宮野真守)",
+        "metaTags": [
+          "ED",
+          "OP",
+          "动画",
+          "日本"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/06/95/528454_86B0L.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/06/95/528454_86B0L.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/06/95/528454_86B0L.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/06/95/528454_86B0L.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/06/95/528454_86B0L.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 619163,
+        "name": "ULTRAMAN ZERO",
+        "nameCN": "",
+        "type": 3,
+        "info": "2025-01-29 / 宮野真守、MISIA、ボイジャー、GIRL NEXT DOOR、川井憲次、高見沢俊彦、DAIGO、つるの剛士、水木一郎",
+        "metaTags": [
+          "日本",
+          "专辑"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/d2/4e/619163_H3Ch9.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/d2/4e/619163_H3Ch9.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/d2/4e/619163_H3Ch9.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/d2/4e/619163_H3Ch9.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/d2/4e/619163_H3Ch9.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 535511,
+        "name": "僕は、超実在イグジストさ",
+        "nameCN": "",
+        "type": 3,
+        "info": "2025-01-27 / 超実在イグジスト＆メメルン(CV:宮野真守＆鈴木みのり) / 佐藤宏次",
+        "metaTags": [
+          "日本",
+          "专辑"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            4,
+            2,
+            4,
+            2,
+            0,
+            0
+          ],
+          "score": 6.33,
+          "total": 12
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/6b/3a/535511_co2o9.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/6b/3a/535511_co2o9.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/6b/3a/535511_co2o9.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/6b/3a/535511_co2o9.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/6b/3a/535511_co2o9.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 525662,
+        "name": "ウルトラマン ニュージェネレーション スターズ",
+        "nameCN": "奥特曼新生代群星 第三部",
+        "type": 6,
+        "info": "22话 / 2025-01-25 / 足木淳一郎（構成、脚本）",
+        "metaTags": [
+          "日本",
+          "电视剧",
+          "特摄"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          "score": 6,
+          "total": 3
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/ed/60/525662_w8WQ6.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/ed/60/525662_w8WQ6.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/ed/60/525662_w8WQ6.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/ed/60/525662_w8WQ6.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/ed/60/525662_w8WQ6.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 4015,
+            "en": "Theme Song Performance",
+            "cn": "主题歌演出",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 514744,
+        "name": "キン肉マン 完璧超人始祖編 Season 2",
+        "nameCN": "金肉人 完美超人始祖篇 第二季",
+        "type": 2,
+        "info": "11话 / 2025年1月12日 / さとう陽 / ゆでたまご（集英社「週刊プレイボーイ」「週プレNEWS」連載中） / 丸藤広貴",
+        "metaTags": [
+          "TV",
+          "日本",
+          "漫画改"
+        ],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            2,
+            1,
+            4,
+            15,
+            19,
+            5,
+            0,
+            1,
+            2
+          ],
+          "score": 5.63,
+          "total": 49
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/bc/16/514744_1F93V.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/bc/16/514744_1F93V.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/bc/16/514744_1F93V.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/bc/16/514744_1F93V.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/bc/16/514744_1F93V.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 33,
+            "en": "Theme Song Performance",
+            "cn": "主题歌演出",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 486039,
+        "name": "全修。",
+        "nameCN": "全修。",
+        "type": 2,
+        "info": "12话 / 2025年1月5日 / 山﨑みつえ / 山﨑みつえ、うえのきみこ、MAPPA / 石川佳代子",
+        "metaTags": [
+          "TV",
+          "日本",
+          "原创",
+          "穿越"
+        ],
+        "rating": {
+          "rank": 4115,
+          "count": [
+            11,
+            27,
+            41,
+            172,
+            498,
+            1512,
+            2542,
+            1001,
+            163,
+            73
+          ],
+          "score": 6.69,
+          "total": 6040
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/40/cc/486039_8O5kv.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/40/cc/486039_8O5kv.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/40/cc/486039_8O5kv.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/40/cc/486039_8O5kv.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/40/cc/486039_8O5kv.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 34,
+            "en": "Inserted Song Performance",
+            "cn": "插入歌演出",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    },
+    {
+      "subject": {
+        "id": 526314,
+        "name": "DRESSING",
+        "nameCN": "",
+        "type": 3,
+        "info": "2024-12-11 / 宮野真守",
+        "metaTags": [],
+        "rating": {
+          "rank": 0,
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "score": 0,
+          "total": 0
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/19/9a/526314_9S30s.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/19/9a/526314_9S30s.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/19/9a/526314_9S30s.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/19/9a/526314_9S30s.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/19/9a/526314_9S30s.jpg"
+        }
+      },
+      "positions": [
+        {
+          "type": {
+            "id": 3001,
+            "en": "Artist",
+            "cn": "艺术家",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        },
+        {
+          "type": {
+            "id": 3006,
+            "en": "Lyric",
+            "cn": "作词",
+            "jp": ""
+          },
+          "summary": "",
+          "appearEps": ""
+        }
+      ]
+    }
+  ],
+  "total": 350
+}

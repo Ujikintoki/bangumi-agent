@@ -1,0 +1,318 @@
+{
+  "airtime": {
+    "date": "2026-07-06",
+    "month": 7,
+    "weekday": 1,
+    "year": 2026
+  },
+  "collection": {
+    "1": 25,
+    "2": 2,
+    "3": 43,
+    "4": 4,
+    "5": 8
+  },
+  "eps": 0,
+  "id": 637339,
+  "infobox": [
+    {
+      "key": "中文名",
+      "values": [
+        {
+          "v": "北斗神拳 拳王军杂兵们的挽歌 第二季"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "Hokuto no Ken ~Kenougun Zako-tachi no Banka~"
+        },
+        {
+          "v": "Elegy for the Henchmen Fist of the North Star"
+        }
+      ]
+    },
+    {
+      "key": "话数",
+      "values": [
+        {
+          "v": "*"
+        }
+      ]
+    },
+    {
+      "key": "放送开始",
+      "values": [
+        {
+          "v": "2026年7月6日"
+        }
+      ]
+    },
+    {
+      "key": "放送星期",
+      "values": [
+        {
+          "v": "星期一"
+        }
+      ]
+    },
+    {
+      "key": "官方网站",
+      "values": [
+        {
+          "v": "https://zakoban.com/"
+        }
+      ]
+    },
+    {
+      "key": "在线播放平台",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "播放电视台",
+      "values": [
+        {
+          "v": "AT-X"
+        }
+      ]
+    },
+    {
+      "key": "其他电视台",
+      "values": [
+        {
+          "v": "TOKYO MX"
+        }
+      ]
+    },
+    {
+      "key": "播放结束",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "导演",
+      "values": [
+        {
+          "v": "三浦大輔（アニメーションディレクター）"
+        }
+      ]
+    },
+    {
+      "key": "音乐",
+      "values": [
+        {
+          "v": "三浦誠司"
+        }
+      ]
+    },
+    {
+      "key": "链接",
+      "values": []
+    },
+    {
+      "key": "其他",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "Copyright",
+      "values": [
+        {
+          "v": "©武論尊・原哲夫／コアミックス 1983, ©ザコたちの挽歌製作委員会"
+        }
+      ]
+    },
+    {
+      "key": "原作",
+      "values": [
+        {
+          "v": "原案：武論尊・原哲夫；作画：倉尾宏（ゼノンコミックス／コアミックス）"
+        }
+      ]
+    },
+    {
+      "key": "美术监督",
+      "values": [
+        {
+          "v": "岩井未来"
+        }
+      ]
+    },
+    {
+      "key": "色彩设计",
+      "values": [
+        {
+          "v": "岩井未来"
+        }
+      ]
+    },
+    {
+      "key": "演出",
+      "values": [
+        {
+          "v": "長谷卓磨、齋藤佑馬"
+        }
+      ]
+    },
+    {
+      "key": "剪辑",
+      "values": [
+        {
+          "v": "長谷卓磨、齋藤佑馬"
+        }
+      ]
+    },
+    {
+      "key": "动画制作",
+      "values": [
+        {
+          "v": "動楽"
+        }
+      ]
+    }
+  ],
+  "info": "2026年7月6日 / 三浦大輔（アニメーションディレクター） / 原案：武論尊・原哲夫；作画：倉尾宏（ゼノンコミックス／コアミックス）",
+  "metaTags": [
+    "TV",
+    "日本",
+    "漫画改",
+    "战斗"
+  ],
+  "locked": false,
+  "name": "北斗の拳 拳王軍ザコたちの挽歌 第2クール",
+  "nameCN": "北斗神拳 拳王军杂兵们的挽歌 第二季",
+  "nsfw": false,
+  "platform": {
+    "id": 1,
+    "type": "TV",
+    "typeCN": "TV",
+    "alias": "tv",
+    "order": 0,
+    "enableHeader": true,
+    "wikiTpl": "TVAnime"
+  },
+  "rating": {
+    "rank": 0,
+    "count": [
+      1,
+      0,
+      0,
+      0,
+      2,
+      2,
+      0,
+      0,
+      1,
+      1
+    ],
+    "score": 6,
+    "total": 7
+  },
+  "redirect": 0,
+  "series": false,
+  "seriesEntry": 0,
+  "summary": "199X年。主人公ノブが見つけた就職先は拳王軍で、志望者よりも死亡者が多い危険すぎる職場で、働くことになる。ババアに変装したザコやカサンドラのウイグル獄長、聖帝軍の“汚物は消毒の人”など個性豊かなザコが登場する。",
+  "type": 2,
+  "volumes": 0,
+  "tags": [
+    {
+      "name": "2026",
+      "count": 6
+    },
+    {
+      "name": "2026年7月",
+      "count": 6
+    },
+    {
+      "name": "漫画改",
+      "count": 4
+    },
+    {
+      "name": "動楽",
+      "count": 3
+    },
+    {
+      "name": "TV",
+      "count": 3
+    },
+    {
+      "name": "动态漫",
+      "count": 3
+    },
+    {
+      "name": "泡面番",
+      "count": 3
+    },
+    {
+      "name": "三浦大輔",
+      "count": 2
+    },
+    {
+      "name": "战斗",
+      "count": 2
+    },
+    {
+      "name": "北斗神拳",
+      "count": 1
+    },
+    {
+      "name": "下野紘",
+      "count": 1
+    },
+    {
+      "name": "WEB",
+      "count": 1
+    },
+    {
+      "name": "日本动画",
+      "count": 1
+    },
+    {
+      "name": "外传",
+      "count": 1
+    },
+    {
+      "name": "漫改",
+      "count": 1
+    },
+    {
+      "name": "搞笑",
+      "count": 1
+    },
+    {
+      "name": "長谷卓磨",
+      "count": 1
+    },
+    {
+      "name": "日本",
+      "count": 1
+    },
+    {
+      "name": "齋藤佑馬",
+      "count": 1
+    },
+    {
+      "name": "Doraku",
+      "count": 1
+    }
+  ],
+  "images": {
+    "large": "https://lain.bgm.tv/pic/cover/l/d0/a9/637339_93zPo.jpg",
+    "common": "https://lain.bgm.tv/r/400/pic/cover/l/d0/a9/637339_93zPo.jpg",
+    "medium": "https://lain.bgm.tv/r/200/pic/cover/l/d0/a9/637339_93zPo.jpg",
+    "small": "https://lain.bgm.tv/r/100/pic/cover/l/d0/a9/637339_93zPo.jpg",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/d0/a9/637339_93zPo.jpg"
+  }
+}

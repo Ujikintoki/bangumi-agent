@@ -1,0 +1,189 @@
+{
+  "airtime": {
+    "date": "2026-07-20",
+    "month": 7,
+    "weekday": 1,
+    "year": 2026
+  },
+  "collection": {
+    "1": 1,
+    "2": 1,
+    "3": 0,
+    "4": 0,
+    "5": 3
+  },
+  "eps": 0,
+  "id": 663444,
+  "infobox": [
+    {
+      "key": "中文名",
+      "values": [
+        {
+          "v": "一家之主 第15季"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": []
+    },
+    {
+      "key": "话数",
+      "values": [
+        {
+          "v": "*"
+        }
+      ]
+    },
+    {
+      "key": "放送开始",
+      "values": [
+        {
+          "v": "2026年7月20日"
+        }
+      ]
+    },
+    {
+      "key": "放送星期",
+      "values": [
+        {
+          "v": "星期一"
+        }
+      ]
+    },
+    {
+      "key": "官方网站",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "在线播放平台",
+      "values": [
+        {
+          "v": "hulu"
+        }
+      ]
+    },
+    {
+      "key": "播放电视台",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "其他电视台",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "播放结束",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "导演",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "音乐",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "链接",
+      "values": []
+    },
+    {
+      "key": "其他",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "Copyright",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    }
+  ],
+  "info": "2026年7月20日",
+  "metaTags": [
+    "美国",
+    "WEB"
+  ],
+  "locked": false,
+  "name": "King of the Hill Season 15",
+  "nameCN": "一家之主 第15季",
+  "nsfw": false,
+  "platform": {
+    "id": 5,
+    "type": "web",
+    "typeCN": "WEB",
+    "alias": "web",
+    "order": 1,
+    "enableHeader": true,
+    "wikiTpl": "TVAnime"
+  },
+  "rating": {
+    "rank": 0,
+    "count": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "score": 6,
+    "total": 1
+  },
+  "redirect": 0,
+  "series": false,
+  "seriesEntry": 0,
+  "summary": "",
+  "type": 2,
+  "volumes": 0,
+  "tags": [
+    {
+      "name": "WEB",
+      "count": 1
+    },
+    {
+      "name": "美国",
+      "count": 1
+    }
+  ],
+  "images": {
+    "large": "https://lain.bgm.tv/pic/cover/l/1e/f8/663444_i2im9.jpg",
+    "common": "https://lain.bgm.tv/r/400/pic/cover/l/1e/f8/663444_i2im9.jpg",
+    "medium": "https://lain.bgm.tv/r/200/pic/cover/l/1e/f8/663444_i2im9.jpg",
+    "small": "https://lain.bgm.tv/r/100/pic/cover/l/1e/f8/663444_i2im9.jpg",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/1e/f8/663444_i2im9.jpg"
+  }
+}

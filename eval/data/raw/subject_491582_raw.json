@@ -1,0 +1,229 @@
+{
+  "airtime": {
+    "date": "2026-07-20",
+    "month": 7,
+    "weekday": 1,
+    "year": 2026
+  },
+  "collection": {
+    "1": 7,
+    "2": 2,
+    "3": 1,
+    "4": 0,
+    "5": 4
+  },
+  "eps": 15,
+  "id": 491582,
+  "infobox": [
+    {
+      "key": "中文名",
+      "values": [
+        {
+          "v": "天子传奇：姬发篇"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": []
+    },
+    {
+      "key": "话数",
+      "values": [
+        {
+          "v": "15"
+        }
+      ]
+    },
+    {
+      "key": "放送开始",
+      "values": [
+        {
+          "v": "2026年7月20日"
+        }
+      ]
+    },
+    {
+      "key": "放送星期",
+      "values": [
+        {
+          "v": "星期一"
+        }
+      ]
+    },
+    {
+      "key": "官方网站",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "在线播放平台",
+      "values": [
+        {
+          "v": "爱奇艺"
+        }
+      ]
+    },
+    {
+      "key": "播放电视台",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "其他电视台",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "播放结束",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "导演",
+      "values": [
+        {
+          "v": "肖希"
+        }
+      ]
+    },
+    {
+      "key": "音乐",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "链接",
+      "values": []
+    },
+    {
+      "key": "其他",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "Copyright",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "动画制作",
+      "values": [
+        {
+          "v": "中影年年、黑潮映画、橙煌映画"
+        }
+      ]
+    },
+    {
+      "key": "配音监督",
+      "values": [
+        {
+          "v": "藤新"
+        }
+      ]
+    }
+  ],
+  "info": "15话 / 2026年7月20日 / 肖希",
+  "metaTags": [
+    "中国",
+    "WEB"
+  ],
+  "locked": false,
+  "name": "天子传奇：姬发篇",
+  "nameCN": "天子传奇：姬发篇",
+  "nsfw": false,
+  "platform": {
+    "id": 5,
+    "type": "web",
+    "typeCN": "WEB",
+    "alias": "web",
+    "order": 1,
+    "enableHeader": true,
+    "wikiTpl": "TVAnime"
+  },
+  "rating": {
+    "rank": 0,
+    "count": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "score": 6,
+    "total": 2
+  },
+  "redirect": 0,
+  "series": false,
+  "seriesEntry": 0,
+  "summary": "殷商末年，纣王暴虐。西伯侯次子姬发降生，命犯“九九至尊”，遭纣王忌惮，派妖帅率暗影卫追杀。九鼎大战中，姬发目睹母亲惨死，自己亦重伤濒死，幸得师父一忧子救治并传授绝学。姬发为复仇下山，却发现追杀自己的仇人背后，隐藏着一个关乎天下命运的惊天秘密。正邪交织，姬发必须直面自己的宿命，孤身前往朝歌。",
+  "type": 2,
+  "volumes": 0,
+  "tags": [
+    {
+      "name": "中国",
+      "count": 2
+    },
+    {
+      "name": "绘火工作室",
+      "count": 1
+    },
+    {
+      "name": "动画",
+      "count": 1
+    },
+    {
+      "name": "橙煌映画",
+      "count": 1
+    },
+    {
+      "name": "2025年7月",
+      "count": 1
+    },
+    {
+      "name": "WEB",
+      "count": 1
+    },
+    {
+      "name": "中影年年",
+      "count": 1
+    },
+    {
+      "name": "奇门动力",
+      "count": 1
+    }
+  ],
+  "images": {
+    "large": "https://lain.bgm.tv/pic/cover/l/26/04/491582_d967P.jpg",
+    "common": "https://lain.bgm.tv/r/400/pic/cover/l/26/04/491582_d967P.jpg",
+    "medium": "https://lain.bgm.tv/r/200/pic/cover/l/26/04/491582_d967P.jpg",
+    "small": "https://lain.bgm.tv/r/100/pic/cover/l/26/04/491582_d967P.jpg",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/26/04/491582_d967P.jpg"
+  }
+}

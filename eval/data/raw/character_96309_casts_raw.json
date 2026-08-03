@@ -1,0 +1,72 @@
+{
+  "data": [
+    {
+      "subject": {
+        "id": 327317,
+        "name": "セブンナイツ レボリューション -英雄の継承者-",
+        "nameCN": "七骑士 革命 -英雄的继承者-",
+        "type": 2,
+        "info": "12话 / 2021年4月4日 / 市川量也 / Seven Knights Revolution / 松浦有紗",
+        "metaTags": [
+          "TV",
+          "日本",
+          "游戏改"
+        ],
+        "rating": {
+          "rank": 9501,
+          "count": [
+            5,
+            2,
+            18,
+            24,
+            59,
+            22,
+            8,
+            2,
+            0,
+            2
+          ],
+          "score": 4.77,
+          "total": 142
+        },
+        "locked": false,
+        "nsfw": false,
+        "images": {
+          "large": "https://lain.bgm.tv/pic/cover/l/e8/eb/327317_ru4E2.jpg",
+          "common": "https://lain.bgm.tv/r/400/pic/cover/l/e8/eb/327317_ru4E2.jpg",
+          "medium": "https://lain.bgm.tv/r/200/pic/cover/l/e8/eb/327317_ru4E2.jpg",
+          "small": "https://lain.bgm.tv/r/100/pic/cover/l/e8/eb/327317_ru4E2.jpg",
+          "grid": "https://lain.bgm.tv/r/100x100/pic/cover/l/e8/eb/327317_ru4E2.jpg"
+        }
+      },
+      "casts": [
+        {
+          "person": {
+            "id": 4391,
+            "name": "伊藤健太郎",
+            "nameCN": "伊藤健太郎（声优）",
+            "type": 1,
+            "info": "性别 男 / 生日 1974年1月3日 / 血型 A型 / 身高 165cm / 体重 59kg",
+            "career": [
+              "seiyu",
+              "actor"
+            ],
+            "comment": 1,
+            "lock": false,
+            "nsfw": false,
+            "images": {
+              "large": "https://lain.bgm.tv/pic/crt/l/41/6e/4391_prsn_oLqlG.jpg",
+              "medium": "https://lain.bgm.tv/r/200/pic/crt/l/41/6e/4391_prsn_oLqlG.jpg",
+              "small": "https://lain.bgm.tv/r/100/pic/crt/l/41/6e/4391_prsn_oLqlG.jpg",
+              "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/41/6e/4391_prsn_oLqlG.jpg"
+            }
+          },
+          "relation": 0,
+          "summary": ""
+        }
+      ],
+      "type": 2
+    }
+  ],
+  "total": 1
+}

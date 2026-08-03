@@ -1,0 +1,114 @@
+{
+  "id": 1019,
+  "name": "古河秋生",
+  "nameCN": "古河秋生",
+  "role": 1,
+  "infobox": [
+    {
+      "key": "简体中文名",
+      "values": [
+        {
+          "v": "古河秋生"
+        }
+      ]
+    },
+    {
+      "key": "别名",
+      "values": [
+        {
+          "v": "",
+          "k": "第二中文名"
+        },
+        {
+          "v": "",
+          "k": "英文名"
+        },
+        {
+          "v": "古河 秋生",
+          "k": "日文名"
+        },
+        {
+          "v": "",
+          "k": "纯假名"
+        },
+        {
+          "v": "Furukawa Akio",
+          "k": "罗马字"
+        },
+        {
+          "v": "",
+          "k": "昵称"
+        }
+      ]
+    },
+    {
+      "key": "性别",
+      "values": [
+        {
+          "v": "男"
+        }
+      ]
+    },
+    {
+      "key": "生日",
+      "values": [
+        {
+          "v": "7月20日"
+        }
+      ]
+    },
+    {
+      "key": "血型",
+      "values": [
+        {
+          "v": "B"
+        }
+      ]
+    },
+    {
+      "key": "身高",
+      "values": [
+        {
+          "v": "175cm"
+        }
+      ]
+    },
+    {
+      "key": "体重",
+      "values": [
+        {
+          "v": "68kg"
+        }
+      ]
+    },
+    {
+      "key": "BWH",
+      "values": [
+        {
+          "v": ""
+        }
+      ]
+    },
+    {
+      "key": "引用来源",
+      "values": [
+        {
+          "v": "anidb.net"
+        }
+      ]
+    }
+  ],
+  "info": "性别 男 / 生日 7月20日 / 血型 B / 身高 175cm / 体重 68kg",
+  "summary": "渚的父亲，嘴上总是叼着一根烟。他与妻子早苗一同经营着面包店。有着为了女儿而放弃了自己的梦想的过去。非常喜欢开心的事情，但也因此会搞突然失踪而让早苗为难，他就是这么个奔放的人。一旦闲下来，就会召集附近的孩子们一起去公园打棒球。",
+  "comment": 28,
+  "collects": 139,
+  "lock": false,
+  "redirect": 0,
+  "nsfw": false,
+  "images": {
+    "large": "https://lain.bgm.tv/pic/crt/l/53/56/1019_crt_6aFs7.jpg",
+    "medium": "https://lain.bgm.tv/r/200/pic/crt/l/53/56/1019_crt_6aFs7.jpg",
+    "small": "https://lain.bgm.tv/r/100/pic/crt/l/53/56/1019_crt_6aFs7.jpg",
+    "grid": "https://lain.bgm.tv/r/100x100/pic/crt/l/53/56/1019_crt_6aFs7.jpg"
+  }
+}
