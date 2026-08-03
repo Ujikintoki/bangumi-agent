@@ -303,6 +303,27 @@ response = await llm.ainvoke(messages_for_llm)
 
 两个纯函数决定一切 LLM 行为约束。独立可测试。
 
+### DeepSeek v4-flash 兼容性验证
+
+**2026-08-03 实测**：
+
+| 配置 | `tool_choice="auto"` | `"required"` | `{"function": "..."}` |
+|------|---------------------|-------------|---------------------|
+| thinking ON（默认） | ✓ | ✗ "Thinking mode does not support this tool_choice" | ✗ |
+| thinking OFF (`extra_body={'thinking': {'type': 'disabled'}}`) | ✓ | ✓ | ✓ |
+
+**分类准确率**：thinking ON vs OFF 无差异（3 组 6 用例均 6/6 正确）。`tool_choice="auto"` 在 function calling 场景下已可靠——LLM 无需强制也会调用函数。
+
+**`with_structured_output()` (Pydantic)**：不支持。DeepSeek 返回 "This response_format type is unavailable now"。分类器只能走 function calling 路径。
+
+**决策**：
+
+| 节点 | thinking | tool_choice | 理由 |
+|------|----------|-------------|------|
+| classify_node | OFF | `"auto"` | auto 已可靠；关 thinking 加快分类 |
+| reasoning_node | OFF | 按策略切换 | 关 thinking 换取 forced tool_choice——API 层硬约束比 Aggregator 的 CoT 推理值钱 |
+| render_node | ON（默认） | N/A（无工具） | Render 的深度推理、人格表达需要 thinking |
+
 ---
 
 ## 6. 分类器设计
