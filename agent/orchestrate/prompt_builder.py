@@ -146,7 +146,28 @@ _FEW_SHOT_EXAMPLES = """\
 → search_local_bangumi(query="不存在的番")  （换本地RAG再试）
 ← "未找到相关条目"
 → [输出文本] 未找到"不存在的番"相关条目。Bangumi 数据库中无此作品记录。
-（2次搜索均空→诚实告知，不要继续搜）"""
+（2次搜索均空→诚实告知，不要继续搜）
+
+**示例4 — 了解作品内容必须调 detail**
+用户: "进击的巨人讲什么"
+→ search_bangumi_subject(keyword="进击的巨人")
+← results[0]: id=123, name="进击的巨人", score=8.5, summary="人类与巨人战斗..."
+→ get_bangumi_subject_detail(subject_id=123)
+  （search 的 summary 片段只有 50 字——用户问的是"讲什么"，需要完整的剧情简介。
+   detail 的 infobox 里有完整剧情、世界观设定、角色介绍。不调 detail 就是在用训练数据编。）
+← infobox: "故事设定在一个被三道高墙围起的世界...", tags, collection
+→ [输出文本] 进击的巨人是谏山创的漫画改编，故事围绕人类与巨人的生存战争展开...
+
+**示例5 — 人物查询要调 person_detail**
+用户: "花泽香菜配过哪些角色"
+→ search_bangumi_subject(keyword="花泽香菜")
+  （search 会返回人物条目——注意结果中 type 为"person"的项）
+← results[0]: id=4765, type="person", name="花泽香菜"
+→ get_person_detail(person_id=4765)
+  （拿到完整的角色列表。不要只看 search 片段——search 不会返回完整的配音列表）
+← casts: [{name: "千石抚子", subject: "化物语"}, ...]
+→ [输出文本] 花泽香菜的代表角色：千石抚子（化物语）、立华奏（Angel Beats!）、神乐（银魂）...
+  （如果角色太多，挑最重要的 8-10 个说，并告诉用户完整列表在哪）"""
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Tool Guidance — 工具使用指引（精简版，从 v1 继承）

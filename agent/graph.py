@@ -137,6 +137,13 @@ def route_after_tool(
     # ── Pipeline 步骤路由 ──
     if intent == "fetch":
         if current_iter == 1:
+            # [PHASE5-A] 空搜索早停：search 无结果 → 跳过 detail，直接 synthesize
+            # grep: EMPTY_SEARCH_EARLY_STOP
+            if _last_search_was_empty(messages):
+                logger.info(
+                    "route_after_tool: fetch 空搜索早停 → synthesize (跳过 detail)"
+                )
+                return "synthesize"
             logger.info("route_after_tool: fetch step 1 → fetch_detail")
             return "fetch_detail"
         elif current_iter == 2:
@@ -279,6 +286,33 @@ def build_graph(tools: list | None = None) -> StateGraph:
         len(tools),
     )
     return graph.compile()
+
+
+# [PHASE5-A] 空搜索检测 — grep: EMPTY_SEARCH_EARLY_STOP
+
+
+def _last_search_was_empty(messages: list) -> bool:
+    """检查最近一轮 search_bangumi_subject 是否返回了空结果。
+
+    用于 fetch pipeline 早停：search 无结果时跳过 detail 节点。
+
+    Args:
+        messages: 消息历史列表。
+
+    Returns:
+        True 如果最新一次 search 返回了空结果。
+    """
+    from langchain_core.messages import ToolMessage
+
+    for m in reversed(messages):
+        if isinstance(m, ToolMessage) and getattr(m, "name", "") == "search_bangumi_subject":
+            content = getattr(m, "content", "") or ""
+            no_spaces = content.replace(" ", "")
+            return '"results":[]' in no_spaces or '"total":0' in no_spaces
+        # 遇到新的 HumanMessage → 不在本轮
+        if hasattr(m, "type") and m.type == "human":
+            break
+    return False
 
 
 # ── 模块级编译实例 ──────────────────────────────────────────

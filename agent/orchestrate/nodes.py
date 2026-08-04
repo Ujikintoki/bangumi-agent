@@ -315,10 +315,20 @@ async def reasoning_node(state: AgentState) -> dict:
         from agent.orchestrate.prompt_builder import _LAST_CHANCE_DIGEST_HINT
         messages_for_llm.append(HumanMessage(content=_LAST_CHANCE_DIGEST_HINT))
     elif is_digesting:
-        digest_hint = (
-            "（系统指令：工具数据已返回。判断是否够回答用户问题："
-            "够→输出文本摘要结束，不够→继续查。）"
-        )
+        # [PHASE5-A] 检测 search-only 模式：只调了 search 未跟进 detail
+        # grep: SEARCH_ONLY_DETECTION
+        search_only = _detect_search_only_stall(messages, query_intent)
+        if search_only:
+            digest_hint = (
+                "（系统指令：你上一轮只调了 search。如果用户问的是作品内容/人物详情/声优列表，"
+                "search 返回的片段信息不够——至少调一次对应的 detail/characters/person 工具。"
+                "如果确实是简单的评分/排名查询，search 结果够用就直接输出文本摘要。）"
+            )
+        else:
+            digest_hint = (
+                "（系统指令：工具数据已返回。判断是否够回答用户问题："
+                "够→输出文本摘要结束，不够→继续查。）"
+            )
         messages_for_llm.append(HumanMessage(content=digest_hint))
 
     # ── L1 记忆截断 ─────────────────────────────────────────
@@ -658,6 +668,51 @@ def _get_last_ai_response(messages: list) -> AIMessage | None:
         if isinstance(m, AIMessage) and m.content:
             return m
     return None
+
+
+# [PHASE5-A] Search-only 检测 — grep: SEARCH_ONLY_DETECTION
+
+_SEARCH_ONLY_TOOLS = frozenset({"search_bangumi_subject", "search_local_bangumi"})
+"""只有这些工具被调用过 → search-only 模式。"""
+
+_DETAIL_TOOLS = frozenset({
+    "get_bangumi_subject_detail", "get_person_detail", "get_character_detail",
+    "get_subject_opinions", "get_subject_characters", "get_subject_episodes",
+    "get_entity_comments", "get_episode_comments",
+})
+"""这些工具被调过 → 不是 search-only。"""
+
+
+def _detect_search_only_stall(messages: list, intent: str) -> bool:
+    """检测是否陷入 search-only 模式——只搜了，没有跟进 detail。
+
+    在消化态引导时使用：如果一条 detail 类工具都没调过，注入更强提示。
+
+    Args:
+        messages: 完整消息历史。
+        intent: 查询意图。
+
+    Returns:
+        True 如果上一轮只用了 search 类工具。
+    """
+    from langchain_core.messages import ToolMessage
+
+    # 收集本轮（从最后一个 HumanMessage 之后）的所有 ToolMessage
+    tools_called: set[str] = set()
+    for m in reversed(messages):
+        if isinstance(m, ToolMessage) and getattr(m, "name", ""):
+            tools_called.add(m.name)
+        elif hasattr(m, "type") and m.type == "human":
+            break
+
+    if not tools_called:
+        return False
+
+    has_detail = bool(tools_called & _DETAIL_TOOLS)
+    has_search = bool(tools_called & _SEARCH_ONLY_TOOLS)
+
+    # 只调了 search 但没跟进 detail — 可能陷入 search-only
+    return has_search and not has_detail
 
 
 def _tc_label(tool_choice) -> str:

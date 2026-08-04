@@ -35,7 +35,7 @@ _STYLE_BASE = """\
 
 _CONSTRAINTS = """\
 ## 硬约束
-1. 回复不超过 {word_limit} 字。
+1. 回复严格不超过 {word_limit} 字。超过会被系统强制截断——请在 {word_limit} 字内说完。
 2. 不用 emoji 与颜文字。不用 Markdown 表格。多用 `- ` 列表。
 3. 禁止编造评分、排名、集数、收藏数等具体数字。不确定就诚实说没查到。
 4. 直接输出改写后的回复，不加任何前缀后缀。"""
@@ -89,9 +89,19 @@ def _style_modifiers(snark: float, depth_taste: float, initiative: float) -> str
 # ── 按 depth 的字数限制 ──────────────────────────────────────────
 
 _WORD_LIMIT: dict[str, str] = {
+    "fast": "200",
+    "deep": "350",
+    # 向后兼容旧值
     "quick": "120",
     "auto": "200",
-    "deep": "350",
+}
+
+# [PHASE5-A] 硬截断上限（字符数）。prompt 建议 + 硬截断双保险。
+# 如果 LLM-judge 评测中截断导致回复质量下降，将此值调高或设为 None 禁用。
+# grep: HARD_CUTOFF_MAX_CHARS
+_HARD_CUTOFF_MAX_CHARS: dict[str, int | None] = {
+    "fast": 280,   # prompt 建议 200，硬截断留 40% buffer
+    "deep": 480,   # prompt 建议 350，硬截断留 37% buffer
 }
 
 RENDER_TEMPERATURE = 0.4
@@ -233,6 +243,22 @@ async def render_reply(
     if not rendered or len(rendered) < 5:
         logger.warning("render_reply: 渲染结果过短 (%d chars)，使用原始输入", len(rendered))
         return None
+
+    # [PHASE5-A] 硬截断：双保险——prompt 已建议字数上限，此处硬截
+    max_chars = _HARD_CUTOFF_MAX_CHARS.get(depth) if depth in _HARD_CUTOFF_MAX_CHARS else _HARD_CUTOFF_MAX_CHARS.get("fast", 280)
+    if max_chars and len(rendered) > max_chars:
+        original_len = len(rendered)
+        # 尝试在句号处截断，避免截在词中间
+        cutoff = rendered.rfind("。", 0, max_chars)
+        if cutoff > max_chars * 0.7:
+            rendered = rendered[:cutoff + 1]
+        else:
+            # 找不到合适的句号位置，直接字符截断
+            rendered = rendered[:max_chars]
+        logger.warning(
+            "render_reply: 硬截断 %s (%d → %d chars, limit=%d)",
+            output_style, original_len, len(rendered), max_chars,
+        )
 
     logger.info(
         "render_reply: %s 渲染完成（%d → %d chars）",
