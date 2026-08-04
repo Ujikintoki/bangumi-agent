@@ -72,7 +72,9 @@ class TestGraphIntegration:
             depth="deep",
         )
         result = await graph.ainvoke(state)
-        assert result.get("query_intent") == "lookup"
+        # v4: classify_node 总是先运行，会对"搜巨人"重新分类
+        # lookup → fetch（通过 _INTENT_ALIASES），最终状态为 fetch
+        assert result.get("query_intent") == "fetch"
 
 
 # ═══════════════════════════════════════════════════════════════════

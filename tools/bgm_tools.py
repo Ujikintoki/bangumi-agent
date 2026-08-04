@@ -23,7 +23,6 @@ from langchain_core.tools import tool
 from clients import BangumiClient
 from core.config import get_settings
 from schemas.tools_input import (
-    FactItem,
     GetBlogInput,
     GetCalendarInput,
     GetCharacterDetailInput,
@@ -39,7 +38,6 @@ from schemas.tools_input import (
     GetUserProfileInput,
     LocalSearchInput,
     SearchBangumiInput,
-    SubmitFactsInput,
     UserTimelineInput,
 )
 
@@ -204,6 +202,14 @@ async def search_bangumi_subject(
     if "_error" in result:
         return {"_error": f"搜索失败。{result['_error']}"}
 
+    # HATEOAS: 告诉 LLM 下一步可以做什么
+    if result.get("results") and entity_type == "subject":
+        ids = [r.get("id") for r in result["results"][:3] if r.get("id")]
+        result["_next"] = (
+            f"拿到 subject_id 后必须调 get_bangumi_subject_detail({ids[0]}) "
+            f"获取完整详情。search 只给评分/排名，detail 才有导演/简介/标签。"
+        )
+
     return result
 
 
@@ -254,6 +260,13 @@ async def get_bangumi_subject_detail(subject_id: int) -> dict:
     if "_error" in result:
         return {"_error": f"获取条目详情失败。{result['_error']}"}
 
+    # HATEOAS: 告诉 LLM 可选的下游工具
+    sid = result.get("id", subject_id)
+    result["_next"] = (
+        f"如需口碑数据调 get_subject_opinions({sid})；"
+        f"如需角色列表调 get_subject_characters({sid})；"
+        f"如需集数列表调 get_subject_episodes({sid})"
+    )
     return result
 
 
@@ -271,11 +284,13 @@ async def get_character_detail(character_id: int) -> dict:
 	    1. ``get_subject_characters`` → 输出中的 [角色ID: xxx]（推荐，无需额外搜索）
 	    2. ``search_bangumi_subject(entity_type="character")`` → 输出中的 [ID: xxx]
 
+    何时不用：用户问的是声优/导演/作者 → 用 get_person_detail；
+              角色 ID 未知 → 先 get_subject_characters 或 search_bangumi_subject；
+              不需要完整设定、只需知道"这部番有哪些角色"→ get_subject_characters 已足够。
+
     典型场景：
     - "阿尔托莉雅这个角色有什么背景故事？"
-    - "帮我看看角色 12345 的详细信息"
     - "这个角色在 Bangumi 上有多受欢迎？"
-    - "了解一下这个角色的设定"
 
     Args:
         character_id: 角色 ID。优先从 ``get_subject_characters`` 输出中的 [角色ID: xxx] 获取；也可通过 ``search_bangumi_subject(entity_type="character")`` 搜索获得。
@@ -303,11 +318,13 @@ async def get_person_detail(person_id: int) -> dict:
 	    1. ``get_subject_characters`` → 输出中的 [人物ID: xxx]（推荐，无需额外搜索）
 	    2. ``search_bangumi_subject(entity_type="person")`` → 输出中的 [ID: xxx]
 
+    何时不用：用户问的是虚拟角色（如阿尔托莉雅）→ 用 get_character_detail；
+              人物 ID 未知 → 先 search_bangumi_subject(entity_type="person")；
+              用户只想知道"这部番的导演是谁"→ get_bangumi_subject_detail 的 infobox 字段已包含导演名。
+
     典型场景：
     - "花泽香菜的个人简介和代表作？"
     - "新房昭之导演过哪些知名作品？"
-    - "帮我看看人物 12345 的详细信息"
-    - "这位声优配过哪些代表作？"
 
     Args:
         person_id: 人物 ID。优先从 ``get_subject_characters`` 输出中的 [人物ID: xxx] 获取；也可通过 ``search_bangumi_subject(entity_type="person")`` 搜索获得。
@@ -386,6 +403,10 @@ async def get_trending_subjects(
     回答"最近什么番/书/游戏最火？"——无需关键词，平台按热度排名。
     拿到 id 后可调 ``get_bangumi_subject_detail`` 获取完整信息。
 
+    何时使用：用户问流行趋势、热度排名、大家都在看什么 → 用此工具。
+    何时不用：用户问社区讨论/争议话题 → 用 get_hot_topics；
+              用户问特定作品的评分 → 用 search_bangumi_subject；本工具用于发现，不用于查单个作品。
+
     典型场景：
     - "最近什么番最火？"
     - "这季度大家都在追什么？"
@@ -428,6 +449,10 @@ async def get_hot_topics(limit: int = 10) -> dict:
     拿到 subject_id 后可调 ``get_bangumi_subject_detail`` 了解相关作品。
     注意：帖子 ID 和作者名无下游工具可消费，仅保留标题+条目引用+回复数。
 
+    何时使用：用户问社区讨论热点、争议话题、大家都在争论什么 → 用此工具。
+    何时不用：用户问流行作品排名 → 用 get_trending_subjects；
+              用户问特定条目的评价 → 用 get_subject_opinions。
+
     典型场景：
     - "Bangumi 上最近在热议什么？"
     - "看看社区现在讨论热点"
@@ -466,8 +491,11 @@ async def get_hot_topics(limit: int = 10) -> dict:
 async def get_episode_comments(episode_id: int, comments_limit: int = 30) -> dict:
     """获取 Bangumi 单集详情与吐槽箱评论，返回结构化字典。
 
-    同时拉取单集元数据（集数、标题、简介、所属条目）和社区吐槽，
-    帮助 Agent 理解特定单集的内容和观众反应。
+    同时拉取单集元数据（集数、标题、简介、所属条目）和社区吐槽。
+
+    何时使用：用户明确指向某一集 → 用此工具。
+    何时不用：用户问整体口碑 → 用 get_subject_opinions；
+              episode_id 未知 → 先 get_subject_episodes 查集数列表。
 
     典型场景：
     - "海贼王第 1088 集的吐槽箱里大家都说了什么？"
@@ -519,10 +547,17 @@ async def get_subject_opinions(subject_id: int, limit: int = 8) -> dict:
     同时拉取两个维度——comments（吐槽箱+评分分布）和 reviews（长评摘要）。
     短评反映整体口碑温度，长评提供深度分析入口（id 可调 get_blog 看全文）。
 
+    何时使用：用户问条目的整体评价、口碑、风评 → 用此工具。
+    何时不用：用户问特定单集的评论 → 用 get_episode_comments；
+              用户问角色/声优的社区讨论 → 用 get_entity_comments；
+              用户只想要评分/排名/基本信息 → search_bangumi_subject 已足够，不需要此工具。
+
     典型场景：
     - "大家对《进击的巨人》总体评价怎么样？"
     - "这部番口碑如何？两极吗？"
     - "看看有没有深度分析这篇作品的"
+
+    下一步：短评中提到特定单集 → get_episode_comments；长评 id → get_blog。
 
     Args:
         subject_id: Bangumi 条目 ID。
@@ -600,6 +635,14 @@ async def get_subject_episodes(subject_id: int, limit: int = 26) -> dict:
     if "_error" in result:
         return {"_error": f"获取剧集列表失败。{result['_error']}"}
 
+    # HATEOAS: 引导查看单集评论
+    if result.get("items"):
+        ep_id = result["items"][0].get("id")
+        if ep_id:
+            result["_next"] = (
+                f"每条有 episode id。用户询问单集评价时可调 "
+                f"get_episode_comments({ep_id}) 查看吐槽箱"
+            )
     return result
 
 
@@ -617,13 +660,16 @@ async def get_entity_comments(
     """获取虚拟角色或现实人物的社区评论。
 
     角色和人物的评论接口结构完全一致，统一为一个 Tool，
-    通过 entity_type 区分。返回实体名称（精确归属）和
-    清洗后的评论列表，LLM 可据此直接引用粉丝原话。
+    通过 entity_type 区分。返回实体名称和清洗后的评论列表。
+
+    何时使用：用户问角色（character）或声优/导演（person）的社区评价 → 用此工具。
+    何时不用：用户问的是条目的口碑 → 用 get_subject_opinions；
+              用户问的是单集评论 → 用 get_episode_comments；
+              角色/人物 ID 未知 → 先 search_bangumi_subject(entity_type=...)
 
     典型场景：
     - "大家怎么评价阿尔托莉雅这个角色？"
     - "花泽香菜在社区的讨论热度怎么样？"
-    - "看看大家对这位声优的评价"
 
     Args:
         entity_type: 实体类型。``character``=虚拟角色（如'阿尔托莉雅'），
@@ -700,6 +746,12 @@ async def get_subject_characters(subject_id: int) -> dict:
 
     if "_error" in result:
         return {"_error": f"获取条目角色失败。{result['_error']}"}
+
+    # HATEOAS: 告诉 LLM 如何深入查看角色/声优详情
+    if result.get("characters"):
+        char_ids = [c.get("character_id") for c in result["characters"] if c.get("character_id")][:3]
+        if char_ids:
+            result["_next"] = f"可查看角色详情如 get_character_detail({char_ids[0]})；声优可用名字搜索 person_id 后调 get_person_detail"
 
     return result
 
@@ -1059,55 +1111,6 @@ def _search_local_bangumi_sync(
     return "\n".join(lines)
 
 
-# ═══════════════════════════════════════════════════════════════════
-# 终止工具 — submit_facts_to_render（分离合成架构 v2）
-# ═══════════════════════════════════════════════════════════════════
-
-
-@tool(args_schema=SubmitFactsInput)
-async def submit_facts_to_render(
-    facts: list[dict],
-    intent: str,
-    missing: str = "",
-) -> dict:
-    """数据收集完成。将事实清单提交给下游 Render 系统。必须调用此工具来结束数据收集。
-
-    调用此工具后你的工作完成——系统将自动结束数据收集阶段并进入人格化回复生成阶段。
-    不要尝试直接输出文本回答用户。你的唯一出口是这个工具。
-
-    典型使用：
-    - 数据充分 → 整理 facts 列表，调用此工具提交
-    - 2 次搜索空结果 → 立即调用此工具，用 missing 注明"未找到该关键词"
-    - 数据部分缺失 → 提交已有 facts，用 missing 注明缺失项
-
-    Args:
-        facts: 事实列表，每条至少包含 name 字段。
-            示例: [{"name": "葬送的芙莉莲", "score": 8.8, "rank": 3,
-                   "summary": "2024年奇幻动画，讲述精灵魔法使的旅程",
-                   "tags": "奇幻,冒险,治愈", "source": "search"}]
-        intent: 用户查询意图概括，5-15 字。如"推荐2024高分奇幻""查询条目详情"。
-        missing: 用户明确想问但数据中缺失的信息。无缺失时留空。
-
-    Returns:
-        dict: 包含 facts、intent、missing 的结构化提交记录。
-    """
-    # 序列化：LangChain 可能将 facts 元素转为 Pydantic FactItem 实例，
-    # 必须转为纯 dict 再返回，否则 ToolNode 的 str() 会输出不可解析的 repr
-    clean_facts: list[dict] = []
-    for f in facts:
-        if isinstance(f, dict):
-            clean_facts.append(f)
-        elif hasattr(f, "model_dump"):
-            clean_facts.append(f.model_dump())
-        else:
-            clean_facts.append({"name": str(f)})
-
-    return {
-        "facts": clean_facts,
-        "intent": intent,
-        "missing": missing,
-    }
-
 
 # ═══════════════════════════════════════════════════════════════════
 # 动态工具注册表
@@ -1150,7 +1153,6 @@ def get_agent_tools() -> list:
         get_entity_comments,
         get_subject_characters,
         search_local_bangumi,
-        submit_facts_to_render,
     ]
 
     token = get_settings().BANGUMI_ACCESS_TOKEN

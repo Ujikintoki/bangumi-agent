@@ -173,7 +173,7 @@ _SEARCH_DEPTH_INSTRUCTIONS = [
         "- 调用一次 search_bangumi_subject 获取基本评分和排名即可\n"
         "- 不要拉取 detail——搜索结果里的 score/rank/info 已经够用\n"
         "- 不要主动扩展搜索——只查用户明确问到的\n"
-        "- 数据拿到后立即调用 submit_facts_to_render 提交"
+        "- 数据拿到后立即输出文本摘要结束"
     )),
     (0.4, (
         "搜索深度: BASIC（基础）。\n"
@@ -195,7 +195,7 @@ _SEARCH_DEPTH_INSTRUCTIONS = [
         "- 用户问到口碑/社区反应时调 opinions\n"
         "- 如有导演/声优相关信息，主动查 person_detail\n"
         "- 可主动检索同类型对标作品 1-2 部作为参考\n"
-        "- 确保拿到完整数据后再提交 submit_facts_to_render"
+        "- 确保拿到完整数据后再输出文本摘要结束"
     )),
     (1.0, (
         "搜索深度: EXHAUSTIVE（全面）。\n"
@@ -204,7 +204,7 @@ _SEARCH_DEPTH_INSTRUCTIONS = [
         "- 调 characters 获取角色和声优信息\n"
         "- 主动检索同导演/同类型对标作品 2-3 部\n"
         "- 对知名条目检索导演前作谱系\n"
-        "- 确保数据完整覆盖用户可能追问的所有方向后，再提交 submit_facts_to_render"
+        "- 确保数据完整覆盖用户可能追问的所有方向后，再输出文本摘要结束"
     )),
 ]
 

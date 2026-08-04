@@ -63,6 +63,7 @@ class RagSearchResult(BaseModel):
     name: str = Field(default="", description="实体原文名称")
     name_cn: Optional[str] = Field(default=None, description="实体中文名称")
     cosine_distance: float = Field(description="余弦距离，越小越相似")
+    popularity: int = Field(default=0, description="热度信号（列级提取）")
     final_score: float = Field(
         default=0.0, description="降级重排后的综合得分（梯队 ID）"
     )
@@ -74,30 +75,20 @@ class RagSearchResult(BaseModel):
 # ============================================================================
 
 
-def _extract_heat_signal(meta: dict, entity_type: str) -> float:
-    """根据实体类型动态提取次级热度信号，用于桶内降序重排。
+def _extract_heat_signal(popularity: int) -> float:
+    """提取对数归一化后的热度信号，用于桶内降序重排。
 
-    热度信号经 **对数归一化**（``log(1 + raw)``）压缩，避免头部热门作品
+    热度信号已从 meta_info JSONB 冗余提取到 ``RagEntity.popularity`` 列。
+    经 **对数归一化**（``log(1 + raw)``）压缩，避免头部热门作品
     在同语义梯队内对冷门作品形成数量级碾压。
 
-    例：rating_total 从 50000 压缩到 ~10.8，200 压缩到 ~5.3，差距从
-    250 倍缩到 2 倍，让语义优先原则不被热度淹没。
-
     Args:
-        meta: RagEntity.meta_info JSONB 内容。
-        entity_type: 实体类型。
+        popularity: RagEntity.popularity 列值（subject→rating_total, 其他→collects）。
 
     Returns:
         对数归一化后的热度值（浮点），默认为 0.0。
     """
-    if entity_type == "subject":
-        val = meta.get("rating_total", 0)
-    elif entity_type in ("character", "person"):
-        val = meta.get("collects", 0)
-    else:
-        val = 0
-    raw = int(val) if isinstance(val, (int, float)) else 0
-    return math.log(1 + raw)
+    return math.log(1 + popularity) if popularity > 0 else 0.0
 
 
 class RagEntityRetriever:
@@ -246,6 +237,7 @@ class RagEntityRetriever:
                     name=entity.name or "",
                     name_cn=entity.name_cn,
                     cosine_distance=distance,
+                    popularity=entity.popularity,
                     final_score=0.0,
                     meta_info=meta,
                 )
@@ -272,7 +264,7 @@ class RagEntityRetriever:
             within_threshold.sort(
                 key=lambda r: (
                     int(r.cosine_distance / semantic_bucket_size),
-                    -_extract_heat_signal(r.meta_info, r.entity_type),
+                    -_extract_heat_signal(r.popularity),
                 )
             )
             for r in within_threshold:

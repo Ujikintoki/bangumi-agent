@@ -51,6 +51,10 @@ _EMBEDDING_DIM = get_settings().EMBEDDING_DIMENSION
 #       ON rag_entities USING gin (name gin_trgm_ops);
 #   CREATE INDEX IF NOT EXISTS ix_rag_entities_chunk_text_trgm
 #       ON rag_entities USING gin (chunk_text gin_trgm_ops);
+#
+#   -- 热度排序: B-Tree，加速 ORDER BY popularity DESC
+#   CREATE INDEX IF NOT EXISTS ix_rag_entities_popularity
+#       ON rag_entities (popularity);
 # ============================================================================
 
 
@@ -102,6 +106,16 @@ class RagEntity(SQLModel, table=True):
         default=False,
         index=True,
         description="是否 R18 内容。所有实体类型共用，默认 False。",
+    )
+
+    popularity: int = Field(
+        default=0,
+        index=True,
+        description=(
+            "热度信号，从 meta_info JSONB 冗余提取为列。"
+            " subject → rating_total，character/person → collects。"
+            " 建 B-Tree 索引，用于检索排序 (ORDER BY popularity DESC)。"
+        ),
     )
 
     chunk_text: str = Field(

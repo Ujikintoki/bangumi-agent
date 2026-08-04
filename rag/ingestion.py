@@ -327,6 +327,7 @@ class RagEntityIngestor:
                         name=item.get("name", ""),
                         name_cn=item.get("name_cn"),
                         nsfw=item.get("nsfw", False),
+                        popularity=item.get("rating_total", 0),
                         chunk_text=_build_subject_chunk_text(
                             item.get("name_cn", "") or "", item["chunk_text"]
                         ),
@@ -400,6 +401,7 @@ class RagEntityIngestor:
                         name=item.get("name", ""),
                         name_cn=item.get("name_cn"),
                         nsfw=item.get("nsfw", False),
+                        popularity=item.get("collects", 0),
                         chunk_text=_build_character_chunk_text(
                             item.get("name_cn", "") or "",
                             item.get("subject_name", "") or "",
@@ -471,6 +473,7 @@ class RagEntityIngestor:
                         name=item.get("name", ""),
                         name_cn=item.get("name_cn"),
                         nsfw=item.get("nsfw", False),
+                        popularity=item.get("collects", 0),
                         chunk_text=_build_person_chunk_text(
                             item.get("name_cn", "") or "", item["chunk_text"]
                         ),

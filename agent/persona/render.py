@@ -197,7 +197,7 @@ async def render_reply(
         depth: 深度模式，控制字数上限。
         snark: 毒舌度 0.0-1.0。
         initiative: 主动性 0.0-1.0。
-        force: 强制渲染，跳过长度检查。submit_facts 路径必须设为 True。
+        force: 强制渲染，跳过长度检查。非 chat 路径必须设为 True。
 
     Returns:
         渲染后的自然语言回复。跳过或失败时返回 ``None``，调用方使用原始输入。

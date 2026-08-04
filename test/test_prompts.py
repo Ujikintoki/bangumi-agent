@@ -173,7 +173,7 @@ class TestPromptBuilder:
         assert "200 字" in result or "120 字" in result or "350 字" in result
 
     def test_builder_includes_tool_strategy(self):
-        """应包含够了就停原则——v2 通过 submit_facts_to_render 终止。"""
+        """应包含够了就停原则——v3 隐式终止（no tool_calls = END）。"""
         result = _build(
             agent_profile=COMPANION_PROFILE,
             character=BANGUMI_CHARACTER,

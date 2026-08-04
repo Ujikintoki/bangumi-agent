@@ -90,7 +90,7 @@ _MAX_ITERATIONS_DEEP = 12
 
 _INTENT_MAX_ITERATIONS: dict[str, int] = {
     "chat": 0,         # 不走工具循环
-    "fetch": 2,         # search → detail → 停
+    "fetch": 3,         # search → detail → synthesize
     "explore": 3,       # search → multi-detail → 停
     "discuss": 4,       # search → detail → comments → 停
     "profile": 2,       # user_profile → user_timeline → 停

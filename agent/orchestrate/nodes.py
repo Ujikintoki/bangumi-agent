@@ -19,7 +19,11 @@ from agent.memory.short_term import (
     manage_memory,
 )
 from agent.orchestrate.deep_strategies import CRITIC_SYSTEM_PROMPT, DEEP_SCENE_HINTS
-from agent.orchestrate.guardrails import TOOL_CALL_XML_RESIDUE
+from agent.orchestrate.guardrails import (
+    TOOL_CALL_XML_RESIDUE,
+    check_duplicate_tool_calls,
+    is_terminal_response,
+)
 from agent.orchestrate.helpers import (
     build_message_list,
     extract_user_input,
@@ -75,9 +79,143 @@ async def classify_node(state: AgentState) -> dict:
     return {
         "query_intent": routed_intent,
         "classifier_confidence": confidence,
-        "iterations": 1,
         "_memory_context": None,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Pipeline 节点（Phase 4）— 编译时确定的执行计划
+# ═══════════════════════════════════════════════════════════════════
+
+
+async def _pipeline_step(
+    state: AgentState,
+    tool_names: list[str],
+    tool_choice: str | dict,
+    system_content: str,
+    *,
+    is_first_step: bool = False,
+) -> dict:
+    """Pipeline 节点的通用实现：绑指定工具 → LLM 调用 → 返回结果。
+
+    Args:
+        state: Agent 全局状态。
+        tool_names: 此步骤可用的工具名列表。
+        tool_choice: tool_choice 参数。
+        system_content: 此步骤专属的 System Prompt。
+        is_first_step: 是否为首步（需要记忆召回 + 消息列表构建）。
+    """
+    new_iterations = state.get("iterations", 0) + 1
+    messages = state.get("messages", [])
+    depth = state.get("depth", "fast")
+    query_intent = state.get("query_intent", "fallback")
+
+    # 首步：记忆召回 + 构建消息列表
+    if is_first_step:
+        memory_context = await recall_memory_step(
+            state,
+            max_tokens=get_settings().MEMORY_DIALOGUE_MAX_INJECT_TOKENS,
+            recall_threshold=get_settings().MEMORY_DIALOGUE_RECALL_THRESHOLD,
+        )
+        built = build_message_list(messages, system_content)
+    else:
+        memory_context = state.get("_memory_context", "") or ""
+        built = list(messages)
+
+    # L1 记忆截断
+    token_budget = DEPTH_TOKEN_BUDGETS.get(depth, DEFAULT_MAX_TOKENS)
+    built = manage_memory(built, max_tokens=token_budget)
+
+    # 工具绑定
+    all_tools = get_agent_tools()
+    intent_tools = [t for t in all_tools if t.name in tool_names]
+
+    llm = create_llm(
+        _telemetry_label=f"pipeline#{new_iterations}",
+        extra_body={"thinking": {"type": "disabled"}},
+    )
+
+    llm_to_use = llm.bind_tools(intent_tools, tool_choice=tool_choice) if intent_tools else llm
+
+    logger.info(
+        "[Pipeline] intent=%s step=%d tools=%s tool_choice=%s",
+        query_intent, new_iterations,
+        [t.name for t in intent_tools], _tc_label(tool_choice),
+    )
+
+    try:
+        response: AIMessage = await llm_to_use.ainvoke(built)
+    except Exception as e:
+        logger.exception("pipeline_step: LLM 调用失败")
+        return {
+            "messages": [AIMessage(content=f"数据收集失败：{e}")],
+            "iterations": new_iterations,
+            "_memory_context": memory_context or "",
+        }
+
+    return {
+        "messages": [response],
+        "iterations": new_iterations,
+        "_memory_context": memory_context or "",
+    }
+
+
+async def fetch_search_node(state: AgentState) -> dict:
+    """Fetch pipeline step 1: 搜索条目。"""
+    from agent.orchestrate.prompt_builder import _SEARCH_NODE_PROMPT
+    return await _pipeline_step(
+        state,
+        tool_names=["search_bangumi_subject"],
+        tool_choice="required",
+        system_content=_SEARCH_NODE_PROMPT,
+        is_first_step=True,
+    )
+
+
+async def fetch_detail_node(state: AgentState) -> dict:
+    """Fetch pipeline step 2: 拉取详情。"""
+    from agent.orchestrate.prompt_builder import _DETAIL_NODE_PROMPT
+    return await _pipeline_step(
+        state,
+        tool_names=["get_bangumi_subject_detail", "search_bangumi_subject"],
+        tool_choice="required",
+        system_content=_DETAIL_NODE_PROMPT,
+    )
+
+
+async def realtime_search_node(state: AgentState) -> dict:
+    """Realtime pipeline step 1: 时效数据。"""
+    from agent.orchestrate.prompt_builder import _REALTIME_NODE_PROMPT
+    return await _pipeline_step(
+        state,
+        tool_names=["get_calendar", "get_trending_subjects", "get_hot_topics"],
+        tool_choice="required",
+        system_content=_REALTIME_NODE_PROMPT,
+        is_first_step=True,
+    )
+
+
+async def profile_search_node(state: AgentState) -> dict:
+    """Profile pipeline step 1: 用户画像。"""
+    from agent.orchestrate.prompt_builder import _PROFILE_NODE_PROMPT
+    return await _pipeline_step(
+        state,
+        tool_names=["get_user_profile", "get_user_timeline"],
+        tool_choice="required",
+        system_content=_PROFILE_NODE_PROMPT,
+        is_first_step=True,
+    )
+
+
+async def synthesize_node(state: AgentState) -> dict:
+    """Pipeline 出口: 纯文本总结，无工具。"""
+    from agent.orchestrate.prompt_builder import _SYNTHESIZE_NODE_PROMPT
+    return await _pipeline_step(
+        state,
+        tool_names=[],
+        tool_choice="auto",
+        system_content=_SYNTHESIZE_NODE_PROMPT,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -164,6 +302,7 @@ async def reasoning_node(state: AgentState) -> dict:
     llm_to_use = llm.bind_tools(intent_tools, tool_choice=tool_choice)
 
     is_digesting = messages and isinstance(messages[-1], ToolMessage)
+    at_last_round = new_iterations >= max_iterations - 1
     logger.debug(
         "reasoning_node: intent=%s iter=%d/%d tools=%d tool_choice=%s%s",
         query_intent, new_iterations, max_iterations,
@@ -171,11 +310,14 @@ async def reasoning_node(state: AgentState) -> dict:
         " (digesting)" if is_digesting else "",
     )
 
-    # ── 消化态软引导（唯一保留的 20% 部分） ────────────────
-    if is_digesting:
+    # ── 消化态软引导 ──────────────────────────────────
+    if is_digesting and at_last_round:
+        from agent.orchestrate.prompt_builder import _LAST_CHANCE_DIGEST_HINT
+        messages_for_llm.append(HumanMessage(content=_LAST_CHANCE_DIGEST_HINT))
+    elif is_digesting:
         digest_hint = (
             "（系统指令：工具数据已返回。判断是否够回答用户问题："
-            "够→submit_facts，不够→继续查。）"
+            "够→输出文本摘要结束，不够→继续查。）"
         )
         messages_for_llm.append(HumanMessage(content=digest_hint))
 
@@ -520,9 +662,6 @@ def _get_last_ai_response(messages: list) -> AIMessage | None:
 
 def _tc_label(tool_choice) -> str:
     """tool_choice → 可读标签。"""
-    if isinstance(tool_choice, dict):
-        fn = tool_choice.get("function", {}).get("name", "?")
-        return f"force:{fn}"
     return str(tool_choice)
 
 

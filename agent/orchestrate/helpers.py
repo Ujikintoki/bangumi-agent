@@ -117,18 +117,21 @@ async def recall_memory_step(
         return ""
 
 
-def build_message_list(messages: list, system_content: str) -> list:
+def build_message_list(messages: list, system_content: str | None) -> list:
     """用新 SystemMessage 替换旧的，追加历史消息。
 
     每个推理轮次都重建消息列表——System Prompt 可能因 L2 记忆注入等发生变化。
 
     Args:
         messages: 当前 state 中的完整消息历史。
-        system_content: 新的 System Prompt 文本。
+        system_content: 新的 System Prompt 文本。None 时保留现有消息不做替换。
 
     Returns:
         以新 SystemMessage 开头、历史非 SystemMessage 追加在后的列表。
     """
+    if system_content is None:
+        return list(messages)
+
     result = [SystemMessage(content=system_content)]
 
     skipped = 0

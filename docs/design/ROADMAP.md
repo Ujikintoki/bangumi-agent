@@ -1,26 +1,26 @@
 # 架构状态 & 路线图
 
-> 最后更新: 2026-07-28
+> 最后更新: 2026-08-04
 
 ## 当前状态快照
 
 | 指标 | 值 |
 |------|-----|
-| Agent 入口 | 1 个（`depth` 参数控制深度: auto/quick/deep） |
-| Graph 节点 | 5（reasoning + tool + critic + render + START/END；critic 保留注册但未路由） |
-| 拓扑 | 纯 ReAct：reasoning ⇄ tool → render → END |
-| 工具 | 16 个 LangChain `@tool`（13 无条件 + 3 token 门控），返回结构化 dict（A/B/C/D 方法论） |
-| 记忆 | L1 滑动窗口 + 压缩 + SystemMessage 免疫（按 depth 三级预算：6000/10000/16000 tok）+ L2 语义召回（双通道 + 时间衰减），L3 废弃 |
+| Agent 入口 | 1 个（`depth` 参数控制深度: fast/deep） |
+| Graph 节点 | 9（classify + fetch_search + fetch_detail + realtime_search + profile_search + synthesize + reasoning + tool + START/END） |
+| 拓扑 | v5 异质：Pipeline（fetch/realtime/profile）+ ReAct（explore/discuss/fallback）+ chat 直通 |
+| 工具 | 15 个 LangChain `@tool`（12 无条件 + 3 token 门控），返回结构化 dict。隐式终止，无 submit_facts |
+| 记忆 | L1 滑动窗口 + 压缩 + SystemMessage 免疫（按 depth 两级预算：10000/16000 tok）+ L2 语义召回（双通道 + 时间衰减），L3 废弃 |
 | 人格 | 4 个角色（bangumi / bangumi_cold / bangumi_cute / neutral）+ 5 档离散人格参数 + Render 层 per-personality voice hints |
-| 测试 | 573 passed + 23 skipped |
+| 测试 | 冒烟 18/18 pass；单元 ~570 pass |
 
 ### 四层状态
 
 | 层 | 文件 | 稳定 | 待解决 |
 |---|------|------|--------|
-| **编排层** | `orchestrate/nodes.py`, `state.py`, `orchestrate/strategies.py`, `orchestrate/classifier.py`, `orchestrate/guardrails.py`, `orchestrate/prompt_builder.py`, `orchestrate/helpers.py` | 🟡 刚稳定 | 2 项 |
+| **编排层** | `orchestrate/` 全部, `graph.py`, `state.py` | 🟡 刚稳定（Phase 4.1） | 4 项 |
 | **人格层** | `persona/profiles.py`, `persona/render.py` | 🟡 活跃调参 | 1 项 |
-| **记忆层** | `memory/short_term.py`, `memory/long_term.py`, `memory/cache.py` | ✅ 稳 | 1 项 |
+| **记忆层** | `memory/short_term.py`, `memory/long_term.py`, `memory/cache.py` | ✅ 稳 | 2 项 |
 | **数据层** | `clients/`, `tools/`, `rag/`, `database/`, `schemas/` | ✅ 稳 | 2 项 |
 
 ---
@@ -31,17 +31,32 @@
 
 ### 当前
 
-纯 ReAct 拓扑：reasoning ⇄ tool → render → END。Critic 屏蔽——三种 depth 共享同一推理逻辑，差异仅在参数。
+v5 异质拓扑（Phase 4）：classify → 按 intent 分发。
 
-| 模式 | 迭代上限 | Critic | Token 预算 | 人格参数覆盖 | 工具策略 |
-|------|---------|--------|-----------|-------------|---------|
-| quick | 3 | 无 | 6000 | depth_taste=0.35, initiative=0.15 | 1 轮够用就停，最后一轮强制回复 |
-| auto | 5 | 无 | 10000 | 角色默认值 | 1-2 轮，最后一轮强制回复 |
-| deep | 12 | 无（屏蔽） | 16000 | depth_taste=0.90, initiative=0.85 | 高预算高迭代，消化态引导 |
+```
+START → classify_node ─┬── [chat] ──────────→ END
+                         ├── [fetch] ─────────→ fetch_search → tool → fetch_detail → tool → synthesize → END
+                         ├── [realtime] ──────→ realtime_search → tool → synthesize → END
+                         ├── [profile] ───────→ profile_search → tool → synthesize → END
+                         └── [explore|discuss|fallback] → reasoning_node ⇄ tool_node → END
+```
 
-**路由**：两级（tool_calls → tool_node，其他 → render_node → END）。
+- **Pipeline**（fetch/realtime/profile）：编译时确定性步骤，每步独立 LLM 节点 + 独立 prompt + 独立工具集
+- **ReAct**（explore/discuss/fallback）：运行时 LLM 自主探索，隐式终止（输出文本 = END）
+- **Chat**：直通 END，main.py 直接 render
+- **置信度路由**：classifier confidence < 0.7 → ReAct fallback
 
-**depth 本质**：不是行为逻辑不同，是预算和人格参数不同。三种模式跑同一段 ReAct 代码。
+| intent | 最大迭代 (fast) | 最大迭代 (deep) | 工具子集 |
+|--------|----------------|----------------|---------|
+| chat | 0 | 0 | — |
+| fetch | 3 (search→detail→synthesize) | 3 | search, detail, person, character |
+| explore | 3 | 5 | fetch + opinions, characters, episodes, trending, local_search |
+| discuss | 4 | 6 | explore + entity_comments, episode_comments |
+| realtime | 2 (search→synthesize) | 2 | calendar, trending, hot_topics |
+| profile | 2 (search→synthesize) | 2 | user_profile, user_timeline |
+| fallback | 2 | 2 | 同 fetch |
+
+**隐式终止**（Phase 4.1）：无 submit_facts 工具。LLM 输出文本（no tool_calls）→ END。main.py 统一渲染路径，render 失败时降级清理（去 emoji/markdown）。
 
 **文件**：`agent/graph.py`, `agent/orchestrate/nodes.py`, `agent/state.py`, `agent/orchestrate/strategies.py`, `agent/orchestrate/deep_strategies.py`, `agent/orchestrate/prompt_builder.py`, `agent/orchestrate/classifier.py`, `agent/orchestrate/guardrails.py`, `agent/orchestrate/helpers.py`
 
@@ -51,27 +66,33 @@
 
 | # | 问题 | 严重度 | 文件 | 改动量 |
 |---|------|--------|------|--------|
-| 1 | 字数控制形同虚设——auto 模式近半数回复超过 200 字限制 | 🔴 P0 | `persona/render.py` `_WORD_LIMIT` | prompt 强化或硬截断 |
-| 2 | Deep 模式偶发 0 工具调用，闭卷答深度问题 | 🔴 P0 | `orchestrate/prompt_builder.py` `TOOL_GUIDANCE` | prompt 策略调整 |
-| 3 | "今天星期几"等常识问题被误分类为 realtime，触发 get_calendar | 🔴 P0 | `orchestrate/classifier.py` | 加纯常识判断 |
-| 4 | 搜索不存在的条目跑满 5 轮才放弃 | 🔴 P0 | `orchestrate/strategies.py` | 空结果 2 轮后终止 |
+| 1 | 字数控制形同虚设——fast 模式近半数回复超过 200 字限制 | 🔴 P0 | `persona/render.py` `_WORD_LIMIT` | prompt 强化或硬截断 |
+| 2 | Deep 模式 ReAct intent 偶发 0 工具调用 | 🔴 P0 | `orchestrate/prompt_builder.py` | prompt 策略调整 |
+| 3 | "今天星期几"等常识问题被误分类为 realtime | 🔴 P0 | `orchestrate/classifier.py` | 加纯常识判断 |
 
 **P1 — 影响体验**
 
 | # | 问题 | 严重度 | 文件 | 改动量 |
 |---|------|--------|------|--------|
-| 5 | 长程多轮（8 轮+）话题跳转后 R8 完全失忆 | 🟡 P1 | `memory/short_term.py` 预算策略 | auto 预算可能不足 |
-| 6 | Deep 模式偶发超出迭代上限（13-14 轮 vs max 12），无 Critic 兜底 | 🟡 | `orchestrate/strategies.py` | 策略调整 |
-| 7 | Bare title 仍直接搜而非先追问确认 | 🟡 | `orchestrate/strategies.py` + `persona/profiles.py` | ~10 行 |
+| 4 | 长程多轮（8 轮+）话题跳转后 R8 完全失忆 | 🟡 P1 | `memory/short_term.py` | fast 10000 tok 多话题不足 |
+| 5 | Streaming 仅节点级（非逐 token） | 🟡 | `main.py` `/chat/stream` | 升级到 astream_events |
 
 **P2 — 技术债**
 
 | # | 问题 | 严重度 | 文件 | 改动量 |
 |---|------|--------|------|--------|
-| 8 | Render 后消息在历史中出现两次（原始 + 渲染后） | 🟡 | `graph.py` / `render.py` | Render 追加而非替换 |
-| 9 | Streaming 仅节点级（非逐 token），用户体验差 | 🟡 | `main.py` `/chat/stream` | 升级到 astream_events |
-| 10 | 双套记忆阈值命名过时（`MEMORY_DIALOGUE_*` 继承自 Phase 4） | 🟢 | `core/config.py` | 重命名为 `MEMORY_NON_DEEP_*` |
-| 11 | `create_llm()` 无缓存——每次调用新建 `ChatOpenAI` 实例 | 🟢 | `agent/llm.py` | 加 lru_cache |
+| 6 | `_memory_context` 空字符串缓存 bug | 🟡 | `cache.py` | ~5 行 |
+| 7 | 双套记忆阈值命名过时（`MEMORY_DIALOGUE_*`） | 🟢 | `core/config.py` | 重命名 |
+| 8 | Bare title 不追问确认 | 🟢 | `orchestrate/strategies.py` | 追问策略 |
+| 9 | `create_llm()` 无缓存 | 🟢 | `agent/llm.py` | 加 lru_cache |
+
+**Phase 4-4.1 已解决：**
+- ~~搜索不存在的条目跑满 5 轮~~ → pipeline fetch 3 步即停，硬熔断兜底
+- ~~Render 消息重复~~ → main.py `_replace_last_ai_content` 替换而非追加
+- ~~Deep 超迭代~~ → 硬熔断 `iterations >= max` 直接 END
+- ~~submit_facts 显式终止反模式~~ → 彻底移除，统一隐式终止
+- ~~多轮 session 返回空~~ → 测试脚本 `"depth": "auto"` → `"fast"` 修复
+- ~~classifier fetch 过重~~ → "讲什么"/"配过什么" → explore，不确定时→explore
 
 ---
 
@@ -114,8 +135,8 @@ Render Node (独立 LLM 调用)   → 决定输出怎么表达（HOW to say it�
 
 L1 + L2 活跃，L3 废弃。
 
-- **L1**：`agent/memory/short_term.py` — Phase 8 重构：
-  - 按 depth 三级预算（quick 6000 / auto 10000 / deep 16000 tok）
+- **L1**：`agent/memory/short_term.py`：
+  - 按 depth 两级预算（fast 10000 / deep 16000 tok）
   - SystemMessage 永不截断
   - 工具结果压缩（上一轮 ToolMessage → 关键字段摘要，2000→80 tokens）
   - 孤儿 ToolMessage 清理（防止 API 400 错误）
@@ -136,9 +157,9 @@ L1 + L2 活跃，L3 废弃。
 
 ### 当前
 
-16 个工具 + BangumiClient + RAG + pgvector。自 dict 结构化重构后基本稳定。
+15 个工具 + BangumiClient + RAG + pgvector。Phase 4.1 移除 submit_facts_to_render（隐式终止替代）。
 
-**工具**（`tools/bgm_tools.py`）：search, get_detail, get_calendar, get_trending, get_hot_topics, get_episode_discussion, get_opinions, get_episodes, get_comments, get_characters, get_person_detail, get_character_detail, get_user_profile, get_blog, user_timeline, search_local_bangumi
+**工具**（`tools/bgm_tools.py`）：search, get_detail, get_calendar, get_trending, get_hot_topics, get_episode_comments, get_opinions, get_episodes, get_comments, get_characters, get_person_detail, get_character_detail, get_user_profile, get_blog, user_timeline, search_local_bangumi
 
 **Client**（`clients/`）：BaseClient → BangumiClient → sanitizers（A/B/C/D 字段方法论）
 
@@ -197,7 +218,7 @@ L1 + L2 活跃，L3 废弃。
 | [`docs/design/evolution-roadmap-phase7-9.md`](evolution-roadmap-phase7-9.md) | 分层演进路线 Phase 7-9（"怎么到那里"） |
 | [`docs/memory/`](../memory/) | 记忆系统手册（6 文件） |
 | [`docs/tool-guide.md`](../tool-guide.md) | 工具增/改/删操作指南 |
-| [`docs/Tools/tools_file.md`](../Tools/tools_file.md) | 16 个工具设计详情 |
+| [`docs/Tools/tools_file.md`](../Tools/tools_file.md) | 15 个工具设计详情 |
 | [`docs/database-admin.md`](../database-admin.md) | PostgreSQL + pgvector 运维手册 |
 | [`docs/Rag/`](../Rag/) | RAG 策略、表结构、上下文（3 文件） |
 | [`docs/tmp/real_data_test.md`](../tmp/real_data_test.md) | Phase 5 测试数据基线 |

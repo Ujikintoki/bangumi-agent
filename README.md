@@ -28,13 +28,12 @@
 | 可爱安利 | `bangumi_cute` | 温暖、真诚、有感染力，像给朋友安利 | 找推荐 |
 | 中性助手 | `neutral` | 客观、简洁、信息优先 | 只查数据 |
 
-**三种深度**，对用户透明：
+**两种深度**，对用户透明：
 
 | 模式 | 适合 |
 |------|------|
-| `quick` | 快速查询、"这季有什么好看的" |
-| `auto` | 日常对话（默认） |
-| `deep` | 深度分析、导演风格演变 |
+| `fast` | 日常对话、快速查询（默认） |
+| `deep` | 深度分析、多步探索、导演风格演变 |
 
 ```
 用户: EVA 评分怎么样？
@@ -62,10 +61,11 @@ BGM Agent (中性): TV版《新世纪福音战士》Bangumi评分8.69（全站�
 
 ## 核心特性
 
-- **四种人格 × 三层深度** — 12 种组合，通过 `output_style` + `depth` 参数切换。两层独立管线：Character Card（System Prompt 层，决定思考方式）和 Render Node（独立 LLM 调用，决定语言风格）
+- **四种人格 × 两种深度** — 8 种组合，通过 `output_style` + `depth` 参数切换。两层独立管线：Character Card（System Prompt 层，决定思考方式）和 Render Node（独立 LLM 调用，决定语言风格）
 - **5 档离散人格参数** — 毒舌度、分析深度、主动性各有 5 档，随 depth 和人格自动调节。档位增加不膨胀 System Prompt
-- **纯 ReAct 拓扑** — reasoning ⇄ tool → render。三种深度共享同一推理逻辑，差异仅在预算和人格参数
-- **Bangumi API 工具集** — 条目搜索与详情、角色与声优、每日放送、热门趋势、单集讨论、社区评论、用户画像、本地 RAG 语义搜索
+- **异质拓扑（Pipeline + ReAct）** — fetch/realtime/profile 走确定性 pipeline 节点，explore/discuss 走 ReAct 自主探索。chat 直通 render，0 工具调用
+- **隐式终止** — 标准 function calling 模式：LLM 输出文本（无 tool_calls）= 结束。无语义扭曲的"提交"工具
+- **Bangumi API 工具集** — 条目搜索与详情、角色与声优、每日放送、热门趋势、单集讨论、社区评论、用户画像、本地 RAG 语义搜索（15 个工具）
 - **多轮记忆** — L1 短记忆按深度自适应管理上下文窗口 + 工具结果自动压缩；L2 跨会话语义记忆召回（pgvector + 时间衰减）
 - **混合 RAG 检索** — 覆盖"类似命运石之门的烧脑番"这类 API 搜不到的模糊查询
 - **SSE 流式输出** — `/chat/stream` 端点，按节点推送推理过程
@@ -77,9 +77,9 @@ BGM Agent (中性): TV版《新世纪福音战士》Bangumi评分8.69（全站�
 
 | | 内容 |
 |---|------|
-| **Current** (v0.1.1) | 4 种人格 × 3 层深度，纯 ReAct 拓扑，L1 + L2 记忆，16 个工具 |
-| **Next** (v0.2) | 基础功补强——字数控制、工具调用可靠性、E2E 通过率提升 |
-| **Future** | 事件驱动主动推送、MCP 工具协议、更多人格探索 |
+| **Current** (v0.2.0-beta) | 4 种人格 × 2 层深度，异质拓扑（Pipeline + ReAct），隐式终止，15 个工具 |
+| **Next** (v0.2) | 基础功补强——字数控制、deep 模式可靠性、classifier 精度提升 |
+| **Future** | 事件驱动主动推送、逐 token streaming、更多人格探索 |
 
 详细状态和待解决问题见 [`ROADMAP.md`](docs/design/ROADMAP.md)。架构演化历史见 [`architecture-evolution.md`](docs/design/architecture-evolution.md)。
 
@@ -124,7 +124,7 @@ uvicorn main:app --reload --port 8000
 ```bash
 curl -s -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "你好，最近有什么好看的番？", "depth": "auto", "output_style": "bangumi"}' | python3 -m json.tool
+  -d '{"message": "你好，最近有什么好看的番？", "depth": "fast", "output_style": "bangumi"}' | python3 -m json.tool
 ```
 
 ---
@@ -155,7 +155,7 @@ curl -s -X POST http://localhost:8000/chat \
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `message` | `str` | *必填* | 用户消息 |
-| `depth` | `"auto"` \| `"quick"` \| `"deep"` | `"auto"` | 深度控制 |
+| `depth` | `"fast"` \| `"deep"` | `"fast"` | 深度控制 |
 | `output_style` | `"bangumi"` \| `"bangumi_cold"` \| `"bangumi_cute"` \| `"neutral"` | `"bangumi"` | 人格模式 |
 | `session_id` | `str` | 自动生成 | 多轮会话 ID |
 | `user_id` | `str` | `"anonymous"` | 跨会话记忆用户 ID |
@@ -208,7 +208,7 @@ MY_CHARACTER = CharacterProfile(
 
 ## 架构
 
-拓扑：`reasoning_node ⇄ tool_node → render_node → END`。三种深度共享同一 ReAct 逻辑，差异仅在预算和人格参数。
+拓扑：异质图——pipeline 路径（fetch/realtime/profile 经专用节点确定性执行）+ ReAct 路径（explore/discuss/fallback 自主探索）。Render 在 main.py 后处理。
 
 两层人格管线：Character Card（System Prompt → 决定思考）+ Render Node（独立 LLM → 决定表达）。
 
@@ -241,11 +241,11 @@ pytest test/test_memory.py test/test_memory_manager.py test/test_phase5_l1.py -v
 ```
 agent/
 ├── state.py                       # 统一 AgentState（含 depth 字段）
-├── graph.py                       # 纯 ReAct StateGraph
+├── graph.py                       # 异质拓扑 StateGraph（v5: Pipeline + ReAct）
 ├── llm.py                         # LLM 工厂（多 Provider）
 ├── devtools.py                    # Token 统计 + 节点计时
 ├── orchestrate/                   # 编排层
-│   ├── nodes.py                   #   reasoning_node
+│   ├── nodes.py                   #   reasoning_node + 5 pipeline 节点
 │   ├── strategies.py              #   浅层 intent 策略
 │   ├── deep_strategies.py         #   Deep Scene Hints
 │   ├── prompt_builder.py          #   System Prompt 组装

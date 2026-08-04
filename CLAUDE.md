@@ -8,9 +8,9 @@ BGM Agent 是 Bangumi 站内的 **Companion Agent（知识型损友）**——�
 
 **她不是**搜索引擎、数据看板、维基百科。查数据是为了聊天，不是为了交报告。
 
-两个入口参数控制一切：`depth`（auto/quick/deep）控制思考深度，`output_style`（bangumi/bangumi_cold/bangumi_cute/neutral）控制人格。
+两个入口参数控制一切：`depth`（fast/deep）控制思考深度，`output_style`（bangumi/bangumi_cold/bangumi_cute/neutral）控制人格。
 
-技术栈：FastAPI + LangGraph ReAct + PostgreSQL/pgvector + DeepSeek function-calling + Zhipu embedding-2。
+技术栈：FastAPI + LangGraph 异质拓扑（Pipeline + ReAct）+ PostgreSQL/pgvector + DeepSeek function-calling + Zhipu embedding-2。
 
 ## 2. Guardrails & Anti-Patterns
 
@@ -20,8 +20,7 @@ BGM Agent 是 Bangumi 站内的 **Companion Agent（知识型损友）**——�
 - **绝不抛出异常**。所有 API/工具失败返回 `{"_error": "..."}` dict。Client 层通过 `BaseClient` 统一处理重试（429/502/503/TimeoutException，指数退避，最多 3 次）和降级。
 
 ### Critic 节点
-- **不要将 reasoning_node 路由到 critic_node**。critic_node 已在 graph 中保留注册，但当前纯 ReAct 拓扑不路由到它。
-- **不要删除 critic_node 的代码**。保留以备未来恢复。如需恢复 Critic，在 `graph.py` 的 `route_after_reasoning` 中加回一条路由规则即可。
+- **Critic 节点已从 graph 中移除（Phase 4）**。如需恢复，在 `graph.py` 中重新注册节点并添加路由规则。
 
 ### 层间隔离
 - **上层依赖下层，下层完全不感知上层**。这是四层架构的核心契约。
@@ -65,28 +64,41 @@ BGM Agent 是 Bangumi 站内的 **Companion Agent（知识型损友）**——�
 
 ### 编排层 — 拓扑 & 深度模式
 
-纯 ReAct 拓扑：
+v5 异质拓扑（Phase 4）：
 
 ```
-START → reasoning_node ⇄ tool_node → render_node → END
+START → classify_node ─┬── [chat] ──────────→ END
+                         ├── [fetch] ─────────→ fetch_search → tool → fetch_detail → tool → synthesize → END
+                         ├── [realtime] ──────→ realtime_search → tool → synthesize → END
+                         ├── [profile] ───────→ profile_search → tool → synthesize → END
+                         └── [explore|discuss|fallback] → reasoning_node ⇄ tool_node → END
 ```
 
-路由规则（`route_after_reasoning`）：AIMessage 含 tool_calls → tool_node；其他 → render_node。
+- **Pipeline intents**（fetch/realtime/profile）：编译时确定性步骤，每步独立节点 + 独立 prompt + 独立工具绑定
+- **ReAct intents**（explore/discuss/fallback）：运行时 LLM 自主探索，隐式终止（输出文本 = END）
+- **Chat**：直通 END，main.py 直接 render
 
-三种 depth 共享同一段 ReAct 代码，**差异仅在参数——不是行为逻辑不同**。
+路由规则：
+- `route_after_classify`：按 intent + 置信度（<0.7 → ReAct fallback）分发到 pipeline 入口或 reasoning_node
+- `route_after_tool`：pipeline 步骤路由（iterations→下一步）+ 硬熔断 + ReAct 路由
+- `route_after_reasoning`：AIMessage 含 tool_calls → tool_node；其他 → END（隐式终止）
 
-迭代上限见 `state.py` `_MAX_ITERATIONS_*`，Token 预算见 `memory/short_term.py` `DEPTH_TOKEN_BUDGETS`，人格参数覆盖见 `nodes.py` `tone_kwargs`。
+两种 depth 的行为差异：
+- fast：pipeline 或 ReAct，正常迭代上限和预算
+- deep：pipeline 步骤不变，ReAct 有更高迭代上限（explore 5/discuss 6）+ 更大 Token 预算（16000 tok）
 
-关键行为差异：
-- quick / auto：最后一轮强制解绑工具（`_LAST_CHANCE_INSTRUCTION`）
-- deep：无强制解绑，消化态引导——"如果已拿到完整信息直接基于数据回答"
+迭代上限见 `state.py` `_INTENT_MAX_ITERATIONS` + `_INTENT_DEEP_OVERRIDES`，Token 预算见 `memory/short_term.py` `DEPTH_TOKEN_BUDGETS`。
 
-reasoning_node 流程（`orchestrate/nodes.py`）：
-1. 意图分类（仅首轮）→ `classify_intent_step()`
-2. L2 记忆召回（仅首轮）→ `recall_memory_step()`，按 depth 选阈值
-3. 构建 System Prompt → `build_system_prompt()`，按 depth 传 personality 参数和 scene hints
-4. L1 记忆管理 → `manage_memory()`
-5. LLM 调用（始终绑定工具，非 deep 最后一轮解绑）
+classify_node 流程（首轮）：
+1. 意图分类 → `classify_intent_step()`（LLM function calling，7 intent）
+2. L2 记忆召回 → `recall_memory_step()`
+
+reasoning_node 流程：
+1. 构建 System Prompt → `build_aggregator_prompt()`
+2. Dynamic Tool Binding → 按 intent 过滤 TOOLS_BY_INTENT + tool_choice
+3. L1 记忆管理 → `manage_memory()`
+4. LLM 调用（首轮 required，后续 auto）
+5. 消化态引导（接近最后一轮注入 `_LAST_CHANCE_DIGEST_HINT`）
 6. XML 泄漏防护 → `guard_xml_leak()`
 
 ### 人格层 — 两层管线
@@ -130,7 +142,7 @@ Render 层（`persona/render.py`）：
 **L2 跨会话记忆**（`memory/long_term.py`）：
 - 写入（fire-and-forget，超时见 `asyncio.wait_for` timeout 参数）：对话摘要 → embedding 向量化 → UPSERT `session_memories`
 - 召回（双通道 + 时间衰减）：语义召回（cosine_distance）+ 时效回退。衰减公式和半衰期见 `core/config.py` `MEMORY_TIME_DECAY_HALF_LIFE_DAYS`
-- 阈值和注入预算见 `core/config.py` `MEMORY_*` 配置项。注意 deep 和非 deep 使用不同的阈值——非 deep 的阈值命名过时（`MEMORY_DIALOGUE_*`，继承自 Phase 4，实际含义是"非 deep 模式"）
+- 阈值和注入预算见 `core/config.py` `MEMORY_*` 配置项。注意 deep 和非 deep 使用不同的阈值——非 deep 的阈值命名过时（`MEMORY_DIALOGUE_*`，历史遗留，实际含义是"非 deep 模式"）
 
 ### 数据层 — 工具 & Client
 
@@ -164,15 +176,15 @@ RAG（`rag/`）：`text_processor.py` → `ingestion.py` → `retriever.py`。5 
 ```
 agent/
 ├── state.py                       # AgentState + 迭代上限
-├── graph.py                       # StateGraph 编排 + 路由
+├── graph.py                       # v5 异质拓扑 StateGraph（Pipeline + ReAct）
 ├── llm.py                         # LLM 工厂（多 Provider）
 ├── devtools.py                    # Token 统计 + 节点计时（DEV_MODE）
 ├── orchestrate/
-│   ├── nodes.py                   # reasoning_node（主推理）+ critic_node（保留未路由）
+│   ├── nodes.py                   # classify_node + reasoning_node + 5 pipeline 节点
 │   ├── strategies.py              # 浅层 intent 策略（COMPANION_INTENT_PROMPTS）
 │   ├── deep_strategies.py         # Deep 模式 Scene Hints + intent 策略
-│   ├── prompt_builder.py          # System Prompt 组装（TOOL_GUIDANCE 五合一）
-│   ├── classifier.py              # 意图分类 + 深度信号检测
+│   ├── prompt_builder.py          # System Prompt 组装 + tool_choice + TOOLS_BY_INTENT
+│   ├── classifier.py              # 7 intent LLM 分类器 + 置信度路由
 │   ├── guardrails.py              # 终端检测 / XML 泄漏 / 重复调用检测
 │   └── helpers.py                 # 共享辅助函数
 ├── persona/
@@ -218,12 +230,14 @@ docker run -d --name bangumi-pg \
 # 发测试请求
 curl -s -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "你好，最近有什么好看的番？", "depth": "auto", "output_style": "bangumi"}'
+  -d '{"message": "你好，最近有什么好看的番？", "depth": "fast", "output_style": "bangumi"}'
 ```
 
 ## 6. Known Issues & Tech Debt
 
-> ⚠️ **这是快照（2026-07-31），会过时。** 当 Claude 被要求修 bug 时，先查此表避免重复发现已知问题。修复后应从表中移除。实时版本见 [`docs/design/ROADMAP.md`](docs/design/ROADMAP.md)。
+> ⚠️ **这是快照（2026-08-04），会过时。** 实时版本见 [`docs/design/ROADMAP.md`](docs/design/ROADMAP.md)。
+
+Phase 4-4.1 已解决：submit_facts 反模式移除、隐式终止统一、pipeline 拓扑落地、多轮 session 修复、classifier fetch/explore 边界微调。
 
 按层组织。
 
@@ -231,16 +245,13 @@ curl -s -X POST http://localhost:8000/chat \
 
 | 问题 | 严重度 | 定位 | 备注 |
 |------|--------|------|------|
-| 字数控制形同虚设——auto 模式近半数回复超过 200 字限制 | 🔴 P0 | `persona/render.py` `_WORD_LIMIT` | prompt 建议不够强，需硬截断或加大约束权重 |
-| Deep 模式偶发 0 工具调用，闭卷答深度问题 | 🔴 P0 | `orchestrate/prompt_builder.py` `TOOL_GUIDANCE` | prompt 需强化"deep 模式下即使是常识也应查数据佐证" |
-| "今天星期几"等常识问题被误分类为 realtime，触发 get_calendar | 🔴 P0 | `orchestrate/classifier.py` | classifier 需增加纯常识判断 |
-| 搜索不存在的条目跑满 5 轮才放弃 | 🔴 P0 | `orchestrate/strategies.py` | 空结果应在 2 轮后注入终止指令 |
-| 长程多轮（8 轮+）话题跳转后 R8 完全失忆 | 🟡 P1 | `memory/short_term.py` 预算策略 | auto 10000 tok 对多话题对话不足 |
-| Bare title 不追问确认直接搜索 | 🟡 | `orchestrate/strategies.py` | 只有作品名时应先追问 |
-| Deep 模式偶发超出迭代上限（13-14 轮 vs max 12） | 🟡 | `orchestrate/strategies.py` | 无 Critic 兜底 |
-| Render 后消息在历史中出现两次（原始 + 渲染后） | 🟡 | `graph.py` / `render.py` | Render 追加 AIMessage 而非替换 |
+| 字数控制形同虚设——fast 模式近半数回复超过 200 字限制 | 🔴 P0 | `persona/render.py` `_WORD_LIMIT` | prompt 建议不够强，需硬截断或加大约束权重 |
+| Deep 模式偶发 0 工具调用，闭卷答深度问题 | 🔴 P0 | `orchestrate/prompt_builder.py` | ReAct intent 仍需强化"deep 模式下即使是常识也应查数据佐证" |
+| "今天星期几"等常识问题被误分类为 realtime | 🔴 P0 | `orchestrate/classifier.py` | classifier 需增加纯常识判断 |
+| 长程多轮（8 轮+）话题跳转后 R8 完全失忆 | 🟡 P1 | `memory/short_term.py` 预算策略 | fast 10000 tok 对多话题对话不足 |
 | Streaming 仅节点级（非逐 token） | 🟡 | `main.py` `/chat/stream` | 用户看到节点间等待，体验差 |
-| 双套记忆阈值命名过时（`MEMORY_DIALOGUE_*`） | 🟢 | `core/config.py` | 继承自 Phase 4 "Dialogue Agent"，实际用于非 deep 模式 |
+| Bare title 不追问确认直接搜索 | 🟢 | `orchestrate/strategies.py` | 仅作品名时追问体验更好，当前 classify→fetch pipeline |
+| Deep 模式偶发超出迭代上限 | 🟢 | `orchestrate/strategies.py` | explore 5/discuss 6 deep，硬熔断兜底 |
 | `create_llm()` 无缓存——每次调用新建 `ChatOpenAI` 实例 | 🟢 | `agent/llm.py` | 同一请求内多次调 reasoning/render，每次重建 |
 
 ### 人格层
@@ -254,6 +265,7 @@ curl -s -X POST http://localhost:8000/chat \
 | 问题 | 严重度 | 定位 | 备注 |
 |------|--------|------|------|
 | `_memory_context` 空字符串缓存：`""` 是 falsy → 重复触发 embedding 调用 | 🟡 | `cache.py` | 改用 `is not None` 判断 |
+| 双套记忆阈值命名过时（`MEMORY_DIALOGUE_*`） | 🟢 | `core/config.py` | 历史遗留，实际用于非 deep 模式 |
 
 ### 数据层
 

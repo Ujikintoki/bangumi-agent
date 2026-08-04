@@ -21,7 +21,6 @@ from pydantic import BaseModel, Field
 from agent.devtools import RequestTelemetry, set_current_telemetry
 from agent.graph import agent_app
 from agent.memory.cache import get_session_cache
-from agent.orchestrate.nodes import _count_consecutive_empty_searches
 from agent.persona.profiles import get_agent_profile, get_character
 from agent.persona.render import render_reply
 from agent.persona.render import _extract_user_query as _extract_user_query_from_messages
@@ -164,45 +163,8 @@ app.add_middleware(
 )
 
 # ═══════════════════════════════════════════════════════════════════
-# v2 分离合成 — 代码中转层
+# 隐式终止 — 统一渲染路径
 # ═══════════════════════════════════════════════════════════════════
-
-
-def _find_submit_facts(messages: list) -> dict | None:
-    """从消息历史中找到 submit_facts_to_render 的 ToolMessage 并解析内容。
-
-    LangChain ToolNode 可能将 dict return 转为 Python repr（单引号）或 JSON 字符串，
-    两种格式都需要处理。
-
-    Args:
-        messages: graph 返回的消息列表。
-
-    Returns:
-        解析后的 facts dict，未找到时返回 None。
-    """
-    import ast
-
-    for m in reversed(messages):
-        if isinstance(m, ToolMessage) and getattr(m, "name", "") == "submit_facts_to_render":
-            content = m.content if hasattr(m, "content") else ""
-            if isinstance(content, dict):
-                return content
-            if isinstance(content, str) and content:
-                # 尝试 JSON 解析
-                try:
-                    return json.loads(content)
-                except json.JSONDecodeError:
-                    pass
-                # 尝试 Python literal 解析（ToolNode 可能输出 repr 格式）
-                try:
-                    parsed = ast.literal_eval(content)
-                    if isinstance(parsed, dict):
-                        return parsed
-                except (ValueError, SyntaxError):
-                    pass
-                logger.warning("_find_submit_facts: 无法解析 ToolMessage content: %.100s", content)
-            break
-    return None
 
 
 def _extract_tools_used(messages: list) -> list[str]:
@@ -220,94 +182,37 @@ def _extract_tools_used(messages: list) -> list[str]:
     return list(dict.fromkeys(tools))
 
 
-def _data_level_label(depth: str) -> str:
-    """depth 模式 → 数据等级标签。"""
-    return {"fast": "L1-L2（摘要+详情）", "deep": "L1-L3（完整）"}.get(
-        depth, "L1-L2"
-    )
+def _degrade_render_input(text: str) -> str:
+    """render 失败时的降级清理：去 emoji、markdown 格式、多余空白。
 
-
-def _build_render_input(
-    facts_json: dict | None,
-    state: dict,
-    user_query: str,
-    depth: str,
-) -> str:
-    """确定性拼接 Render 的输入 Markdown（v2 代码中转层）。
-
-    不从 LLM 拿文本——从 submit_facts JSON（Aggregator 的 ToolMessage）
-    和 AgentState（系统数据）确定性地构建。
+    用于隐式终止路径：当 render_reply 返回 None 时，
+    对 Aggregator 原始文本做基础清理，避免 emoji/markdown table 泄漏到用户端。
 
     Args:
-        facts_json: submit_facts_to_render 返回的 dict，None 则用空数据。
-        state: graph 返回的完整 state dict。
-        user_query: 用户原始消息。
-        depth: 深度模式。
+        text: Aggregator 输出的原始文本。
 
     Returns:
-        供 Render LLM 消费的 Markdown 字符串。
+        清理后的纯文本。
     """
-    if facts_json is None:
-        facts_json = {"facts": [], "intent": "unknown", "missing": "数据收集未完成"}
+    import re
 
-    facts = facts_json.get("facts", [])
-    intent = facts_json.get("intent", "未知")
-    missing = facts_json.get("missing", "")
-
-    # ── 系统状态（代码提取，不靠 LLM 自述）──
-    messages = state.get("messages", [])
-    iterations = state.get("iterations", 0)
-    tools_used = _extract_tools_used(messages)
-    empty_count = _count_consecutive_empty_searches(messages)
-    data_level = _data_level_label(depth)
-
-    # ── 拼接 ──
-    lines = [
-        "## 数据清单",
-        f"查询意图: {intent}",
-        "",
-    ]
-
-    if facts:
-        for i, f in enumerate(facts, 1):
-            if isinstance(f, dict):
-                name = f.get("name", "?")
-                score = f.get("score")
-                score_str = f"{score}分" if score is not None else "暂无评分"
-                rank = f.get("rank")
-                rank_str = f"#{rank}" if rank else ""
-                summary = f.get("summary", "")
-                tags = f.get("tags", "")
-                source = f.get("source", "")
-
-                line = f"{i}. {name} | {score_str}"
-                if rank_str:
-                    line += f" | {rank_str}"
-                if summary:
-                    line += f"\n   {summary[:300]}"
-                if tags:
-                    line += f"\n   标签: {tags}"
-                if source:
-                    line += f"  [{source}]"
-                lines.append(line)
-            else:
-                lines.append(f"{i}. {f}")
-        lines.append("")
-
-    lines.extend([
-        "## 检索概况（系统记录）",
-        f"搜索深度: {data_level} | 共 {iterations} 轮",
-    ])
-    if tools_used:
-        data_tools = [t for t in tools_used if t != "submit_facts_to_render"]
-        if data_tools:
-            lines.append(f"调用工具: {', '.join(data_tools)}")
-    if empty_count >= 2:
-        lines.append(f"⚠ 连续 {empty_count} 次搜索返回空结果——相关关键词可能不存在于数据库。")
-    if missing:
-        lines.append(f"数据缺失: {missing}")
-
-    return "\n".join(lines)
+    # 去 emoji（Unicode 表情符号区块）
+    text = re.sub(
+        r'[\U0001F300-\U0001F9FF☀-➿⭐✀-➿️]',
+        '', text,
+    )
+    # 去 markdown table 行（以 | 开头和结尾）
+    text = re.sub(r'^\|.*\|$', '', text, flags=re.MULTILINE)
+    # 去 markdown 标题标记（## 等）
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # 去 markdown 粗体/斜体
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    # 去 markdown 分隔线
+    text = re.sub(r'^[-*_]{3,}$', '', text, flags=re.MULTILINE)
+    # 合并多余空行
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -402,22 +307,29 @@ async def chat(request: ChatRequest) -> ChatResponse:
         if telemetry:
             set_current_telemetry(None)
 
-    # ── 后处理：v2 代码中转 + Render 风格改写 ──
+    # ── 后处理：统一渲染路径（隐式终止）──
     messages_for_render = result.get("messages", [])
     user_query = _extract_user_query_from_messages(messages_for_render) or request.message
+    query_intent = result.get("query_intent", "fallback")
 
-    # v2: 从 submit_facts_to_render ToolMessage 提取结构化数据
-    facts_json = _find_submit_facts(messages_for_render)
-    if facts_json is not None:
-        # 正常路径: Aggregator 通过 submit_facts 提交了数据
-        render_input = _build_render_input(facts_json, result, user_query, depth)
-        force_render = True  # submit_facts 路径绝不跳过 Render
+    # chat 意图：纯闲聊，无工具数据。直接用人格回复。
+    if query_intent == "chat":
+        render_input = (
+            f"用户对你说：{user_query}\n\n"
+            "这是一段闲聊。自然地用你的角色性格回复。"
+            "不要列数据、不要提搜索、就像朋友聊天一样。"
+        )
+        force_render = True
     else:
-        # Fallback: Aggregator 未调 submit_facts（chitchat / 错误）
+        # 隐式终止：直接使用 Aggregator 文本摘要
         last_ai = _get_last_ai_message(messages_for_render)
-        render_input = last_ai.content if last_ai and last_ai.content else "（无数据）"
-        force_render = False
-        logger.info("render fallback: Aggregator 未调 submit_facts，使用 AIMessage content")
+        if last_ai and last_ai.content:
+            render_input = last_ai.content
+            force_render = True
+            logger.info("render: 隐式终止 — 使用 Aggregator 文本摘要 (%d chars)", len(render_input))
+        else:
+            render_input = "（无数据）"
+            force_render = False
 
     # 获取角色人格参数（snark/initiative 来自角色定义，不被 depth 覆盖）
     character = get_character(output_style)
@@ -433,11 +345,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
     )
     if rendered:
         result["messages"] = _replace_last_ai_content(messages_for_render, rendered)
-    elif facts_json is not None:
-        # submit_facts 路径 + Render 失败 → 降级为确定性 Markdown
-        # 绝不 fallback 到 Aggregator 的 AIMessage.content——那是内部草稿本
-        result["messages"] = _replace_last_ai_content(messages_for_render, render_input)
-        logger.warning("Render 失败 (submit_facts 路径)，降级为确定性 Markdown (%d chars)", len(render_input))
+    elif force_render and render_input != "（无数据）":
+        # 降级：render 失败时清理原始文本，避免 emoji/markdown 泄漏
+        cleaned = _degrade_render_input(render_input)
+        result["messages"] = _replace_last_ai_content(messages_for_render, cleaned)
+        logger.warning("Render 失败，降级为清理后的原始文本 (%d → %d chars)", len(render_input), len(cleaned))
 
     # ── L1 Session 缓存：保存本轮消息 ──
     max_cached = 30 if depth == "deep" else 20
@@ -545,19 +457,27 @@ async def chat_stream(request: ChatRequest):
                                     tools.append(msg.name)
                         yield f"data: {json.dumps({'node': 'tool', 'tools': list(dict.fromkeys(tools))}, ensure_ascii=False)}\n\n"
 
-            # ── 后处理：v2 代码中转 + Render 风格改写 ──
+            # ── 后处理：统一渲染路径（隐式终止）──
             messages_for_render = final_state.get("messages", [])
             user_query = _extract_user_query_from_messages(messages_for_render) or request.message
+            query_intent = final_state.get("query_intent", "fallback")
 
-            # v2: 从 submit_facts_to_render ToolMessage 提取结构化数据
-            facts_json = _find_submit_facts(messages_for_render)
-            if facts_json is not None:
-                render_input = _build_render_input(facts_json, final_state, user_query, depth)
+            if query_intent == "chat":
+                render_input = (
+                    f"用户对你说：{user_query}\n\n"
+                    "这是一段闲聊。自然地用你的角色性格回复。"
+                    "不要列数据、不要提搜索、就像朋友聊天一样。"
+                )
                 force_render = True
             else:
+                # 隐式终止：直接使用 Aggregator 文本摘要
                 last_ai = _get_last_ai_message(messages_for_render)
-                render_input = last_ai.content if last_ai and last_ai.content else "（无数据）"
-                force_render = False
+                if last_ai and last_ai.content:
+                    render_input = last_ai.content
+                    force_render = True
+                else:
+                    render_input = "（无数据）"
+                    force_render = False
 
             character = get_character(output_style)
             rendered_reply = await render_reply(
@@ -573,10 +493,11 @@ async def chat_stream(request: ChatRequest):
                 final_state["messages"] = _replace_last_ai_content(
                     messages_for_render, rendered_reply
                 )
-            elif facts_json is not None:
-                # submit_facts 路径 + Render 失败 → 降级为确定性 Markdown
+            elif force_render and render_input != "（无数据）":
+                # 降级：render 失败时清理原始文本
+                cleaned = _degrade_render_input(render_input)
                 final_state["messages"] = _replace_last_ai_content(
-                    messages_for_render, render_input
+                    messages_for_render, cleaned
                 )
 
             # ── 发送 render 事件 + 最终回复 ──
