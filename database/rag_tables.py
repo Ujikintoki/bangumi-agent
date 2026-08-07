@@ -118,8 +118,17 @@ class RagEntity(SQLModel, table=True):
         ),
     )
 
-    chunk_text: str = Field(
-        description="文本块原始内容（分块后的片段，非完整摘要）",
+    rag_output: str = Field(
+        description="预构建的 JSON dict，对齐 API detail 工具 schema。检索时直接 json.loads 返回。",
+    )
+
+    embed_text: Optional[str] = Field(
+        default=None,
+        description=(
+            "嵌入用关键词密集合成文本，仅供 embedding 向量化。"
+            "关键词按区分度降序排列：名称 → 标签/职业 → 关联作品 → 简介首句。"
+            "不包含 [标签] 等模板标记，纯空格分隔。"
+        ),
     )
 
     embedding: list[float] = Field(

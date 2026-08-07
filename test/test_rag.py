@@ -25,7 +25,7 @@ from rag.retriever import (
     RagSearchResult,
     _extract_heat_signal,
 )
-from rag.text_processor import BangumiTextProcessor
+# [DEPRECATED] from rag.text_processor import BangumiTextProcessor  — text_processor 已废弃
 from core.config import get_settings
 
 
@@ -39,9 +39,10 @@ def settings():
     return get_settings()
 
 
-@pytest.fixture(scope="module")
-def processor():
-    return BangumiTextProcessor(chunk_size=300, chunk_overlap=50)
+# [DEPRECATED] text_processor fixture — BangumiTextProcessor 已废弃
+# @pytest.fixture(scope="module")
+# def processor():
+#     return BangumiTextProcessor(chunk_size=300, chunk_overlap=50)
 
 
 @pytest.fixture(scope="module")
@@ -81,120 +82,21 @@ def cleanup_test_data():
 
 
 # ═══════════════════════════════════════════════════════════════════
-# text_processor — 纯函数单元测试
+# [DEPRECATED] text_processor 测试 — BangumiTextProcessor 已废弃
+# 原 TestCleanText / TestSplitText / TestCreateEntityDocuments 类见 git history
 # ═══════════════════════════════════════════════════════════════════
 
-
+# [DEPRECATED] TestCleanText / TestSplitText / TestCreateEntityDocuments
+# BangumiTextProcessor 已废弃，对应测试类注释掉。clean_text 逻辑已迁移至
+# rag/ingestion.py 的 _clean_text()，后续可添加对应测试。
+"""
 class TestCleanText:
-    def test_html_unescape(self, processor):
-        assert processor.clean_text("&amp; &lt; &gt;") == "& < >"
-
-    def test_fullwidth_space_to_halfwidth(self, processor):
-        assert processor.clean_text("hello　world") == "hello world"
-
-    def test_newline_normalization(self, processor):
-        assert processor.clean_text("line1\r\nline2") == "line1\nline2"
-        assert processor.clean_text("a\n\n\nb") == "a\nb"
-
-    def test_multispace_collapse(self, processor):
-        assert processor.clean_text("a    b") == "a b"
-
-    def test_strip_quotes(self, processor):
-        assert processor.clean_text('"hello"') == "hello"
-
-    def test_zero_width_chars_removed(self, processor):
-        assert processor.clean_text("a​b‌c") == "abc"
-        assert processor.clean_text("﻿text") == "text"
-
-    def test_empty_string(self, processor):
-        assert processor.clean_text("") == ""
-        assert processor.clean_text("   ") == ""
-
-
+    ... (见 git history)
 class TestSplitText:
-    def test_short_text_no_split(self, processor):
-        chunks = processor.split_text("短短一段话")
-        assert len(chunks) == 1
-        assert chunks[0] == "短短一段话"
-
-    def test_none_returns_empty(self, processor):
-        assert processor.split_text(None) == []
-
-    def test_empty_string_returns_empty(self, processor):
-        assert processor.split_text("") == []
-
-    def test_chunks_have_overlap(self, processor):
-        """长文本切分后相邻块之间有重叠。"""
-        long_text = ("这是一段测试文本。它包含很多句子和细节。" * 30)
-        processor_small = BangumiTextProcessor(chunk_size=100, chunk_overlap=20)
-        chunks = processor_small.split_text(long_text)
-        assert len(chunks) > 1, f"Expected multiple chunks, got {len(chunks)}"
-
-    def test_step_calculation(self, processor):
-        """chunk_size=300, overlap=50 → step=250"""
-        assert processor.chunk_size == 300
-        assert processor.chunk_overlap == 50
-
-    def test_invalid_overlap_raises(self):
-        with pytest.raises(ValueError):
-            BangumiTextProcessor(chunk_size=100, chunk_overlap=100)
-        with pytest.raises(ValueError):
-            BangumiTextProcessor(chunk_size=100, chunk_overlap=150)
-
-
+    ...
 class TestCreateEntityDocuments:
-    def test_subject_with_tags(self, processor):
-        result = processor.create_entity_documents(
-            entity_type="subject", entity_id=8, name_cn="进击的巨人",
-            summary="在巨人支配的世界中...", tags=["科幻", "战斗"],
-        )
-        parent = result["parent"]
-        assert "[作品名] 进击的巨人。" in parent["text"]
-        assert "标签: 科幻, 战斗" in parent["text"]
-        assert "在巨人支配的世界中" in parent["text"]
-
-    def test_character_with_subject(self, processor):
-        result = processor.create_entity_documents(
-            entity_type="character", entity_id=5, name_cn="艾伦",
-            summary="憧憬外面世界的少年", subject_name="进击的巨人",
-        )
-        parent = result["parent"]
-        assert "[角色] 艾伦" in parent["text"]
-        assert "进击的巨人" in parent["text"]
-
-    def test_person(self, processor):
-        result = processor.create_entity_documents(
-            entity_type="person", entity_id=3, name_cn="梶裕贵",
-            summary="日本男性声优",
-        )
-        parent = result["parent"]
-        assert "[人物] 梶裕贵。" in parent["text"]
-
-    def test_empty_summary_generates_parent_only(self, processor):
-        result = processor.create_entity_documents(
-            entity_type="subject", entity_id=1, name_cn="Test",
-        )
-        assert len(result["children"]) == 0
-        assert result["parent"]["text"] != ""
-
-    def test_long_summary_generates_children(self, processor):
-        long_summary = "这是测试文本。" * 100
-        result = processor.create_entity_documents(
-            entity_type="subject", entity_id=1, name_cn="Test",
-            summary=long_summary,
-        )
-        assert len(result["children"]) > 0
-
-    def test_children_have_entity_metadata(self, processor):
-        long_summary = "这是测试文本。" * 100
-        result = processor.create_entity_documents(
-            entity_type="character", entity_id=5, summary=long_summary,
-            name_cn="Test", subject_name="TestSubject",
-        )
-        for child in result["children"]:
-            assert child["entity_type"] == "character"
-            assert child["entity_id"] == 5
-
+    ...
+"""
 
 # ═══════════════════════════════════════════════════════════════════
 # ingestion — ID 前缀 + chunk 构建（纯函数）

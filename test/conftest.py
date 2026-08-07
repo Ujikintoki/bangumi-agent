@@ -17,6 +17,28 @@ from agent.state import AgentState
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 全局测试环境
+# ═══════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture(autouse=True)
+def _disable_dev_mode_for_tests():
+    """强制 DEV_MODE=False，确保 test mock ``agent_app.ainvoke`` 不被 astream 路径绕过。
+
+    DEV_MODE=true 时 main.py 走 ``_run_with_telemetry`` → ``astream()`` 路径，
+    而测试 mock 的是 ``agent_app.ainvoke``。此 fixture 在每次测试前将 DEV_MODE 置为 False，
+    测试结束后恢复原值。get_settings() 是 @lru_cache 单例，修改对 main.py 可见。
+    """
+    from core.config import get_settings
+
+    settings = get_settings()
+    original = settings.DEV_MODE
+    settings.DEV_MODE = False
+    yield
+    settings.DEV_MODE = original
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Mock HTTP 响应工厂
 # ═══════════════════════════════════════════════════════════════════
 

@@ -1,0 +1,2984 @@
+[
+  {
+    "id": 377599,
+    "name": "さよなら絵梨",
+    "name_cn": "再见绘梨",
+    "type": 1,
+    "rank": 1,
+    "rating_total": 6014,
+    "score": 8.15,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "已完结"
+    ]
+  },
+  {
+    "id": 268279,
+    "name": "チェンソーマン",
+    "name_cn": "链锯人",
+    "type": 1,
+    "rank": 2,
+    "rating_total": 6775,
+    "score": 7.89,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "战斗",
+      "少年",
+      "奇幻",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 179872,
+    "name": "ファイアパンチ",
+    "name_cn": "炎拳",
+    "type": 1,
+    "rank": 3,
+    "rating_total": 5434,
+    "score": 8.21,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "科幻",
+      "漫画",
+      "战斗",
+      "少年",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 342254,
+    "name": "ルックバック",
+    "name_cn": "蓦然回首",
+    "type": 1,
+    "rank": 4,
+    "rating_total": 5234,
+    "score": 8.12,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "少年",
+      "原创",
+      "已完结"
+    ]
+  },
+  {
+    "id": 44996,
+    "name": "ジョジョの奇妙な冒険 Part7『スティール・ボール・ラン』",
+    "name_cn": "JoJo的奇妙冒险 第七部 飙马野郎",
+    "type": 1,
+    "rank": 5,
+    "rating_total": 3123,
+    "score": 9.13,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "战斗",
+      "少年",
+      "奇幻",
+      "冒险",
+      "原创",
+      "已完结"
+    ]
+  },
+  {
+    "id": 499,
+    "name": "文学少女",
+    "name_cn": "文学少女",
+    "type": 1,
+    "rank": 6,
+    "rating_total": 3465,
+    "score": 8.53,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "系列"
+    ]
+  },
+  {
+    "id": 101114,
+    "name": "無職転生 ～異世界行ったら本気だす～",
+    "name_cn": "无职转生 ～到了异世界就拿出真本事～",
+    "type": 1,
+    "rank": 7,
+    "rating_total": 3266,
+    "score": 8.24,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "后宫",
+      "原创",
+      "已完结"
+    ]
+  },
+  {
+    "id": 228444,
+    "name": "サマータイムレンダ",
+    "name_cn": "夏日重现",
+    "type": 1,
+    "rank": 8,
+    "rating_total": 2829,
+    "score": 7.92,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "少年",
+      "奇幻",
+      "悬疑",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 223229,
+    "name": "いもーとらいふ",
+    "name_cn": "妹妹人生",
+    "type": 1,
+    "rank": 9,
+    "rating_total": 2733,
+    "score": 8.52,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 322300,
+    "name": "チ。―地球の運動について―",
+    "name_cn": "关于地球的运动",
+    "type": 1,
+    "rank": 10,
+    "rating_total": 2694,
+    "score": 8.25,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "历史",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 8491,
+    "name": "進撃の巨人",
+    "name_cn": "进击的巨人",
+    "type": 1,
+    "rank": 11,
+    "rating_total": 3242,
+    "score": 7.42,
+    "date": "",
+    "meta_tags": [
+      "原创",
+      "已完结",
+      "日本",
+      "漫画",
+      "系列"
+    ]
+  },
+  {
+    "id": 132936,
+    "name": "やがて君になる",
+    "name_cn": "终将成为你",
+    "type": 1,
+    "rank": 12,
+    "rating_total": 2630,
+    "score": 8.57,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "百合",
+      "恋爱",
+      "漫画",
+      "校园",
+      "日常",
+      "GL",
+      "已完结"
+    ]
+  },
+  {
+    "id": 303186,
+    "name": "【推しの子】",
+    "name_cn": "【我推的孩子】",
+    "type": 1,
+    "rank": 13,
+    "rating_total": 3218,
+    "score": 5.59,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "恋爱",
+      "漫画",
+      "青年",
+      "悬疑",
+      "原创",
+      "系列",
+      "职场",
+      "已完结"
+    ]
+  },
+  {
+    "id": 361988,
+    "name": "タコピーの原罪",
+    "name_cn": "章鱼哔的原罪",
+    "type": 1,
+    "rank": 14,
+    "rating_total": 2266,
+    "score": 6.46,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "校园",
+      "少年",
+      "奇幻",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 105206,
+    "name": "ダンジョン飯",
+    "name_cn": "迷宫饭",
+    "type": 1,
+    "rank": 15,
+    "rating_total": 2654,
+    "score": 8.53,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "奇幻",
+      "冒险",
+      "原创",
+      "系列",
+      "美食",
+      "已完结"
+    ]
+  },
+  {
+    "id": 26944,
+    "name": "外天楼",
+    "name_cn": "外天楼",
+    "type": 1,
+    "rank": 16,
+    "rating_total": 2263,
+    "score": 8.29,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "推理",
+      "科幻",
+      "漫画",
+      "已完结"
+    ]
+  },
+  {
+    "id": 168891,
+    "name": "鬼滅の刃",
+    "name_cn": "鬼灭之刃",
+    "type": 1,
+    "rank": 17,
+    "rating_total": 2179,
+    "score": 6.84,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "战斗",
+      "少年",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 37782,
+    "name": "新世界より",
+    "name_cn": "来自新世界",
+    "type": 1,
+    "rank": 18,
+    "rating_total": 2282,
+    "score": 8.98,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "科幻",
+      "奇幻",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 2815,
+    "name": "空の境界",
+    "name_cn": "空之境界",
+    "type": 1,
+    "rank": 19,
+    "rating_total": 2134,
+    "score": 8.65,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 19441,
+    "name": "やはり俺の青春ラブコメはまちがっている。",
+    "name_cn": "我的青春恋爱物语果然有问题",
+    "type": 1,
+    "rank": 20,
+    "rating_total": 2531,
+    "score": 8.19,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "恋爱",
+      "校园",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 1674,
+    "name": "DEATH NOTE",
+    "name_cn": "死亡笔记",
+    "type": 1,
+    "rank": 21,
+    "rating_total": 2111,
+    "score": 8.51,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "推理",
+      "漫画",
+      "已完结"
+    ]
+  },
+  {
+    "id": 9640,
+    "name": "ベルセルク",
+    "name_cn": "剑风传奇",
+    "type": 1,
+    "rank": 22,
+    "rating_total": 3090,
+    "score": 9.3,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 9586,
+    "name": "三体Ⅱ：黑暗森林",
+    "name_cn": "",
+    "type": 1,
+    "rank": 23,
+    "rating_total": 1984,
+    "score": 9.01,
+    "date": "",
+    "meta_tags": [
+      "小说",
+      "中国",
+      "单行本"
+    ]
+  },
+  {
+    "id": 4923,
+    "name": "鋼の錬金術師",
+    "name_cn": "钢之炼金术师",
+    "type": 1,
+    "rank": 24,
+    "rating_total": 1893,
+    "score": 8.76,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "少年",
+      "奇幻",
+      "冒险",
+      "已完结"
+    ]
+  },
+  {
+    "id": 128202,
+    "name": "少女終末旅行",
+    "name_cn": "少女终末旅行",
+    "type": 1,
+    "rank": 25,
+    "rating_total": 1972,
+    "score": 8.63,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "科幻",
+      "百合",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 90411,
+    "name": "地球往事三部曲",
+    "name_cn": "",
+    "type": 1,
+    "rank": 26,
+    "rating_total": 1791,
+    "score": 8.67,
+    "date": "",
+    "meta_tags": [
+      "小说",
+      "科幻",
+      "中国",
+      "原创",
+      "纸质书"
+    ]
+  },
+  {
+    "id": 18462,
+    "name": "SLAM DUNK 完全版",
+    "name_cn": "灌篮高手 完全版",
+    "type": 1,
+    "rank": 27,
+    "rating_total": 1885,
+    "score": 9.38,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "校园",
+      "少年",
+      "运动",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 41437,
+    "name": "スピリットサークル",
+    "name_cn": "魂环",
+    "type": 1,
+    "rank": 28,
+    "rating_total": 1866,
+    "score": 8.36,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 27466,
+    "name": "DRAGON BALL",
+    "name_cn": "龙珠",
+    "type": 1,
+    "rank": 29,
+    "rating_total": 1742,
+    "score": 8.93,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 9585,
+    "name": "三体",
+    "name_cn": "",
+    "type": 1,
+    "rank": 30,
+    "rating_total": 1682,
+    "score": 8.43,
+    "date": "",
+    "meta_tags": [
+      "小说",
+      "中国",
+      "单行本"
+    ]
+  },
+  {
+    "id": 27684,
+    "name": "ドラえもん",
+    "name_cn": "哆啦A梦",
+    "type": 1,
+    "rank": 31,
+    "rating_total": 1562,
+    "score": 9.27,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 36261,
+    "name": "おやすみプンプン",
+    "name_cn": "晚安，布布",
+    "type": 1,
+    "rank": 32,
+    "rating_total": 1539,
+    "score": 8.62,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 135218,
+    "name": "かぐや様は告らせたい～天才たちの恋愛頭脳戦～",
+    "name_cn": "辉夜大小姐想让我告白 ~天才们的恋爱头脑战~",
+    "type": 1,
+    "rank": 33,
+    "rating_total": 1987,
+    "score": 7.18,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "恋爱",
+      "漫画",
+      "校园",
+      "青年",
+      "搞笑",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 39991,
+    "name": "惡の華",
+    "name_cn": "恶之华",
+    "type": 1,
+    "rank": 34,
+    "rating_total": 1457,
+    "score": 7.76,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "校园",
+      "已完结"
+    ]
+  },
+  {
+    "id": 10538,
+    "name": "三体Ⅲ：死神永生",
+    "name_cn": "",
+    "type": 1,
+    "rank": 35,
+    "rating_total": 1399,
+    "score": 8.53,
+    "date": "",
+    "meta_tags": [
+      "小说",
+      "中国",
+      "单行本"
+    ]
+  },
+  {
+    "id": 6133,
+    "name": "新世紀エヴァンゲリオン",
+    "name_cn": "新世纪福音战士",
+    "type": 1,
+    "rank": 36,
+    "rating_total": 1335,
+    "score": 8.47,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列"
+    ]
+  },
+  {
+    "id": 10787,
+    "name": "それでも町は廻っている",
+    "name_cn": "女仆咖啡厅",
+    "type": 1,
+    "rank": 37,
+    "rating_total": 1613,
+    "score": 8.94,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "推理",
+      "漫画",
+      "校园",
+      "搞笑",
+      "日常",
+      "已完结"
+    ]
+  },
+  {
+    "id": 34373,
+    "name": "NARUTO -ナルト-",
+    "name_cn": "火影忍者",
+    "type": 1,
+    "rank": 38,
+    "rating_total": 1521,
+    "score": 7.62,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 118913,
+    "name": "三日間の幸福",
+    "name_cn": "三日间的幸福",
+    "type": 1,
+    "rank": 39,
+    "rating_total": 1416,
+    "score": 7.65,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "单行本"
+    ]
+  },
+  {
+    "id": 343241,
+    "name": "負けヒロインが多すぎる！",
+    "name_cn": "败犬女主太多了！",
+    "type": 1,
+    "rank": 40,
+    "rating_total": 2431,
+    "score": 7.94,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "原创",
+      "系列"
+    ]
+  },
+  {
+    "id": 1713,
+    "name": "CLAYMORE",
+    "name_cn": "大剑",
+    "type": 1,
+    "rank": 41,
+    "rating_total": 1483,
+    "score": 8.03,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 6686,
+    "name": "白夜行",
+    "name_cn": "白夜行",
+    "type": 1,
+    "rank": 42,
+    "rating_total": 1320,
+    "score": 7.94,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "推理",
+      "小说",
+      "原创"
+    ]
+  },
+  {
+    "id": 305429,
+    "name": "葬送のフリーレン",
+    "name_cn": "葬送的芙莉莲",
+    "type": 1,
+    "rank": 43,
+    "rating_total": 3068,
+    "score": 8.05,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 102457,
+    "name": "電気サーカス",
+    "name_cn": "电力马戏团",
+    "type": 1,
+    "rank": 44,
+    "rating_total": 1374,
+    "score": 8.71,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "单行本"
+    ]
+  },
+  {
+    "id": 388782,
+    "name": "フツーに聞いてくれ",
+    "name_cn": "随心一听",
+    "type": 1,
+    "rank": 45,
+    "rating_total": 1131,
+    "score": 6.67,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "短篇"
+    ]
+  },
+  {
+    "id": 302561,
+    "name": "나 혼자만 레벨업",
+    "name_cn": "我独自升级",
+    "type": 1,
+    "rank": 46,
+    "rating_total": 1191,
+    "score": 6.54,
+    "date": "",
+    "meta_tags": [
+      "漫画",
+      "韩国",
+      "小说改",
+      "已完结"
+    ]
+  },
+  {
+    "id": 2139,
+    "name": "MONSTER",
+    "name_cn": "怪物",
+    "type": 1,
+    "rank": 47,
+    "rating_total": 1255,
+    "score": 8.55,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 289878,
+    "name": "夏へのトンネル、さよならの出口",
+    "name_cn": "通往夏天的隧道，再见的出口",
+    "type": 1,
+    "rank": 48,
+    "rating_total": 1155,
+    "score": 6.86,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 505,
+    "name": "涼宮ハルヒ シリーズ",
+    "name_cn": "凉宫春日系列",
+    "type": 1,
+    "rank": 49,
+    "rating_total": 1466,
+    "score": 8.42,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "系列"
+    ]
+  },
+  {
+    "id": 25896,
+    "name": "火の鳥（朝日ソノラマ版）",
+    "name_cn": "火之鸟",
+    "type": 1,
+    "rank": 50,
+    "rating_total": 1332,
+    "score": 9.28,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结",
+      "纸质书"
+    ]
+  },
+  {
+    "id": 44978,
+    "name": "ジョジョの奇妙な冒険 Part6『ストーンオーシャン』",
+    "name_cn": "JoJo的奇妙冒险 第六部 石之海",
+    "type": 1,
+    "rank": 51,
+    "rating_total": 1083,
+    "score": 7.77,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 68451,
+    "name": "亜人",
+    "name_cn": "亚人",
+    "type": 1,
+    "rank": 52,
+    "rating_total": 1300,
+    "score": 7.82,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 81467,
+    "name": "安達としまむら",
+    "name_cn": "安达与岛村",
+    "type": 1,
+    "rank": 53,
+    "rating_total": 1664,
+    "score": 8.75,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "百合",
+      "恋爱",
+      "日常",
+      "GL",
+      "原创",
+      "系列"
+    ]
+  },
+  {
+    "id": 34414,
+    "name": "Fate/Zero",
+    "name_cn": "",
+    "type": 1,
+    "rank": 54,
+    "rating_total": 1221,
+    "score": 8.31,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 208146,
+    "name": "五等分の花嫁",
+    "name_cn": "五等分的新娘",
+    "type": 1,
+    "rank": 55,
+    "rating_total": 1314,
+    "score": 6.68,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 1687,
+    "name": "バクマン。",
+    "name_cn": "爆漫王。",
+    "type": 1,
+    "rank": 56,
+    "rating_total": 1268,
+    "score": 8.34,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 2176,
+    "name": "人間失格",
+    "name_cn": "人间失格",
+    "type": 1,
+    "rank": 57,
+    "rating_total": 1028,
+    "score": 7.86,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "名著"
+    ]
+  },
+  {
+    "id": 1195,
+    "name": "ヒカルの碁",
+    "name_cn": "棋魂",
+    "type": 1,
+    "rank": 58,
+    "rating_total": 1137,
+    "score": 8.57,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "少年",
+      "运动",
+      "原创",
+      "已完结"
+    ]
+  },
+  {
+    "id": 3559,
+    "name": "とある魔術の禁書目録",
+    "name_cn": "魔法禁书目录",
+    "type": 1,
+    "rank": 59,
+    "rating_total": 1291,
+    "score": 7.61,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "科幻",
+      "战斗",
+      "奇幻",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 26,
+    "name": "“文学少女”と死にたがりの道化",
+    "name_cn": "“文学少女”与渴望死亡的小丑",
+    "type": 1,
+    "rank": 60,
+    "rating_total": 988,
+    "score": 8.04,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 36752,
+    "name": "SLAM DUNK",
+    "name_cn": "灌篮高手",
+    "type": 1,
+    "rank": 61,
+    "rating_total": 1058,
+    "score": 9.31,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 1988,
+    "name": "〈物語〉シリーズ",
+    "name_cn": "物语系列",
+    "type": 1,
+    "rank": 62,
+    "rating_total": 1518,
+    "score": 8.49,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 10862,
+    "name": "空の境界 (下)",
+    "name_cn": "空之境界 (下)",
+    "type": 1,
+    "rank": 63,
+    "rating_total": 982,
+    "score": 8.79,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 5454,
+    "name": "オナニーマスター黒沢",
+    "name_cn": "枪王黑泽",
+    "type": 1,
+    "rank": 64,
+    "rating_total": 1079,
+    "score": 7.8,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列",
+      "小说改",
+      "已完结",
+      "电子书"
+    ]
+  },
+  {
+    "id": 238887,
+    "name": "呪術廻戦",
+    "name_cn": "咒术回战",
+    "type": 1,
+    "rank": 65,
+    "rating_total": 1362,
+    "score": 5.61,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 3389,
+    "name": "容疑者Xの献身",
+    "name_cn": "嫌疑犯X的献身",
+    "type": 1,
+    "rank": 66,
+    "rating_total": 980,
+    "score": 7.81,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "推理",
+      "小说",
+      "原创"
+    ]
+  },
+  {
+    "id": 2265,
+    "name": "半分の月がのぼる空",
+    "name_cn": "仰望半月的夜空",
+    "type": 1,
+    "rank": 67,
+    "rating_total": 1140,
+    "score": 8.52,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "原创"
+    ]
+  },
+  {
+    "id": 102468,
+    "name": "青春ブタ野郎シリーズ",
+    "name_cn": "青春猪头少年系列",
+    "type": 1,
+    "rank": 68,
+    "rating_total": 1300,
+    "score": 8.1,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "恋爱",
+      "校园",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 5329,
+    "name": "空の境界 (上)",
+    "name_cn": "空之境界 (上)",
+    "type": 1,
+    "rank": 69,
+    "rating_total": 894,
+    "score": 8.63,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 3510,
+    "name": "ONE PIECE",
+    "name_cn": "航海王",
+    "type": 1,
+    "rank": 70,
+    "rating_total": 2650,
+    "score": 8.8,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "战斗",
+      "少年",
+      "奇幻",
+      "冒险",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 10134,
+    "name": "BLEACH",
+    "name_cn": "死神",
+    "type": 1,
+    "rank": 71,
+    "rating_total": 1109,
+    "score": 7.21,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 132823,
+    "name": "ようこそ実力至上主義の教室へ",
+    "name_cn": "欢迎来到实力至上主义的教室",
+    "type": 1,
+    "rank": 72,
+    "rating_total": 1190,
+    "score": 6.94,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 107681,
+    "name": "この素晴らしい世界に祝福を！",
+    "name_cn": "为美好的世界献上祝福！",
+    "type": 1,
+    "rank": 73,
+    "rating_total": 1157,
+    "score": 8.18,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "系列"
+    ]
+  },
+  {
+    "id": 56,
+    "name": "涼宮ハルヒの消失",
+    "name_cn": "凉宫春日的消失",
+    "type": 1,
+    "rank": 74,
+    "rating_total": 936,
+    "score": 8.6,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 870,
+    "name": "狼と香辛料",
+    "name_cn": "狼与香辛料",
+    "type": 1,
+    "rank": 75,
+    "rating_total": 1299,
+    "score": 8.37,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "系列"
+    ]
+  },
+  {
+    "id": 52968,
+    "name": "ジョジョの奇妙な冒険 Part4『ダイヤモンドは砕けない』",
+    "name_cn": "JoJo的奇妙冒险 第四部 不灭钻石",
+    "type": 1,
+    "rank": 76,
+    "rating_total": 873,
+    "score": 8.21,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "战斗",
+      "冒险"
+    ]
+  },
+  {
+    "id": 27,
+    "name": "“文学少女”と飢え渇く幽霊",
+    "name_cn": "“文学少女”与渴求真爱的幽灵",
+    "type": 1,
+    "rank": 77,
+    "rating_total": 872,
+    "score": 8.13,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 2057,
+    "name": "20世紀少年",
+    "name_cn": "20世纪少年",
+    "type": 1,
+    "rank": 78,
+    "rating_total": 974,
+    "score": 8.31,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 80979,
+    "name": "聲の形",
+    "name_cn": "声之形",
+    "type": 1,
+    "rank": 79,
+    "rating_total": 936,
+    "score": 7.47,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "纸质书"
+    ]
+  },
+  {
+    "id": 1177,
+    "name": "戯言シリーズ",
+    "name_cn": "戏言系列",
+    "type": 1,
+    "rank": 80,
+    "rating_total": 1087,
+    "score": 8.31,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 27902,
+    "name": "氷菓",
+    "name_cn": "冰菓",
+    "type": 1,
+    "rank": 81,
+    "rating_total": 843,
+    "score": 7.97,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 32435,
+    "name": "バガボンド",
+    "name_cn": "浪客行",
+    "type": 1,
+    "rank": 82,
+    "rating_total": 1219,
+    "score": 8.88,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 51158,
+    "name": "ホリミヤ",
+    "name_cn": "堀与宫村",
+    "type": 1,
+    "rank": 83,
+    "rating_total": 1063,
+    "score": 7.57,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "恋爱",
+      "漫画",
+      "校园",
+      "少女",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 354986,
+    "name": "22-26",
+    "name_cn": "藤本树短篇集「22-26」",
+    "type": 1,
+    "rank": 84,
+    "rating_total": 786,
+    "score": 7.02,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "短篇集",
+      "原创",
+      "单行本",
+      "已完结"
+    ]
+  },
+  {
+    "id": 5397,
+    "name": "ソードアート・オンライン",
+    "name_cn": "刀剑神域",
+    "type": 1,
+    "rank": 85,
+    "rating_total": 1224,
+    "score": 7.22,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 347264,
+    "name": "17-21",
+    "name_cn": "藤本树短篇集「17-21」",
+    "type": 1,
+    "rank": 86,
+    "rating_total": 772,
+    "score": 6.81,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "短篇集"
+    ]
+  },
+  {
+    "id": 24596,
+    "name": "HUNTER×HUNTER",
+    "name_cn": "猎人",
+    "type": 1,
+    "rank": 87,
+    "rating_total": 1721,
+    "score": 8.81,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "战斗",
+      "少年",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 43126,
+    "name": "孤高の人",
+    "name_cn": "孤高之人",
+    "type": 1,
+    "rank": 88,
+    "rating_total": 950,
+    "score": 8.57,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 2763,
+    "name": "ジョジョの奇妙な冒険 Part1『ファントムブラッド』",
+    "name_cn": "JoJo的奇妙冒险 第一部 幻影血脉",
+    "type": 1,
+    "rank": 89,
+    "rating_total": 834,
+    "score": 7.4,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 5015,
+    "name": "寄生獣",
+    "name_cn": "寄生兽",
+    "type": 1,
+    "rank": 90,
+    "rating_total": 919,
+    "score": 8.2,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 37565,
+    "name": "東京喰種トーキョーグール",
+    "name_cn": "东京喰种",
+    "type": 1,
+    "rank": 91,
+    "rating_total": 904,
+    "score": 6.89,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 52969,
+    "name": "ジョジョの奇妙な冒険 Part5『黄金の風』",
+    "name_cn": "JoJo的奇妙冒险 第五部 黄金之风",
+    "type": 1,
+    "rank": 92,
+    "rating_total": 817,
+    "score": 8.09,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "战斗",
+      "冒险",
+      "已完结"
+    ]
+  },
+  {
+    "id": 52967,
+    "name": "ジョジョの奇妙な冒険 Part3『スターダストクルセイダース』",
+    "name_cn": "JoJo的奇妙冒险 第三部 星尘斗士",
+    "type": 1,
+    "rank": 93,
+    "rating_total": 809,
+    "score": 8.17,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 188254,
+    "name": "約束のネバーランド",
+    "name_cn": "约定的梦幻岛",
+    "type": 1,
+    "rank": 94,
+    "rating_total": 1013,
+    "score": 7.08,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 287723,
+    "name": "よふかしのうた",
+    "name_cn": "彻夜之歌",
+    "type": 1,
+    "rank": 95,
+    "rating_total": 1071,
+    "score": 7.64,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "少年",
+      "奇幻",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 47331,
+    "name": "君は淫らな僕の女王",
+    "name_cn": "你是我的淫荡女王",
+    "type": 1,
+    "rank": 96,
+    "rating_total": 854,
+    "score": 6.85,
+    "date": "",
+    "meta_tags": [
+      "漫画"
+    ]
+  },
+  {
+    "id": 35987,
+    "name": "ニセコイ",
+    "name_cn": "伪恋",
+    "type": 1,
+    "rank": 97,
+    "rating_total": 992,
+    "score": 6.59,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 507,
+    "name": "銀河英雄伝説",
+    "name_cn": "银河英雄传说",
+    "type": 1,
+    "rank": 98,
+    "rating_total": 1036,
+    "score": 8.98,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "系列"
+    ]
+  },
+  {
+    "id": 285054,
+    "name": "きたない君がいちばんかわいい",
+    "name_cn": "污秽不堪的你最惹人怜爱",
+    "type": 1,
+    "rank": 99,
+    "rating_total": 833,
+    "score": 6.91,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "百合",
+      "恋爱",
+      "漫画",
+      "校园",
+      "GL",
+      "已完结"
+    ]
+  },
+  {
+    "id": 28686,
+    "name": "おもいでエマノン",
+    "name_cn": "回忆爱玛侬",
+    "type": 1,
+    "rank": 100,
+    "rating_total": 825,
+    "score": 7.62,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 35987,
+    "name": "ニセコイ",
+    "name_cn": "伪恋",
+    "type": 1,
+    "rank": 97,
+    "rating_total": 992,
+    "score": 6.59,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 507,
+    "name": "銀河英雄伝説",
+    "name_cn": "银河英雄传说",
+    "type": 1,
+    "rank": 98,
+    "rating_total": 1036,
+    "score": 8.98,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "系列"
+    ]
+  },
+  {
+    "id": 285054,
+    "name": "きたない君がいちばんかわいい",
+    "name_cn": "污秽不堪的你最惹人怜爱",
+    "type": 1,
+    "rank": 99,
+    "rating_total": 833,
+    "score": 6.91,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "百合",
+      "恋爱",
+      "漫画",
+      "校园",
+      "GL",
+      "已完结"
+    ]
+  },
+  {
+    "id": 28686,
+    "name": "おもいでエマノン",
+    "name_cn": "回忆爱玛侬",
+    "type": 1,
+    "rank": 100,
+    "rating_total": 825,
+    "score": 7.62,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 10786,
+    "name": "盜墓筆記",
+    "name_cn": "盗墓笔记",
+    "type": 1,
+    "rank": 101,
+    "rating_total": 1061,
+    "score": 8.13,
+    "date": "",
+    "meta_tags": [
+      "中国",
+      "小说",
+      "已完结",
+      "系列"
+    ]
+  },
+  {
+    "id": 118165,
+    "name": "ぐらんぶる",
+    "name_cn": "GRANDBLUE 碧蓝之海",
+    "type": 1,
+    "rank": 102,
+    "rating_total": 2022,
+    "score": 8.53,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "青年",
+      "搞笑",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 2622,
+    "name": "俺の妹がこんなに可愛いわけがない",
+    "name_cn": "我的妹妹哪有这么可爱！",
+    "type": 1,
+    "rank": 103,
+    "rating_total": 1080,
+    "score": 7.44,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 52828,
+    "name": "ジョジョの奇妙な冒険 Part2『戦闘潮流』",
+    "name_cn": "JoJo的奇妙冒险 第二部 战斗潮流",
+    "type": 1,
+    "rank": 104,
+    "rating_total": 762,
+    "score": 7.99,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 208695,
+    "name": "血の轍",
+    "name_cn": "血之辙",
+    "type": 1,
+    "rank": 105,
+    "rating_total": 882,
+    "score": 7.71,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 80,
+    "name": "“文学少女”と慟哭の巡礼者",
+    "name_cn": "“文学少女”与绝望恸哭的信徒",
+    "type": 1,
+    "rank": 106,
+    "rating_total": 746,
+    "score": 8.5,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 111104,
+    "name": "Helck",
+    "name_cn": "勇者赫鲁库",
+    "type": 1,
+    "rank": 107,
+    "rating_total": 835,
+    "score": 7.59,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 22867,
+    "name": "ネムルバカ",
+    "name_cn": "睡觉的笨蛋",
+    "type": 1,
+    "rank": 108,
+    "rating_total": 824,
+    "score": 7.87,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "单行本",
+      "已完结"
+    ]
+  },
+  {
+    "id": 35906,
+    "name": "GANTZ",
+    "name_cn": "杀戮都市",
+    "type": 1,
+    "rank": 109,
+    "rating_total": 881,
+    "score": 7.42,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 55911,
+    "name": "ワンパンマン",
+    "name_cn": "一拳超人",
+    "type": 1,
+    "rank": 110,
+    "rating_total": 1814,
+    "score": 7.48,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 280977,
+    "name": "お隣の天使様にいつの間にか駄目人間にされていた件",
+    "name_cn": "关于我在无意间被隔壁的天使变成废柴这件事",
+    "type": 1,
+    "rank": 111,
+    "rating_total": 1297,
+    "score": 7.03,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "恋爱",
+      "校园",
+      "系列"
+    ]
+  },
+  {
+    "id": 79,
+    "name": "“文学少女”と穢名の天使",
+    "name_cn": "“文学少女”与背负污名的天使",
+    "type": 1,
+    "rank": 112,
+    "rating_total": 710,
+    "score": 8.35,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 1594,
+    "name": "ドロヘドロ",
+    "name_cn": "异兽魔都",
+    "type": 1,
+    "rank": 113,
+    "rating_total": 896,
+    "score": 8.43,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "已完结"
+    ]
+  },
+  {
+    "id": 46,
+    "name": "涼宮ハルヒの憂鬱",
+    "name_cn": "凉宫春日的忧郁",
+    "type": 1,
+    "rank": 114,
+    "rating_total": 734,
+    "score": 8.22,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 20856,
+    "name": "うずまき",
+    "name_cn": "漩涡",
+    "type": 1,
+    "rank": 115,
+    "rating_total": 759,
+    "score": 7.81,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 286653,
+    "name": "マイ・ブロークン・マリコ",
+    "name_cn": "我破碎的真理子",
+    "type": 1,
+    "rank": 116,
+    "rating_total": 736,
+    "score": 7.07,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 67260,
+    "name": "寄生獣 完全版",
+    "name_cn": "寄生兽 完全版",
+    "type": 1,
+    "rank": 117,
+    "rating_total": 739,
+    "score": 8.39,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 3822,
+    "name": "蟲師",
+    "name_cn": "虫师",
+    "type": 1,
+    "rank": 118,
+    "rating_total": 813,
+    "score": 8.84,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 192063,
+    "name": "いもーとらいふ (下)",
+    "name_cn": "",
+    "type": 1,
+    "rank": 119,
+    "rating_total": 720,
+    "score": 8.58,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 25402,
+    "name": "風の谷のナウシカ",
+    "name_cn": "风之谷",
+    "type": 1,
+    "rank": 120,
+    "rating_total": 778,
+    "score": 9.03,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "奇幻",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 61816,
+    "name": "僕だけがいない街",
+    "name_cn": "只有我不存在的城市",
+    "type": 1,
+    "rank": 121,
+    "rating_total": 781,
+    "score": 7.65,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 57143,
+    "name": "政宗くんのリベンジ",
+    "name_cn": "政宗君的复仇",
+    "type": 1,
+    "rank": 122,
+    "rating_total": 843,
+    "score": 6.3,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "恋爱",
+      "漫画",
+      "校园",
+      "已完结"
+    ]
+  },
+  {
+    "id": 1854,
+    "name": "神のみぞ知るセカイ",
+    "name_cn": "只有神知道的世界",
+    "type": 1,
+    "rank": 123,
+    "rating_total": 921,
+    "score": 7.68,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 57597,
+    "name": "今際の国のアリス",
+    "name_cn": "弥留之国的爱丽丝",
+    "type": 1,
+    "rank": 124,
+    "rating_total": 789,
+    "score": 7.43,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 14406,
+    "name": "さくら荘のペットな彼女",
+    "name_cn": "樱花庄的宠物女孩",
+    "type": 1,
+    "rank": 125,
+    "rating_total": 862,
+    "score": 7.72,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 9518,
+    "name": "そらのおとしもの",
+    "name_cn": "天降之物",
+    "type": 1,
+    "rank": 126,
+    "rating_total": 723,
+    "score": 7.95,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 119393,
+    "name": "メイドインアビス",
+    "name_cn": "来自深渊",
+    "type": 1,
+    "rank": 127,
+    "rating_total": 1500,
+    "score": 8.51,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "青年",
+      "奇幻",
+      "冒险",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 82,
+    "name": "“文学少女”と繋がれた愚者",
+    "name_cn": "“文学少女”与沉陷过往的愚者",
+    "type": 1,
+    "rank": 128,
+    "rating_total": 678,
+    "score": 8.18,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 81475,
+    "name": "citrus",
+    "name_cn": "citrus～柑橘味香气～",
+    "type": 1,
+    "rank": 129,
+    "rating_total": 783,
+    "score": 6.73,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "百合",
+      "恋爱",
+      "漫画",
+      "校园",
+      "GL",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 65115,
+    "name": "坂本ですが?",
+    "name_cn": "在下坂本，有何贵干？",
+    "type": 1,
+    "rank": 130,
+    "rating_total": 932,
+    "score": 7.39,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 2821,
+    "name": "空の境界 未来福音",
+    "name_cn": "空之境界 未来福音",
+    "type": 1,
+    "rank": 131,
+    "rating_total": 683,
+    "score": 8.02,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 37447,
+    "name": "〈古典部〉シリーズ",
+    "name_cn": "〈古典部〉系列",
+    "type": 1,
+    "rank": 132,
+    "rating_total": 862,
+    "score": 8.3,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "推理",
+      "小说",
+      "原创",
+      "系列"
+    ]
+  },
+  {
+    "id": 1441,
+    "name": "碧陽学園生徒会議事録",
+    "name_cn": "碧阳学园学生会议事录",
+    "type": 1,
+    "rank": 133,
+    "rating_total": 917,
+    "score": 8.19,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "原创",
+      "系列",
+      "已完结",
+      "纸质书"
+    ]
+  },
+  {
+    "id": 279379,
+    "name": "SPY×FAMILY",
+    "name_cn": "间谍过家家",
+    "type": 1,
+    "rank": 134,
+    "rating_total": 1728,
+    "score": 7.41,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 235963,
+    "name": "地獄楽",
+    "name_cn": "地狱乐",
+    "type": 1,
+    "rank": 135,
+    "rating_total": 757,
+    "score": 6.62,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 44637,
+    "name": "冴えない彼女の育てかた",
+    "name_cn": "路人女主的养成方法",
+    "type": 1,
+    "rank": 136,
+    "rating_total": 885,
+    "score": 7.8,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 28667,
+    "name": "死体泥棒",
+    "name_cn": "窃尸贼",
+    "type": 1,
+    "rank": 137,
+    "rating_total": 747,
+    "score": 8.39,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 920,
+    "name": "ノルウェイの森",
+    "name_cn": "挪威的森林",
+    "type": 1,
+    "rank": 138,
+    "rating_total": 705,
+    "score": 8.01,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 17258,
+    "name": "BLAME!",
+    "name_cn": "BLAME!",
+    "type": 1,
+    "rank": 139,
+    "rating_total": 749,
+    "score": 8.37,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 22870,
+    "name": "少女不十分",
+    "name_cn": "少女不十分",
+    "type": 1,
+    "rank": 140,
+    "rating_total": 707,
+    "score": 7.94,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 144466,
+    "name": "寄宿学校のジュリエット",
+    "name_cn": "寄宿学校的朱丽叶",
+    "type": 1,
+    "rank": 141,
+    "rating_total": 799,
+    "score": 7.49,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "恋爱",
+      "漫画",
+      "校园",
+      "搞笑",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 234799,
+    "name": "その着せ替え人形は恋をする",
+    "name_cn": "更衣人偶坠入爱河",
+    "type": 1,
+    "rank": 142,
+    "rating_total": 968,
+    "score": 7.07,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "恋爱",
+      "漫画",
+      "青年",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 4171,
+    "name": "砂糖菓子の弾丸は撃ちぬけない",
+    "name_cn": "糖果子弹",
+    "type": 1,
+    "rank": 143,
+    "rating_total": 716,
+    "score": 7.86,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 23033,
+    "name": "監獄学園",
+    "name_cn": "监狱学园",
+    "type": 1,
+    "rank": 144,
+    "rating_total": 871,
+    "score": 7.29,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 123217,
+    "name": "三國演義",
+    "name_cn": "三国演义",
+    "type": 1,
+    "rank": 145,
+    "rating_total": 623,
+    "score": 8.99,
+    "date": "",
+    "meta_tags": [
+      "小说",
+      "中国",
+      "名著"
+    ]
+  },
+  {
+    "id": 114189,
+    "name": "からかい上手の高木さん",
+    "name_cn": "擅长捉弄的高木同学",
+    "type": 1,
+    "rank": 146,
+    "rating_total": 957,
+    "score": 7.87,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 2285,
+    "name": "傷物語",
+    "name_cn": "伤物语",
+    "type": 1,
+    "rank": 147,
+    "rating_total": 646,
+    "score": 8.31,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 6931,
+    "name": "PSYCHE",
+    "name_cn": "",
+    "type": 1,
+    "rank": 148,
+    "rating_total": 702,
+    "score": 7.94,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "原创"
+    ]
+  },
+  {
+    "id": 300884,
+    "name": "カノジョの妹とキスをした。",
+    "name_cn": "和女友的妹妹接吻了。",
+    "type": 1,
+    "rank": 149,
+    "rating_total": 717,
+    "score": 7.27,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 2229,
+    "name": "化物語 (上)",
+    "name_cn": "化物语 (上)",
+    "type": 1,
+    "rank": 150,
+    "rating_total": 619,
+    "score": 8.22,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 31469,
+    "name": "To LOVEる -とらぶる-",
+    "name_cn": "出包王女",
+    "type": 1,
+    "rank": 151,
+    "rating_total": 652,
+    "score": 7.58,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 92784,
+    "name": "All You Need Is Kill",
+    "name_cn": "明日边缘",
+    "type": 1,
+    "rank": 152,
+    "rating_total": 680,
+    "score": 6.94,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "科幻",
+      "漫画",
+      "战斗",
+      "青年",
+      "系列",
+      "小说改",
+      "已完结",
+      "机战"
+    ]
+  },
+  {
+    "id": 300431,
+    "name": "少年のアビス",
+    "name_cn": "少年的深渊",
+    "type": 1,
+    "rank": 153,
+    "rating_total": 857,
+    "score": 6.23,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 300544,
+    "name": "adabana-徒花-",
+    "name_cn": "",
+    "type": 1,
+    "rank": 154,
+    "rating_total": 646,
+    "score": 7.06,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 140678,
+    "name": "終末なにしてますか? 忙しいですか? 救ってもらっていいですか?",
+    "name_cn": "末日时在做什么？有没有空？可以来拯救吗？",
+    "type": 1,
+    "rank": 155,
+    "rating_total": 691,
+    "score": 8.09,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 2123,
+    "name": "カードキャプターさくら",
+    "name_cn": "魔卡少女樱",
+    "type": 1,
+    "rank": 156,
+    "rating_total": 586,
+    "score": 8.32,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 64113,
+    "name": "モブサイコ100",
+    "name_cn": "灵能百分百",
+    "type": 1,
+    "rank": 157,
+    "rating_total": 659,
+    "score": 8.11,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 186504,
+    "name": "いもーとらいふ (上)",
+    "name_cn": "",
+    "type": 1,
+    "rank": 158,
+    "rating_total": 587,
+    "score": 8.5,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 41901,
+    "name": "ぼくは麻理のなか",
+    "name_cn": "我在麻理体内",
+    "type": 1,
+    "rank": 159,
+    "rating_total": 659,
+    "score": 7.1,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 62419,
+    "name": "空の境界",
+    "name_cn": "空之境界",
+    "type": 1,
+    "rank": 160,
+    "rating_total": 599,
+    "score": 8.64,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 48620,
+    "name": "暗殺教室",
+    "name_cn": "暗杀教室",
+    "type": 1,
+    "rank": 161,
+    "rating_total": 829,
+    "score": 7.48,
+    "date": "",
+    "meta_tags": [
+      "原创",
+      "已完结",
+      "日本",
+      "漫画",
+      "系列"
+    ]
+  },
+  {
+    "id": 852,
+    "name": "“文学少女”と神に臨む作家 下",
+    "name_cn": "“文学少女”与迈向神境的作家 下",
+    "type": 1,
+    "rank": 162,
+    "rating_total": 600,
+    "score": 8.5,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 24605,
+    "name": "幽☆遊☆白書",
+    "name_cn": "幽游白书",
+    "type": 1,
+    "rank": 163,
+    "rating_total": 669,
+    "score": 7.9,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 124660,
+    "name": "ゴールデンカムイ",
+    "name_cn": "黄金神威",
+    "type": 1,
+    "rank": 164,
+    "rating_total": 788,
+    "score": 8.49,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 78,
+    "name": "“文学少女”と神に臨む作家 上",
+    "name_cn": "“文学少女”与迈向神境的作家 上",
+    "type": 1,
+    "rank": 165,
+    "rating_total": 564,
+    "score": 8.26,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 10617,
+    "name": "ヨコハマ買い出し紀行",
+    "name_cn": "横滨购物纪行",
+    "type": 1,
+    "rank": 166,
+    "rating_total": 716,
+    "score": 8.68,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 28070,
+    "name": "デート・ア・ライブ",
+    "name_cn": "约会大作战",
+    "type": 1,
+    "rank": 167,
+    "rating_total": 761,
+    "score": 6.84,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 45021,
+    "name": "ジョジョの奇妙な冒険 Part8『ジョジョリオン』",
+    "name_cn": "JoJo的奇妙冒险 第八部 JoJo福音",
+    "type": 1,
+    "rank": 168,
+    "rating_total": 727,
+    "score": 7.38,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 81,
+    "name": "“文学少女”と月花を孕く水妖",
+    "name_cn": "“文学少女”与怀抱花月的水妖",
+    "type": 1,
+    "rank": 169,
+    "rating_total": 566,
+    "score": 8.03,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 2230,
+    "name": "化物語 (下)",
+    "name_cn": "化物语 (下)",
+    "type": 1,
+    "rank": 170,
+    "rating_total": 561,
+    "score": 8.27,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 43165,
+    "name": "ハイスコアガール",
+    "name_cn": "高分少女",
+    "type": 1,
+    "rank": 171,
+    "rating_total": 759,
+    "score": 8.07,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 23319,
+    "name": "ノ・ゾ・キ・ア・ナ",
+    "name_cn": "偷·窥·孔",
+    "type": 1,
+    "rank": 172,
+    "rating_total": 645,
+    "score": 7.44,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "已完结"
+    ]
+  },
+  {
+    "id": 4615,
+    "name": "デュラララ!!",
+    "name_cn": "无头骑士异闻录",
+    "type": 1,
+    "rank": 173,
+    "rating_total": 931,
+    "score": 8.26,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 245922,
+    "name": "親愛なる僕へ 殺意をこめて",
+    "name_cn": "亲爱的我饱含杀意",
+    "type": 1,
+    "rank": 174,
+    "rating_total": 611,
+    "score": 7.4,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "悬疑",
+      "已完结"
+    ]
+  },
+  {
+    "id": 251073,
+    "name": "君の話",
+    "name_cn": "义忆",
+    "type": 1,
+    "rank": 175,
+    "rating_total": 671,
+    "score": 8.13,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 24308,
+    "name": "To LOVEる -とらぶる- ダークネス",
+    "name_cn": "出包王女DARKNESS",
+    "type": 1,
+    "rank": 176,
+    "rating_total": 668,
+    "score": 8.05,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 13985,
+    "name": "未来日記",
+    "name_cn": "未来日记",
+    "type": 1,
+    "rank": 177,
+    "rating_total": 625,
+    "score": 7.38,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "已完结"
+    ]
+  },
+  {
+    "id": 117017,
+    "name": "ナミヤ雑貨店の奇蹟",
+    "name_cn": "解忧杂货店",
+    "type": 1,
+    "rank": 178,
+    "rating_total": 605,
+    "score": 7.49,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "原创"
+    ]
+  },
+  {
+    "id": 239664,
+    "name": "徒然日和",
+    "name_cn": "恬淡晴天",
+    "type": 1,
+    "rank": 179,
+    "rating_total": 619,
+    "score": 7.94,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "百合",
+      "恋爱",
+      "漫画",
+      "日常",
+      "GL",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 2140,
+    "name": "PLUTO",
+    "name_cn": "PLUTO ～冥王～",
+    "type": 1,
+    "rank": 180,
+    "rating_total": 615,
+    "score": 7.89,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 56845,
+    "name": "クズの本懐",
+    "name_cn": "人渣的本愿",
+    "type": 1,
+    "rank": 181,
+    "rating_total": 647,
+    "score": 6.71,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 1651,
+    "name": "LIAR GAME",
+    "name_cn": "欺诈游戏",
+    "type": 1,
+    "rank": 182,
+    "rating_total": 700,
+    "score": 8.02,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "推理",
+      "漫画",
+      "青年",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 7699,
+    "name": "スクールランブル",
+    "name_cn": "校园迷糊大王",
+    "type": 1,
+    "rank": 183,
+    "rating_total": 636,
+    "score": 8.48,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 141797,
+    "name": "君の膵臓をたべたい",
+    "name_cn": "我想吃掉你的胰脏",
+    "type": 1,
+    "rank": 184,
+    "rating_total": 591,
+    "score": 7.54,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 38743,
+    "name": "悪意",
+    "name_cn": "恶意",
+    "type": 1,
+    "rank": 185,
+    "rating_total": 608,
+    "score": 7.72,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "推理",
+      "小说",
+      "原创"
+    ]
+  },
+  {
+    "id": 271005,
+    "name": "魔都精兵のスレイブ",
+    "name_cn": "魔都精兵的奴隶",
+    "type": 1,
+    "rank": 186,
+    "rating_total": 1371,
+    "score": 7.22,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "后宫",
+      "漫画",
+      "战斗",
+      "少年",
+      "原创",
+      "系列",
+      "连载中"
+    ]
+  },
+  {
+    "id": 105757,
+    "name": "Vater und Sohn",
+    "name_cn": "父与子",
+    "type": 1,
+    "rank": 187,
+    "rating_total": 522,
+    "score": 8.46,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 850,
+    "name": "イリヤの空、UFOの夏",
+    "name_cn": "伊里野的天空，UFO之夏",
+    "type": 1,
+    "rank": 188,
+    "rating_total": 635,
+    "score": 8.52,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "已完结"
+    ]
+  },
+  {
+    "id": 38855,
+    "name": "シグルイ",
+    "name_cn": "剑豪生死斗",
+    "type": 1,
+    "rank": 189,
+    "rating_total": 604,
+    "score": 8.53,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 1722,
+    "name": "夏と花火と私の死体",
+    "name_cn": "夏天、烟火、我的尸体",
+    "type": 1,
+    "rank": 190,
+    "rating_total": 579,
+    "score": 7.11,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "小说",
+      "单行本",
+      "纸质书"
+    ]
+  },
+  {
+    "id": 270983,
+    "name": "水は海に向かって流れる",
+    "name_cn": "若水沿流，落于海",
+    "type": 1,
+    "rank": 191,
+    "rating_total": 637,
+    "score": 8.01,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "恋爱",
+      "漫画",
+      "青年",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 33070,
+    "name": "I\"s",
+    "name_cn": "I''s",
+    "type": 1,
+    "rank": 192,
+    "rating_total": 634,
+    "score": 7.84,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 4705,
+    "name": "銀魂",
+    "name_cn": "银魂",
+    "type": 1,
+    "rank": 193,
+    "rating_total": 962,
+    "score": 8.37,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "原创",
+      "系列",
+      "已完结"
+    ]
+  },
+  {
+    "id": 14256,
+    "name": "さよならピアノソナタ",
+    "name_cn": "离别的钢琴奏鸣曲",
+    "type": 1,
+    "rank": 194,
+    "rating_total": 656,
+    "score": 8.21,
+    "date": "",
+    "meta_tags": []
+  },
+  {
+    "id": 28648,
+    "name": "ピンポン",
+    "name_cn": "乒乓",
+    "type": 1,
+    "rank": 195,
+    "rating_total": 579,
+    "score": 8.63,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "系列"
+    ]
+  },
+  {
+    "id": 635072,
+    "name": "チェンソーマン 第二部",
+    "name_cn": "链锯人 第二部",
+    "type": 1,
+    "rank": 196,
+    "rating_total": 649,
+    "score": 4.24,
+    "date": "",
+    "meta_tags": [
+      "日本",
+      "漫画",
+      "战斗",
+      "少年",
+      "奇幻",
+      "原创",
+      "系列",
+      "已完结",
+      "纸质书"
+    ]
+  }
+]

@@ -1,0 +1,902 @@
+[
+  {
+    "id": 2208,
+    "name": "雷火剣",
+    "name_cn": "",
+    "rank": 1
+  },
+  {
+    "id": 2481,
+    "name": "京都アニメーション",
+    "name_cn": "",
+    "rank": 2
+  },
+  {
+    "id": 4765,
+    "name": "花澤香菜",
+    "name_cn": "",
+    "rank": 3
+  },
+  {
+    "id": 2077,
+    "name": "ピンクパイナップル",
+    "name_cn": "",
+    "rank": 4
+  },
+  {
+    "id": 7575,
+    "name": "種﨑敦美",
+    "name_cn": "",
+    "rank": 5
+  },
+  {
+    "id": 692,
+    "name": "新房昭之",
+    "name_cn": "",
+    "rank": 6
+  },
+  {
+    "id": 2280,
+    "name": "湯浅政明",
+    "name_cn": "",
+    "rank": 7
+  },
+  {
+    "id": 4895,
+    "name": "早見沙織",
+    "name_cn": "",
+    "rank": 8
+  },
+  {
+    "id": 1313,
+    "name": "今敏",
+    "name_cn": "",
+    "rank": 9
+  },
+  {
+    "id": 3505,
+    "name": "虚淵玄",
+    "name_cn": "",
+    "rank": 10
+  },
+  {
+    "id": 6149,
+    "name": "田中ロミオ",
+    "name_cn": "",
+    "rank": 11
+  },
+  {
+    "id": 3936,
+    "name": "釘宮理恵",
+    "name_cn": "",
+    "rank": 12
+  },
+  {
+    "id": 5076,
+    "name": "悠木碧",
+    "name_cn": "",
+    "rank": 13
+  },
+  {
+    "id": 5745,
+    "name": "佐倉綾音",
+    "name_cn": "",
+    "rank": 14
+  },
+  {
+    "id": 1755,
+    "name": "今石洋之",
+    "name_cn": "",
+    "rank": 15
+  },
+  {
+    "id": 2347,
+    "name": "Milky",
+    "name_cn": "",
+    "rank": 16
+  },
+  {
+    "id": 4244,
+    "name": "沢城みゆき",
+    "name_cn": "",
+    "rank": 17
+  },
+  {
+    "id": 8579,
+    "name": "PoRO",
+    "name_cn": "",
+    "rank": 18
+  },
+  {
+    "id": 1040,
+    "name": "宮崎駿",
+    "name_cn": "",
+    "rank": 19
+  },
+  {
+    "id": 4232,
+    "name": "神谷浩史",
+    "name_cn": "",
+    "rank": 20
+  },
+  {
+    "id": 9334,
+    "name": "メリー・ジェーン",
+    "name_cn": "",
+    "rank": 21
+  },
+  {
+    "id": 94,
+    "name": "庵野秀明",
+    "name_cn": "",
+    "rank": 22
+  },
+  {
+    "id": 3813,
+    "name": "鈴木みら乃",
+    "name_cn": "",
+    "rank": 23
+  },
+  {
+    "id": 6010,
+    "name": "東山奈央",
+    "name_cn": "",
+    "rank": 24
+  },
+  {
+    "id": 100,
+    "name": "渡辺信一郎",
+    "name_cn": "",
+    "rank": 25
+  },
+  {
+    "id": 1916,
+    "name": "麻枝准",
+    "name_cn": "",
+    "rank": 26
+  },
+  {
+    "id": 1287,
+    "name": "押井守",
+    "name_cn": "",
+    "rank": 27
+  },
+  {
+    "id": 44,
+    "name": "BONES",
+    "name_cn": "",
+    "rank": 28
+  },
+  {
+    "id": 3687,
+    "name": "山田尚子",
+    "name_cn": "",
+    "rank": 29
+  },
+  {
+    "id": 5847,
+    "name": "茅野愛衣",
+    "name_cn": "",
+    "rank": 30
+  },
+  {
+    "id": 3877,
+    "name": "坂本真綾",
+    "name_cn": "",
+    "rank": 31
+  },
+  {
+    "id": 4513,
+    "name": "杉田智和",
+    "name_cn": "",
+    "rank": 32
+  },
+  {
+    "id": 2116,
+    "name": "ALICESOFT",
+    "name_cn": "",
+    "rank": 33
+  },
+  {
+    "id": 3827,
+    "name": "能登麻美子",
+    "name_cn": "",
+    "rank": 34
+  },
+  {
+    "id": 17491,
+    "name": "高橋李依",
+    "name_cn": "",
+    "rank": 35
+  },
+  {
+    "id": 2346,
+    "name": "アトリエかぐや",
+    "name_cn": "",
+    "rank": 36
+  },
+  {
+    "id": 7175,
+    "name": "ゆずソフト",
+    "name_cn": "",
+    "rank": 37
+  },
+  {
+    "id": 5917,
+    "name": "P.A.WORKS",
+    "name_cn": "",
+    "rank": 38
+  },
+  {
+    "id": 603,
+    "name": "MADHOUSE",
+    "name_cn": "",
+    "rank": 39
+  },
+  {
+    "id": 5787,
+    "name": "瀬戸口廉也",
+    "name_cn": "",
+    "rank": 40
+  },
+  {
+    "id": 724,
+    "name": "幾原邦彦",
+    "name_cn": "",
+    "rank": 41
+  },
+  {
+    "id": 1595,
+    "name": "梶浦由記",
+    "name_cn": "",
+    "rank": 42
+  },
+  {
+    "id": 8008,
+    "name": "TRIGGER",
+    "name_cn": "",
+    "rank": 43
+  },
+  {
+    "id": 2064,
+    "name": "新海誠",
+    "name_cn": "",
+    "rank": 44
+  },
+  {
+    "id": 47,
+    "name": "Key",
+    "name_cn": "",
+    "rank": 45
+  },
+  {
+    "id": 10868,
+    "name": "水瀬いのり",
+    "name_cn": "",
+    "rank": 46
+  },
+  {
+    "id": 262,
+    "name": "花田十輝",
+    "name_cn": "",
+    "rank": 47
+  },
+  {
+    "id": 3970,
+    "name": "堀江由衣",
+    "name_cn": "",
+    "rank": 48
+  },
+  {
+    "id": 3818,
+    "name": "福山潤",
+    "name_cn": "",
+    "rank": 49
+  },
+  {
+    "id": 5001,
+    "name": "豊崎愛生",
+    "name_cn": "",
+    "rank": 50
+  },
+  {
+    "id": 6724,
+    "name": "内田真礼",
+    "name_cn": "",
+    "rank": 51
+  },
+  {
+    "id": 4697,
+    "name": "宮野真守",
+    "name_cn": "",
+    "rank": 52
+  },
+  {
+    "id": 6126,
+    "name": "丸戸史明",
+    "name_cn": "",
+    "rank": 53
+  },
+  {
+    "id": 30858,
+    "name": "長谷川育美",
+    "name_cn": "",
+    "rank": 54
+  },
+  {
+    "id": 9560,
+    "name": "黒沢ともよ",
+    "name_cn": "",
+    "rank": 55
+  },
+  {
+    "id": 3965,
+    "name": "田村ゆかり",
+    "name_cn": "",
+    "rank": 56
+  },
+  {
+    "id": 1286,
+    "name": "Production I.G",
+    "name_cn": "",
+    "rank": 57
+  },
+  {
+    "id": 13164,
+    "name": "上田麗奈",
+    "name_cn": "",
+    "rank": 58
+  },
+  {
+    "id": 31113,
+    "name": "斎藤圭一郎",
+    "name_cn": "",
+    "rank": 59
+  },
+  {
+    "id": 3287,
+    "name": "神前暁",
+    "name_cn": "",
+    "rank": 60
+  },
+  {
+    "id": 5857,
+    "name": "SCA-自",
+    "name_cn": "",
+    "rank": 61
+  },
+  {
+    "id": 101,
+    "name": "菅野よう子",
+    "name_cn": "",
+    "rank": 62
+  },
+  {
+    "id": 4856,
+    "name": "戸松遥",
+    "name_cn": "",
+    "rank": 63
+  },
+  {
+    "id": 3525,
+    "name": "A-1 Pictures",
+    "name_cn": "",
+    "rank": 64
+  },
+  {
+    "id": 12797,
+    "name": "西川貴史",
+    "name_cn": "",
+    "rank": 65
+  },
+  {
+    "id": 1,
+    "name": "水樹奈々",
+    "name_cn": "",
+    "rank": 66
+  },
+  {
+    "id": 4015,
+    "name": "櫻井孝宏",
+    "name_cn": "",
+    "rank": 67
+  },
+  {
+    "id": 3919,
+    "name": "林原めぐみ",
+    "name_cn": "",
+    "rank": 68
+  },
+  {
+    "id": 4249,
+    "name": "斎藤千和",
+    "name_cn": "",
+    "rank": 69
+  },
+  {
+    "id": 5764,
+    "name": "松岡禎丞",
+    "name_cn": "",
+    "rank": 70
+  },
+  {
+    "id": 538,
+    "name": "岡田麿里",
+    "name_cn": "",
+    "rank": 71
+  },
+  {
+    "id": 623,
+    "name": "水島努",
+    "name_cn": "",
+    "rank": 72
+  },
+  {
+    "id": 1466,
+    "name": "奈須きのこ",
+    "name_cn": "",
+    "rank": 73
+  },
+  {
+    "id": 8138,
+    "name": "種田梨沙",
+    "name_cn": "",
+    "rank": 74
+  },
+  {
+    "id": 13360,
+    "name": "辰美",
+    "name_cn": "",
+    "rank": 75
+  },
+  {
+    "id": 4724,
+    "name": "中村悠一",
+    "name_cn": "",
+    "rank": 76
+  },
+  {
+    "id": 3103,
+    "name": "澤野弘之",
+    "name_cn": "",
+    "rank": 77
+  },
+  {
+    "id": 2205,
+    "name": "八宝備仁",
+    "name_cn": "",
+    "rank": 78
+  },
+  {
+    "id": 12568,
+    "name": "雨宮天",
+    "name_cn": "",
+    "rank": 79
+  },
+  {
+    "id": 8578,
+    "name": "Collaboration Works",
+    "name_cn": "",
+    "rank": 80
+  },
+  {
+    "id": 11475,
+    "name": "中村豊",
+    "name_cn": "",
+    "rank": 81
+  },
+  {
+    "id": 1913,
+    "name": "石原立也",
+    "name_cn": "",
+    "rank": 82
+  },
+  {
+    "id": 5119,
+    "name": "日笠陽子",
+    "name_cn": "",
+    "rank": 83
+  },
+  {
+    "id": 23155,
+    "name": "藤本タツキ",
+    "name_cn": "",
+    "rank": 84
+  },
+  {
+    "id": 4372,
+    "name": "福圓美里",
+    "name_cn": "",
+    "rank": 85
+  },
+  {
+    "id": 14186,
+    "name": "牛尾憲輔",
+    "name_cn": "",
+    "rank": 86
+  },
+  {
+    "id": 1354,
+    "name": "梅津泰臣",
+    "name_cn": "",
+    "rank": 87
+  },
+  {
+    "id": 2100,
+    "name": "むらかみてるあき",
+    "name_cn": "",
+    "rank": 88
+  },
+  {
+    "id": 669,
+    "name": "武本康弘",
+    "name_cn": "",
+    "rank": 89
+  },
+  {
+    "id": 13372,
+    "name": "石原舞",
+    "name_cn": "",
+    "rank": 90
+  },
+  {
+    "id": 17981,
+    "name": "藤田茜",
+    "name_cn": "",
+    "rank": 91
+  },
+  {
+    "id": 16005,
+    "name": "岡本学",
+    "name_cn": "",
+    "rank": 92
+  },
+  {
+    "id": 2751,
+    "name": "SHAFT",
+    "name_cn": "",
+    "rank": 93
+  },
+  {
+    "id": 7357,
+    "name": "MAPPA",
+    "name_cn": "",
+    "rank": 94
+  },
+  {
+    "id": 5228,
+    "name": "竹達彩奈",
+    "name_cn": "",
+    "rank": 95
+  },
+  {
+    "id": 6207,
+    "name": "入間人間",
+    "name_cn": "",
+    "rank": 96
+  },
+  {
+    "id": 7302,
+    "name": "高森奈津美",
+    "name_cn": "",
+    "rank": 97
+  },
+  {
+    "id": 3796,
+    "name": "ティーレックス",
+    "name_cn": "",
+    "rank": 98
+  },
+  {
+    "id": 27194,
+    "name": "小原好美",
+    "name_cn": "",
+    "rank": 99
+  },
+  {
+    "id": 3927,
+    "name": "石田彰",
+    "name_cn": "",
+    "rank": 100
+  },
+  {
+    "id": 2298,
+    "name": "細田守",
+    "name_cn": "",
+    "rank": 101
+  },
+  {
+    "id": 4158,
+    "name": "平野綾",
+    "name_cn": "",
+    "rank": 102
+  },
+  {
+    "id": 5854,
+    "name": "狗神煌",
+    "name_cn": "",
+    "rank": 103
+  },
+  {
+    "id": 390,
+    "name": "J.C.STAFF",
+    "name_cn": "",
+    "rank": 104
+  },
+  {
+    "id": 4956,
+    "name": "櫻井浩美",
+    "name_cn": "",
+    "rank": 105
+  },
+  {
+    "id": 3718,
+    "name": "西尾維新",
+    "name_cn": "",
+    "rank": 106
+  },
+  {
+    "id": 93,
+    "name": "GAINAX",
+    "name_cn": "",
+    "rank": 107
+  },
+  {
+    "id": 1096,
+    "name": "子安武人",
+    "name_cn": "",
+    "rank": 108
+  },
+  {
+    "id": 4474,
+    "name": "小清水亜美",
+    "name_cn": "",
+    "rank": 109
+  },
+  {
+    "id": 9752,
+    "name": "吉成曜",
+    "name_cn": "",
+    "rank": 110
+  },
+  {
+    "id": 7307,
+    "name": "上坂すみれ",
+    "name_cn": "",
+    "rank": 111
+  },
+  {
+    "id": 5741,
+    "name": "瑞沢渓",
+    "name_cn": "",
+    "rank": 112
+  },
+  {
+    "id": 32356,
+    "name": "CloverWorks",
+    "name_cn": "",
+    "rank": 113
+  },
+  {
+    "id": 40794,
+    "name": "羊宮妃那",
+    "name_cn": "",
+    "rank": 114
+  },
+  {
+    "id": 3223,
+    "name": "錦織敦史",
+    "name_cn": "",
+    "rank": 115
+  },
+  {
+    "id": 6359,
+    "name": "小山さほみ",
+    "name_cn": "",
+    "rank": 116
+  },
+  {
+    "id": 4251,
+    "name": "喜多村英梨",
+    "name_cn": "",
+    "rank": 117
+  },
+  {
+    "id": 4145,
+    "name": "中原麻衣",
+    "name_cn": "",
+    "rank": 118
+  },
+  {
+    "id": 28386,
+    "name": "あざらしそふと",
+    "name_cn": "",
+    "rank": 119
+  },
+  {
+    "id": 4456,
+    "name": "小野大輔",
+    "name_cn": "",
+    "rank": 120
+  },
+  {
+    "id": 31593,
+    "name": "魔人",
+    "name_cn": "",
+    "rank": 121
+  },
+  {
+    "id": 1736,
+    "name": "Nitro+",
+    "name_cn": "",
+    "rank": 122
+  },
+  {
+    "id": 2828,
+    "name": "CLOCKUP",
+    "name_cn": "",
+    "rank": 123
+  },
+  {
+    "id": 8398,
+    "name": "武田弘光",
+    "name_cn": "",
+    "rank": 124
+  },
+  {
+    "id": 3615,
+    "name": "minori",
+    "name_cn": "",
+    "rank": 125
+  },
+  {
+    "id": 2387,
+    "name": "戯画",
+    "name_cn": "",
+    "rank": 126
+  },
+  {
+    "id": 6447,
+    "name": "小倉唯",
+    "name_cn": "",
+    "rank": 127
+  },
+  {
+    "id": 613,
+    "name": "富野由悠季",
+    "name_cn": "",
+    "rank": 128
+  },
+  {
+    "id": 10006,
+    "name": "吉成鋼",
+    "name_cn": "",
+    "rank": 129
+  },
+  {
+    "id": 4382,
+    "name": "井上麻里奈",
+    "name_cn": "",
+    "rank": 130
+  },
+  {
+    "id": 3958,
+    "name": "浅川悠",
+    "name_cn": "",
+    "rank": 131
+  },
+  {
+    "id": 5209,
+    "name": "梶裕貴",
+    "name_cn": "",
+    "rank": 132
+  },
+  {
+    "id": 4868,
+    "name": "阿澄佳奈",
+    "name_cn": "",
+    "rank": 133
+  },
+  {
+    "id": 1254,
+    "name": "エルフ",
+    "name_cn": "",
+    "rank": 134
+  },
+  {
+    "id": 11646,
+    "name": "あさみほとり",
+    "name_cn": "",
+    "rank": 135
+  },
+  {
+    "id": 6305,
+    "name": "動画工房",
+    "name_cn": "",
+    "rank": 136
+  },
+  {
+    "id": 5788,
+    "name": "深崎暮人",
+    "name_cn": "",
+    "rank": 137
+  },
+  {
+    "id": 8481,
+    "name": "WIT STUDIO",
+    "name_cn": "",
+    "rank": 138
+  },
+  {
+    "id": 2434,
+    "name": "BISHOP",
+    "name_cn": "",
+    "rank": 139
+  },
+  {
+    "id": 11485,
+    "name": "安済知佳",
+    "name_cn": "",
+    "rank": 140
+  },
+  {
+    "id": 6668,
+    "name": "和泉万夜",
+    "name_cn": "",
+    "rank": 141
+  },
+  {
+    "id": 7418,
+    "name": "SMEE",
+    "name_cn": "",
+    "rank": 142
+  },
+  {
+    "id": 4851,
+    "name": "井口裕香",
+    "name_cn": "",
+    "rank": 143
+  },
+  {
+    "id": 189,
+    "name": "サンライズ",
+    "name_cn": "",
+    "rank": 144
+  },
+  {
+    "id": 7390,
+    "name": "Purple SOFTWARE",
+    "name_cn": "",
+    "rank": 145
+  },
+  {
+    "id": 3077,
+    "name": "世徒ゆうき",
+    "name_cn": "",
+    "rank": 146
+  },
+  {
+    "id": 5020,
+    "name": "田口宏子",
+    "name_cn": "",
+    "rank": 147
+  },
+  {
+    "id": 389,
+    "name": "大河内一楼",
+    "name_cn": "",
+    "rank": 148
+  },
+  {
+    "id": 19339,
+    "name": "鬼頭明里",
+    "name_cn": "",
+    "rank": 149
+  },
+  {
+    "id": 17796,
+    "name": "しらたま",
+    "name_cn": "",
+    "rank": 150
+  }
+]

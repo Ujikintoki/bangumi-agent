@@ -15,6 +15,7 @@ AI Agent 工具函数层
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Optional
 
@@ -931,30 +932,29 @@ async def search_local_bangumi(
     entity_type: str = "all",
     limit: int = 5,
     nsfw: bool = False,
-) -> str:
+) -> dict:
     """本地语义搜索引擎，基于 RAG 向量检索查找 Bangumi 条目。
 
     从本地已索引的番剧/角色/声优数据库中，通过语义匹配召回最相关的实体。
-    支持按实体类型（subject / character / person / all）领域限定检索，
-    并自动根据实体类型选用合适的热度信号做桶内降序排列。
+    返回格式与对应的 API detail 工具保持一致，LLM 可无缝切换。
 
     典型场景：
     - "帮我找一个80年代评分最高的机战番" → entity_type="subject"
     - "有哪些知名的傲娇系角色？" → entity_type="character"
     - "配过最多主角的声优是谁？" → entity_type="person"
-    - "和进击的巨人相关的内容有哪些？" → entity_type="all"
 
     Args:
-        query: 自然语言查询，越具体越好。
-        entity_type: 实体类型过滤，可选 subject / character / person / all。
+        query: 自然语言查询。
+        entity_type: subject / character / person / all。
         limit: 返回结果数上限，默认 5。
         nsfw: 是否包含 R18 内容，默认 False。
 
     Returns:
-        纯文本格式的检索结果摘要。无结果时返回友好提示。
+        结构化 dict: {"results": [dict, ...], "total": N}，
+        每个 dict 格式对应 get_bangumi_subject_detail / get_character_detail / get_person_detail。
+        无结果或出错时返回 {"_error": "..."}。
     """
     import asyncio
-
     return await asyncio.to_thread(
         _search_local_bangumi_sync, query, entity_type, limit, nsfw
     )
@@ -965,15 +965,15 @@ def _search_local_bangumi_sync(
     entity_type: str = "all",
     limit: int = 5,
     nsfw: bool = False,
-) -> str:
-    """search_local_bangumi 的同步实现，在线程池中运行以避免阻塞事件循环。"""
+) -> dict:
+    """search_local_bangumi 的同步实现。"""
     try:
         from core.config import get_settings as _get_rag_settings
         from database.engine import engine
         from rag.retriever import RagEntityRetriever
     except ImportError as exc:
         logger.error("RAG 模块导入失败: %s", exc)
-        return f"系统提示：本地搜索引擎模块加载失败。错误：{exc}"
+        return {"_error": f"本地搜索引擎模块加载失败。{exc}"}
 
     try:
         settings = _get_rag_settings()
@@ -983,7 +983,7 @@ def _search_local_bangumi_sync(
         )
     except Exception as exc:
         logger.exception("检索器初始化失败")
-        return f"系统提示：本地搜索引擎初始化失败。错误：{exc}"
+        return {"_error": f"本地搜索引擎初始化失败。{exc}"}
 
     try:
         results = retriever.hybrid_search(
@@ -994,121 +994,22 @@ def _search_local_bangumi_sync(
         )
     except Exception as exc:
         logger.exception("RAG 检索执行失败")
-        return f"系统提示：语义检索过程中发生异常。错误：{exc}"
+        return {"_error": f"语义检索过程中发生异常。{exc}"}
 
     if not results:
-        type_hint = f"（实体类型: {entity_type}）" if entity_type != "all" else ""
-        nsfw_hint = "，已排除 R18 内容" if not nsfw else ""
-        return (
-            f"未找到与「{query}」相关的条目{type_hint}{nsfw_hint}。\n"
-            "建议：尝试使用更宽泛的关键词，或切换实体类型后重试。"
-        )
+        return {"_error": f"未找到与「{query}」相关的条目，建议尝试更宽泛的关键词。"}
 
-    # ── 多态格式化 ──────────────────────────────────────────
-    lines: list[str] = [
-        f"🔍 关于「{query}」的语义检索结果"
-        f"{' (' + entity_type + ')' if entity_type != 'all' else ''}"
-        f"（共 {len(results)} 条）：\n"
-    ]
-
-    type_icons = {"subject": "📺", "character": "🧑", "person": "🎤"}
-
-    for i, r in enumerate(results, 1):
+    formatted: list[dict] = []
+    for r in results:
         try:
-            icon = type_icons.get(r.entity_type, "📌")
-            meta = r.meta_info
+            formatted.append(json.loads(r.rag_output))
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("RAG rag_output JSON 解析失败: entity=%s id=%s", r.entity_type, r.entity_id)
 
-            display_name = r.name
-            if r.name_cn and r.name_cn != r.name:
-                display_name = f"{r.name}（{r.name_cn}）"
+    if not formatted:
+        return {"_error": f"检索到 {len(results)} 条结果但解析均失败。"}
 
-            if r.entity_type == "subject":
-                score = meta.get("score", 0)
-                rank = meta.get("rank", 0)
-                rating_total = meta.get("rating_total", 0)
-                heat_str = f"评分 {score:.1f}" if score else ""
-                if rank:
-                    heat_str += f" | 排名 #{rank}"
-                if rating_total:
-                    heat_str += f" | {rating_total}人评"
-                year = meta.get("year")
-                if year:
-                    heat_str += f" | {year}年"
-                platform = meta.get("platform", "")
-                if platform:
-                    heat_str += f" | {platform}"
-                # 收藏分布 + 派生信号
-                collection = meta.get("collection", {})
-                rating_count = meta.get("rating_count", [])
-                if isinstance(collection, dict) and collection:
-                    labels = {1: "想看", 2: "看过", 3: "在看", 4: "搁置", 5: "抛弃"}
-                    coll_parts = [f"{labels.get(int(k), k)}:{v}" for k, v in sorted(collection.items()) if v]
-                    if coll_parts:
-                        heat_str += f" | {' | '.join(coll_parts)}"
-                if isinstance(rating_count, list) and rating_count:
-                    sigs = _compute_subject_signals(
-                        rating_count=rating_count,
-                        collection=collection if isinstance(collection, dict) else {},
-                        score=score,
-                    )
-                    if sigs:
-                        heat_str += f" | 📊 {'；'.join(sigs)}"
-                tags = meta.get("tags", [])
-                if isinstance(tags, list) and tags:
-                    tag_names = [
-                        t.get("name", str(t)) if isinstance(t, dict) else str(t)
-                        for t in tags[:5]
-                    ]
-                    heat_str += f" | 标签: {', '.join(tag_names)}"
-            elif r.entity_type == "character":
-                collects = meta.get("collects", 0)
-                heat_str = f"收藏 {collects}" if collects else ""
-                casts = meta.get("casts", [])
-                if isinstance(casts, list) and casts:
-                    top_works = [
-                        c.get("subject_name", "")
-                        for c in casts[:3]
-                        if c.get("subject_name")
-                    ]
-                    if top_works:
-                        heat_str += f" | 出演: {', '.join(top_works)}"
-            elif r.entity_type == "person":
-                collects = meta.get("collects", 0)
-                career = meta.get("career", [])
-                heat_str = f"收藏 {collects}" if collects else ""
-                if career:
-                    heat_str += f" | 职业: {', '.join(career)}"
-                works = meta.get("works", [])
-                if isinstance(works, list) and works:
-                    top_works = []
-                    for w in works[:3]:
-                        name = w.get("subject_name", "")
-                        positions = w.get("positions", [])
-                        if positions:
-                            role = positions[0].get("type_cn", "")
-                            top_works.append(f"{name}({role})" if role else name)
-                        elif name:
-                            top_works.append(name)
-                    if top_works:
-                        heat_str += f" | 代表作: {', '.join(top_works)}"
-            else:
-                heat_str = ""
-
-            distance_pct = max(0, int((1 - r.cosine_distance) * 100))
-            snippet = (
-                r.chunk_text[:150] + "..." if len(r.chunk_text) > 150 else r.chunk_text
-            )
-
-            lines.append(
-                f"{i}. {icon} {display_name} ｜ 匹配度 {distance_pct}%\n"
-                f"   {heat_str}\n"
-                f"   简介：{snippet}"
-            )
-        except Exception:
-            lines.append(f"{i}. （该条结果格式化失败，已跳过）")
-
-    lines.append("\n── 数据来源：本地 RAG 索引，基于语义匹配和热度排序 ──")
-    return "\n".join(lines)
+    return {"results": formatted, "total": len(formatted)}
 
 
 

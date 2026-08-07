@@ -1,19 +1,19 @@
 """
 RAG 数据摄入模块
 
-负责将预处理后的实体文本块批量向量化并写入 PostgreSQL + pgvector。
+负责将预处理后的实体文本批量向量化并写入 PostgreSQL + pgvector。
 
 ============================================================================
-  架构演进: 单表多态摄入 (Single Table Polymorphism Ingestion)
+  架构演进: embed_text / rag_output 分离
 ============================================================================
   RagEntityIngestor 面向 ``rag_entities`` 表，支持 Subject / Character /
-  Person 三类实体的统一摄入，核心增强：
+  Person 三类实体的统一摄入。
 
-  1. **防稀释语义前缀 (Semantic Prefixing)**：在 embedding 前拼接极简
-     自然语言定调前缀，防止机械键值对模板词稀释大模型 Embedding 语义质心。
-  2. **关联边内存洗牌与重排 (In-Memory Re-sorting & Pruning)**：
-     对照本地 RagEntity 中关联作品的热度 (rating_total)，在 Python 内存中
-     按热度降序重排 casts / works 列表，强力截断至 Top 10 代表作。
+  核心设计：
+    1. **embed_text**：关键词密集合成文本，仅供 embedding 向量化。
+    2. **rag_output**：预构建 JSON dict（对齐 API detail 工具 schema），检索时零转换。
+    3. **meta_info**（JSONB）：结构化元数据，Pydantic v2 契约校验。
+    4. **关联边内存重排**：按 rating_total 降序重排 casts / works，截断至 Top 10。
 ============================================================================
 """
 
@@ -28,7 +28,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select
 
 from database.rag_tables import (
-    BangumiChunk,
     CharacterCast,
     CharacterMeta,
     PersonMeta,
@@ -36,60 +35,285 @@ from database.rag_tables import (
     RagEntity,
     SubjectMeta,
 )
+from rag.enricher import _clean_text
 
 logger = logging.getLogger("bgm-agent.ingestion")
 
 # ============================================================================
-# 语义前缀构造器 — 防稀释 Embedding 语义质心
+# embed_text 构造 — 关键词密集，按区分度降序，无模板标记
 # ============================================================================
 
+# 安全上限：embedding-2 单条 ≤512 tokens，CJK ~1.5–2 tokens/char
+_MAX_EMBED_CHARS = 400
 
-def _build_subject_chunk_text(name_cn: str, chunk_text: str) -> str:
-    """为作品文本块拼接语义定调前缀。
 
-    Args:
-        name_cn: 条目中文名称，为空时省略。
-        chunk_text: 原始文本块内容。
+def _first_sentence(text: str, max_chars: int = 120) -> str:
+    """取文本第一句（截断到 max_chars），用于 embed_text 末尾的语义补充。"""
+    if not text:
+        return ""
+    # 在第一个句号/换行处截断
+    for sep in ("。", "\n", "！", "？", "；"):
+        idx = text.find(sep)
+        if 10 < idx < max_chars:
+            return text[:idx]
+    return text[:max_chars]
 
-    Returns:
-        带 ``[作品名]`` 前缀的完整文本，供 embedding 向量化。
+
+def _build_subject_embed_text(item: dict[str, Any]) -> str:
+    """构建 Subject 的 embed_text。
+
+    格式: {name_cn} {name} {top tags} {year} {platform} {score}分 {summary首句}
     """
-    name_part = f"{name_cn}。" if name_cn else ""
-    return f"[作品名] {name_part}{chunk_text}"
+    parts: list[str] = []
+
+    # 名称（最高优先级）
+    name_cn = (item.get("name_cn") or "").strip()
+    name = (item.get("name") or "").strip()
+    if name_cn:
+        parts.append(name_cn)
+    if name and name != name_cn:
+        parts.append(name)
+
+    # 标签（top 10，按 count 降序）
+    tags = item.get("tags", []) or []
+    if tags:
+        tag_names = [t["name"] for t in tags[:10] if isinstance(t, dict) and t.get("name")]
+        if tag_names:
+            parts.extend(tag_names)
+
+    # 年代 + 平台
+    year = item.get("year")
+    if year:
+        parts.append(str(year))
+    platform = (item.get("platform") or "").strip()
+    if platform:
+        parts.append(platform)
+
+    # 评分
+    score = item.get("score", 0)
+    if score > 0:
+        parts.append(f"{score:.1f}分")
+
+    # 简介首句（语义兜底，放在最后）
+    summary_text = (item.get("summary_text") or "").strip()
+    if summary_text:
+        first = _first_sentence(summary_text)
+        if first and first not in " ".join(parts):
+            parts.append(first)
+
+    text = " ".join(parts)
+    if len(text) > _MAX_EMBED_CHARS:
+        # 从尾部截断，优先保留开头的名称和标签
+        text = text[:_MAX_EMBED_CHARS].rsplit(" ", 1)[0]
+    return text
 
 
-def _build_character_chunk_text(
-    name_cn: str,
-    subject_name: str,
-    chunk_text: str,
-) -> str:
-    """为角色文本块拼接语义定调前缀。
+def _build_character_embed_text(item: dict[str, Any]) -> str:
+    """构建 Character 的 embed_text。
 
-    Args:
-        name_cn: 角色中文名称。
-        subject_name: 角色所属的（最知名）作品名称。
-        chunk_text: 原始文本块内容。
-
-    Returns:
-        带 ``[角色]`` 及作品出处前缀的完整文本。
+    格式: {name_cn} {name} {subject_name} {summary首句}
     """
-    name_part = f"{name_cn}" if name_cn else ""
-    work_part = f"，出自《{subject_name}》" if subject_name else ""
-    return f"[角色] {name_part}{work_part}。{chunk_text}"
+    parts: list[str] = []
+
+    name_cn = (item.get("name_cn") or "").strip()
+    name = (item.get("name") or "").strip()
+    if name_cn:
+        parts.append(name_cn)
+    if name and name != name_cn:
+        parts.append(name)
+
+    subject_name = (item.get("subject_name") or "").strip()
+    if subject_name:
+        parts.append(subject_name)
+
+    summary_text = (item.get("summary_text") or "").strip()
+    if summary_text:
+        first = _first_sentence(summary_text)
+        if first:
+            parts.append(first)
+
+    text = " ".join(parts)
+    if len(text) > _MAX_EMBED_CHARS:
+        text = text[:_MAX_EMBED_CHARS].rsplit(" ", 1)[0]
+    return text
 
 
-def _build_person_chunk_text(name_cn: str, chunk_text: str) -> str:
-    """为人物文本块拼接语义定调前缀。
+def _build_person_embed_text(item: dict[str, Any]) -> str:
+    """构建 Person 的 embed_text。
 
-    Args:
-        name_cn: 人物中文名称，为空时省略。
-        chunk_text: 原始文本块内容。
-
-    Returns:
-        带 ``[人物]`` 前缀的完整文本。
+    格式: {name_cn} {name} {career} {top_3_works_names} {summary首句}
     """
-    name_part = f"{name_cn}。" if name_cn else ""
-    return f"[人物] {name_part}{chunk_text}"
+    parts: list[str] = []
+
+    name_cn = (item.get("name_cn") or "").strip()
+    name = (item.get("name") or "").strip()
+    if name_cn:
+        parts.append(name_cn)
+    if name and name != name_cn:
+        parts.append(name)
+
+    career = item.get("career", []) or []
+    if career:
+        parts.extend([c for c in career if isinstance(c, str)])
+
+    works = item.get("works_raw", []) or []
+    if works:
+        work_names = [
+            w["subject_name"]
+            for w in works[:3]
+            if isinstance(w, dict) and w.get("subject_name")
+        ]
+        parts.extend(work_names)
+
+    summary_text = (item.get("summary_text") or "").strip()
+    if summary_text:
+        first = _first_sentence(summary_text)
+        if first:
+            parts.append(first)
+
+    text = " ".join(parts)
+    if len(text) > _MAX_EMBED_CHARS:
+        text = text[:_MAX_EMBED_CHARS].rsplit(" ", 1)[0]
+    return text
+
+
+# ============================================================================
+# rag_output 构造 — 预构建最终返回 dict（JSON string），检索时直接 json.loads 返回
+# ============================================================================
+
+import json
+
+# 映射常量
+_CHARACTER_ROLES = {1: "主角", 2: "配角", 3: "客串"}
+_PERSON_TYPES = {1: "个人", 2: "公司", 3: "组合"}
+_COLLECTION_LABELS = {1: "想看", 2: "看过", 3: "在看", 4: "搁置", 5: "抛弃"}
+
+
+def _build_subject_rag_dict(item: dict[str, Any], raw_id: int) -> str:
+    """构建 Subject 返回 dict，严格对齐 sanitize_subject_detail 格式。
+
+    追加 _source / _next 两个 RAG 专用字段。
+    """
+    collection = {}
+    raw_col = item.get("collection", {}) or {}
+    if isinstance(raw_col, dict):
+        for k, v in raw_col.items():
+            label = _COLLECTION_LABELS.get(int(k), str(k))
+            collection[label] = v
+
+    tags = item.get("tags", []) or []
+    if isinstance(tags, list):
+        tags = [
+            {"name": t["name"], "count": t["count"]}
+            for t in tags if isinstance(t, dict) and t.get("name")
+        ]
+
+    result = {
+        # ── 核心标识（对齐 sanitize_subject_detail）──
+        "id": raw_id,
+        "name": item.get("name", ""),
+        "name_cn": item.get("name_cn") or "",
+        "type": (item.get("platform") or ""),
+        "info": item.get("info") or "",
+        "date": item.get("date") or "",
+        "eps": item.get("eps", 0),
+        "volumes": item.get("volumes", 0),
+        "series": item.get("series", False),
+        "series_entry": item.get("series_entry", False),
+        "nsfw": item.get("nsfw", False),
+        # ── 文本 ──
+        "summary": (item.get("summary_text") or "").strip(),
+        # ── 评分 ──
+        "score": item.get("score", 0.0),
+        "rank": item.get("rank", 0),
+        "rating_total": item.get("rating_total", 0),
+        "rating_count": item.get("rating_count", []),
+        # ── 收藏 ──
+        "collection": collection,
+        # ── 标签 ──
+        "tags": tags,
+        # ── Infobox ──
+        "infobox": item.get("infobox", {}),
+        # ── RAG 标记 ──
+        "_source": "rag",
+        "_next": f"如需口碑数据调 get_subject_opinions({raw_id})；"
+                 f"如需角色列表调 get_subject_characters({raw_id})",
+    }
+    return json.dumps(result, ensure_ascii=False)
+
+
+def _build_character_rag_dict(item: dict[str, Any], raw_id: int) -> str:
+    """构建 Character 返回 dict，严格对齐 sanitize_character_detail 格式。
+
+    追加 works / _source 两个 RAG 专用字段。
+    """
+    role_int = item.get("role", 0)
+    works = []
+    casts = item.get("casts_raw", []) or []
+    if isinstance(casts, list):
+        works = [
+            {"subject_name": c.get("subject_name", "")}
+            for c in casts[:3] if isinstance(c, dict)
+        ]
+
+    result = {
+        # ── 核心标识（对齐 sanitize_character_detail）──
+        "id": raw_id,
+        "name": item.get("name", ""),
+        "name_cn": item.get("name_cn") or "",
+        "role": _CHARACTER_ROLES.get(role_int, "未知"),
+        "info": item.get("info") or "",
+        "summary": (item.get("summary_text") or "").strip(),
+        "infobox": item.get("infobox", {}),
+        "comment": item.get("comment", 0),
+        "collects": item.get("collects", 0),
+        "nsfw": item.get("nsfw", False),
+        # ── RAG 专用 ──
+        "works": works,
+        "_source": "rag",
+    }
+    return json.dumps(result, ensure_ascii=False)
+
+
+def _build_person_rag_dict(item: dict[str, Any], raw_id: int) -> str:
+    """构建 Person 返回 dict，严格对齐 sanitize_person_detail 格式。
+
+    追加 works / _source 两个 RAG 专用字段。
+    """
+    type_int = item.get("type", 0)
+    works = []
+    raw_works = item.get("works_raw", []) or []
+    if isinstance(raw_works, list):
+        for w in raw_works[:5]:
+            if not isinstance(w, dict):
+                continue
+            positions = w.get("positions", []) or []
+            role = ""
+            if positions and isinstance(positions[0], dict):
+                role = positions[0].get("type_cn", "")
+            works.append({
+                "subject_name": w.get("subject_name", ""),
+                "role": role,
+            })
+
+    result = {
+        # ── 核心标识（对齐 sanitize_person_detail）──
+        "id": raw_id,
+        "name": item.get("name", ""),
+        "name_cn": item.get("name_cn") or "",
+        "type": _PERSON_TYPES.get(type_int, "未知"),
+        "career": item.get("career", []),
+        "info": item.get("info") or "",
+        "summary": (item.get("summary_text") or "").strip(),
+        "infobox": item.get("infobox", {}),
+        "comment": item.get("comment", 0),
+        "collects": item.get("collects", 0),
+        "nsfw": item.get("nsfw", False),
+        # ── RAG 专用 ──
+        "works": works,
+        "_source": "rag",
+    }
+    return json.dumps(result, ensure_ascii=False)
 
 
 # ============================================================================
@@ -98,29 +322,34 @@ def _build_person_chunk_text(name_cn: str, chunk_text: str) -> str:
 
 
 def _prefixed_subject_id(raw_id: int) -> str:
-    """将原始数字 ID 转为带前缀的全局唯一标识。"""
     return f"subject_{raw_id}"
 
 
 def _prefixed_character_id(raw_id: int) -> str:
-    """将原始数字 ID 转为带前缀的全局唯一标识。"""
     return f"character_{raw_id}"
 
 
 def _prefixed_person_id(raw_id: int) -> str:
-    """将原始数字 ID 转为带前缀的全局唯一标识。"""
     return f"person_{raw_id}"
 
 
+# ============================================================================
+# RagEntityIngestor
+# ============================================================================
+
+
 class RagEntityIngestor:
-    """单表多态 RAG 实体摄入器（新架构）。
+    """单表多态 RAG 实体摄入器。
 
     面向 ``rag_entities`` 表，支持 Subject / Character / Person 三类实体
-    的统一批量摄入。核心增强：
-      - **防稀释语义前缀**：在 embedding 前拼接自然语言定调前缀。
-      - **关联边内存重排与剪枝**：对照本地热度数据，按 rating_total 降序
-        重排 casts / works 列表，截断至 Top 10。
+    的统一批量摄入。
+
+    核心设计：
+      - **embed_text 分离**：关键词密集合成文本 → embedding，chunk_text → Agent 上下文
+      - **关联边内存重排**：按关联作品 rating_total 降序，截断至 Top 10
     """
+
+    _EMBED_BATCH_SIZE = 32
 
     def __init__(
         self,
@@ -135,31 +364,54 @@ class RagEntityIngestor:
         if init_error:
             logger.warning("RagEntityIngestor: %s", init_error)
 
-    # ── 内部工具方法 ──────────────────────────────────────────
-
     def _check_client(self) -> None:
         if self.client is None:
             raise RuntimeError(
                 "智谱客户端未初始化，请确认 zai-sdk 已安装且 API Key 有效"
             )
 
+    # ── Embedding ─────────────────────────────────────────────
+
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """对 embed_text 列表做批量向量化。"""
         self._check_client()
         if not texts:
             return []
-        try:
-            from core.config import get_settings as _gs
-            model = _gs().EMBEDDING_MODEL
-            response = self.client.embeddings.create(model=model, input=texts)
-            return [item.embedding for item in response.data]
-        except Exception as exc:
-            logger.error("embedding API 调用失败: %s", exc)
-            raise RuntimeError(f"embedding API 调用失败: {exc}") from exc
+
+        # 清洗 + 过滤空文本
+        cleaned: list[str] = []
+        skipped = 0
+        for t in texts:
+            c = _clean_text(t)
+            if c:
+                cleaned.append(c)
+            else:
+                cleaned.append(" ")
+                skipped += 1
+        if skipped:
+            logger.warning("_embed_batch: %d 条 embed_text 为空，已替换为占位符", skipped)
+
+        from core.config import get_settings as _gs
+        model = _gs().EMBEDDING_MODEL
+        all_embeddings: list[list[float]] = []
+        for i in range(0, len(cleaned), self._EMBED_BATCH_SIZE):
+            chunk = cleaned[i : i + self._EMBED_BATCH_SIZE]
+            try:
+                response = self.client.embeddings.create(model=model, input=chunk)
+                all_embeddings.extend(item.embedding for item in response.data)
+            except Exception as exc:
+                logger.error(
+                    "embedding API 调用失败 (batch %d-%d): %s",
+                    i, i + len(chunk), exc,
+                )
+                raise RuntimeError(f"embedding API 调用失败: {exc}") from exc
+        return all_embeddings
+
+    # ── 热度查表 + 关联边重排 ──────────────────────────────────
 
     def _lookup_subject_rating_map(
         self, session: Session, subject_ids: set[int]
     ) -> dict[int, int]:
-        """查询本地 RagEntity 中 Subject 的 rating_total 热度映射。"""
         if not subject_ids:
             return {}
         prefixed = [_prefixed_subject_id(sid) for sid in subject_ids]
@@ -181,7 +433,6 @@ class RagEntityIngestor:
     def _rerank_casts(
         self, session: Session, raw_casts: list[dict[str, Any]]
     ) -> list[CharacterCast]:
-        """关联边内存洗牌与重排：按本地热度降序重排角色出演列表，截断至 Top 10。"""
         if not raw_casts:
             return []
         subject_ids = {
@@ -198,7 +449,7 @@ class RagEntityIngestor:
         for c in sorted_casts:
             prefixed = _prefixed_subject_id(c["subject_id"])
             if prefixed in seen_subjects:
-                continue  # 同一作品不同版本（TV/总集篇）去重
+                continue
             try:
                 casts.append(
                     CharacterCast(
@@ -223,13 +474,6 @@ class RagEntityIngestor:
     def _rerank_works(
         self, session: Session, raw_works: list[dict[str, Any]]
     ) -> list[PersonWork]:
-        """关联边内存洗牌与重排：按本地热度降序重排人物代表作列表，截断至 Top 10。
-
-        输入 raw_works 格式::
-            [{subject_id, subject_name, positions: [{type: {cn, en, jp}, summary, appearEps}]}]
-
-        输出 PersonWork 列表，含 subject_id/name + positions。
-        """
         if not raw_works:
             return []
         subject_ids = {
@@ -246,9 +490,8 @@ class RagEntityIngestor:
         for w in sorted_works:
             prefixed = _prefixed_subject_id(w["subject_id"])
             if prefixed in seen_subjects:
-                continue  # 同一作品不同版本（TV/总集篇）去重
+                continue
             try:
-                # 提取职位信息（API PersonWork.positions 结构）
                 positions: list[dict] = []
                 raw_positions = w.get("positions", [])
                 if raw_positions:
@@ -276,31 +519,17 @@ class RagEntityIngestor:
     # ── 公开摄入方法 ──────────────────────────────────────────
 
     def ingest_subjects(self, subjects_data: list[dict[str, Any]]) -> int:
-        """摄入番剧 (Subject) 实体。
+        """摄入 Subject 实体。
 
-        对每个文本块拼接 ``[作品名] {name_cn}。`` 语义前缀后向量化，
-        meta_info 经 SubjectMeta 契约校验后存入 JSONB。
-
-        Args:
-            subjects_data: 列表，每个字典包含::
-                {
-                    "subject_id": int, "name": str, "name_cn": str,
-                    "chunk_text": str, "score": float, "rating_total": int,
-                    "date": str | None, "eps": int, "nsfw": bool,
-                    "tags": [{"name": str, "count": int}, ...],
-                }
-        Returns:
-            成功写入数量。
+        embed_text ← 关键词密集合成文本 → embedding
+        rag_output ← 预构建 JSON dict → 检索时直接返回
         """
         if not subjects_data:
             raise ValueError("subjects_data 不能为空列表")
         self._check_client()
 
-        prefixed_texts = [
-            _build_subject_chunk_text(item.get("name_cn", "") or "", item["chunk_text"])
-            for item in subjects_data
-        ]
-        embeddings = self._embed_batch(prefixed_texts)
+        embed_texts = [_build_subject_embed_text(item) for item in subjects_data]
+        embeddings = self._embed_batch(embed_texts)
 
         if len(embeddings) != len(subjects_data):
             raise ValueError("embedding 数量与输入不匹配")
@@ -308,7 +537,7 @@ class RagEntityIngestor:
         inserted = 0
         try:
             with Session(self.engine) as session:
-                for item, vector in zip(subjects_data, embeddings):
+                for item, vector, et in zip(subjects_data, embeddings, embed_texts):
                     meta = SubjectMeta(
                         score=item.get("score", 0.0),
                         rank=item.get("rank", 0),
@@ -328,13 +557,12 @@ class RagEntityIngestor:
                         name_cn=item.get("name_cn"),
                         nsfw=item.get("nsfw", False),
                         popularity=item.get("rating_total", 0),
-                        chunk_text=_build_subject_chunk_text(
-                            item.get("name_cn", "") or "", item["chunk_text"]
-                        ),
+                        embed_text=et,
+                        rag_output=_build_subject_rag_dict(item, item["subject_id"]),
                         embedding=vector,
                         meta_info=meta.model_dump(),
                     )
-                    session.add(entity)
+                    session.merge(entity)
                     inserted += 1
                 session.commit()
                 logger.info("摄入 %d 条 Subject 到 rag_entities", inserted)
@@ -345,40 +573,13 @@ class RagEntityIngestor:
         return inserted
 
     def ingest_characters(self, characters_data: list[dict[str, Any]]) -> int:
-        """摄入角色 (Character) 实体。
-
-        拼接 ``[角色] {name_cn}，出自《{subject_name}》。`` 前缀，
-        casts 列表经内存重排（按关联作品 rating_total 降序，截断 Top 10）后
-        经 CharacterMeta 契约校验存入 meta_info。
-
-        Args:
-            characters_data: 列表，每个字典包含::
-                {
-                    "character_id": int, "name": str, "name_cn": str,
-                    "chunk_text": str, "subject_name": str,
-                    "role": int, "collects": int,
-                    "casts_raw": [
-                        {"subject_id": int, "subject_name": str,
-                         "person_id": int|None, "person_name": str|None,
-                         "type": int}, ...
-                    ],
-                }
-        Returns:
-            成功写入数量。
-        """
+        """摄入 Character 实体。"""
         if not characters_data:
             raise ValueError("characters_data 不能为空列表")
         self._check_client()
 
-        prefixed_texts = [
-            _build_character_chunk_text(
-                item.get("name_cn", "") or "",
-                item.get("subject_name", "") or "",
-                item["chunk_text"],
-            )
-            for item in characters_data
-        ]
-        embeddings = self._embed_batch(prefixed_texts)
+        embed_texts = [_build_character_embed_text(item) for item in characters_data]
+        embeddings = self._embed_batch(embed_texts)
 
         if len(embeddings) != len(characters_data):
             raise ValueError("embedding 数量与输入不匹配")
@@ -386,7 +587,7 @@ class RagEntityIngestor:
         inserted = 0
         try:
             with Session(self.engine) as session:
-                for item, vector in zip(characters_data, embeddings):
+                for item, vector, et in zip(characters_data, embeddings, embed_texts):
                     casts = self._rerank_casts(session, item.get("casts_raw", []))
                     meta = CharacterMeta(
                         role=item.get("role", 0),
@@ -402,15 +603,12 @@ class RagEntityIngestor:
                         name_cn=item.get("name_cn"),
                         nsfw=item.get("nsfw", False),
                         popularity=item.get("collects", 0),
-                        chunk_text=_build_character_chunk_text(
-                            item.get("name_cn", "") or "",
-                            item.get("subject_name", "") or "",
-                            item["chunk_text"],
-                        ),
+                        embed_text=et,
+                        rag_output=_build_character_rag_dict(item, item["character_id"]),
                         embedding=vector,
                         meta_info=meta.model_dump(),
                     )
-                    session.add(entity)
+                    session.merge(entity)
                     inserted += 1
                 session.commit()
                 logger.info("摄入 %d 条 Character 到 rag_entities", inserted)
@@ -421,35 +619,13 @@ class RagEntityIngestor:
         return inserted
 
     def ingest_persons(self, persons_data: list[dict[str, Any]]) -> int:
-        """摄入人物 (Person) 实体。
-
-        拼接 ``[人物] {name_cn}。`` 前缀，
-        works 列表经内存重排（按关联作品 rating_total 降序，截断 Top 10）后
-        经 PersonMeta 契约校验存入 meta_info。
-
-        Args:
-            persons_data: 列表，每个字典包含::
-                {
-                    "person_id": int, "name": str, "name_cn": str,
-                    "chunk_text": str, "career": list[str], "type": int,
-                    "collects": int,
-                    "works_raw": [
-                        {"subject_id": int, "subject_name": str,
-                         "positions": [{"type": {"cn": str}, "summary": str, "appearEps": str}]}, ...
-                    ],
-                }
-        Returns:
-            成功写入数量。
-        """
+        """摄入 Person 实体。"""
         if not persons_data:
             raise ValueError("persons_data 不能为空列表")
         self._check_client()
 
-        prefixed_texts = [
-            _build_person_chunk_text(item.get("name_cn", "") or "", item["chunk_text"])
-            for item in persons_data
-        ]
-        embeddings = self._embed_batch(prefixed_texts)
+        embed_texts = [_build_person_embed_text(item) for item in persons_data]
+        embeddings = self._embed_batch(embed_texts)
 
         if len(embeddings) != len(persons_data):
             raise ValueError("embedding 数量与输入不匹配")
@@ -457,7 +633,7 @@ class RagEntityIngestor:
         inserted = 0
         try:
             with Session(self.engine) as session:
-                for item, vector in zip(persons_data, embeddings):
+                for item, vector, et in zip(persons_data, embeddings, embed_texts):
                     works = self._rerank_works(session, item.get("works_raw", []))
                     meta = PersonMeta(
                         career=item.get("career", []),
@@ -474,13 +650,12 @@ class RagEntityIngestor:
                         name_cn=item.get("name_cn"),
                         nsfw=item.get("nsfw", False),
                         popularity=item.get("collects", 0),
-                        chunk_text=_build_person_chunk_text(
-                            item.get("name_cn", "") or "", item["chunk_text"]
-                        ),
+                        embed_text=et,
+                        rag_output=_build_person_rag_dict(item, item["person_id"]),
                         embedding=vector,
                         meta_info=meta.model_dump(),
                     )
-                    session.add(entity)
+                    session.merge(entity)
                     inserted += 1
                 session.commit()
                 logger.info("摄入 %d 条 Person 到 rag_entities", inserted)
@@ -489,159 +664,3 @@ class RagEntityIngestor:
             raise RuntimeError(f"数据库写入失败: {exc}") from exc
 
         return inserted
-
-
-class BangumiIngestor:
-    """[DEPRECATED] Bangumi 数据摄入器。
-
-    .. deprecated::
-        此摄入器将在后续 Phase 中移除，请迁移至 ``RagEntityIngestor``。
-
-    将经过 ``BangumiTextProcessor`` 预处理后的文本块批量向量化，
-    并写入数据库中的 ``bangumi_chunks`` 表。
-
-    核心设计原则：
-      - **正文与 Metadata 分离**：Embedding 仅基于 chunk_text 纯文本，
-        tags、评分等结构化字段存入 meta_info JSON 列，供后续 SQL 硬过滤。
-      - **批量处理**：一次性对一批文本调用 embedding API，减少网络开销。
-      - **防御性编程**：API 异常和数据库异常均被捕获并记录，不中断整体流程。
-
-    Attributes:
-        engine: SQLAlchemy Engine 实例，用于创建数据库会话。
-        client: 智谱 ZhipuAiClient 实例，用于调用 embedding-3 模型。
-    """
-
-    def __init__(
-        self,
-        engine: Engine,
-        zhipu_api_key: str = "",
-        zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4",
-    ) -> None:
-        """初始化数据摄入器。
-
-        Args:
-            engine: SQLAlchemy Engine 实例，通常由 ``database.engine.engine`` 提供。
-            zhipu_api_key: 智谱 API 密钥。通过环境变量 ``ZHIPU_API_KEY`` 注入。
-            zhipu_base_url: 智谱 API 基础 URL，默认使用官方地址。
-        """
-        from clients.zhipu_client import init_zhipu_client
-
-        self.engine = engine
-        self.client, init_error = init_zhipu_client(zhipu_api_key, zhipu_base_url)
-        if init_error:
-            logger.warning("BangumiIngestor: %s", init_error)
-
-    def ingest_chunks(self, chunks_data: list[dict[str, Any]]) -> int:
-        """将预处理后的文本块批量向量化并写入数据库。
-
-        严格遵循正文与 Metadata 分离策略：
-          1. 提取所有条目的 ``text``（纯摘要正文）组成列表。
-          2. 调用智谱 embedding-3 API 批量获取向量。
-          3. 遍历数据与向量，构造 ``BangumiChunk`` 对象——
-             ``chunk_text`` 存储正文，``meta_info`` 存储 tags、评分等结构化字段。
-          4. 批量写入数据库并提交事务。
-
-        Args:
-            chunks_data: 预处理后的文本块列表，每个字典包含::
-
-                {
-                    "chunk_id": int,          # 分块序号（仅用于日志追踪）
-                    "subject_id": int,        # Bangumi 条目 ID
-                    "name": str,              # 条目名称
-                    "type": int,              # 条目类型 (1=书籍, 2=动画, ...)
-                    "score": float,           # 评分
-                    "rating_total": int,      # 评分人数（热度信号，用于降级排序）
-                    "nsfw": bool,             # 安全护栏：是否为 R18 内容
-                    "core_staff": list[str],  # 知识图谱：核心制作人员（导演/原作等）
-                    "main_cv": list[str],     # 知识图谱：主役声优
-                    "tags": list[str],        # 前10个社区标签
-                    "text": str,              # 切分后的纯文本正文
-                }
-
-        Returns:
-            成功写入数据库的条目数。
-
-        Raises:
-            ValueError: 若 chunks_data 为空列表。
-            RuntimeError: 若智谱客户端未初始化（zai-sdk 未安装或配置错误）。
-        """
-        if not chunks_data:
-            raise ValueError("chunks_data 不能为空列表")
-
-        if self.client is None:
-            raise RuntimeError(
-                "智谱客户端未初始化，无法进行 embedding。"
-                "请确认 zai-sdk 已安装且 API Key 有效。"
-            )
-
-        # ── Step 1: 纯正文提取 ────────────────────────────────
-        # 仅提取 text 字段，tags 等元数据绝不参与向量化
-        raw_texts: list[str] = [item["text"] for item in chunks_data]
-
-        logger.info(
-            "准备批量 embedding: %d 条文本, 前3条预览: %s",
-            len(raw_texts),
-            [t[:50] + "..." if len(t) > 50 else t for t in raw_texts[:3]],
-        )
-
-        # ── Step 2: 批量 Embedding ─────────────────────────────
-        try:
-            from core.config import get_settings as _gs
-            model = _gs().EMBEDDING_MODEL
-            response = self.client.embeddings.create(
-                model=model,
-                input=raw_texts,
-            )
-            embeddings: list[list[float]] = [item.embedding for item in response.data]
-            logger.info("embedding 完成: 获取 %d 条向量", len(embeddings))
-        except Exception as exc:
-            logger.error("智谱 embedding API 调用失败: %s", exc)
-            raise RuntimeError(f"embedding API 调用失败: {exc}") from exc
-
-        # ── 安全校验：向量数量与输入数量必须一致 ──────────────
-        if len(embeddings) != len(raw_texts):
-            raise ValueError(
-                f"embedding 返回数量 ({len(embeddings)}) "
-                f"与输入数量 ({len(raw_texts)}) 不匹配"
-            )
-
-        # ── Step 3 & 4: 组装 BangumiChunk 并批量写入 ──────────
-        inserted_count = 0
-
-        try:
-            with Session(self.engine) as session:
-                for item, vector in zip(chunks_data, embeddings):
-                    chunk = BangumiChunk(
-                        entity_type="subject",
-                        entity_id=item["subject_id"],
-                        chunk_text=item["text"],
-                        embedding=vector,
-                        meta_info={
-                            # ── 核心元数据 ──────────────────────────
-                            "name": item.get("name", ""),
-                            "subject_type": item.get("type", 0),
-                            "score": item.get("score", 0.0),
-                            "tags": item.get("tags", []),
-                            # ── 热度信号（降级排序用） ─────────────
-                            "rating_total": item.get("rating_total", 0),
-                            # ── 安全护栏 ───────────────────────────
-                            "nsfw": item.get("nsfw", False),
-                            # ── 知识图谱 ───────────────────────────
-                            "core_staff": item.get("core_staff", []),
-                            "main_cv": item.get("main_cv", []),
-                        },
-                    )
-                    session.add(chunk)
-                    inserted_count += 1
-
-                session.commit()
-                logger.info("成功写入 %d 条 chunk 到 bangumi_chunks 表", inserted_count)
-
-        except SQLAlchemyError as exc:
-            logger.error("数据库写入失败: %s", exc)
-            raise RuntimeError(f"数据库写入失败: {exc}") from exc
-        except Exception as exc:
-            logger.error("未知异常: %s", exc)
-            raise RuntimeError(f"摄入过程异常: {exc}") from exc
-
-        return inserted_count

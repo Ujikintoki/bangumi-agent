@@ -1,9 +1,21 @@
-"""
+'''
+[DEPRECATED — 2026-08-05] 整个模块已废弃。
+
+原因:
+  - Bangumi summary 大多数 < 300 tokens，无需滑动窗口 chunking
+  - 语义前缀逻辑在 ingestion.py 的 _build_*_chunk_text() 中实现
+  - create_entity_documents 的 Parent-Child Retriever 模式未接入生产管线
+  - clean_text() 已迁移至 ingestion.py 的 _clean_text()
+
+保留此文件供参考，实际 chunking 和前缀逻辑见 rag/ingestion.py。
+
+原文件内容:
+---
 RAG 文本预处理模块
 
 提供面向 Bangumi 番剧文本（简介、长评等）的数据清洗与滑动窗口切分能力。
 不依赖 LangChain / LlamaIndex，基于原生 Python 列表运算 + tiktoken 实现。
-"""
+---
 
 import html
 import re
@@ -53,18 +65,12 @@ class BangumiTextProcessor:
         2. 全角空格 → 半角空格。
         3. 连续换行 → 单个换行。
         4. 连续空格 → 单个空格。
-        5. （TODO）未来根据实际情况待添加
 
         Args:
             text: 原始文本字符串。
 
         Returns:
             清洗后的规范文本。若输入为空字符串，返回空字符串。
-
-        Example:
-            >>> processor = BangumiTextProcessor()
-            >>> processor.clean_text('  "hello　　world\\n\\n\\nfoo"  ')
-            'hello world\\nfoo'
         """
         if not text:
             return ""
@@ -75,11 +81,11 @@ class BangumiTextProcessor:
         text = text.strip().strip('"').strip("'")
 
         # 2. 全角空格 → 半角空格
-        text = text.replace("\u3000", " ")
+        text = text.replace("　", " ")
 
         # 3. 统一换行符：\r\n → \n，连续换行（\n{2,}）→ 单个换行
-        # 2. 移除不可见的零宽字符 / 控制字符
-        text = re.sub(r"[\u200b\u200c\u200d\u200e\u200f\ufeff]", "", text)
+        # 移除不可见的零宽字符 / 控制字符
+        text = re.sub(r"[​‌‍‎‏﻿]", "", text)
 
         text = text.replace("\r\n", "\n")
         text = re.sub(r"\n{2,}", "\n", text)
@@ -87,31 +93,10 @@ class BangumiTextProcessor:
         # 4. 连续空格 → 单个空格
         text = re.sub(r" {2,}", " ", text)
 
-        # 注：BBCode 剥离由 clients/sanitizers._strip_bbcode() 在评论/日志层处理。
-        # RAG 文本处理器不在此处剥离 BBCode — 摘要中的标签（如 [b]）可能提供
-        # 结构语义信号，有助于 embedding 质量。
-
         return text
 
     def split_text(self, text: str | None) -> List[str]:
-        """使用滑动窗口将文本切分为语义块。
-
-        先清洗文本，再编码为 Token 序列，按 chunk_size 截取窗口，
-        步长为 chunk_size - chunk_overlap，保证相邻块之间有重叠。
-
-        Args:
-            text: 待切分的原始文本。若为 None 或空字符串，返回空列表。
-
-        Returns:
-            切分后的文本块列表。若原始 Token 数不超过 chunk_size，
-            返回包含完整文本的单元素列表。
-
-        Example:
-            >>> processor = BangumiTextProcessor(chunk_size=100, chunk_overlap=20)
-            >>> chunks = processor.split_text("这是一段很长的文本...")
-            >>> len(chunks) > 0
-            True
-        """
+        """使用滑动窗口将文本切分为语义块..."""
         if not text:
             return []
 
@@ -119,15 +104,12 @@ class BangumiTextProcessor:
         if not cleaned:
             return []
 
-        # 编码为 Token 整数序列
         tokens = self.tokenizer.encode(cleaned)
         total_tokens = len(tokens)
 
-        # 文本较短，无需切分
         if total_tokens <= self.chunk_size:
             return [cleaned]
 
-        # 滑动窗口切分
         step = self.chunk_size - self.chunk_overlap
         chunks: List[str] = []
 
@@ -135,46 +117,15 @@ class BangumiTextProcessor:
             end = min(start + self.chunk_size, total_tokens)
             chunk_tokens = tokens[start:end]
             chunk_text = self.tokenizer.decode(chunk_tokens)
-
-            # 清除 BPE 切分导致的边界乱码（\ufffd 是 UTF-8 替换字符）
-            chunk_text = chunk_text.strip("\ufffd")
-
-            # 丢弃解码后为空的块（边界情况）
+            chunk_text = chunk_text.strip("�")
             if chunk_text.strip():
                 chunks.append(chunk_text)
 
         return chunks
 
-    def create_entity_documents(
-        self,
-        entity_type: str,
-        entity_id: int,
-        name: str = "",
-        name_cn: str = "",
-        summary: str | None = None,
-        tags: list[str] | None = None,
-        subject_name: str = "",
-    ) -> dict[str, Any]:
-        """为任意类型实体创建父子文档结构（多态版）。
-
-        遵循 Parent-Child Retriever 模式。父文档根据实体类型拼接不同语义前缀，
-        子文档为清洗后摘要的滑动窗口切片。
-
-        Args:
-            entity_type: 实体类型，``"subject"`` / ``"character"`` / ``"person"``。
-            entity_id: Bangumi 原始数字 ID。
-            name: 实体原文名称。
-            name_cn: 实体中文名称。
-            summary: 实体简介文本。若为空，仅生成父文档。
-            tags: 标签列表（仅 subject 有效）。
-            subject_name: 角色所属作品名（仅 character 有效）。
-
-        Returns:
-            父子文档字典，与 ``create_parent_child_documents`` 格式兼容。
-        """
+    def create_entity_documents(self, entity_type, entity_id, name="", name_cn="", summary=None, tags=None, subject_name=""):
+        """为任意类型实体创建父子文档结构..."""
         cleaned_summary = self.clean_text(summary or "")
-
-        # ── 根据实体类型组装父文档前缀 ────────────────────────
         parent_parts: list[str] = []
 
         if entity_type == "subject":
@@ -198,67 +149,16 @@ class BangumiTextProcessor:
             parent_parts.append(prefix.strip("。"))
 
         parent_text = "\n".join(parent_parts)
-
-        parent: dict[str, Any] = {
-            "entity_id": entity_id,
-            "entity_type": entity_type,
-            "text": parent_text,
-            "meta_info": {
-                "chunk_type": "parent",
-                "entity_type": entity_type,
-                "tags": tags or [],
-            },
-        }
-
-        # ── 切分子文档 ────────────────────────────────────────
+        parent = {"entity_id": entity_id, "entity_type": entity_type, "text": parent_text, "meta_info": {"chunk_type": "parent", "entity_type": entity_type, "tags": tags or []}}
         children: list[dict[str, Any]] = []
         if cleaned_summary:
             child_chunks = self.split_text(cleaned_summary)
             for chunk_text in child_chunks:
-                children.append(
-                    {
-                        "entity_id": entity_id,
-                        "entity_type": entity_type,
-                        "text": chunk_text,
-                        "meta_info": {
-                            "chunk_type": "child",
-                            "entity_type": entity_type,
-                            "parent_entity_id": entity_id,
-                        },
-                    }
-                )
+                children.append({"entity_id": entity_id, "entity_type": entity_type, "text": chunk_text, "meta_info": {"chunk_type": "child", "entity_type": entity_type, "parent_entity_id": entity_id}})
 
         return {"parent": parent, "children": children}
 
-    def create_parent_child_documents(
-        self,
-        subject_id: int,
-        tags: list[str],
-        summary: str | None,
-    ) -> dict[str, Any]:
-        """[DEPRECATED] 为单个番剧条目创建父子文档结构。
-
-        .. deprecated::
-            请迁移至 ``create_entity_documents``，支持多态实体类型。
-
-        遵循 Parent-Child Retriever 模式：父文档携带完整的标签与简介
-        富文本上下文，子文档为清洗后摘要的滑动窗口切片，用于高精度
-        语义检索。检索命中子文档后，可通过 ``parent_subject_id`` 回溯
-        父文档获取完整信息。
-
-        Args:
-            subject_id: Bangumi 条目 ID，用于关联父子文档。
-            tags: 条目标签列表，如 ``["百合", "科幻", "2023"]``。
-                若为空列表，父文档中不渲染标签行。
-            summary: 条目原始简介文本。若为 ``None`` 或空字符串，
-                父文档仅包含标签信息，子文档列表为空。
-
-        Returns:
-            包含父子文档的字典。
-        """
-        return self.create_entity_documents(
-            entity_type="subject",
-            entity_id=subject_id,
-            summary=summary,
-            tags=tags,
-        )
+    def create_parent_child_documents(self, subject_id, tags, summary):
+        """[DEPRECATED] 已废弃，请使用 create_entity_documents..."""
+        return self.create_entity_documents(entity_type="subject", entity_id=subject_id, summary=summary, tags=tags)
+'''

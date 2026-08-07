@@ -37,50 +37,97 @@ import asyncio
 import logging
 from typing import Any
 
+from clients.sanitizers import (
+    _CHARACTER_INFOBOX_DROP_KEYS,
+    _clean_infobox,
+)
+
 logger = logging.getLogger("bgm-agent.enricher")
 
 # 并发控制
 _DEFAULT_CONCURRENCY = 3
 _DEFAULT_RATE_LIMIT = 0.2  # 秒
 
-# chunk_text 安全上限（超出截断，防止 embedding API token 溢出）
-_MAX_CHUNK_CHARS = 3000
+
+# ═══════════════════════════════════════════════════════════════════════
+# 文本清洗 — 统一入口
+# ═══════════════════════════════════════════════════════════════════════
+
+import html
+import re
+
+# BBcode 标签（Bangumi wiki 文本中常见）
+_BBCODE_RE = re.compile(
+    r'\[(?:url[=\]][^\]]*?|/url|b|/b|i|/i|s|/s|u|/u|'
+    r'quote|/quote|img|/img|color[=\]][^\]]*?|/color|'
+    r'size[=\]][^\]]*?|/size|align[=\]][^\]]*?|/align|'
+    r'list|/list|\\*|/\\*|code|/code|pre|/pre)\]',
+    re.IGNORECASE,
+)
+
+
+def _clean_text(text: str) -> str:
+    """清洗文本：BBcode 剔除 + HTML unescape + 空白规范化。
+
+    适用场景：enricher 输出的 chunk_text、ingestion 的 embed_text 构建。
+
+    Args:
+        text: 原始文本（可能含 BBcode、HTML 实体、零宽字符等）。
+
+    Returns:
+        清洗后的纯文本。
+    """
+    if not text:
+        return ""
+
+    # 1. 剔除 BBcode 标签
+    text = _BBCODE_RE.sub("", text)
+
+    # 2. HTML unescape
+    text = html.unescape(text)
+
+    # 3. 去首尾引号和空白
+    text = text.strip().strip('"').strip("'")
+
+    # 4. 全角空格 → 半角
+    text = text.replace("　", " ")
+
+    # 5. 移除零宽字符
+    text = re.sub(r"[​‌‍‎‏﻿]", "", text)
+
+    # 6. 统一换行 + 压缩连续空行
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    # 7. 压缩连续空白
+    text = re.sub(r" {2,}", " ", text)
+    text = re.sub(r"\t+", " ", text)
+
+    return text.strip()
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# chunk_text 构造
+# chunk_text 构造 — 纯叙事文本，供 Agent 上下文消费
 # ═══════════════════════════════════════════════════════════════════════
 
 
 def _build_chunk_text(summary: str, info: str | None = None) -> str:
-    """从 summary 和 info 构造 chunk_text。
+    """从 summary 构造清洗后的叙事文本。
 
-    只取摘要主体（summary）和一行简介（info），不拼接 infobox kv 对。
-    硬截断在 ``_MAX_CHUNK_CHARS`` 以内。
+    仅取摘要主体（summary），不拼接 info（info 存入 meta_info）。
+    清洗 BBcode 和 HTML 残留，输出干净的纯文本。
 
     Args:
         summary: 实体摘要文本（来自 API ``summary`` 字段）。
-        info: 实体一行简介（来自 API ``info`` 字段），可选。
+        info: 已废弃——仅保留参数兼容性，不再拼入 chunk_text。
 
     Returns:
-        拼接并截断后的纯文本。
+        清洗后的纯叙事文本。summary 为空时返回空字符串。
     """
-    parts: list[str] = []
-    if summary:
-        parts.append(summary.strip())
-    if info and info.strip():
-        # 避免 info 与 summary 开头重复
-        if not summary or not summary.strip().startswith(info.strip()[:10]):
-            parts.append(info.strip())
+    if not summary or not summary.strip():
+        return ""
 
-    text = "。".join(parts) if parts else ""
-    if len(text) > _MAX_CHUNK_CHARS:
-        # 尽量在句号处断开
-        cut = text.rfind("。", 0, _MAX_CHUNK_CHARS)
-        if cut > _MAX_CHUNK_CHARS // 2:
-            text = text[:cut] + "。"
-        else:
-            text = text[:_MAX_CHUNK_CHARS] + "..."
+    text = _clean_text(summary)
     return text
 
 
@@ -160,24 +207,40 @@ class CharacterEnricher:
                         "type": 1,
                     })
 
-        # 推断最知名出处
-        subject_name = casts_list[0]["subject_name"] if casts_list else ""
+        # 推断最知名出处 — 排除广播剧/CD/音声等衍生作品，优先取正片
+        _SPINOFF_KEYWORDS = ["广播剧", "ドラマCD", "オーディオ", "ラジオ", "Sound", "角色歌"]
+        subject_name = ""
+        for c in casts_list:
+            name = c.get("subject_name", "")
+            if not any(kw in name for kw in _SPINOFF_KEYWORDS):
+                subject_name = name
+                break
+        if not subject_name:
+            subject_name = casts_list[0]["subject_name"] if casts_list else ""
 
         # 构造 chunk_text
         summary = (raw.get("summary") or "").strip()
         info = (raw.get("info") or "").strip()
         chunk_text = _build_chunk_text(summary, info)
 
+        # infobox 清洗
+        infobox = _clean_infobox(
+            raw.get("infobox", []) or [],
+            drop_keys=_CHARACTER_INFOBOX_DROP_KEYS,
+        )
+
         return {
             "character_id": raw.get("id", character_id),
             "name": raw.get("name", ""),
             "name_cn": raw.get("nameCN", ""),
-            "chunk_text": chunk_text,
+            "summary_text": chunk_text,
             "subject_name": subject_name,
             "role": raw.get("role", 0),
             "collects": raw.get("collects", 0),
+            "comment": raw.get("comment", 0),
             "summary": summary or None,
             "info": info or None,
+            "infobox": infobox,
             "casts_raw": casts_list,
             "nsfw": raw.get("nsfw", False),
         }
@@ -326,16 +389,24 @@ class PersonEnricher:
         info = (raw.get("info") or "").strip()
         chunk_text = _build_chunk_text(summary, info)
 
+        # infobox 清洗
+        infobox = _clean_infobox(
+            raw.get("infobox", []) or [],
+            drop_keys=_CHARACTER_INFOBOX_DROP_KEYS,
+        )
+
         return {
             "person_id": raw.get("id", person_id),
             "name": raw.get("name", ""),
             "name_cn": raw.get("nameCN", ""),
-            "chunk_text": chunk_text,
+            "summary_text": chunk_text,
             "career": career,
             "type": raw.get("type", 0),
             "collects": raw.get("collects", 0),
+            "comment": raw.get("comment", 0),
             "summary": summary or None,
             "info": info or None,
+            "infobox": infobox,
             "works_raw": works_list,
             "nsfw": raw.get("nsfw", False),
         }
@@ -371,6 +442,124 @@ class PersonEnricher:
         if failed:
             logger.warning(
                 "Person 批量富化: %d/%d 成功, %d 失败",
+                succeeded, len(results), failed,
+            )
+
+        return list(results)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# SubjectCollector
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class SubjectCollector:
+    """作品数据收集器。
+
+    Subject 不需要 multi-hop 富化——单次 ``GET /p1/subjects/{id}`` 即返回
+    全量数据（评分、标签、简介、infobox）。本类负责调 API 并映射为
+    ``ingest_subjects()`` 可直接消费的格式。
+
+    Attributes:
+        client: BangumiClient 实例。
+        concurrency: 批量处理时的最大并发数，默认 3。
+        rate_limit: 单次请求后的休眠秒数，默认 0.15。
+    """
+
+    def __init__(
+        self,
+        client,
+        concurrency: int = _DEFAULT_CONCURRENCY,
+        rate_limit: float = 0.15,
+    ) -> None:
+        self.client = client
+        self._semaphore = asyncio.Semaphore(concurrency)
+        self._rate_limit = rate_limit
+
+    async def collect(self, subject_id: int) -> dict[str, Any]:
+        """收集单个作品数据。返回 ``ingest_subjects()`` 消费格式的 dict。"""
+        try:
+            raw = await self.client._get(f"/p1/subjects/{subject_id}")
+        except Exception as exc:
+            logger.warning("subject %d API 调用异常: %s", subject_id, exc)
+            return {"_error": str(exc), "subject_id": subject_id}
+
+        if "_error" in raw:
+            logger.warning("subject %d 获取失败: %s", subject_id, raw["_error"])
+            return {"_error": raw["_error"], "subject_id": subject_id}
+
+        from clients.sanitizers import (
+    _CHARACTER_INFOBOX_DROP_KEYS,
+    _clean_infobox,
+    sanitize_subject_detail,
+)
+        detail = sanitize_subject_detail(raw)
+
+        summary = (detail.get("summary") or "").strip()
+        info_text = (detail.get("info") or "").strip()
+        chunk_text = _build_chunk_text(summary, info_text)
+
+        date_str = detail.get("date", "") or ""
+        year = None
+        if date_str and len(date_str) >= 4:
+            try:
+                year = int(date_str[:4])
+            except ValueError:
+                pass
+
+        # sanitize_subject_detail 把 collection key 转成了中文（"想看"/"看过"），
+        # 但 SubjectMeta 期望 int key。从 raw 直接取数字 key。
+        collection_raw = raw.get("collection", {}) or {}
+        collection: dict[int, int] = {}
+        for k, v in collection_raw.items():
+            try:
+                collection[int(k)] = int(v) if isinstance(v, (int, float, str)) else 0
+            except (ValueError, TypeError):
+                pass
+
+        return {
+            "subject_id": detail["id"],
+            "name": detail.get("name", ""),
+            "name_cn": detail.get("name_cn", ""),
+            "info": detail.get("info", ""),
+            "summary_text": chunk_text,
+            "score": detail.get("score", 0.0),
+            "rating_total": detail.get("rating_total", 0),
+            "rank": detail.get("rank", 0),
+            "rating_count": detail.get("rating_count", []),
+            "collection": collection,
+            "date": date_str or None,
+            "year": year,
+            "platform": detail.get("type", ""),
+            "eps": detail.get("eps", 0),
+            "volumes": detail.get("volumes", 0),
+            "series": detail.get("series", False),
+            "series_entry": detail.get("series_entry", False),
+            "nsfw": detail.get("nsfw", False),
+            "infobox": detail.get("infobox", {}),
+            "tags": detail.get("tags", []),
+        }
+
+    async def collect_batch(self, subject_ids: list[int]) -> list[dict[str, Any]]:
+        """批量收集作品数据，并发 + 限流。"""
+        if not subject_ids:
+            return []
+
+        async def _collect_one(sid: int) -> dict[str, Any]:
+            async with self._semaphore:
+                result = await self.collect(sid)
+                if self._rate_limit > 0:
+                    await asyncio.sleep(self._rate_limit)
+                return result
+
+        tasks = [_collect_one(sid) for sid in subject_ids]
+        results = await asyncio.gather(*tasks)
+
+        succeeded = sum(1 for r in results if "_error" not in r)
+        failed = len(results) - succeeded
+        if failed:
+            logger.warning(
+                "Subject 批量收集: %d/%d 成功, %d 失败",
                 succeeded, len(results), failed,
             )
 
