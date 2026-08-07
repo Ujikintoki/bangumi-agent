@@ -123,7 +123,7 @@ class TestChatEndpoint:
         response = client.post("/chat", json={"message": "测试", "depth": "deep"})
         assert response.status_code == 200
         data = response.json()
-        assert ("出错" in data["reply"] or "异常" in data["reply"])
+        assert len(data["reply"]) > 0 and "抱歉" in data["reply"]
         assert data["iterations"] == 0
 
     def test_rejects_empty_message(self):
@@ -145,14 +145,14 @@ class TestChatEndpoint:
 class TestChatStreamEndpoint:
     """POST /chat/stream"""
 
-    @patch("main.agent_app.astream")
-    def test_stream_returns_sse_format(self, mock_astream):
+    @patch("main.agent_app.ainvoke")
+    def test_stream_returns_sse_format(self, mock_ainvoke):
         """流式响应包含 SSE 格式的 data: 前缀和 [DONE]"""
-        async def mock_stream(state):
-            yield {"reasoning_node": {"query_intent": "chitchat", "messages": [AIMessage(content="你好！")]}}
-            yield {"critic_node": {"critic_status": "PASS", "critic_feedback": ""}}
-
-        mock_astream.return_value = mock_stream(0)
+        mock_ainvoke.return_value = {
+            "messages": [AIMessage(content="你好！")],
+            "query_intent": "chat",
+            "iterations": 0,
+        }
 
         with client.stream("POST", "/chat/stream", json={"message": "你好"}) as response:
             assert response.status_code == 200
@@ -161,31 +161,26 @@ class TestChatStreamEndpoint:
             assert "data:" in body
             assert "[DONE]" in body
 
-    @patch("main.agent_app.astream")
-    def test_stream_includes_reasoning_event(self, mock_astream):
-        """reasoning_node 事件包含 intent 和 tool_calls（从 AIMessage 提取）"""
-        async def mock_stream(state):
-            yield {"reasoning_node": {
-                "query_intent": "lookup",
-                "messages": [AIMessage(content="", tool_calls=[{"name": "search_bangumi_subject", "args": {}, "id": "c1"}])],
-            }}
+    @patch("main.agent_app.ainvoke")
+    def test_stream_includes_render_event(self, mock_ainvoke):
+        """SSE 包含 render 事件（非流式 graph + 后处理渲染）"""
+        mock_ainvoke.return_value = {
+            "messages": [
+                AIMessage(content="进击的巨人 评分 8.3，排名 #42。是一部由 WIT STUDIO 制作的动画。"),
+            ],
+            "query_intent": "fetch",
+            "iterations": 2,
+        }
 
-        mock_astream.return_value = mock_stream(0)
-
-        with client.stream("POST", "/chat/stream", json={"message": "搜巨人", "depth": "deep"}) as response:
+        with client.stream("POST", "/chat/stream", json={"message": "进击的巨人评分", "depth": "deep"}) as response:
             body = response.read().decode()
-            assert "reasoning" in body
-            assert "lookup" in body
-            assert "search_bangumi_subject" in body
+            assert "render" in body
+            assert "[DONE]" in body
 
-    @patch("main.agent_app.astream")
-    def test_stream_handles_error(self, mock_astream):
-        """流式异常也被捕获为 SSE 事件"""
-        async def mock_stream(state):
-            raise RuntimeError("模拟流式异常")
-            yield  # noqa
-
-        mock_astream.return_value = mock_stream(0)
+    @patch("main.agent_app.ainvoke")
+    def test_stream_handles_error(self, mock_ainvoke):
+        """ainvoke 异常被捕获为 SSE error 事件"""
+        mock_ainvoke.side_effect = RuntimeError("模拟 graph 异常")
 
         with client.stream("POST", "/chat/stream", json={"message": "测试"}) as response:
             body = response.read().decode()

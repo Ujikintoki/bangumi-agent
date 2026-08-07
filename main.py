@@ -154,10 +154,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: 不使用 cookie 认证（session 通过显式 session_id 参数追踪），因此不设 credentials。
+# origin 保持通配符——此 API 为公开服务，接受来自任意前端的请求。
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -296,7 +297,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     except Exception as e:
         logger.exception("/chat: Agent 执行异常")
         return ChatResponse(
-            reply=f"啧，出错了：{e}",
+            reply="抱歉，处理请求时遇到了问题，请稍后重试。",
             iterations=0,
             tools_used=[],
             query_intent="unknown",
@@ -360,7 +361,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     )
 
     # ── L2 记忆写入（fire-and-forget） ──
-    asyncio.create_task(_remember_session(result, request, depth))
+    asyncio.create_task(_remember_session(result, request, depth, session_id=session_id))
 
     from agent.state import get_max_iterations
 
@@ -386,8 +387,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
 async def chat_stream(request: ChatRequest):
     """Agent 对话流式端点（SSE）。
 
-    按节点级别推送事件：reasoning → tool → render → done。
-    Render 已从图节点降级为后处理，由 generate() 在 graph 完成后调用。
+    Graph 推理层全部使用非流式 ainvoke，不输出中间节点事件。
+    SSE 只包含最终 render 事件，保留流式接口形态供未来扩展（如 token 级流式渲染）。
 
     Args:
         request: 包含用户消息、深度模式、会话 ID 和用户 ID 的请求体。
@@ -421,41 +422,12 @@ async def chat_stream(request: ChatRequest):
     }
 
     async def generate():
-        final_state: dict = dict(initial_state)
+        final_state: dict = dict(initial_state)  # 预初始化，防止 CancelledError 提前触发时 UnboundLocalError
         try:
-            async for event in agent_app.astream(initial_state, config={"recursion_limit": 50}):
-                for node_name, node_output in event.items():
-                    # 累积完整 state
-                    for key, value in node_output.items():
-                        if key == "messages" and key in final_state:
-                            final_state["messages"].extend(value)
-                        else:
-                            final_state[key] = value
-
-                    if node_name == "reasoning_node":
-                        intent = node_output.get("query_intent", "unknown")
-                        tool_calls = []
-                        for msg in node_output.get("messages", []):
-                            if (
-                                isinstance(msg, AIMessage)
-                                and hasattr(msg, "tool_calls")
-                                and msg.tool_calls
-                            ):
-                                tool_calls = [
-                                    tc.get("name", "?") for tc in msg.tool_calls
-                                ]
-                                break
-                        yield f"data: {json.dumps({'node': 'reasoning', 'intent': intent, 'tool_calls': tool_calls}, ensure_ascii=False)}\n\n"
-
-                    elif node_name == "tool_node":
-                        tools = []
-                        if "messages" in node_output:
-                            for msg in node_output["messages"]:
-                                if isinstance(msg, ToolMessage) and hasattr(
-                                    msg, "name"
-                                ):
-                                    tools.append(msg.name)
-                        yield f"data: {json.dumps({'node': 'tool', 'tools': list(dict.fromkeys(tools))}, ensure_ascii=False)}\n\n"
+            # ── Graph 执行（非流式：ainvoke）──
+            final_state = await agent_app.ainvoke(
+                initial_state, config={"recursion_limit": 50}
+            )
 
             # ── 后处理：统一渲染路径（隐式终止）──
             messages_for_render = final_state.get("messages", [])
@@ -493,15 +465,20 @@ async def chat_stream(request: ChatRequest):
                 final_state["messages"] = _replace_last_ai_content(
                     messages_for_render, rendered_reply
                 )
+                reply_to_send = rendered_reply
             elif force_render and render_input != "（无数据）":
                 # 降级：render 失败时清理原始文本
                 cleaned = _degrade_render_input(render_input)
                 final_state["messages"] = _replace_last_ai_content(
                     messages_for_render, cleaned
                 )
+                reply_to_send = cleaned
+                logger.warning("Render 失败，降级为清理后的原始文本 (%d → %d chars)", len(render_input), len(cleaned))
+            else:
+                reply_to_send = None
 
             # ── 发送 render 事件 + 最终回复 ──
-            yield f"data: {json.dumps({'node': 'render', 'reply': rendered_reply}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'render', 'reply': reply_to_send}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
             # ── L1 Session 缓存 + L2 记忆写入 ──
@@ -511,11 +488,39 @@ async def chat_stream(request: ChatRequest):
                 final_state.get("messages", []),
                 max_messages=max_cached,
             )
-            asyncio.create_task(_remember_session(final_state, request, depth))
+            asyncio.create_task(_remember_session(final_state, request, depth, session_id=session_id))
 
+        except GraphRecursionError:
+            logger.warning("/chat/stream: recursion_limit 触发 (depth=%s)", depth)
+            yield f"data: {json.dumps({'node': 'error', 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except asyncio.CancelledError:
+            # 客户端断开 — CancelledError 是 BaseException 子类，不被 except Exception 捕获。
+            # 在此尽力保存 L1 + L2 状态（用 shield 防止被二次取消）。
+            logger.warning("/chat/stream: 客户端断开，尝试紧急保存 session 状态")
+            try:
+                await asyncio.shield(
+                    session_cache.store(
+                        session_id,
+                        final_state.get("messages", []),
+                        max_messages=30 if depth == "deep" else 20,
+                    )
+                )
+            except Exception:
+                pass
+            try:
+                await asyncio.shield(
+                    asyncio.wait_for(
+                        _remember_session(final_state, request, depth, session_id=session_id),
+                        timeout=5.0,
+                    )
+                )
+            except Exception:
+                pass
+            # 连接已断开，不发送 SSE 事件，直接退出生成器
         except Exception as e:
             logger.exception("/chat/stream: Agent 执行异常")
-            yield f"data: {json.dumps({'node': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'error', 'message': '内部处理错误，请稍后重试'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -639,8 +644,13 @@ async def _remember_session(
     result: dict,
     request: ChatRequest,
     depth: str = "fast",
+    session_id: str | None = None,
 ) -> None:
-    """Fire-and-forget: 写入 L2 session 摘要。"""
+    """Fire-and-forget: 写入 L2 session 摘要。
+
+    Args:
+        session_id: 实际使用的 session ID（优先于 request.session_id，避免匿名 session 塌缩）。
+    """
     try:
         from agent.memory.long_term import get_memory_manager
         from agent.state import get_max_iterations
@@ -658,11 +668,12 @@ async def _remember_session(
             max_iterations=max_iterations,
         )
 
+        effective_session_id = session_id or request.session_id
         query_intent = result.get("query_intent", "unknown")
 
         await asyncio.wait_for(
             mm.remember_session(
-                session_id=request.session_id,
+                session_id=effective_session_id,
                 user_id=request.user_id,
                 messages=messages,
                 final_reply=final_reply,
@@ -674,12 +685,12 @@ async def _remember_session(
         logger.warning(
             "[Memory] remember_session 超时 (user=%s, session=%s, timeout=15s)",
             request.user_id,
-            request.session_id,
+            effective_session_id,
         )
     except Exception:
         logger.warning(
             "[Memory] remember_session fire-and-forget 异常 (user=%s, session=%s)",
             request.user_id,
-            request.session_id,
+            effective_session_id,
             exc_info=True,
         )
