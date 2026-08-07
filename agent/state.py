@@ -2,7 +2,7 @@
 Bangumi Agent 统一状态定义
 
 ``depth`` 字段控制深度模式，``_MAX_ITERATIONS`` 按 depth 分支
-分为 quick / auto / deep 三种模式，分别对应 3 / 5 / 12 轮迭代上限。
+只有 fast/deep 两种模式
 
 使用 TypedDict 定义 AgentState，配合 Annotated[list, operator.add]
 实现节点间消息的自动合并（追加而非覆盖），避免跨节点消息丢失。
@@ -51,7 +51,7 @@ class AgentState(TypedDict):
     # critic_feedback: str
 
     query_intent: str
-    """查询 Intent 分类（v4: 4→6）：chat | fetch | explore | discuss | realtime | fallback。
+    """查询 Intent 分类（v4: 7 intent）：chat | fetch | explore | discuss | profile | realtime | fallback。
 
     旧值 (chitchat/lookup/discovery) 仍被接受以实现向后兼容。
     """
@@ -75,7 +75,7 @@ class AgentState(TypedDict):
     """输出渲染风格：neutral | bangumi | bangumi_cold | bangumi_cute。"""
 
     depth: str
-    """深度模式：auto | quick | deep。控制迭代上限、执行计划。"""
+    """深度模式：fast | deep。控制迭代上限和 token 预算。"""
 
 
 # ── Depth-dependent max iterations ────────────────────────────────────
@@ -89,13 +89,13 @@ _MAX_ITERATIONS_DEEP = 12
 # ── Per-intent max iterations（v4: 6 intent）─────────────────────────
 
 _INTENT_MAX_ITERATIONS: dict[str, int] = {
-    "chat": 0,         # 不走工具循环
-    "fetch": 3,         # search → detail → synthesize
-    "explore": 3,       # search → multi-detail → 停
-    "discuss": 4,       # search → detail → comments → 停
-    "profile": 2,       # user_profile → user_timeline → 停
-    "realtime": 2,      # calendar/trending → 停
-    "fallback": 2,      # 同 fetch，保守
+    "chat": 0,  # 不走工具循环
+    "fetch": 3,  # search → detail → synthesize
+    "explore": 3,  # search → multi-detail → 停
+    "discuss": 4,  # search → detail → comments → 停
+    "profile": 2,  # user_profile → user_timeline → 停
+    "realtime": 2,  # calendar/trending → 停
+    "fallback": 2,  # 同 fetch，保守
     # 向后兼容旧 intent
     "chitchat": 0,
     "lookup": 2,
@@ -104,7 +104,7 @@ _INTENT_MAX_ITERATIONS: dict[str, int] = {
 
 _INTENT_DEEP_OVERRIDES: dict[str, int] = {
     "explore": 5,
-    "discovery": 5,     # 旧 intent 别名
+    "discovery": 5,  # 旧 intent 别名
     "discuss": 6,
 }
 

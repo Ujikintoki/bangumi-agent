@@ -21,7 +21,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Optional
 
 from langchain_openai import ChatOpenAI
 
@@ -41,7 +40,7 @@ CLASSIFIER_PROMPT = """你是 Bangumi 助手的查询路由器。分析用户输
 - explore: 多实体/无确定目标的探索，或了解作品内容（非单一属性）。"推荐治愈番""2024最佳动画""类似日常的作品""EVA和巨人哪个好""进击的巨人讲什么""杉田智和配过什么"
 - discuss: 观点驱动讨论，需要站内社区内容。"EVA被高估了""分析芙莉莲为什么火""以瓶子君口吻吐槽高达"
 - profile: 查询某位 Bangumi 用户的看番品味、评分习惯、追番动态。通常包含 @用户名 或"分析XX的品味"等表述
-- realtime: 时效信息查询。"今天星期几""这周新番""现在什么番最火""本季排期"
+- realtime: 时效信息查询。"这周新番""现在什么番最火""本季排期"
 - fallback: 真的无法判断时才用
 
 硬原则：
@@ -230,7 +229,7 @@ def route_by_classification(
             # 降级到 explore —— 仍然提供数据，只是少拉评论
             return "explore"
         if intent == "profile":
-            # profile 降级到 fetch —— 仍可查作品但失去画像维度
+            # profile 降级到 fallback —— 置信度不足时走 ReAct 兜底
             return "fallback"
         return intent  # fetch/explore/realtime 中置信度仍可用
 

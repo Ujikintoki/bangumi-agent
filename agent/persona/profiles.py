@@ -232,35 +232,11 @@ def get_aggregator_depth_instruction(depth_taste: float) -> str:
     return _pick_level(depth_taste, _SEARCH_DEPTH_INSTRUCTIONS)
 
 
-def get_render_tone_variables(
-    snark: float,
-    initiative: float,
-) -> dict[str, str]:
-    """获取 Render 层的人格语气变量（v2 分离合成架构）。
-
-    snark 和 initiative 是纯风格参数——它们不控制数据收集行为，
-    只决定最终回复的语气和长度。
-
-    Args:
-        snark: 毒舌度 0.0-1.0 (5 档)。
-        initiative: 主动性 0.0-1.0 (5 档)。
-
-    Returns:
-        {"snark_tone": str, "initiative_tone": str}
-    """
-    return {
-        "snark_tone": _pick_level(snark, _SNARK_LEVELS),
-        "initiative_tone": _pick_level(initiative, _INITIATIVE_LEVELS),
-    }
-
-
 def _render_tone(snark: float, depth_taste: float, initiative: float) -> dict[str, str]:
     """[兼容] 将人格参数映射为 prompt 文本片段。5 档离散查找。
 
-    v2 分离合成架构中，此函数仅保留向后兼容。
-    新代码应使用:
-    - ``get_aggregator_depth_instruction(depth_taste)`` → Aggregator 行为
-    - ``get_render_tone_variables(snark, initiative)`` → Render 风格
+    v2 分离合成架构中，此函数仅保留向后兼容（deprecated build_system_prompt 使用）。
+    新代码直接使用 ``_pick_level()`` + level 表。
 
     Args:
         snark: 毒舌度 0.0-1.0 (5 档)。

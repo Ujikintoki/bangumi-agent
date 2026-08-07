@@ -1,5 +1,5 @@
 """
-Research Skill 深度意图策略 — 仅 depth=="deep" 激活
+Companion Agent 深度意图策略 — depth=="deep" 时激活
 
 Phase 8: TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT 已合并到
 prompt_builder.TOOL_GUIDANCE。本文件仅保留 DEEP_SCENE_HINTS + CRITIC_SYSTEM_PROMPT。

@@ -1,9 +1,9 @@
 """
-Bangumi Agent 节点函数 — v2 纯 ReAct
+Bangumi Agent 节点函数 — v5 异质拓扑（Pipeline + ReAct）
 
 fast / deep 两种深度模式共享同一推理逻辑，差异在参数：
-- fast: 5 轮上限、10000 tok、角色默认 depth_taste
-- deep: 12 轮上限、16000 tok、depth_taste=0.90、无强制终止
+- fast: 5 轮上限、10000 tok、角色默认 depth_taste；最后一轮注入 last_chance 强制输出
+- deep: 12 轮上限、16000 tok、depth_taste=0.90；最后一轮注入 last_chance 强制输出
 """
 
 from __future__ import annotations
@@ -227,8 +227,8 @@ async def reasoning_node(state: AgentState) -> dict:
     """推理节点：意图分类 + LLM function-calling 决策。纯 ReAct。
 
     两种 depth 共享同一逻辑，差异在参数：
-    - fast: 角色默认值 5轮上限 last_chance强制回复
-    - deep: depth_taste=0.90 12轮上限 无last_chance
+    - fast: 角色默认值 5轮上限 末轮注入 last_chance 强制输出
+    - deep: depth_taste=0.90 12轮上限 末轮注入 last_chance 强制输出
 
     流程：
         1. 意图分类（仅首轮）

@@ -151,17 +151,17 @@ _FEW_SHOT_EXAMPLES = """\
 **示例4 — 了解作品内容必须调 detail**
 用户: "进击的巨人讲什么"
 → search_bangumi_subject(keyword="进击的巨人")
-← results[0]: id=123, name="进击的巨人", score=8.5, summary="人类与巨人战斗..."
+← results[0]: id=123, name="进击的巨人", score=8.5, info="TV动画 2013年4月"
 → get_bangumi_subject_detail(subject_id=123)
-  （search 的 summary 片段只有 50 字——用户问的是"讲什么"，需要完整的剧情简介。
+  （search 的 info 字段只有基本信息——用户问的是"讲什么"，需要 detail 的 summary 字段获取完整剧情简介。
    detail 的 infobox 里有完整剧情、世界观设定、角色介绍。不调 detail 就是在用训练数据编。）
 ← infobox: "故事设定在一个被三道高墙围起的世界...", tags, collection
 → [输出文本] 进击的巨人是谏山创的漫画改编，故事围绕人类与巨人的生存战争展开...
 
 **示例5 — 人物查询要调 person_detail**
 用户: "花泽香菜配过哪些角色"
-→ search_bangumi_subject(keyword="花泽香菜")
-  （search 会返回人物条目——注意结果中 type 为"person"的项）
+→ search_bangumi_subject(keyword="花泽香菜", entity_type="person")
+  （指定 entity_type="person" 搜索人物——结果中 type 为 "person" 的项）
 ← results[0]: id=4765, type="person", name="花泽香菜"
 → get_person_detail(person_id=4765)
   （拿到完整的角色列表。不要只看 search 片段——search 不会返回完整的配音列表）
@@ -182,8 +182,7 @@ TOOL_GUIDANCE = """\
 - 常识问题 → 基于搜索深度指令判断是否需要查
 
 **多少算够**
-- search 返回的信息通常已够用——评分、排名、基本信息都在里面
-- 只有用户**明确**问了 search 里没有的（详情、角色列表、评论），才调 detail 类工具
+- 搜索深度（调多少工具、取多少数据）遵循下方搜索深度指令——不同场景深度不同
 - 一次搜索能回答就不两次
 - "没查到"不是你的失败——在 missing 里诚实注明
 - **速度比完整重要**——2轮内拿到核心数据就输出总结，不要为了"查全"拖延
@@ -239,41 +238,44 @@ TOOLS_BY_INTENT: dict[str, list[str]] = {
     "fetch": [
         "search_bangumi_subject", "get_bangumi_subject_detail",
         "get_person_detail", "get_character_detail",
-            ],
+        ],
     "explore": [
         "search_bangumi_subject", "get_bangumi_subject_detail",
         "get_person_detail", "get_character_detail",
         "get_subject_opinions", "get_subject_characters",
         "get_subject_episodes", "get_trending_subjects",
-        "search_local_bangumi",     ],
+        "search_local_bangumi",
+        ],
     "discuss": [
         "search_bangumi_subject", "get_bangumi_subject_detail",
         "get_person_detail", "get_character_detail",
         "get_subject_opinions", "get_subject_characters",
         "get_subject_episodes", "get_entity_comments",
-        "get_episode_comments",     ],
+        "get_episode_comments",
+        ],
     "profile": [
         "get_user_profile", "get_user_timeline",
-            ],
+        ],
     "realtime": [
         "get_calendar", "get_trending_subjects",
-        "get_hot_topics",     ],
+        "get_hot_topics",
+        ],
     "fallback": [
         "search_bangumi_subject", "get_bangumi_subject_detail",
         "get_person_detail", "get_character_detail",
-            ],
+        ],
     # 向后兼容旧 intent
     "chitchat": [],
     "lookup": [
         "search_bangumi_subject", "get_bangumi_subject_detail",
         "get_person_detail", "get_character_detail",
-            ],
+        ],
     "discovery": [
         "search_bangumi_subject", "get_bangumi_subject_detail",
         "get_person_detail", "get_character_detail",
         "get_subject_opinions", "get_subject_characters",
         "get_trending_subjects", "search_local_bangumi",
-            ],
+        ],
 }
 """Per-intent 工具子集。只有名单内的工具会绑定到 LLM。"""
 
@@ -311,7 +313,7 @@ def get_tool_choice(
 
 def build_aggregator_prompt(
     *,
-    depth: str = "auto",
+    depth: str = "fast",
     depth_taste: float = 0.70,
     intent: str | None = None,
     scene_hints: dict[str, str] | None = None,
@@ -370,7 +372,7 @@ def build_aggregator_prompt(
 
     # ── Section 7: 输出约束 ─────────────────────────────────
     word_limit = _WORD_LIMITS.get(depth, _WORD_LIMITS["auto"])
-    parts.append(f"## 输出约束\nfacts 中每条 summary 不超过 200 字。")
+    parts.append(f"## 输出约束\n文本摘要不超过 {word_limit} 字。简洁、准确、不编造数据。")
 
     # ── Section 8: 终止规则（必须放在最后——近因效应）─────────
     parts.append(_TERMINATION_RULES)

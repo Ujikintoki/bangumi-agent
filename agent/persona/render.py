@@ -40,52 +40,6 @@ _CONSTRAINTS = """\
 3. 禁止编造评分、排名、集数、收藏数等具体数字。不确定就诚实说没查到。
 4. 直接输出改写后的回复，不加任何前缀后缀。"""
 
-# ── Per-personality voice hints（保留兼容，v2 中 Character Card 是主力）──
-
-_VOICE: dict[str, str] = {
-    "bangumi": (
-        "你是 Bangumi 看板娘，一个二次元损友。语气：有态度、有判断、"
-        "该夸就夸该 diss 就 diss。数据是你的吐槽弹药，不是交的作业。"
-    ),
-    "bangumi_cold": (
-        "你是 Bangumi 看板娘，一个高冷腹黑的评论家。语气：话少、精准、冷。"
-        "用最少的话做最准的判断。不迎合，不粉饰。你的认同很贵。"
-    ),
-    "bangumi_cute": (
-        "你是 Bangumi 看板娘，一个乐于分享的 ACGN 爱好者。语气：温暖、真诚、"
-        "有感染力。像在给朋友安利你最喜欢的番——不是在做推荐算法。"
-    ),
-    "neutral": (
-        "你是 Bangumi 助手。语气：客观、简洁、信息优先。用数据支撑结论。"
-    ),
-}
-
-# ── 参数感知的风格微调（5 档阈值）──
-
-def _style_modifiers(snark: float, depth_taste: float, initiative: float) -> str:
-    """按人格参数选择风格微调规则。每次只注入 0-3 条。"""
-    rules: list[str] = []
-
-    if snark >= 0.8:
-        rules.append("- 可以 diss 数据和用户观点——要有论据，不是乱喷")
-    elif snark < 0.4:
-        rules.append("- 吐槽温和，多表达共鸣，少直接批评")
-
-    if depth_taste >= 0.8:
-        rules.append("- 可以自然地融入导演谱系、制作背景——有货就带一笔，不展开")
-    elif depth_taste < 0.4:
-        rules.append("- 用简单直接的语言。不引用动画史、导演谱系或制作技法")
-
-    if initiative >= 0.8:
-        rules.append("- 可以留话头、主动 offer 更多角度——但不要用反问填充结尾")
-    elif initiative < 0.4:
-        rules.append("- 说完就停。不要用'你还想查什么'、'你觉得呢'收尾")
-    else:
-        rules.append("- 结尾可以是判断或冷吐槽，说完就停。不要用反问填充")
-
-    return "\n".join(rules)
-
-
 # ── 按 depth 的字数限制 ──────────────────────────────────────────
 
 _WORD_LIMIT: dict[str, str] = {
@@ -149,7 +103,7 @@ def build_render_prompt(
     # ── Character Card（v2: 完整 530 字，从 reasoning 移过来）──
     card = get_character_card(character_key)
     if not card:
-        card = _VOICE.get(character_key, _VOICE["neutral"])
+        card = "你是 Bangumi 助手。"
 
     # ── 语气参数（v2: snark + initiative，来自 _SNARK_LEVELS / _INITIATIVE_LEVELS）──
     snark_tone = _pick_level(snark, _SNARK_LEVELS)
@@ -253,8 +207,12 @@ async def render_reply(
         if cutoff > max_chars * 0.7:
             rendered = rendered[:cutoff + 1]
         else:
-            # 找不到合适的句号位置，直接字符截断
-            rendered = rendered[:max_chars]
+            # 无合适句号 → 尝试换行处截断（保护列表/多段输出）
+            cutoff = rendered.rfind("\n", 0, max_chars)
+            if cutoff > max_chars * 0.5:
+                rendered = rendered[:cutoff]
+            else:
+                rendered = rendered[:max_chars]
         logger.warning(
             "render_reply: 硬截断 %s (%d → %d chars, limit=%d)",
             output_style, original_len, len(rendered), max_chars,
