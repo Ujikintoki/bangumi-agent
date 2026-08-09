@@ -1,7 +1,7 @@
 # BGM Agent 架构 & 代码审查 — 合并报告 v2
 
 > 来源：Claude Code deep review (2026-08-05) + 三线审计 agent + 产品定位校准 (2026-08-06)
-> 状态：Section 1 P0 已修复；Sections 2、3 待修复
+> 状态：Section 1 ✅ 已修复；Section 2 ✅ 已修复；Section 3 死代码已清理 + depth_taste 数据流已修复，人格内容待用户 DIY
 
 ---
 
@@ -105,7 +105,7 @@
 | **A6** | `reasoning_node` docstring 说 deep "无 last_chance" | ✅ 已修正 |
 | **A7** | `_WORD_LIMITS` 残留 v1 "facts" 概念 | ✅ 已修正 |
 | **DOC_DRIFT** | 多处 docstring 与实际不一致 | ✅ 全部 8 处已修正 |
-| **DOUBLE_INJECT** | `deep_strategies.build_system_prompt()` 调废弃函数 | ✅ 已确认无调用方（安全死代码） |
+| **DOUBLE_INJECT** | `deep_strategies.build_system_prompt()` 调废弃函数 | ✅ 已删除（连同 `prompt_builder.build_system_prompt()` + `_render_tone()`，共 4 个符号） |
 | **A2** | Scene hint discuss 措辞："社区评论作为弹药" | 🖐 内容项，留给用户 |
 | **PROFILE_TRIGGER** | `_PROFILE_TRIGGER` 正则过宽 | 🖐 语义项，留给用户 |
 | **FEWSHOT_MISSING** | 缺少 profile/realtime/错误处理示例 | 🖐 内容项，留给用户 |
@@ -145,13 +145,20 @@
 | **R9** | hard cutoff 无句号文本边界 | ✅ 已修复——fallback 到换行截断 |
 | **R10** | cute fast 200 字太紧 | 🖐 内容项，留给用户 |
 
+### 🟡 P2 — Phase 3 prep 新增修复
+
+| ID | 问题 | 状态 |
+|----|------|------|
+| **DEPTH_TASTE_HARDCODE** | `nodes.py:273` `depth_taste` 硬编码 0.90/0.70，角色实例值从未被读取 | ✅ 已修复——改为 `character.depth_taste`（cold=0.90, bangumi=0.70, cute=0.50, neutral=0.40 现在真正生效） |
+| **DEAD_CHAIN_4** | `_render_tone()` → `prompt_builder.build_system_prompt()` → `deep_strategies.build_system_prompt()` 四层死代码链（含 `_DEPTH_LEVELS`） | ✅ 已删除（~380 行，5 个文件） |
+
 ### 🟢 P3
 
 | ID | 问题 | 修复方向 |
 |----|------|---------|
 | **CUTE_NO_DIFF** | cute 在需要取舍时缺乏尖锐度（snark=0.15 什么都说好） | 可接受——cute 的设计意图 |
 | **NEUTRAL_DEVTOOL** | neutral 是开发者测试工具，无人格需求 | 无需修改。当前 `_STYLE_BASE` 注入"聊天"语气对 neutral 无影响——neutral 不面向用户 |
-| **_DEPTH_LEVELS** | `profiles.py` 中 5 档 `_DEPTH_LEVELS` 文本无调用方 | 如果 depth_taste 确定只用于 reasoning（搜索深度），render 侧可移除 |
+| ~~_DEPTH_LEVELS~~ | ~~`profiles.py` 中 5 档 `_DEPTH_LEVELS` 文本无调用方~~ | ✅ 已删除（2026-08-09，Phase 3 prep） |
 
 ### 已移除条目
 
@@ -176,6 +183,10 @@
 | `nodes.py:1` | `"v2 纯 ReAct"` | `"v5 异质拓扑"` |
 | `nodes.py:231` | `"deep: ...无last_chance"` | 两种 depth 都注入 last_chance |
 | `classifier.py:233` | 注释 `"profile 降级到 fetch"` | `"降级到 fallback"` |
+| `profiles.py:14` (Phase 3 prep) | `_render_tone()` 描述为活跃接口 | 参数分流：snark/initiative → Render，depth_taste → Aggregator |
+| `profiles.py:40` (Phase 3 prep) | `CharacterProfile` docstring 引用 `_render_tone()` | 引用 `_pick_level()` + `get_aggregator_depth_instruction()` |
+| `nodes.py:5-6` (Phase 3 prep) | `"depth_taste=0.90"` 硬编码 | `"depth_taste 来自角色实例"` |
+| `profiles.py:139` (Phase 3 prep) | 搜索深度注释引用已删除的 `_DEPTH_LEVELS` | 改为 `"depth_taste 参数在 reasoning 层的唯一作用点"` |
 
 ---
 
@@ -205,7 +216,12 @@
   R5/R7/R8 死代码删除, R9 hard cutoff
   DOC_DRIFT 全部 8 处, classifier import, TOOLS_BY_INTENT 缩进
 
-第 3 批（🖐 用户 DIY — 人格内容）：
+第 3 批 prep（✅ 已完成 — 死代码链 + depth_taste 数据流修复）：
+  DEAD_CHAIN_4: 删除 _DEPTH_LEVELS + _render_tone() + prompt_builder.build_system_prompt() + deep_strategies.build_system_prompt()（~380 行）
+  DEPTH_TASTE_HARDCODE: nodes.py 硬编码 → character.depth_taste
+  test_prompts.py: 废弃函数测试清理 + 预存 intent key bugfix
+
+第 3 批（🖐 用户 DIY — 人格软内容）：
   COLD_REDESIGN → Character Card + 参数值
   R3 snark 默认值
   R10 cute 字数
@@ -217,13 +233,13 @@
   A-1 中间件（request ID + TrustedHost）
   HEALTH 深度检查
   TIMEOUT 请求超时
-  DOUBLE_INJECT 死代码标记
 
 第 5 批（P2-P3，持续）：
   R2 安全过滤
   补充 few-shot 示例
   APIRouter 拆分
+  DEAD_CRITIC 清理（~300 行）
 
 ---
 
-*最后更新: 2026-08-06 | v2: 产品定位校准，移除 4 项误报，新增 COLD_REDESIGN*
+*最后更新: 2026-08-09 | v3: Phase 3 prep — 死代码链清理 + depth_taste 数据流修复；审查报告同步*
