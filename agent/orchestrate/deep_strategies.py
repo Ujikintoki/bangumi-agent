@@ -9,9 +9,6 @@ from __future__ import annotations
 
 import logging
 
-from agent.persona.profiles import get_agent_profile, get_character
-from agent.orchestrate.prompt_builder import build_system_prompt as _build
-
 logger = logging.getLogger("bgm-agent.prompts")
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -116,42 +113,3 @@ CRITIC_SYSTEM_PROMPT = """你是 Bangumi 助手的输出质量控制专家。按
 
 判断逻辑：助手已尽职调用工具 → 工具返回确实无数据 → 助手如实告知 → 必须 PASS。
 **不要在信息客观上不存在时因为"不够具体"而打回——这会导致无意义的死循环。**"""
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Prompt 构建函数（薄封装，后向兼容）
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-def build_system_prompt(
-    intent: str,
-    memory_context: str = "",
-    output_style: str = "neutral",
-) -> str:
-    """拼接深度模式 System Prompt。
-
-    实际组装由 agent.prompt_builder.build_system_prompt() 完成。
-    本函数作为薄封装，保持与 nodes.py 的接口兼容。
-
-    Phase 8: tool_constraint 参数移除——TOOL_GUIDANCE 已覆盖所有需求。
-
-    Args:
-        intent: 查询意图，如 "lookup"、"discovery" 等。
-        memory_context: L2 语义召回的格式化文本。仅首轮非空。
-        output_style: 输出渲染风格（"neutral" | "bangumi"）。默认 "neutral"。
-
-    Returns:
-        完整的 System Prompt 字符串。
-    """
-    agent = get_agent_profile("companion")
-    character = get_character(output_style)
-
-    return _build(
-        agent_profile=agent,
-        character=character,
-        depth="deep",
-        intent=intent,
-        intent_strategies=INTENT_PROMPTS,  # 向后兼容
-        scene_hints=DEEP_SCENE_HINTS,
-        memory_context=memory_context,
-    )

@@ -11,8 +11,9 @@ Phase 7.5: 人格描述哲学转变——从"教 model 怎么表演"（行为指
    不描述"你应该说什么"、"结论先行"、"可以反问"。信任 model 的语言能力。
 2. **Aesthetic system** — 角色有自己的审美体系（"好不好看 vs 重不重要"），
    这个体系比任何行为规则都更稳定地约束输出。
-3. **_render_tone()** — 参数映射为人格侧写片段（"今天你..."），
-   而非行为指令（"语气要..."）。
+3. **参数分流** — snark/initiative 由 Render 层通过 ``_pick_level()``
+   注入 ""## 今天的语气"" / ""## 回复节奏"" 段；depth_taste 由 Aggregator 层
+   通过 ``get_aggregator_depth_instruction()`` 注入搜索深度指令。
 4. **Guardrails 字数占位符** — ``{word_limit}`` 由 prompt_builder 按 depth 格式化。
 
 ==== 扩展方式 ====
@@ -37,8 +38,9 @@ from dataclasses import dataclass
 class CharacterProfile:
     """角色人格定义 — '我是谁、我怎么说话'
 
-    Phase 7.5: snark / depth_taste / initiative 通过 ``_render_tone()``
-    映射为人格侧写片段，注入 System Prompt。
+    Phase 7.5: snark / initiative 通过 ``_pick_level()`` 映射为
+    Render 层语气片段；depth_taste 通过 ``get_aggregator_depth_instruction()``
+    映射为 Aggregator 层搜索深度行为指令。
 
     Attributes:
         key: 风格 key（'bangumi' | 'neutral'）。
@@ -78,10 +80,7 @@ class AgentProfile:
 
 
 # ============================================================================
-# _render_tone() — 参数 → 人格侧写片段（Phase 9: 5 档离散）
-#
-# 每维 5 档，每次只注入当前档位的 1 个片段。System prompt 长度不变。
-# 档位阈值: ≤0.2 = L1, ≤0.4 = L2, ≤0.6 = L3, ≤0.8 = L4, >0.8 = L5
+# _pick_level() — 按阈值选中一档，供 Render 层和 Aggregator 层共用
 # ============================================================================
 
 # ── snark 5 档: 毒舌度 ──
@@ -105,32 +104,6 @@ _SNARK_LEVELS = [
     (1.0, (
         "今天你毒舌全开。对你来说，对烂作嘴下留情是对好作品的不尊重。"
         "你会 diss 得有理有据、刀刀见血。"
-    )),
-]
-
-# ── depth_taste 5 档: 分析深度 ──
-_DEPTH_LEVELS = [
-    (0.2, (
-        "今天你只看好不好看。不扯动画史、不聊导演序列、不搞跨媒介分析。"
-        "一部作品好看就是好看，不好看就是不好看——够了。"
-    )),
-    (0.4, (
-        "今天你喜欢简单直接的表达。好作品不需要学术术语来辩护——"
-        "有时候'这部真的很好看'比一段分析更准确。提到作品时可以用一两句说清楚为什么好，但不用展开。"
-    )),
-    (0.6, (
-        "今天你偶尔提一句制作背景或导演风格，点到为止。"
-        "不是开讲座——是用一个具体细节让用户理解你的判断依据。"
-    )),
-    (0.8, (
-        "今天你适度深沉。导演手法、制作背景、公司风格——在真正相关的时候你会展开。"
-        "不是为了显摆，是因为这些维度帮助理解作品为什么是现在这个样子。"
-    )),
-    (1.0, (
-        "今天你从动画史和导演序列里理解每部作品。"
-        "你会自然地提到一部作品在导演创作轨迹里的位置、和同类作品的对位关系、"
-        "它继承了谁又影响了谁。但你知道真正的学问是把复杂的东西讲得简单——"
-        "有货就融在判断里，不单独开讲座。"
     )),
 ]
 
@@ -163,8 +136,7 @@ _INITIATIVE_LEVELS = [
 # 搜索深度指令 — Aggregator 行为控制（v2: 分离合成架构）
 #
 # 告诉 Aggregator 查多深、调哪些工具、何时停止。
-# 与 _DEPTH_LEVELS 不同——后者是人格侧写（"今天你怎么想"），
-# 这里是行为指令（"你该调什么工具"）。
+# depth_taste 参数在 reasoning 层的唯一作用点。
 # ═══════════════════════════════════════════════════════════════════════════
 
 _SEARCH_DEPTH_INSTRUCTIONS = [
@@ -230,27 +202,6 @@ def get_aggregator_depth_instruction(depth_taste: float) -> str:
         行为指令文本。
     """
     return _pick_level(depth_taste, _SEARCH_DEPTH_INSTRUCTIONS)
-
-
-def _render_tone(snark: float, depth_taste: float, initiative: float) -> dict[str, str]:
-    """[兼容] 将人格参数映射为 prompt 文本片段。5 档离散查找。
-
-    v2 分离合成架构中，此函数仅保留向后兼容（deprecated build_system_prompt 使用）。
-    新代码直接使用 ``_pick_level()`` + level 表。
-
-    Args:
-        snark: 毒舌度 0.0-1.0 (5 档)。
-        depth_taste: 深度 0.0-1.0 (5 档)。
-        initiative: 主动性 0.0-1.0 (5 档)。
-
-    Returns:
-        {"tone": str, "depth": str, "rhythm": str} — 三段人格侧写。
-    """
-    return {
-        "tone": _pick_level(snark, _SNARK_LEVELS),
-        "depth": _pick_level(depth_taste, _DEPTH_LEVELS),
-        "rhythm": _pick_level(initiative, _INITIATIVE_LEVELS),
-    }
 
 
 # ============================================================================

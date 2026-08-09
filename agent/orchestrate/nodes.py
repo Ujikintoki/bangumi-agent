@@ -1,9 +1,10 @@
 """
 Bangumi Agent 节点函数 — v5 异质拓扑（Pipeline + ReAct）
 
-fast / deep 两种深度模式共享同一推理逻辑，差异在参数：
-- fast: 5 轮上限、10000 tok、角色默认 depth_taste；最后一轮注入 last_chance 强制输出
-- deep: 12 轮上限、16000 tok、depth_taste=0.90；最后一轮注入 last_chance 强制输出
+fast / deep 两种深度模式共享同一推理逻辑，差异在：
+- fast: 默认迭代上限、10000 tok；depth_taste 来自角色实例
+- deep: 更高迭代上限、16000 tok；depth_taste 来自角色实例
+- 最后一轮注入 last_chance 强制输出
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from agent.memory.short_term import (
     manage_memory,
 )
 from agent.orchestrate.deep_strategies import CRITIC_SYSTEM_PROMPT, DEEP_SCENE_HINTS
+from agent.persona.profiles import get_character
 from agent.orchestrate.guardrails import (
     TOOL_CALL_XML_RESIDUE,
     check_duplicate_tool_calls,
@@ -226,9 +228,9 @@ async def synthesize_node(state: AgentState) -> dict:
 async def reasoning_node(state: AgentState) -> dict:
     """推理节点：意图分类 + LLM function-calling 决策。纯 ReAct。
 
-    两种 depth 共享同一逻辑，差异在参数：
-    - fast: 角色默认值 5轮上限 末轮注入 last_chance 强制输出
-    - deep: depth_taste=0.90 12轮上限 末轮注入 last_chance 强制输出
+    两种 depth 共享同一逻辑，差异在迭代上限和 token 预算。
+    depth_taste 来自角色实例（CharacterProfile），控制搜索深度而
+    非人格表达。
 
     流程：
         1. 意图分类（仅首轮）
@@ -269,7 +271,9 @@ async def reasoning_node(state: AgentState) -> dict:
 
     # ── Step 2: 构建 Aggregator System Prompt（首轮） ──────
     if new_iterations == 1:
-        tone_kwargs = {"depth_taste": 0.90} if depth == "deep" else {}
+        output_style = state.get("output_style", "bangumi")
+        character = get_character(output_style)
+        tone_kwargs = {"depth_taste": character.depth_taste}
         scene_hints = DEEP_SCENE_HINTS if is_deep else COMPANION_SCENE_HINTS
         system_content = build_aggregator_prompt(
             depth="deep" if is_deep else depth,

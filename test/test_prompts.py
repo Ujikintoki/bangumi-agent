@@ -15,13 +15,11 @@ from agent.persona.profiles import (
     CHARACTER_REGISTRY,
     COMPANION_PROFILE,
     NEUTRAL_CHARACTER,
-    _render_tone,
     get_agent_profile,
     get_character,
     get_character_card,
 )
 from agent.orchestrate.prompt_builder import TOOL_GUIDANCE, build_aggregator_prompt as _build_agg
-from agent.orchestrate.prompt_builder import build_system_prompt as _build
 from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
 from agent.persona.render import (
     _should_skip_render,
@@ -32,7 +30,6 @@ from agent.orchestrate.deep_strategies import (
     DEEP_SCENE_HINTS,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
     TOOL_DEPENDENCY_CONSTRAINT,
-    build_system_prompt as build_deep_prompt,
 )
 
 
@@ -112,219 +109,6 @@ class TestProfiles:
         assert card is not None
         assert "ACGN" in card
 
-    def test_render_tone_defaults(self):
-        """_render_tone 默认参数应返回三段非空文本。"""
-        result = _render_tone(0.65, 0.70, 0.75)
-        assert len(result) == 3
-        assert all(len(v) > 10 for v in result.values())
-        assert "tone" in result
-        assert "depth" in result
-        assert "rhythm" in result
-
-    def test_render_tone_extremes(self):
-        """_render_tone 极值参数应返回不同文本。"""
-        low = _render_tone(0.0, 0.0, 0.0)
-        high = _render_tone(1.0, 1.0, 1.0)
-        # extreme values should produce different tone text
-        assert low["tone"] != high["tone"]
-
-
-class TestPromptBuilder:
-    """Prompt builder 组装逻辑（Phase 7: 5 段结构）。"""
-
-    def test_builder_starts_with_character_card(self):
-        """Prompt 应以 '你是谁'（Character Card section）开头。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-        )
-        assert result.startswith("# 你是谁")
-
-    def test_character_card_before_capabilities(self):
-        """Character Card 应在 capabilities 之前出现。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-        )
-        card_pos = result.find("你是谁")
-        cap_pos = result.find("你的能力")
-        assert card_pos > 0 and cap_pos > 0
-        assert card_pos < cap_pos, "Character Card 应在 capabilities 之前"
-
-    def test_builder_neutral(self):
-        """Neutral 角色：中性助手，不含 Bangumi 人格。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=NEUTRAL_CHARACTER,
-        )
-        assert "腹黑" not in result
-        assert "Bangumi娘" not in result
-        assert "损友" not in result
-
-    def test_builder_bangumi_has_persona(self):
-        """Bangumi 角色：应有 Character Card 中的关键标识。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-        )
-        assert "ACGN 老害" in result or "Bangumi 看板娘" in result
-        # word_limit 应被格式化（不再有占位符）
-        assert "{word_limit}" not in result
-        assert "200 字" in result or "120 字" in result or "350 字" in result
-
-    def test_builder_includes_tool_strategy(self):
-        """应包含够了就停原则——v3 隐式终止（no tool_calls = END）。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-        )
-        assert "够了" in result or "一次搜索能回答就不两次" in result
-
-    def test_builder_includes_continuity_rules(self):
-        """应包含对话连续性规则。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=NEUTRAL_CHARACTER,
-        )
-        assert "对话连续性" in result
-        assert "明确指代" in result
-
-    def test_builder_includes_tool_intuition(self):
-        """应包含 TOOL_GUIDANCE（Phase 8: 五合一工具指引）。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=NEUTRAL_CHARACTER,
-        )
-        assert "你的工具" in result
-        assert "没查到" in result
-
-    def test_builder_with_deep_scene_hint(self):
-        """Deep 模式 + intent 应注入 DEEP_SCENE_HINTS。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=NEUTRAL_CHARACTER,
-            depth="deep",
-            intent="lookup",
-            intent_strategies=DEEP_INTENT_PROMPTS,
-            scene_hints=DEEP_SCENE_HINTS,
-        )
-        # Scene Hint 格式: [当前：...]
-        assert "[当前：" in result
-        # Phase 8: 工具规则由 TOOL_GUIDANCE 覆盖，不再单独注入
-        assert "你的工具" in result
-
-    def test_builder_with_companion_scene_hint(self):
-        """Companion 浅层模式应注入 Scene Hints，不含工具依赖规则。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-            depth="fast",
-            intent="lookup",
-            intent_strategies=COMPANION_INTENT_PROMPTS,
-            scene_hints=COMPANION_SCENE_HINTS,
-        )
-        assert "[当前：" in result
-        assert "工具依赖规则" not in result
-
-    def test_builder_with_critic_feedback(self):
-        """[DEPRECATED Phase 10] critic_feedback 参数已从 build_system_prompt 移除。"""
-        # Critic 已从图谱中移除，critic_feedback 不再注入 prompt
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=NEUTRAL_CHARACTER,
-            depth="deep",
-        )
-        assert "上一轮回复需要改进" not in result  # 不再注入 critic 改进指令
-
-    def test_builder_without_critic_feedback(self):
-        """无 critic_feedback 时不应注入改进指令。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=NEUTRAL_CHARACTER,
-        )
-        assert "上一轮回复需要改进" not in result
-
-    def test_builder_with_memory_context(self):
-        """传入 memory_context 时应包含记忆文本。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-            memory_context="## 用户历史\n- [昨天] 讨论了高达SEED",
-        )
-        assert "高达SEED" in result
-        assert "用户历史" in result
-
-    def test_builder_neutral_no_bangumi_persona(self):
-        """Neutral 角色不应包含腹黑/吐槽——任何位置。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=NEUTRAL_CHARACTER,
-        )
-        assert "腹黑萝莉" not in result
-        assert "毒舌吐槽役" not in result
-
-    def test_builder_word_limit_by_depth(self):
-        """Guardrails 的 {word_limit} 应按 depth 正确格式化。"""
-        q = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="fast")
-        a = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="fast")
-        d = _build(agent_profile=COMPANION_PROFILE, character=BANGUMI_CHARACTER, depth="deep")
-        assert "120 字" in q
-        assert "200 字" in a
-        assert "350 字" in d
-        # 占位符不应残留
-        assert "{word_limit}" not in q
-        assert "{word_limit}" not in a
-        assert "{word_limit}" not in d
-
-    def test_builder_includes_tone_hint(self):
-        """应包含 '今天的语气' 段（从参数生成）。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-        )
-        assert "今天的语气" in result
-
-
-class TestDeepPrompt:
-    """深度模式 prompt（deep_strategies.build_system_prompt）。"""
-
-    def test_returns_non_empty(self):
-        result = build_deep_prompt("lookup")
-        assert len(result) > 200
-
-    def test_neutral_excludes_bangumi_style(self):
-        result = build_deep_prompt("lookup", output_style="neutral")
-        assert "腹黑" not in result
-
-    def test_bangumi_includes_style(self):
-        result = build_deep_prompt("lookup", output_style="bangumi")
-        assert "ACGN 老害" in result or "损友" in result or "Bangumi 看板娘" in result
-
-    def test_includes_scene_hint(self):
-        result = build_deep_prompt("discovery")
-        assert "[当前：" in result
-
-    def test_includes_tool_constraint(self):
-        """Phase 8: 工具约束已合并到 TOOL_GUIDANCE，检查并行规则存在。"""
-        result = build_deep_prompt("lookup")
-        assert "并行规则" in result or "你的工具" in result
-
-    def test_includes_critic_feedback(self):
-        """[DEPRECATED Phase 10] deep prompt 不再支持 critic_feedback 参数。"""
-        result = build_deep_prompt("lookup")
-        assert "你的工具" in result or "[当前：" in result
-
-    def test_debate_intent_exists(self):
-        assert "debate" in DEEP_INTENT_PROMPTS
-        result = build_deep_prompt("debate")
-        assert "[当前：" in result
-
-    def test_emotional_intent_exists(self):
-        assert "emotional" in DEEP_INTENT_PROMPTS
-        result = build_deep_prompt("emotional")
-        assert "[当前：" in result
-
-
 class TestIntentPrompts:
     """INTENT_PROMPTS / SCENE_HINTS 完整性。"""
 
@@ -350,16 +134,15 @@ class TestIntentPrompts:
         for intent in _VALID_INTENTS:
             assert intent in DEEP_SCENE_HINTS, f"缺少 deep scene_hint: {intent}"
 
-    def test_lookup_and_unknown_have_tool_constraint(self):
-        """Deep lookup/unknown 的 Scene Hints 不嵌入工具约束——
+    def test_fetch_and_fallback_have_scene_hint(self):
+        """Deep fetch/fallback 的 Scene Hints 不应嵌入工具约束——
         Phase 8: TOOL_DEPENDENCY_CONSTRAINT 已合并到 TOOL_GUIDANCE。"""
-        for intent in ["lookup", "unknown"]:
+        for intent in ["fetch", "fallback"]:
             assert "[当前：" in DEEP_INTENT_PROMPTS[intent]
 
-    def test_chitchat_factual_exclude_tool_constraint(self):
-        """chitchat/factual 的 Scene Hints 应为简短视角提示。"""
+    def test_chitchat_exclude_tool_constraint(self):
+        """chitchat 的 Scene Hint 应为简短视角提示。"""
         assert "[当前：" in DEEP_INTENT_PROMPTS["chitchat"]
-        assert "[当前：" in DEEP_INTENT_PROMPTS["factual"]
 
     def test_companion_intents_exclude_tool_constraint(self):
         """Companion 浅层策略：Scene Hints 应为视角提示，不含工具约束（Phase 8: 工具规则统一在 TOOL_GUIDANCE）。"""
@@ -371,23 +154,18 @@ class TestIntentPrompts:
         assert "逃逸舱" in CRITIC_SYSTEM_PROMPT or "Escape Hatch" in CRITIC_SYSTEM_PROMPT
         assert "必须判定为 PASS" in CRITIC_SYSTEM_PROMPT
 
-    def test_base_prompt_has_data_model_constraint(self):
-        result = build_deep_prompt("lookup")
-        assert "只有" in result and "评分" in result
-        assert "角色" in result
+    def test_deep_fetch_has_exit_conditions(self):
+        """Deep fetch Scene Hint 应包含快速定位的关键词。"""
+        lookup = DEEP_INTENT_PROMPTS["fetch"]
+        assert "定位" in lookup or "核心" in lookup
 
-    def test_deep_lookup_has_exit_conditions(self):
-        """Deep lookup Scene Hint 应包含深入挖掘的关键词。"""
-        lookup = DEEP_INTENT_PROMPTS["lookup"]
-        assert "深入" in lookup or "值得" in lookup
+    def test_discuss_scene_hint_data_backs_opinion(self):
+        discuss = DEEP_INTENT_PROMPTS["discuss"]
+        assert "数据" in discuss or "判断" in discuss
 
-    def test_debate_scene_hint_data_backs_opinion(self):
-        debate = DEEP_INTENT_PROMPTS["debate"]
-        assert "数据" in debate or "判断" in debate
-
-    def test_emotional_scene_hint_empathy_first(self):
-        emotional = DEEP_INTENT_PROMPTS["emotional"]
-        assert "朋友" in emotional or "真心" in emotional
+    def test_chat_scene_hint_empathy_first(self):
+        chat = DEEP_INTENT_PROMPTS["chat"]
+        assert "聊天" in chat or "真心" in chat
 
     def test_companion_scene_hints_are_short(self):
         """Companion Scene Hints 应短于 deep 版（~50 chars vs ~100 chars）。"""
@@ -409,21 +187,6 @@ class TestHonestyPrinciple:
         assert "没查到" in TOOL_GUIDANCE
         assert "不编造" in TOOL_GUIDANCE
         assert "诚实" in TOOL_GUIDANCE
-
-    def test_companion_prompt_has_honesty_principle(self):
-        """Companion prompt 应包含诚实原则。"""
-        result = _build(
-            agent_profile=COMPANION_PROFILE,
-            character=BANGUMI_CHARACTER,
-        )
-        assert "没查到" in result
-        assert "编造数据" in result or "编造具体数字" in result
-
-    def test_deep_prompt_has_honesty_principle(self):
-        """深度 prompt 应包含诚实原则。"""
-        result = build_deep_prompt("lookup")
-        assert "没查到" in result
-        assert "编造" in result
 
 
 class TestRenderPrompt:
@@ -474,13 +237,12 @@ class TestRenderPrompt:
 
     def test_render_prompt_word_limit_by_depth(self):
         """字数限制应按 depth 分档。"""
-        q = build_render_prompt("bangumi", "test", "r", depth="fast")
         a = build_render_prompt("bangumi", "test", "r", depth="fast")
         d = build_render_prompt("bangumi", "test", "r", depth="deep")
-        assert "120 字" in q
         assert "200 字" in a
         assert "350 字" in d
-        assert "{word_limit}" not in q
+        assert "{word_limit}" not in a
+        assert "{word_limit}" not in d
 
     def test_render_prompt_ending_not_always_question(self):
         """结尾规则应允许判断或冷吐槽。"""
