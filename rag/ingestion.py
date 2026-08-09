@@ -35,7 +35,7 @@ from database.rag_tables import (
     RagEntity,
     SubjectMeta,
 )
-from rag.enricher import _clean_text
+from ._utils import _clean_text, _first_sentence
 
 logger = logging.getLogger("bgm-agent.ingestion")
 
@@ -47,22 +47,10 @@ logger = logging.getLogger("bgm-agent.ingestion")
 _MAX_EMBED_CHARS = 400
 
 
-def _first_sentence(text: str, max_chars: int = 120) -> str:
-    """取文本第一句（截断到 max_chars），用于 embed_text 末尾的语义补充。"""
-    if not text:
-        return ""
-    # 在第一个句号/换行处截断
-    for sep in ("。", "\n", "！", "？", "；"):
-        idx = text.find(sep)
-        if 10 < idx < max_chars:
-            return text[:idx]
-    return text[:max_chars]
-
-
-def _build_subject_embed_text(item: dict[str, Any]) -> str:
+def _build_subject_embed_text(item: dict[str, Any], subject_type: int = 2) -> str:
     """构建 Subject 的 embed_text。
 
-    格式: {name_cn} {name} {top tags} {year} {platform} {score}分 {summary首句}
+    格式: {name_cn} {name} {medium_label} {top tags} {year} {platform} {score}分 {summary首句}
     """
     parts: list[str] = []
 
@@ -73,6 +61,12 @@ def _build_subject_embed_text(item: dict[str, Any]) -> str:
         parts.append(name_cn)
     if name and name != name_cn:
         parts.append(name)
+
+    # 媒介类型标签
+    if subject_type == 2:
+        parts.append("动画")
+    elif subject_type == 1:
+        parts.append("书籍")
 
     # 标签（top 10，按 count 降序）
     tags = item.get("tags", []) or []
@@ -189,10 +183,10 @@ _PERSON_TYPES = {1: "个人", 2: "公司", 3: "组合"}
 _COLLECTION_LABELS = {1: "想看", 2: "看过", 3: "在看", 4: "搁置", 5: "抛弃"}
 
 
-def _build_subject_rag_dict(item: dict[str, Any], raw_id: int) -> str:
+def _build_subject_rag_dict(item: dict[str, Any], raw_id: int, subject_type: int = 2) -> str:
     """构建 Subject 返回 dict，严格对齐 sanitize_subject_detail 格式。
 
-    追加 _source / _next 两个 RAG 专用字段。
+    追加 _source / _next / subject_type 三个 RAG 专用字段。
     """
     collection = {}
     raw_col = item.get("collection", {}) or {}
@@ -236,6 +230,7 @@ def _build_subject_rag_dict(item: dict[str, Any], raw_id: int) -> str:
         "infobox": item.get("infobox", {}),
         # ── RAG 标记 ──
         "_source": "rag",
+        "subject_type": subject_type,
         "_next": f"如需口碑数据调 get_subject_opinions({raw_id})；"
                  f"如需角色列表调 get_subject_characters({raw_id})",
     }
@@ -518,17 +513,27 @@ class RagEntityIngestor:
 
     # ── 公开摄入方法 ──────────────────────────────────────────
 
-    def ingest_subjects(self, subjects_data: list[dict[str, Any]]) -> int:
+    def ingest_subjects(
+        self,
+        subjects_data: list[dict[str, Any]],
+        subject_type: int = 2,
+    ) -> int:
         """摄入 Subject 实体。
 
         embed_text ← 关键词密集合成文本 → embedding
         rag_output ← 预构建 JSON dict → 检索时直接返回
+
+        Args:
+            subjects_data: 富化后的 subject 数据列表。
+            subject_type: Bangumi subject 类型，1=书籍, 2=动画。
         """
         if not subjects_data:
             raise ValueError("subjects_data 不能为空列表")
         self._check_client()
 
-        embed_texts = [_build_subject_embed_text(item) for item in subjects_data]
+        embed_texts = [
+            _build_subject_embed_text(item, subject_type) for item in subjects_data
+        ]
         embeddings = self._embed_batch(embed_texts)
 
         if len(embeddings) != len(subjects_data):
@@ -553,12 +558,13 @@ class RagEntityIngestor:
                     entity = RagEntity(
                         id=_prefixed_subject_id(item["subject_id"]),
                         entity_type="subject",
+                        subject_type=subject_type,
                         name=item.get("name", ""),
                         name_cn=item.get("name_cn"),
                         nsfw=item.get("nsfw", False),
                         popularity=item.get("rating_total", 0),
                         embed_text=et,
-                        rag_output=_build_subject_rag_dict(item, item["subject_id"]),
+                        rag_output=_build_subject_rag_dict(item, item["subject_id"], subject_type),
                         embedding=vector,
                         meta_info=meta.model_dump(),
                     )

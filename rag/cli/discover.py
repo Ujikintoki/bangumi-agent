@@ -2,7 +2,7 @@
 RAG 语料库 ID 发现脚本 — Phase 1
 
 按 collection 收藏数排名，采集 Top-N 实体 ID 及基础元数据。
-输出 JSON 文件供 ``ingest_corpus.py`` Phase 2 消费。
+输出 JSON 文件供 ``rag.cli.ingest`` Phase 2 消费。
 
 数据源:
   - Subject (anime/book): p1 API ``GET /p1/subjects?type=N&sort=collects&page=N``
@@ -12,9 +12,9 @@ RAG 语料库 ID 发现脚本 — Phase 1
 用法::
 
     source .venv/bin/activate
-    python scripts/discover_corpus.py              # 全量采集
-    python scripts/discover_corpus.py --dry-run    # 仅前 2 页试跑
-    python scripts/discover_corpus.py --subjects-only  # 仅采集条目
+    python -m rag.cli.discover                 # 全量采集
+    python -m rag.cli.discover --dry-run       # 仅前 2 页试跑
+    python -m rag.cli.discover --subjects-only # 仅采集条目
 
 输出::
 
@@ -38,17 +38,10 @@ import json
 import logging
 import os
 import re
-import sys
 from pathlib import Path
 from typing import Optional
 
 import httpx
-
-# ═══════════════════════════════════════════════════════════════════════
-# 项目路径
-# ═══════════════════════════════════════════════════════════════════════
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,7 +49,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("discover_corpus")
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+DATA_DIR = PROJECT_ROOT / "scripts" / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # ═══════════════════════════════════════════════════════════════════════

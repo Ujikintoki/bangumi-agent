@@ -55,6 +55,10 @@ _EMBEDDING_DIM = get_settings().EMBEDDING_DIMENSION
 #   -- 热度排序: B-Tree，加速 ORDER BY popularity DESC
 #   CREATE INDEX IF NOT EXISTS ix_rag_entities_popularity
 #       ON rag_entities (popularity);
+#
+#   -- Subject 子类型: B-Tree，加速 WHERE subject_type = N
+#   CREATE INDEX IF NOT EXISTS ix_rag_entities_subject_type
+#       ON rag_entities (subject_type);
 # ============================================================================
 
 
@@ -106,6 +110,15 @@ class RagEntity(SQLModel, table=True):
         default=False,
         index=True,
         description="是否 R18 内容。所有实体类型共用，默认 False。",
+    )
+
+    subject_type: Optional[int] = Field(
+        default=None,
+        index=True,
+        description=(
+            "Subject 子类型，仅 entity_type='subject' 时有效。"
+            " 1=书籍(漫画/小说), 2=动画(TV/剧场版/OVA/Web), NULL=非 subject 实体。"
+        ),
     )
 
     popularity: int = Field(

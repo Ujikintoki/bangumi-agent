@@ -133,7 +133,19 @@ agent/
 │   └── cache.py                   # Session 缓存（跨 HTTP 请求）
 tools/bgm_tools.py                  # 16 个 LangChain @tool 函数
 clients/                            # HTTP 客户端（httpx 异步 + 指数退避重试）+ sanitizers
-rag/                                # RAG 检索管线（5 阶段）
+rag/                                # RAG 检索管线
+│   ├── __init__.py                  # Public API re-exports
+│   ├── _utils.py                    # 内部共享工具（_clean_text, _first_sentence）
+│   ├── enricher.py                  # API 数据富化（SubjectCollector, CharacterEnricher, PersonEnricher）
+│   ├── ingestion.py                 # 向量化 + pgvector 灌入（RagEntityIngestor）
+│   ├── retriever.py                 # 混合检索（RagEntityRetriever, RagSearchResult）
+│   ├── cli/                         # RAG CLI 入口
+│   │   ├── discover.py              # Phase 1: ID 发现（python -m rag.cli.discover）
+│   │   └── ingest.py                # Phase 2: 富化 + 灌入（python -m rag.cli.ingest）
+│   └── eval/                        # RAG 评测管线
+│       ├── evaluate.py              # 评测主逻辑（--build / --evaluate）
+│       ├── queries.py               # 查询定义（AUTO_QUERY_DEFS + POOLED_QUERIES）
+│       └── artifacts/               # 评测产物（ground_truth_auto.json, pooled_annotate.json）
 database/                           # SQLModel ORM + pgvector
 schemas/tools_input.py              # Pydantic v2 工具输入 schema
 core/config.py                      # pydantic-settings 全局配置
@@ -166,6 +178,17 @@ ruff check .
 docker run -d --name bangumi-pg \
   -e POSTGRES_USER=myuser -e POSTGRES_PASSWORD=mypassword \
   -e POSTGRES_DB=bangumidb -p 5432:5432 pgvector/pgvector:pg16
+
+# RAG 评测管线
+python -m rag.eval.evaluate --build       # 生成 GT + 标注模板
+python -m rag.eval.evaluate --evaluate    # 检索 + 计算指标
+
+# RAG 语料管理
+python -m rag.cli.discover                # Phase 1: ID 发现
+python -m rag.cli.ingest --clear          # Phase 2: 清空 + 灌入
+
+# RAG 数据库迁移
+python scripts/migrate_subject_type.py
 
 # 发测试请求
 curl -s -X POST http://localhost:8000/chat \

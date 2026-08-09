@@ -127,6 +127,7 @@ class RagEntityRetriever:
         self,
         query: str,
         entity_type: Literal["subject", "character", "person", "all"] = "all",
+        subject_type: Optional[int] = None,
         limit: int = 5,
         exclude_nsfw: bool = True,
         distance_threshold: float = 0.65,
@@ -155,6 +156,9 @@ class RagEntityRetriever:
         Args:
             query: 自然语言查询。
             entity_type: 限定实体类型，``"all"`` 表示跨域检索。
+            subject_type: Subject 子类型过滤，仅 entity_type='subject' 时生效。
+                ``1`` = 书籍(漫画/小说), ``2`` = 动画(TV/剧场版/OVA/Web),
+                ``None`` = 不过滤（默认）。
             limit: 最大返回条数，默认 5。
             exclude_nsfw: 是否排除 R18（仅对 subject 生效）。
             distance_threshold: 余弦距离上限，默认 0.65。
@@ -175,7 +179,7 @@ class RagEntityRetriever:
         # ── Step 1: 查询向量化 ────────────────────────────────
         try:
             from core.config import get_settings as _gs
-            from rag.enricher import _clean_text
+            from ._utils import _clean_text
 
             model = _gs().EMBEDDING_MODEL
             cleaned_query = _clean_text(query.strip())
@@ -204,6 +208,11 @@ class RagEntityRetriever:
                 if entity_type != "all":
                     stmt = stmt.where(RagEntity.entity_type == entity_type)
                     logger.debug("实体类型前置过滤: %s", entity_type)
+
+                # ── Subject 子类型过滤: subject_type ─────────
+                if subject_type is not None:
+                    stmt = stmt.where(RagEntity.subject_type == subject_type)
+                    logger.debug("Subject 子类型过滤: %d", subject_type)
 
                 # ── 安全护栏: nsfw ──────────────────────────
                 # nsfw 已提升为列级字段，所有实体类型共用 B-Tree 索引。

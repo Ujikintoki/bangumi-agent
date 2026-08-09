@@ -21,7 +21,7 @@
 - 异步优先（全 async + `httpx`）
 - `asyncio.Semaphore` 并发控制（默认 3） + 请求间休眠限流（0.15–0.2s）
 - 永不抛异常：API 失败返回 `{"_error": "..."}`，单个实体失败不影响批次
-- 批量灌入脚本 `scripts/ingest_corpus.py` 编排全流程：ID 发现 → 富化 → 灌入
+- 批量灌入脚本 `rag/cli/ingest.py`（`python -m rag.cli.ingest`）编排全流程：ID 发现 → 富化 → 灌入
   - ID 发现来源：trending / calendar / 关键词搜索 / 已知经典 ID 列表
   - 目标规模：250 Subject + 120 Character + 80 Person
   - 热度筛选策略：前 85%（热度段） + 尾 15%（冷门留存）
@@ -464,5 +464,8 @@ NamuWiki 和行业标准强调的 SHA1 稳定 ID 用于：
 | `rag/text_processor.py` | 滑动窗口 chunking + Parent-Child Retriever | **已废弃** |
 | `rag/__init__.py` | 模块导出 | **活跃** |
 | `database/rag_tables.py` | `RagEntity` ORM 定义 + Pydantic v2 Meta 契约模型 + 索引 DDL | **活跃** |
-| `scripts/ingest_corpus.py` | 批量语料灌入脚本（ID 发现 → 富化 → 灌入） | **活跃** |
+| `rag/cli/ingest.py` | 批量语料灌入脚本（ID 发现 → 富化 → 灌入） | **活跃** |
+| `rag/cli/discover.py` | 语料 ID 发现脚本（p1 API + HTML 解析） | **活跃** |
+| `rag/eval/` | RAG 评测管线（--build / --evaluate） | **活跃** |
+| `rag/_utils.py` | 内部共享工具（_clean_text, _first_sentence） | **活跃** |
 | `test/test_rag.py` | 集成测试（retriever 正确性 + ingest→search roundtrip） | **活跃** |

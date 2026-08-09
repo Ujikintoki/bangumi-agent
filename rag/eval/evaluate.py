@@ -4,13 +4,13 @@ RAG 检索评测管线 v2
 三步工作流::
 
     # 1. 我运行：生成自动 Ground Truth + 池化人工标注模板
-    python scripts/eval/evaluate.py --build
+    python -m rag.eval.evaluate --build
 
-    # 2. 你标注：打开 pooled_annotate.json，标记每个候选实体是否相关
+    # 2. 你标注：打开 artifacts/pooled_annotate.json，标记每个候选实体是否相关
     #    格式：将 "relevant": null 改为 true 或 false
 
     # 3. 我运行：计算全部指标 + 报告
-    python scripts/eval/evaluate.py --evaluate
+    python -m rag.eval.evaluate --evaluate
 
 指标::
 
@@ -34,147 +34,26 @@ import json
 import logging
 import math
 import statistics
-import sys
 import time
 from pathlib import Path
-from typing import Any
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from typing import Optional
 
 logging.basicConfig(level=logging.WARNING, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("eval")
 
 EVAL_DIR = Path(__file__).resolve().parent
-AUTO_GT_FILE = EVAL_DIR / "ground_truth_auto.json"
-POOLED_FILE = EVAL_DIR / "pooled_annotate.json"
-MERGED_GT_FILE = EVAL_DIR / "ground_truth_merged.json"
+ARTIFACTS_DIR = EVAL_DIR / "artifacts"
+AUTO_GT_FILE = ARTIFACTS_DIR / "ground_truth_auto.json"
+POOLED_FILE = ARTIFACTS_DIR / "pooled_annotate.json"
+MERGED_GT_FILE = ARTIFACTS_DIR / "ground_truth_merged.json"
 
 K_VALUES = [1, 3, 5, 10]
 
 # ═══════════════════════════════════════════════════════════════════════
-# 1. 自动 Ground Truth — 从数据库元数据生成
+# 查询定义（从 queries.py 导入）
 # ═══════════════════════════════════════════════════════════════════════
 
-# 每条定义：(query_id, query_text, entity_type, category, GT_SQL)
-# GT_SQL 返回 id 列表，这些 id = 该 query 的完整正确答案
-AUTO_QUERY_DEFS: list[tuple[str, str, str, str, str]] = [
-    # ── 标签匹配：搜标签名 → GT = 所有带该标签的 subject ──
-    ("a01", "芳文社", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "芳文社"}]'"""),
-    ("a02", "CloverWorks", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "CloverWorks"}]'"""),
-    ("a03", "京都动画", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "京都动画"}]'"""),
-    ("a04", "ufotable", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "ufotable"}]'"""),
-    ("a05", "Production I.G", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "Production.I.G"}]'"""),
-    ("a06", "TRIGGER", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "TRIGGER"}]'"""),
-    ("a07", "动画工房", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "动画工房"}]'"""),
-    ("a08", "虚渊玄", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "虚渊玄"}]'"""),
-
-    # ── 更多标签 ──
-    ("a09", "MADHOUSE", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "MADHouse"}]'"""),
-    ("a10", "BONES", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "BONES"}]'"""),
-    ("a11", "P.A.WORKS", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "P.A.WORKS"}]'"""),
-    ("a12", "吉卜力", "subject", "tag",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->'tags' @> '[{"name": "吉卜力"}]'"""),
-
-    # ── 年份 ──
-    ("a13", "2023年的动画", "subject", "year",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->>'year' = '2023'"""),
-    ("a14", "2022年的动画", "subject", "year",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND meta_info->>'year' = '2022'"""),
-
-    # ── 评分 ──
-    ("a15", "高分神作", "subject", "score",
-     """SELECT id FROM rag_entities WHERE entity_type='subject'
-        AND (meta_info->>'score')::float >= 8.8"""),
-
-    # ── 声优/创作者 ──
-    ("a16", "声优", "person", "career",
-     """SELECT id FROM rag_entities WHERE entity_type='person'
-        AND meta_info->'career' ? 'seiyu'"""),
-    ("a17", "歌手艺人", "person", "career",
-     """SELECT id FROM rag_entities WHERE entity_type='person'
-        AND meta_info->'career' ? 'artist'"""),
-    ("a18", "动画制作人", "person", "career",
-     """SELECT id FROM rag_entities WHERE entity_type='person'
-        AND meta_info->'career' ? 'producer'"""),
-
-    # ── 精确名称（人工指定 target ID）──
-    ("a19", "孤独摇滚", "subject", "exact",
-     "subject_328609"),
-    ("a20", "進撃の巨人", "subject", "exact",
-     "subject_290980"),
-    ("a21", "命运石之门", "subject", "exact",
-     "subject_10380"),
-    ("a22", "化物語", "subject", "exact",
-     "subject_793"),
-    ("a23", "CLANNAD", "subject", "exact",
-     "subject_51"),
-    ("a24", "牧瀬紅莉栖", "character", "exact",
-     "character_12393"),
-    ("a25", "花澤香菜", "person", "exact",
-     "person_4765"),
-]
-
-# ═══════════════════════════════════════════════════════════════════════
-# 2. 池化人工标注查询 — 语义查询，无客观 GT，需人工判 relevance
-# ═══════════════════════════════════════════════════════════════════════
-
-POOLED_QUERIES: list[dict] = [
-    {"id": "p01", "query": "关于音乐乐队的百合动画",
-     "entity_type": "subject", "category": "semantic",
-     "desc": "语义 — 三个概念组合"},
-    {"id": "p02", "query": "异世界转生冒险",
-     "entity_type": "subject", "category": "semantic",
-     "desc": "语义 — 奇幻子类型"},
-    {"id": "p03", "query": "机甲战斗科幻",
-     "entity_type": "subject", "category": "semantic",
-     "desc": "语义 — 科幻子类型"},
-    {"id": "p04", "query": "悬疑推理惊悚",
-     "entity_type": "subject", "category": "semantic",
-     "desc": "语义 — 类型组合"},
-    {"id": "p05", "query": "温馨轻松的日常故事",
-     "entity_type": "subject", "category": "semantic",
-     "desc": "语义 — 氛围/节奏"},
-    {"id": "p06", "query": "制作精良的剧场版动画电影",
-     "entity_type": "subject", "category": "semantic",
-     "desc": "语义 — 品质+类型"},
-    {"id": "p07", "query": "傲娇双马尾美少女",
-     "entity_type": "character", "category": "semantic",
-     "desc": "角色 — 属性组合"},
-    {"id": "p08", "query": "帅气冷酷的男性角色",
-     "entity_type": "character", "category": "semantic",
-     "desc": "角色 — 性格描述"},
-    {"id": "p09", "query": "知名动画导演",
-     "entity_type": "person", "category": "semantic",
-     "desc": "人物 — 职位+知名度"},
-    {"id": "p10", "query": "配乐出色的作曲家",
-     "entity_type": "person", "category": "semantic",
-     "desc": "人物 — 职业+品质"},
-]
+from .queries import AUTO_QUERY_DEFS, POOLED_QUERIES  # noqa: E402
 
 # ═══════════════════════════════════════════════════════════════════════
 # 基础设施
@@ -188,7 +67,7 @@ def _get_retriever():
     if _retriever is None:
         from core.config import get_settings
         from database.engine import engine
-        from rag.retriever import RagEntityRetriever
+        from ..retriever import RagEntityRetriever
 
         s = get_settings()
         _retriever = RagEntityRetriever(
@@ -217,7 +96,7 @@ def _query_db(sql: str) -> list[str]:
 def build_auto_gt() -> list[dict]:
     """执行 SQL 生成自动 Ground Truth。"""
     queries = []
-    for qid, qtext, etype, cat, sql in AUTO_QUERY_DEFS:
+    for qid, qtext, etype, stype, cat, sql in AUTO_QUERY_DEFS:
         print(f"  [{qid}] \"{qtext}\"", end=" ... ")
 
         if cat == "exact":
@@ -230,6 +109,7 @@ def build_auto_gt() -> list[dict]:
             "id": qid,
             "query": qtext,
             "entity_type": etype,
+            "subject_type": stype,
             "category": cat,
             "ground_truth": gt,
             "gt_size": len(gt),
@@ -258,11 +138,13 @@ def build_pooled_template(existing_auto_queries: list[dict]) -> list[dict]:
         seen: set[str] = set()
         candidates: list[dict] = []
 
+        stype = pq.get("subject_type")
         for search_type in ["all", etype]:
             try:
                 results = retriever.hybrid_search(
                     query=qtext,
                     entity_type=search_type,
+                    subject_type=stype if search_type != "all" else None,
                     limit=15,
                     distance_threshold=0.9,
                 )
@@ -311,6 +193,7 @@ def cmd_build():
     print("=" * 60)
     auto_queries = build_auto_gt()
 
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(AUTO_GT_FILE, "w", encoding="utf-8") as f:
         json.dump({
             "description": "自动生成的 Ground Truth。GT 来自数据库元数据（tag/infobox/career/score），Recall 精确。",
@@ -338,7 +221,7 @@ def cmd_build():
                 "池化语义查询 — 需要人工标注 relevance。\n"
                 "每条 query 下有 ~20 个候选实体（带名称+简介片段）。\n"
                 "请将每个 candidate 的 relevant 从 null 改为 true（应该出现在搜索结果中）或 false（不应该）。\n"
-                "标注完成后运行: python scripts/eval/evaluate.py --evaluate"
+                "标注完成后运行: python -m rag.eval.evaluate --evaluate"
             ),
             "queries": pooled,
         }, f, ensure_ascii=False, indent=2)
@@ -350,9 +233,9 @@ def cmd_build():
     print("=" * 60)
     print("  下一步")
     print("=" * 60)
-    print(f"  1. 打开 {POOLED_FILE.name}")
+    print(f"  1. 打开 rag/eval/artifacts/{POOLED_FILE.name}")
     print(f"  2. 对每个 query 的 candidates，改 relevant: null → true/false")
-    print(f"  3. 运行 python scripts/eval/evaluate.py --evaluate")
+    print(f"  3. 运行 python -m rag.eval.evaluate --evaluate")
     print()
 
 
@@ -384,6 +267,7 @@ def _load_annotated_pooled() -> list[dict]:
             "id": pq["id"],
             "query": pq["query"],
             "entity_type": pq["entity_type"],
+            "subject_type": pq.get("subject_type"),
             "category": pq.get("category", "semantic"),
             "source": "human",
             "ground_truth": gt,
@@ -396,13 +280,19 @@ def _load_annotated_pooled() -> list[dict]:
     return queries
 
 
-def _run_retrieval(query: str, entity_type: str, limit: int = 10) -> list[str]:
+def _run_retrieval(
+    query: str,
+    entity_type: str,
+    subject_type: Optional[int] = None,
+    limit: int = 10,
+) -> list[str]:
     """检索并返回 entity_id 有序列表。"""
     retriever = _get_retriever()
     try:
         results = retriever.hybrid_search(
             query=query,
             entity_type=entity_type,
+            subject_type=subject_type,
             limit=limit,
             distance_threshold=0.9,
         )
@@ -493,7 +383,7 @@ def cmd_evaluate():
             continue
 
         print(f"  [{i+1:2d}/{len(all_queries)}] {qid} \"{qtext}\" GT={len(gt)}", end=" ... ")
-        retrieved = _run_retrieval(qtext, etype)
+        retrieved = _run_retrieval(qtext, etype, q.get("subject_type"))
         metrics = _compute_metrics(retrieved, gt)
         print(f"{len(retrieved)} hits, Recall@5={metrics.get('Recall@5', 0):.3f}")
 
@@ -620,9 +510,10 @@ def cmd_evaluate():
             for r in results
         ],
     }
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(MERGED_GT_FILE, "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
-    print(f"  详细结果已保存到 {MERGED_GT_FILE.name}")
+    print(f"  详细结果已保存到 rag/eval/artifacts/{MERGED_GT_FILE.name}")
 
 
 # ═══════════════════════════════════════════════════════════════════════
