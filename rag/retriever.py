@@ -135,7 +135,7 @@ class RagEntityRetriever:
         semantic_bucket_size: float = 0.03,
         # ── 消融控制 (eval 用，默认全开，生产零影响) ──
         enable_threshold: bool = True,
-        enable_bucketing: bool = True,
+        enable_bucketing: bool = False,
         enable_mmr: bool = True,
     ) -> list[RagSearchResult]:
         """多态混合检索：标量前置过滤 → 向量召回 → 多态分桶排序 → 阈值防爆。

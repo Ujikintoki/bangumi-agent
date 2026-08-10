@@ -291,8 +291,13 @@ def _run_retrieval(
     entity_type: str,
     subject_type: Optional[int] = None,
     limit: int = 10,
+    **ablation_kwargs: bool,
 ) -> list[str]:
-    """检索并返回 entity_id 有序列表。"""
+    """检索并返回 entity_id 有序列表。
+
+    ablation_kwargs 透传给 hybrid_search 的消融开关：
+    enable_threshold / enable_bucketing / enable_mmr。
+    """
     retriever = _get_retriever()
     try:
         results = retriever.hybrid_search(
@@ -301,6 +306,7 @@ def _run_retrieval(
             subject_type=subject_type,
             limit=limit,
             distance_threshold=0.9,
+            **ablation_kwargs,
         )
         return [r.entity_id for r in results]
     except Exception as e:
@@ -523,6 +529,104 @@ def cmd_evaluate():
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Phase 3: --ablate — 消融实验
+# ═══════════════════════════════════════════════════════════════════════
+
+ABLATION_CONFIGS = {
+    "baseline (全开)":      {"enable_threshold": True,  "enable_bucketing": True,  "enable_mmr": True},
+    "no_threshold":         {"enable_threshold": False, "enable_bucketing": True,  "enable_mmr": True},
+    "no_bucketing":         {"enable_threshold": True,  "enable_bucketing": False, "enable_mmr": True},
+    "no_mmr":               {"enable_threshold": True,  "enable_bucketing": True,  "enable_mmr": False},
+    "vanilla (全关)":       {"enable_threshold": False, "enable_bucketing": False, "enable_mmr": False},
+}
+
+
+def cmd_ablate():
+    """--ablate: 对每个消融配置跑完整 eval，输出对比表。"""
+    logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
+
+    # ── 加载 GT ──
+    if not AUTO_GT_FILE.exists():
+        print(f"错误: {AUTO_GT_FILE.name} 不存在，请先运行 --build")
+        return
+
+    with open(AUTO_GT_FILE, encoding="utf-8") as f:
+        auto_data = json.load(f)
+    auto_queries = auto_data.get("queries", [])
+    human_queries = _load_annotated_pooled()
+    all_queries = auto_queries + human_queries
+
+    print(f"消融实验: {len(all_queries)} 题 × {len(ABLATION_CONFIGS)} 配置")
+    print()
+
+    # ── 对每个配置跑完整 eval ──
+    config_results: dict[str, dict] = {}
+
+    for config_name, kwargs in ABLATION_CONFIGS.items():
+        print(f"  [{config_name}]", end=" ", flush=True)
+        all_metrics: dict[str, list[float]] = {}
+
+        for i, q in enumerate(all_queries):
+            gt = set(q.get("ground_truth", []))
+            if not gt:
+                continue
+
+            retrieved = _run_retrieval(
+                q["query"], q.get("entity_type", "all"),
+                q.get("subject_type"), **kwargs,
+            )
+            metrics = _compute_metrics(retrieved, gt)
+            for key, val in metrics.items():
+                all_metrics.setdefault(key, []).append(val)
+            time.sleep(0.02)
+
+        # 聚合
+        agg = {}
+        for key, vals in all_metrics.items():
+            agg[key] = statistics.mean(vals) if vals else 0.0
+
+        config_results[config_name] = {
+            "metrics": agg,
+            "valid_queries": len(all_metrics.get("Recall@5", [])),
+        }
+        print(f"{config_results[config_name]['valid_queries']} 题, "
+              f"Rec@5={agg.get('Recall@5', 0):.4f}, "
+              f"Prec@5={agg.get('Precision@5', 0):.4f}, "
+              f"MRR={agg.get('MRR', 0):.4f}")
+
+    # ── 对比表 ──
+    baseline = config_results["baseline (全开)"]["metrics"]
+    key_metrics = ["Recall@5", "Precision@5", "MRR", "NDCG@5", "Hit@5"]
+
+    print()
+    print("=" * 78)
+    print("  消融对比 — 相对 baseline 变化")
+    print("=" * 78)
+    header = f"  {'配置':<24s}"
+    for m in key_metrics:
+        header += f"  {m:>10s}"
+    print(header)
+    print(f"  {'─' * 76}")
+
+    for config_name in ABLATION_CONFIGS:
+        agg = config_results[config_name]["metrics"]
+        row = f"  {config_name:<24s}"
+        for m in key_metrics:
+            val = agg.get(m, 0)
+            if config_name == "baseline (全开)":
+                row += f"  {val:>10.4f}"
+            else:
+                delta = val - baseline.get(m, 0)
+                sign = "+" if delta >= 0 else ""
+                row += f"  {val:.4f} {sign}{delta:.4f}"
+        print(row)
+
+    print()
+    print("  解读: 负数 delta = 该组件有正向贡献（关掉后指标下降）")
+    print()
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # CLI
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -534,12 +638,16 @@ def main():
                        help="生成自动 Ground Truth + 池化人工标注模板")
     group.add_argument("--evaluate", action="store_true",
                        help="检索 + 计算全部指标")
+    group.add_argument("--ablate", action="store_true",
+                       help="消融实验：对比 threshold/bucketing/MMR 各组件的贡献")
     args = parser.parse_args()
 
     if args.build:
         cmd_build()
     elif args.evaluate:
         cmd_evaluate()
+    elif args.ablate:
+        cmd_ablate()
 
 
 if __name__ == "__main__":
