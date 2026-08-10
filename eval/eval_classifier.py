@@ -91,7 +91,7 @@ def _classify_keyword(text: str) -> str:
 
 async def _classify_llm(text: str) -> str:
     """使用 LLM (DeepSeek) 做 8-way 意图分类。"""
-    from agent.orchestrate.classifier import classify_intent_llm
+    from agent.nodes.classify import classify_intent_llm
     from agent.llm import create_llm
 
     llm = create_llm(temperature=0, max_tokens=10, request_timeout=10)

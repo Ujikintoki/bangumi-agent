@@ -56,7 +56,7 @@ START → classify_node ─┬── [chat] ──────────→ EN
 
 | 层 | 职责 | 核心文件 |
 |---|------|---------|
-| **编排层** | StateGraph 拓扑、路由、意图分类、策略、护栏 | `agent/orchestrate/`, `agent/graph.py`, `agent/state.py` |
+| **编排层** | StateGraph 拓扑、路由、意图分类、策略、护栏 | `agent/graph.py`, `agent/config.py`, `agent/state.py`, `agent/nodes/`, `agent/routing/`, `agent/prompts/`, `agent/guardrails.py`, `agent/helpers.py` |
 | **人格层** | CharacterProfile 定义 + Render 风格转换 | `agent/persona/` |
 | **记忆层** | L1 滑动窗口 + 压缩 + L2 语义召回 + session 缓存 | `agent/memory/` |
 | **数据层** | 工具函数 + HTTP Client + RAG + pgvector | `tools/`, `clients/`, `rag/`, `database/`, `schemas/` |
@@ -112,18 +112,26 @@ Render Node (独立 LLM 调用)   → 决定输出怎么表达（HOW to say it�
 
 ```
 agent/
-├── state.py                       # AgentState TypedDict + 迭代上限
-├── graph.py                       # 异质拓扑 StateGraph（Pipeline + ReAct）
+├── state.py                       # AgentState TypedDict（纯 schema）
+├── config.py                      # 迭代上限、置信度阈值等运行时配置
+├── graph.py                       # 异质拓扑 StateGraph + Pipeline Subgraph 封装
 ├── llm.py                         # LLM 工厂（多 Provider）
 ├── devtools.py                    # Token 统计 + 节点计时（DEV_MODE）
-├── orchestrate/
-│   ├── nodes.py                   # classify_node + reasoning_node + 5 pipeline 节点
-│   ├── strategies.py              # 浅层 intent 策略（COMPANION_INTENT_PROMPTS）
-│   ├── deep_strategies.py         # Deep 模式 Scene Hints + intent 策略
-│   ├── prompt_builder.py          # System Prompt 组装 + tool_choice + TOOLS_BY_INTENT
-│   ├── classifier.py              # 7 intent LLM 分类器 + 置信度路由
-│   ├── guardrails.py              # 终端检测 / XML 泄漏 / 重复调用检测
-│   └── helpers.py                 # 共享辅助函数
+├── guardrails.py                  # 终端检测 / XML 泄漏 / 重复调用检测 / 错误格式化
+├── helpers.py                     # 共享辅助函数（extract_user_input, recall_memory, build_message_list）
+├── nodes/                         # LangGraph 节点实现
+│   ├── classify.py                # classify_node + 7 intent LLM 分类器 + 置信度路由
+│   ├── pipeline.py                # _pipeline_step + 5 个 pipeline 节点（fetch/realtime/profile/synthesize）
+│   ├── reasoning.py               # reasoning_node（ReAct）+ 消化态检测
+│   └── critic.py                  # [DEPRECATED] critic_node 保留以备恢复
+├── routing/                       # 条件边路由函数
+│   └── routes.py                  # route_after_classify / _tool / _reasoning + 空搜索检测
+├── prompts/                       # Prompt 模板与工具配置
+│   ├── aggregator.py              # build_aggregator_prompt + 身份/终止规则/few-shot
+│   ├── pipeline.py                # 各 pipeline 节点的专属 prompt
+│   ├── scene_hints.py             # 浅层意图场景提示（COMPANION_SCENE_HINTS）
+│   ├── scene_hints_deep.py        # 深度意图场景提示 + CRITIC_SYSTEM_PROMPT
+│   └── tool_config.py             # TOOLS_BY_INTENT + get_tool_choice + TOOL_GUIDANCE
 ├── persona/
 │   ├── profiles.py                # CharacterProfile + Character Cards + 5 档离散参数
 │   └── render.py                  # Render Node — per-personality voice hints + 风格微调
@@ -207,9 +215,9 @@ curl -s -X POST http://localhost:8000/chat \
 | 多轮对话丢上下文 | `memory/short_term.py` | `DEPTH_TOKEN_BUDGETS` |
 | 忘了之前聊过什么 | `core/config.py` | `MEMORY_*` 阈值 |
 | Render 太保守/太放飞 | `persona/render.py` | `RENDER_TEMPERATURE` |
-| Deep 模式不调工具 | `orchestrate/prompt_builder.py` | `TOOL_GUIDANCE` + deep 场景提示 |
-| 常识问题误调工具 | `orchestrate/classifier.py` | intent 分类规则 |
-| 搜索空结果耗时过长 | `orchestrate/strategies.py` | 空结果处理策略 |
+| Deep 模式不调工具 | `prompts/tool_config.py` | `TOOL_GUIDANCE` + deep 场景提示 |
+| 常识问题误调工具 | `nodes/classify.py` | intent 分类规则 |
+| 搜索空结果耗时过长 | `prompts/scene_hints.py` | 空结果处理策略 |
 | 切换人格 | 请求参数 | `output_style="bangumi_cold"` / `"bangumi_cute"` |
 
 ## 7. Known Issues

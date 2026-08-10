@@ -1,19 +1,8 @@
 """
-查询 Intent 分类器 — v4: Function Calling 结构化输出（7 intent）
+分类节点 + Intent 分类器 — v4: Function Calling 结构化输出（7 intent）
 
-v4 将 4 Action 扩展为 7 Intent，使用 function calling 替代单 token 输出：
-- LLM 调用 bind_tools 后输出 structured intent + confidence
-- 置信度路由：低置信度 → 安全回退；高置信度 → 直接使用
-- 分类结果直接决定图路由：chat → 直通 Render, profile → 用户画像分析, 其余 → ReAct
-
-设计：一次 LLM 调用（temperature=0, max_tokens=200），用 function schema 约束输出格式。
-
-==== 历史教训 ====
-
-v1: 正则分类器（213行关键词+正则 → LLM fallback），系统性失败：关键词劫持、歧义词、短文本不匹配
-v2: LLM 单 token 分类（temperature=0, max_tokens=10），小马拉大车——极简输出决定下游所有行为
-v3: 4 Action（chitchat/lookup/discovery/realtime），分类结果只选 scene hint，不控制代码路径
-v4: 7 Intent function calling + 置信度路由，结构化输出 + 硬闸门
+classify_node 是 LangGraph 的入口节点。
+classify_intent 提供 LLM 分类 + 置信度路由。
 """
 
 from __future__ import annotations
@@ -22,9 +11,10 @@ import json
 import logging
 import re
 
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 
-from langchain_core.messages import HumanMessage
+from agent.state import AgentState
 
 logger = logging.getLogger("bgm-agent.classifier")
 
@@ -223,15 +213,52 @@ def route_by_classification(
 
     if confidence >= 0.5:
         if intent == "chat":
-            # chat 门槛最高 → 不确定时查数据
             return "fetch" if has_entities else "fallback"
         if intent == "discuss":
-            # 降级到 explore —— 仍然提供数据，只是少拉评论
             return "explore"
         if intent == "profile":
-            # profile 降级到 fallback —— 置信度不足时走 ReAct 兜底
             return "fallback"
         return intent  # fetch/explore/realtime 中置信度仍可用
 
     # 低置信度 → 全部 fallback
     return "fallback"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# LangGraph 分类节点
+# ═══════════════════════════════════════════════════════════════════
+
+
+async def classify_node(state: AgentState) -> dict:
+    """分类节点：LLM function calling 分类 → 置信度路由。独立 LLM 调用。
+
+    输出写入 state 的 ``query_intent`` 和 ``classifier_confidence`` 字段，
+    后续 reasoning_node 读取这些字段决定行为。
+
+    Args:
+        state: 当前 Agent 全局状态。
+
+    Returns:
+        包含 query_intent、classifier_confidence、iterations 的字典。
+    """
+    from agent.helpers import extract_user_input
+    from agent.llm import create_classifier_llm
+
+    user_input = extract_user_input(state)
+
+    classifier_llm = create_classifier_llm()
+    intent, confidence = await classify_intent(user_input, classifier_llm)
+
+    # 置信度路由
+    routed_intent = route_by_classification(intent, confidence)
+
+    logger.info(
+        "[Classify] query='%s' → intent=%s (raw=%s, conf=%.2f)",
+        user_input[:80], routed_intent, intent, confidence,
+    )
+
+    return {
+        "query_intent": routed_intent,
+        "classifier_confidence": confidence,
+        "_memory_context": None,
+    }

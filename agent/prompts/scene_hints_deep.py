@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger("bgm-agent.prompts")
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Phase 8 向后兼容别名（已合并到 prompt_builder.TOOL_GUIDANCE）
+# Phase 8 向后兼容别名（已合并到 TOOL_GUIDANCE）
 # ═══════════════════════════════════════════════════════════════════════════
 
 TOOL_DEPENDENCY_CONSTRAINT = ""

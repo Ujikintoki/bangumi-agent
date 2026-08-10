@@ -1,8 +1,8 @@
 """
 共享 Guardrail 函数
 
-纯函数集合，供 Research Agent 和 Dialogue Agent 共用：
-- 终端回复检测（逃逸舱）— 防止 Critic/路由对合法短回复误判
+纯函数集合，供所有 agent 节点共用：
+- 终端回复检测（逃逸舱）— 防止对合法短回复误判
 - XML 工具调用泄漏剥离 — 防止 DeepSeek 等模型在无工具通道输出 <function_calls>
 - 重复工具调用检测 — 防止 LLM 在无效结果上反复调用同一工具
 - ToolNode 错误格式化 — 剥离堆栈信息防止进入 LLM 上下文
@@ -17,9 +17,6 @@ from langchain_core.messages import AIMessage
 # ═══════════════════════════════════════════════════════════════════
 # 终端回复识别模式（逃逸舱）
 # ═══════════════════════════════════════════════════════════════════
-# 当 AI 回复匹配以下任一模式时，视为合法终端状态（追问、澄清、
-# 诚实告知数据不存在、说明领域约束），即使字数较少也不应被
-# Critic 判定为 REVISE 或被 Dialogue Agent 继续迭代。
 
 TERMINAL_RESPONSE_PATTERNS = [
     # 追问澄清
@@ -39,7 +36,7 @@ TERMINAL_RESPONSE_PATTERNS = [
     # 多候选让用户选
     r"(可能|也许).{1,10}(是|指).{1,30}(还是|或者|哪一个)",
     r"以下.{1,20}(候选|可能|结果)",
-    # ── 2026-06-10 新增：数据不足/结果有限的诚实告知 ──
+    # 数据不足/结果有限的诚实告知
     r"数据不足.{0,10}(建议|请|可)",
     r"(结果|数据|信息).{0,5}(较少|不足|有限|不多)",
     r"(可|请).{0,5}(扩大|放宽|调整|更换).{0,5}(搜索|范围|关键词)",
@@ -49,12 +46,11 @@ TERMINAL_RESPONSE_PATTERNS = [
 def is_terminal_response(content: str) -> bool:
     """判断 AI 回复是否为合法的终端状态。
 
-    当 LLM 在执行以下操作时，说明它已经完成了"尽职"的部分，
-    不需要 Critic 要求它继续搜索或展开：
+    当 LLM 在执行以下操作时，说明它已经完成了"尽职"的部分：
     - 向用户追问以澄清意图
     - 诚实告知数据客观不存在
     - 建议用户换一种方式搜索
-    - 说明 Bangumi 数据模型的边界（如角色没有评分）
+    - 说明 Bangumi 数据模型的边界
     - 告知搜索结果不足并建议调整
 
     Args:
@@ -69,8 +65,6 @@ def is_terminal_response(content: str) -> bool:
 # ═══════════════════════════════════════════════════════════════════
 # XML 工具调用泄漏检测与剥离
 # ═══════════════════════════════════════════════════════════════════
-# DeepSeek 等 function-calling 微调模型在解绑工具后仍可能在 .content
-# 中输出原始 XML/DSML 标签。这些模式用于检测和剥离泄漏的标签。
 
 TOOL_CALL_XML_BLOCK = re.compile(
     r"<\s*function_calls\s*>.*?</\s*function_calls\s*>",
@@ -82,7 +76,7 @@ TOOL_CALL_XML_RESIDUE = re.compile(
     r"<\s*(?:function_calls|invoke|parameter|xml)[\s>]",
     re.IGNORECASE,
 )
-"""匹配 XML 工具调用标签的残骸（用于 Critic 快速检测）。"""
+"""匹配 XML 工具调用标签的残骸（用于快速检测）。"""
 
 
 def strip_tool_call_xml(content: str) -> tuple[str, bool]:

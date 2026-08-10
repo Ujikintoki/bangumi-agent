@@ -13,9 +13,10 @@ from unittest.mock import call, patch
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from agent.graph import build_graph
-from agent.state import get_max_iterations
+from agent.config import get_max_iterations
 from agent.memory.short_term import estimate_tokens
-from agent.orchestrate.nodes import _get_last_ai_response, reasoning_node
+from agent.nodes.critic import _get_last_ai_response
+from agent.nodes.reasoning import reasoning_node
 from test.conftest import MOCK_TOOLS, make_mock_llm, make_state
 
 import pytest
@@ -33,7 +34,7 @@ _DEEP_MAX = get_max_iterations("deep")
 class TestGraphIntegration:
     """端到端图谱：基本路径 + 熔断"""
 
-    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.nodes.reasoning.create_llm")
     async def test_chitchat_deep_routes_to_end(self, mock_create_llm):
         """chitchat + depth=deep → END"""
         mock_create_llm.return_value = make_mock_llm(content="你好！")
@@ -45,7 +46,7 @@ class TestGraphIntegration:
         result = await graph.ainvoke(state)
         assert "reply" in result or "messages" in result
 
-    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.nodes.reasoning.create_llm")
     async def test_deep_completes_to_end(self, mock_create_llm):
         """deep 模式——reasoning → END。"""
         mock_create_llm.return_value = make_mock_llm(content="三集定律是指...")
@@ -58,7 +59,7 @@ class TestGraphIntegration:
         messages = result.get("messages", [])
         assert len(messages) > 0
 
-    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.nodes.reasoning.create_llm")
     async def test_query_intent_persists_across_rounds(self, mock_create_llm):
         mock_create_llm.return_value = make_mock_llm(content="done")
         graph = build_graph(tools=MOCK_TOOLS)
@@ -85,8 +86,8 @@ class TestGraphIntegration:
 class TestCriticFeedbackPropagation:
     """Phase 9: Critic 屏蔽后，critic_feedback 不再影响 prompt。保留测试验证该隔离。"""
 
-    @patch("agent.orchestrate.nodes.create_llm")
-    @patch("agent.orchestrate.nodes.get_agent_tools")
+    @patch("agent.nodes.reasoning.create_llm")
+    @patch("agent.nodes.reasoning.get_agent_tools")
     async def test_critic_feedback_not_injected(self, mock_get_tools, mock_create_llm):
         """critic_feedback 不应出现在 system prompt 中（Critic 已屏蔽）。"""
         mock_get_tools.return_value = []
@@ -126,7 +127,7 @@ class TestMemoryGraphIntegration:
         ]
         state = make_state(messages=messages, query_intent="chitchat", depth="deep")
 
-        with patch("agent.orchestrate.nodes.create_llm") as mock_create_llm:
+        with patch("agent.nodes.reasoning.create_llm") as mock_create_llm:
             mock_llm = make_mock_llm(content="你好！")
             mock_create_llm.return_value = mock_llm
             result = await reasoning_node(state)
@@ -159,7 +160,7 @@ class TestStateLifecycle:
         """tool → reasoning → END 完整链路"""
         from agent.graph import build_graph
 
-        @patch("agent.orchestrate.nodes.create_llm")
+        @patch("agent.nodes.reasoning.create_llm")
         async def _test(mock_llm):
             mock_llm.return_value = make_mock_llm(
                 content="根据搜索结果，巨人评分 8.5 分。",
@@ -181,9 +182,9 @@ class TestStateLifecycle:
 
         await _test()
 
-    @patch("agent.orchestrate.nodes.get_settings")
+    @patch("agent.nodes.reasoning.get_settings")
     async def test_critic_status_transitions(self, mock_get_settings):
-        from agent.orchestrate.nodes import critic_node
+        from agent.nodes.critic import critic_node
         from unittest.mock import MagicMock
 
         s = MagicMock()
@@ -227,7 +228,7 @@ class TestStateLifecycle:
         ]
         assert _get_last_ai_response(msgs) is None
 
-    @patch("agent.orchestrate.nodes.create_llm")
+    @patch("agent.nodes.reasoning.create_llm")
     async def test_shallow_mode_skips_critic(self, mock_create_llm):
         """[DEPRECATED Phase 10] depth="fast" 模式：Critic 已移除，验证 graph 正常完成。
 

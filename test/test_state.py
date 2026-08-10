@@ -10,9 +10,9 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END
 
-from agent.graph import route_after_reasoning
-from agent.orchestrate.nodes import _extract_user_input
-from agent.state import _MAX_ITERATIONS_DEEP as _MAX_ITERATIONS
+from agent.routing.routes import route_after_reasoning
+from agent.helpers import extract_user_input as _extract_user_input
+from agent.config import _MAX_ITERATIONS_DEEP as _MAX_ITERATIONS
 from test.conftest import make_state
 
 

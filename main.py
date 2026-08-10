@@ -363,7 +363,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     # ── L2 记忆写入（fire-and-forget） ──
     asyncio.create_task(_remember_session(result, request, depth, session_id=session_id))
 
-    from agent.state import get_max_iterations
+    from agent.config import get_max_iterations
 
     max_iterations = get_max_iterations(depth)
     messages = result.get("messages", [])
@@ -653,7 +653,7 @@ async def _remember_session(
     """
     try:
         from agent.memory.long_term import get_memory_manager
-        from agent.state import get_max_iterations
+        from agent.config import get_max_iterations
 
         mm = get_memory_manager()
         messages: list = result.get("messages", [])

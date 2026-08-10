@@ -8,7 +8,7 @@ render prompt（参数感知 + 快速跳过）、guardrails 字数占位符。
 
 from __future__ import annotations
 
-from agent.orchestrate.classifier import _VALID_INTENTS
+from agent.nodes.classify import _VALID_INTENTS
 from agent.persona.profiles import (
     AGENT_REGISTRY,
     BANGUMI_CHARACTER,
@@ -19,13 +19,14 @@ from agent.persona.profiles import (
     get_character,
     get_character_card,
 )
-from agent.orchestrate.prompt_builder import TOOL_GUIDANCE, build_aggregator_prompt as _build_agg
-from agent.orchestrate.strategies import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
+from agent.prompts.tool_config import TOOL_GUIDANCE
+from agent.prompts.aggregator import build_aggregator_prompt as _build_agg
+from agent.prompts.scene_hints import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
 from agent.persona.render import (
     _should_skip_render,
     build_render_prompt,
 )
-from agent.orchestrate.deep_strategies import (
+from agent.prompts.scene_hints_deep import (
     CRITIC_SYSTEM_PROMPT,
     DEEP_SCENE_HINTS,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,

@@ -2,7 +2,6 @@
 两个 Agent 共享的推理辅助函数。
 
 纯函数/async 函数，不依赖具体的 State TypedDict（通过 .get() 访问字典字段）。
-提取自 research/nodes.py 和 dialogue/nodes.py 的重复代码。
 """
 
 from __future__ import annotations
@@ -11,8 +10,7 @@ import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from agent.orchestrate.classifier import classify_intent
-from agent.orchestrate.guardrails import strip_tool_call_xml
+from agent.guardrails import strip_tool_call_xml
 
 logger = logging.getLogger("bgm-agent.reasoning_core")
 
@@ -58,6 +56,7 @@ async def classify_intent_step(state: dict) -> tuple[str, float, bool]:
         return "fallback", 0.0, False
 
     from agent.llm import create_classifier_llm
+    from agent.nodes.classify import classify_intent
 
     classifier_llm = create_classifier_llm()
     intent, confidence = await classify_intent(user_input, classifier_llm)
