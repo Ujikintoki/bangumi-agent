@@ -103,7 +103,12 @@ def build_auto_gt() -> list[dict]:
             # 精确名称：GT 就是这一个 id
             gt = [sql] if sql else []
         else:
-            gt = _query_db(sql)
+            # 注入 subject_type 过滤：SQL 里只写 entity_type 过滤，
+            # subject_type 由这里自动追加，保证 GT 与检索范围一致
+            filtered_sql = sql
+            if stype is not None:
+                filtered_sql = f"{sql} AND subject_type={stype}"
+            gt = _query_db(filtered_sql)
 
         queries.append({
             "id": qid,
@@ -167,6 +172,7 @@ def build_pooled_template(existing_auto_queries: list[dict]) -> list[dict]:
                         "name": r.name,
                         "name_cn": r.name_cn or "",
                         "entity_type": r.entity_type,
+                        "subject_type": r.subject_type,
                         "snippet": snippet,
                         "relevant": None,  # 待标注
                     })

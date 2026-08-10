@@ -1,5 +1,5 @@
 {
-  "description": "池化语义查询 — 需要人工标注 relevance。\n每条 query 下有 ~20 个候选实体（带名称+简介片段）。\n请将每个 candidate 的 relevant 从 null 改为 true（应该出现在搜索结果中）或 false（不应该）。\n标注完成后运行: python scripts/eval/evaluate.py --evaluate",
+  "description": "池化语义查询 — 需要人工标注 relevance。\n每条 query 下有 ~20 个候选实体（带名称+简介片段）。\n请将每个 candidate 的 relevant 从 null 改为 true（应该出现在搜索结果中）或 false（不应该）。\n标注完成后运行: python -m rag.eval.evaluate --evaluate",
   "queries": [
     {
       "id": "p01",
@@ -13,6 +13,7 @@
           "name": "ゆるゆり♪♪",
           "name_cn": "摇曳百合♪♪",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "占据了旧茶道部的活动室、继续擅自进行“娱乐部”活动（虽说如此也没啥明确的活动内容）的4人组。\n对她们的行为持续关注、继续多管闲事（？）的学生会。\n延续第一季的爱意满载、每天元气满满的轻松百合故事。",
           "relevant": false
         },
@@ -21,6 +22,7 @@
           "name": "BanG Dream! It's MyGO!!!!!",
           "name_cn": "",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "「能一辈子和我搞乐队吗？」\n\n在高一的春季即将结束之时，羽丘女子学园里人人都在参加乐队活动。\n入学较晚的爱音，也为了尽快融入班级，急忙寻找乐队成员。\n在寻找时，她发现被称为「羽丘的不可思议少女」的灯还没有参加乐队，\n于是爱音不由得向她发出邀",
           "relevant": true
         },
@@ -29,30 +31,16 @@
           "name": "ガールズバンドクライ",
           "name_cn": "少女乐队的呐喊",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "无论是愤怒、喜悦还是悲伤，全都倾注其中。\n高中二年级，从学校退学，只身在东京以大学为目标的主人公。被同伴背叛，不知如何是好的少女。被父母抛弃，一个人在大城市里打工维生的女孩子。\n虽然这个世界总是背叛我们。虽然什么都不能称心如意。但是，因为我",
           "relevant": true
-        },
-        {
-          "entity_id": "subject_216371",
-          "name": "リズと青い鳥",
-          "name_cn": "莉兹与青鸟",
-          "entity_type": "subject",
-          "snippet": "铠塚霙，高中3年级，双簧管演奏者。\n伞木希美，高中3年级，长笛演奏者。\n\n初中时，是希美牵起了霙的手，带领她走出了孤独。\n自那以后，希美就占据了霙的整个世界。\n只有与希美在一起的生活，才令霙感到幸福。\n可在高中一年级，希美一度退出了吹奏部。",
-          "relevant": true
-        },
-        {
-          "entity_id": "subject_14588",
-          "name": "ゆるゆり",
-          "name_cn": "摇曳百合",
-          "entity_type": "subject",
-          "snippet": "在七森中学的校园里，无所事事四人帮——女主角赤座灯里、暴走的岁纳京子、吐糟役的船见结衣，以及在人前会伪装成可爱女孩的吉川千夏，擅自把废了部的茶道社部室据为己用，并且自称地建立了娱乐部。擅自使用课室又引来了学生会的介入，于是各种百合妄想也在作",
-          "relevant": false
         },
         {
           "entity_id": "subject_198098",
           "name": "citrus",
           "name_cn": "citrus～柑橘味香气～",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "虽是辣妹却未经历初恋的女高中生·柚子，由于父母再婚的原因而进入了女子高中。因无法交到男友而不满爆发的转学第一天，她与黑发的美人学生会长·芽衣以最糟糕的形式相遇了。不仅如此，她与成为义理姐妹的芽衣开始在同一个房间里生活……！？\n完全相反的两位",
           "relevant": false
         },
@@ -61,6 +49,7 @@
           "name": "ゆるゆり さん☆ハイ！",
           "name_cn": "摇曳百合 3☆High!",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "",
           "relevant": false
         },
@@ -69,22 +58,34 @@
           "name": "安和すばる",
           "name_cn": "安和昴",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "芸能スクールに通う女の子。有望株として CM に出たりしている。世渡り上手の美少女で愛想も良い。モデルと言われてもおかしくない美貌をほこっているが、中身は気が強く負けず嫌いなお嬢様。",
           "relevant": false
         },
         {
-          "entity_id": "subject_186515",
-          "name": "BanG Dream!",
-          "name_cn": "",
+          "entity_id": "subject_216371",
+          "name": "リズと青い鳥",
+          "name_cn": "莉兹与青鸟",
           "entity_type": "subject",
-          "snippet": "如同幼时仰望星空之际听到的“星之鼓动”一般，一直寻找着闪耀而令人心动的事物的香澄。\n她在高中入学不久后的某一天，对在老旧当铺找到的“星型吉他”\n第一次有了心动的感觉，一直以来封闭的感情开始迸发。\n和她同样寻找着闪耀之地的四名少女也和她走到了",
+          "subject_type": 2,
+          "snippet": "铠塚霙，高中3年级，双簧管演奏者。\n伞木希美，高中3年级，长笛演奏者。\n\n初中时，是希美牵起了霙的手，带领她走出了孤独。\n自那以后，希美就占据了霙的整个世界。\n只有与希美在一起的生活，才令霙感到幸福。\n可在高中一年级，希美一度退出了吹奏部。",
           "relevant": true
+        },
+        {
+          "entity_id": "subject_14588",
+          "name": "ゆるゆり",
+          "name_cn": "摇曳百合",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "在七森中学的校园里，无所事事四人帮——女主角赤座灯里、暴走的岁纳京子、吐糟役的船见结衣，以及在人前会伪装成可爱女孩的吉川千夏，擅自把废了部的茶道社部室据为己用，并且自称地建立了娱乐部。擅自使用课室又引来了学生会的介入，于是各种百合妄想也在作",
+          "relevant": false
         },
         {
           "entity_id": "subject_246429",
           "name": "BanG Dream! 2nd Season",
           "name_cn": "BanG Dream! 第二季",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "",
           "relevant": true
         },
@@ -93,6 +94,7 @@
           "name": "P.A.WORKS",
           "name_cn": "",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "一家日本的动画企划及制作企业。“P.A.”为“Progressive Animation”的缩写，以P.A.WORKS在其作品中表记。\n\n2000年11月10日，龙之子出身、曾担任Production I.G制作人、BeeTrain代表兼制",
           "relevant": false
         },
@@ -101,56 +103,72 @@
           "name": "SHAFT",
           "name_cn": "SHAFT",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "一间企划、制作日本动画的公司。杉并动画振兴协议会会员。\n\n该公司与新房昭之合作的作品风格特异，被称为“SHAFT角度”（シャフ度，又称“新房45度”）的45度侧头动作尤其知名。在历史上最畅销的56部日本电视动画榜中，该公司的作品高踞第2名、",
           "relevant": false
-        },
-        {
-          "entity_id": "subject_207195",
-          "name": "ゆるキャン△",
-          "name_cn": "摇曳露营△",
-          "entity_type": "subject",
-          "snippet": "这是，某个冬日的故事。\n从静冈搬家到山梨的女高中生·抚子，为了观赏“在千圆纸币上都有图案的富士山”而骑着自行车来到本栖湖，但不巧天气是阴天。没能看到富士山，十分疲倦的抚子当场进入了梦乡。当她醒来的时候，时间已是深夜。在这初来乍到的地方，连回",
-          "relevant": false
-        },
-        {
-          "entity_id": "subject_214265",
-          "name": "少女☆歌劇 レヴュースタァライト",
-          "name_cn": "少女☆歌剧 Revue Starlight",
-          "entity_type": "subject",
-          "snippet": "“舞台少女”——以未来的舞台女演员为目标，光芒四溢的少女们。\n某天，她们收到了一封邮件。“请去取得吧你所希望的那颗星”为了摘取闪耀的星星，而聚集于选拔会场的9名舞台少女。\n追求光芒的心意、执着、命运——在舞台上交错。\n现在，正是拉开Revu",
-          "relevant": true
-        },
-        {
-          "entity_id": "subject_7157",
-          "name": "ヨスガノソラ",
-          "name_cn": "缘之空",
-          "entity_type": "subject",
-          "snippet": "远离都市的乡间、奥木染。春日野悠带着他的妹妹·春日野穹来到了这里。\n兄妹俩幼时暑假期间曾来过多次奥木染，这里有着祖父的家，是个令人怀念的地方。\n因为意外事故而失去了双亲与去处的兄妹，决定移居至现在没有人居住的祖父家，在此开始新的生活。\n\n觉",
-          "relevant": false
-        },
-        {
-          "entity_id": "subject_1424",
-          "name": "けいおん！",
-          "name_cn": "轻音少女",
-          "entity_type": "subject",
-          "snippet": "春天，在新生决定社团的时候，田井中律硬拉着青梅竹马的秋山澪参观轻音部让其入部，在得知前辈们毕业后由于人数不足将面临闭部结局，秋山澪与琴吹紬成为了轻音部成员，但离4人指标还差1位名额。这时，一名弄错了部名的少女平泽唯误打误撞之下填补了最后一位",
-          "relevant": true
         },
         {
           "entity_id": "subject_454684",
           "name": "BanG Dream! Ave Mujica",
           "name_cn": "",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "「言ったでしょう？残りの人生、わたくしに下さいと」\n\n豊川祥子がメンバーを招き入れたバンド・Ave Mujicaは、\nライブやメディア露出など、商業的な成功を収めていた。\n\n運命をともにすると誓った仲間も、生まれ育った家も失った少女。\n彼女",
           "relevant": true
+        },
+        {
+          "entity_id": "subject_214265",
+          "name": "少女☆歌劇 レヴュースタァライト",
+          "name_cn": "少女☆歌剧 Revue Starlight",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "“舞台少女”——以未来的舞台女演员为目标，光芒四溢的少女们。\n某天，她们收到了一封邮件。“请去取得吧你所希望的那颗星”为了摘取闪耀的星星，而聚集于选拔会场的9名舞台少女。\n追求光芒的心意、执着、命运——在舞台上交错。\n现在，正是拉开Revu",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_7157",
+          "name": "ヨスガノソラ",
+          "name_cn": "缘之空",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "远离都市的乡间、奥木染。春日野悠带着他的妹妹·春日野穹来到了这里。\n兄妹俩幼时暑假期间曾来过多次奥木染，这里有着祖父的家，是个令人怀念的地方。\n因为意外事故而失去了双亲与去处的兄妹，决定移居至现在没有人居住的祖父家，在此开始新的生活。\n\n觉",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_49294",
+          "name": "ラブライブ!",
+          "name_cn": "Love Live!",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "位于东京都千代田区的传统高校“音乃木阪学院”，因为入读的学生人数骤减，所以正面临着废校的危机。其中九位少女为了保护她们喜爱的学校而决定成为偶像，因为只要她们成为偶像，学校的名气便会増加，而入读学生的人数也会随之上升。就这样，九位个性鲜明的少",
+          "relevant": false
         },
         {
           "entity_id": "subject_12426",
           "name": "映画けいおん！",
           "name_cn": "轻音少女 剧场版",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "唯、澪、律、䌷四人即将高中毕业，决定进行一次毕业旅行。梓听到信息，也决定跟随学姐们一起旅行。她们各自提出自己想要去的目的地，最终通过抽签选中去伦敦的计划。几位女生在为毕业旅行做准备的同时，关于伦敦的想象也在飞驰……",
           "relevant": true
+        },
+        {
+          "entity_id": "subject_413741",
+          "name": "16bitセンセーション ANOTHER LAYER",
+          "name_cn": "16bit的感动 ANOTHER LAYER",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "秋里木叶是个热爱美少女和美少女游戏的画师。\n她梦想成为超人气画师，来到美少女游戏制作公司就职，但现实却并不如意……\n在手机游戏风靡的现代，公司也不景气。\n木叶作为一个底层画师，每天的工作就是给路人角色的背影上色。\n某天，她偶然从游戏商店的老",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_296659",
+          "name": "ラブライブ！虹ヶ咲学園スクールアイドル同好会",
+          "name_cn": "Love Live! 虹咲学园校园偶像同好会",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "位于东京台场，拥有自由校风和多项专科的人气高中「虹咲学园」。对学园偶像的魅力感到心动的普通科2年级高咲侑，和儿时玩伴上原步梦一起敲响了「学园偶像同好会」的门。\n有时作为对手，有时作为同伴，胸怀各自的心意，每天展开活动的成员们。\n「如果能够为",
+          "relevant": false
         }
       ]
     },
@@ -166,6 +184,7 @@
           "name": "無職転生Ⅱ ～異世界行ったら本気だす～ 第2クール",
           "name_cn": "无职转生 第二季 ～到了异世界就拿出真本事～ 第2部分",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "",
           "relevant": true
         },
@@ -174,6 +193,7 @@
           "name": "ルーデウス・グレイラット",
           "name_cn": "鲁迪乌斯·格雷拉特",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "交通事故死した34歳無職童貞引きこもりニートの男が異世界で転生した姿。\n前世の後悔や経験を糧に「今度こそ本気で生きる」ことを決意し、幼少期から魔術を学ぶなど人として成長していく。\n母ゼニスを探す中で冒険者“泥沼”として名を馳せ、ラノア魔法大",
           "relevant": false
         },
@@ -182,6 +202,7 @@
           "name": "無職転生 ～異世界行ったら本気だす～",
           "name_cn": "无职转生～到了异世界就拿出真本事～",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "“我要在这个异世界拿出真本事！”\n34岁童贞且无职的家里蹲男子，在父母的葬礼当天被赶出家门后，在路上被一辆卡车所撞死。意识清醒后，他发现自己居然作为一个刚出生的婴儿转生到了剑与魔法的异世界！像废物一样活过了前世的男子，发誓要作为少年·鲁迪乌",
           "relevant": true
         },
@@ -190,6 +211,7 @@
           "name": "無職転生 ～異世界行ったら本気だす～ 第2クール",
           "name_cn": "无职转生～到了异世界就拿出真本事～ 第2部分",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "「俺は、この異世界で本気だす！」\n34歳・童貞・無職の引きこもりニート男。\n両親の葬儀の日に家を追い出された瞬間、トラックに轢かれ命を落としてしまう。\n目覚めると、なんと剣と魔法の異世界で赤ん坊に生まれ変わっていた！\nゴミクズのように生きて",
           "relevant": true
         },
@@ -198,6 +220,7 @@
           "name": "Re:ゼロから始める異世界生活",
           "name_cn": "Re：从零开始的异世界生活",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "从便利店回来的路上突然被召唤到异世界的少年，菜月昴。在无可依赖的异世界，无力的少年所唯一拥有的力量……那就是死后便会使时间倒转的“死亡回归”的力量。为了守护重要的人，并取回那些无可替代的时间，少年向绝望抗争，挺身面对残酷的命运。",
           "relevant": true
         },
@@ -206,7 +229,26 @@
           "name": "無職転生Ⅱ ～異世界行ったら本気だす～",
           "name_cn": "无职转生 第二季 ～到了异世界就拿出真本事～",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "34岁，没工作又足不出户的男人，某天被家人赶出家门时车祸身亡…没想到下个瞬间就转生到剑与魔法的异世界，名为鲁迪乌斯。带着前世记忆的经验与后悔，他发誓这次一定要拿出真本事活下去。遇见各式各样的人，并勤于锻炼魔术而渐渐成长的鲁迪乌斯，因为遭逢在",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_174043",
+          "name": "この素晴らしい世界に祝福を！2",
+          "name_cn": "为美好的世界献上祝福！ 第二季",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "由于意外事故而在异世界转生，热爱游戏的家里蹲·佐藤和真， 与“在如同RPG游戏一样的异世界，享受憧憬的冒险者生活！目标勇者！” 这样的梦想失之交臂，但也总算是有模有样地开始在异世界生活。 作为转生的特典被他带来同行的女神·阿库娅。每天只能击",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_239816",
+          "name": "転生したらスライムだった件",
+          "name_cn": "关于我转生变成史莱姆这档事",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "史莱姆生活，开始了。\n上班族的三上悟在道路上被歹徒给刺杀身亡后，回过神来发现自己转生到了异世界。\n不过，自己居然是“史莱姆”！\n他在得到利姆露这个名字后开始了自己的史莱姆人生，随着与各个种族相处交流的过程中，他定下了一个目标——那就是“建立",
           "relevant": true
         },
         {
@@ -214,80 +256,90 @@
           "name": "Re:ゼロから始める異世界生活 2nd season 後半クール",
           "name_cn": "Re：从零开始的异世界生活 第二季 后半部分",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "俺が必ず、お前を救ってみせる。\n\n魔女教大罪司教「怠惰」担当ペテルギウス・ロマネコンティを打倒し、エミリアとの再開を果たしたナツキ・スバル。\n辛い決別を乗り越え、ようやく和解した二人だったが、それは新たな波乱の幕開けだった。\n\n想像を超える",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_174043",
-          "name": "この素晴らしい世界に祝福を！2",
-          "name_cn": "为美好的世界献上祝福！ 第二季",
-          "entity_type": "subject",
-          "snippet": "由于意外事故而在异世界转生，热爱游戏的家里蹲·佐藤和真， 与“在如同RPG游戏一样的异世界，享受憧憬的冒险者生活！目标勇者！” 这样的梦想失之交臂，但也总算是有模有样地开始在异世界生活。 作为转生的特典被他带来同行的女神·阿库娅。每天只能击",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_239816",
-          "name": "転生したらスライムだった件",
-          "name_cn": "关于我转生变成史莱姆这档事",
-          "entity_type": "subject",
-          "snippet": "史莱姆生活，开始了。\n上班族的三上悟在道路上被歹徒给刺杀身亡后，回过神来发现自己转生到了异世界。\n不过，自己居然是“史莱姆”！\n他在得到利姆露这个名字后开始了自己的史莱姆人生，随着与各个种族相处交流的过程中，他定下了一个目标——那就是“建立",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_220631",
           "name": "映画 この素晴らしい世界に祝福を！紅伝説",
           "name_cn": "电影 为美好的世界献上祝福！红传说",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "在异世界生活连返乡之旅都是大冒险……！？\n爱打电玩的茧居族‧佐藤和真原本应该因为交通意外（！？）草草结束人生，却出人意料地带着女神‧阿克娅转生到异世界。\n「在有如RPG游戏般的异世界，享受憧憬的冒险家生活！目标是成为勇者！」\n转生后的和真开",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_425998",
-          "name": "Re:ゼロから始める異世界生活 3rd season 襲擊編",
-          "name_cn": "Re：从零开始的异世界生活 第三季 袭击篇",
-          "entity_type": "subject",
-          "snippet": "抵挡艾尔莎等人的猛攻，并在与大兔的战斗中和碧翠丝结下契约解放「圣域」之后，已经过了一年。\n爱蜜莉雅阵营为了即将到来的王选团结一致，菜月昴每天都过得相当充实。这段平稳时光，却因使者送来的一封书信而告终。\n那是王选候补者之一，安娜塔西亚寄给爱蜜",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_278031",
-          "name": "転生したらスライムだった件 第2期",
-          "name_cn": "关于我转生变成史莱姆这档事 第二季",
-          "entity_type": "subject",
-          "snippet": "三上悟過著不起眼的人生，在隨機殺人魔肆虐下結束了三十七年生涯…… 看似如此。當他甦醒時，不僅眼睛看不見，就連耳朵也聽不到…… 面對一連串突發狀況，他意識到自己投胎轉世成「史萊姆」！儘管變成最弱魔物讓他頗有怨言，三上悟還是決定要快樂地過史萊姆",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_252782",
           "name": "蜘蛛ですが、なにか?",
           "name_cn": "转生成蜘蛛又怎样！",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "曾经是一名女高中生的“我”，突然转生变成了幻想世界中的蜘蛛魔物。\n而且，出生地点还是各种凶恶魔物所盘踞的大迷宫。\n“我”以人类的智慧和非同寻常的积极心态为武器，使用蜘蛛的丝网以及陷阱打倒比自己等级高得多的敌人，从而存活下来……\n身为种族链底",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_407573",
           "name": "転生したらスライムだった件 第3期",
           "name_cn": "关于我转生变成史莱姆这档事 第三季",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "利姆路擊敗克雷曼，並正式成為魔王。魔王盛宴（Walpurgis）結束後，利姆路支配的地區已經擴大至整個朱拉大森林。由於已經能預見各種族的代表受此影響將蜂擁而至前來致意，利姆路靈機一動，決定乾脆舉行讓魔王利姆路正式亮相，同時吸引新居民搬入坦派",
-          "relevant": null
+          "relevant": true
         },
         {
-          "entity_id": "subject_320851",
-          "name": "精霊幻想記",
-          "name_cn": "精灵幻想记",
+          "entity_id": "subject_211723",
+          "name": "異世界はスマートフォンとともに。",
+          "name_cn": "带着智能手机闯荡异世界。",
           "entity_type": "subject",
-          "snippet": "前世与现世交错——拥有两份记忆的少年面对命运！\n小时候，母亲被杀而成为孤儿的利欧在贫民窟里艰难地生存。\n有一天，利欧因梦见与青梅竹马的重逢而想起了意外身亡的“天川春人的记忆”，随之觉醒的“强大的魔力”，才让他意识到自己是转生到了剑与魔法的异",
-          "relevant": null
+          "subject_type": 2,
+          "snippet": "由于神的失误而死去的主人公，让自己的第二段人生在异世界展开。\n他所拥有的是被神强化的身体，以及变得在异世界也可使用的智能手机。\n在与各种各样的人们相遇，并获得重要伙伴的过程中，主人公在不知不觉当中得知了这个世界的秘密。\n在继承了古代文明的遗",
+          "relevant": true
         },
         {
-          "entity_id": "subject_393238",
-          "name": "とんでもスキルで異世界放浪メシ",
-          "name_cn": "拥有超常技能的异世界流浪美食家",
+          "entity_id": "subject_101114",
+          "name": "無職転生 ～異世界行ったら本気だす～",
+          "name_cn": "无职转生 ～到了异世界就拿出真本事～",
           "entity_type": "subject",
-          "snippet": "向田刚志从现代日本被召唤到了剑与魔法的异世界。想着会有怎样的大冒险会等着他……结果向田只是个被卷进“勇者召唤”的普通人而已！再加之召唤向田他们的王国实在是太过于恶臭，“啊，这是会利用勇者的那种类型！”如此觉察的向田，决定独自一人逃出王城。如",
-          "relevant": null
+          "subject_type": 1,
+          "snippet": "34岁无职处男的尼特族在身无分文的情况下被赶出家门，发现自己的人生已经走进了完全的绝路。才刚刚感到后悔，他就被卡车撞到，轻易地失去了生命。接下来当他醒来时──居然来到剑与魔法的异世界！ \n\n“这次一定要认真地活下去……” \n\n重生为名叫鲁迪",
+          "relevant": true
+        },
+        {
+          "entity_id": "character_46464",
+          "name": "エリス・グレイラット",
+          "name_cn": "艾莉丝·格雷拉特",
+          "entity_type": "character",
+          "subject_type": null,
+          "snippet": "アスラ王国の上級貴族ボレアス・グレイラット家の令嬢。ウェーブのかかった真紅の髪が特徴。\n狂犬と称されるほどの凶暴な性格で、剣術の高い才能がある。",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_278826",
+          "name": "Re:ゼロから始める異世界生活 2nd season",
+          "name_cn": "Re：从零开始的异世界生活 第二季",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "我一定会拯救你的。\n打倒了担任「怠惰」的魔女教大罪司教，贝特鲁吉乌斯·罗曼尼康帝后，菜月昴和爱蜜莉雅又再度相遇了。在跨越了痛苦的诀别，两人终于和解，而新的篇章却又开始了。\n超乎想象九死一生的危机，以及冷酷无情的现实。少年将再次起身，面对残酷",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_395714",
+          "name": "転生王女と天才令嬢の魔法革命",
+          "name_cn": "转生公主与天才千金的魔法革命",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "转生至魔法理所当然存在的世界，并在童年时重拾前世记忆的公主「艾妮丝菲亚」，梦想是用魔法翱翔于天际这件史无前例又缺乏常识的事。然而，却不知道为何无法使用魔法而遭贵族鄙视，但却建立了独特的魔法理论并一直独自研究魔法。在某个机缘巧合下，艾妮丝菲亚",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_377607",
+          "name": "神無き世界のカミサマ活動",
+          "name_cn": "无神世界的神明活动",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "卜部征人的父亲是一个怪异团体的教祖，他在父亲安排的严酷修行中不幸丧命，竟然转生到了异世界！这个没有“神”也没有“宗教”概念的异世界，对征人而言堪称理想世界！然而……为了保护在这里一起生活的居民，征人却不得不在这个没有神的异世界建立“宗教”？",
+          "relevant": true
         }
       ]
     },
@@ -303,120 +355,153 @@
           "name": "フルメタル・パニック!",
           "name_cn": "全金属狂潮",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "在20世纪，世界格局比较稳定的时候，各大国都想增强自己的军事力量，从而称霸世界。而Whisper[耳语者]这种特殊的人类，自从出生开始就拥有特殊的能力，不用学习也能知道超越当时科技几十年的被称为黑科技的高科技手段。为了保护世界格局的稳定，神",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_324",
           "name": "攻殻機動隊 STAND ALONE COMPLEX",
           "name_cn": "攻壳机动队 STAND ALONE COMPLEX",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "公元2030的世界，改造人、生化人、机器人等等的存在已经非常普及。主人公草薙素子正是人类最高科技的结晶：只有大脑是人脑，其余身体部分皆为机械装置，外表看起来则是一名美貌兼干练的年轻女性。在这个高科技的世界里，人类通过更换身体的各个部件而达到",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_238",
           "name": "イノセンス",
           "name_cn": "攻壳机动队2 无罪",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "故事发生在不远的将来，那时科学技术相当发达，出现了纳米机械和生物电脑，Cyborg义体开始全面普及，整个世界由光和电子连接，人脑也可以直接联入网络。\n主人公是专门打击恐怖犯罪的政府直属机关公安九课的刑警巴特。巴特其实也是一个机械化了的人类，",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_243429",
           "name": "機動戦士ガンダム 閃光のハサウェイ",
           "name_cn": "机动战士高达 闪光的哈萨维",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "第二次新吉翁战争（夏亚之乱）12年后。\nU.C.0105——。地球联邦政府的腐败加剧了地球污染，甚至还推行了被称为“人类狩猎”的非人道政策，强制将平民遣送至宇宙。\n一个名为“马夫蒂”的反地球联邦政府组织，以暗杀联邦政府阁僚的激烈手段展开了抵",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_769",
           "name": "トップをねらえ!",
           "name_cn": "飞跃巅峰！",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "21世纪人类开始开发宇宙。但是宇宙生物群(通称宇宙怪兽, STMC)，一种以恒星作载体繁殖的生物来袭，使人类文明受到重大威胁。\n 为了对抗宇宙怪兽，机械人兵器和宇宙战舰持续开发中，由地球上的机械人训练学校找出优胜的驾驶员控制。\n 2015年",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_309311",
-          "name": "Cyberpunk: Edgerunners",
-          "name_cn": "赛博浪客",
-          "entity_type": "subject",
-          "snippet": "《赛博朋克：浪客》是与《赛博朋克2077》共享同一世界观的原创动画项目，为一部十集的独立故事剧集，讲述了一名街头小子尝试在技术高度繁荣、人体改造盛行的未来城市中挣扎求生的故事。冒着失去一切的风险，他选择成为一名浪客 —— 游走于法外的雇佣兵",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_18635",
-          "name": "ギルティクラウン",
-          "name_cn": "罪恶王冠",
-          "entity_type": "subject",
-          "snippet": "时间是2039年，在10年前突然爆发的“末日病毒”使日本陷入无政府的混乱状态，被跨国组织GHQ武力介入并统治。在日后被称为“失落圣诞”（Lost X'mas）的此次事件之后，日本丧失了独立主权，仅剩形式上的自治权，人们得以享受暂时的和平。\n",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_302189",
           "name": "86―エイティシックス―",
           "name_cn": "86 -不存在的战区-",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "为了应对吉亚迪所开发出的完全独立无人战斗兵器“军团”的入侵，其邻国圣格诺利亚共和国开发了无人战斗兵器毁灭之力。但是，无人战斗机只是空有名号，实际是没有被认可为”人“的人们——86——驾驶，被当作道具来使用。\n由”86“所组成的部队“先锋战队",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_331887",
-          "name": "86―エイティシックス― 第2クール",
-          "name_cn": "86 -不存在的战区- 第2部分",
-          "entity_type": "subject",
-          "snippet": "東部戦線第一戦区第一防衛戦隊、通称スピアヘッド戦隊。\nサンマグノリア共和国から“排除”された〈エイティシックス〉の少年少女たちで構成された彼らは、ギア－デ帝国が投入した無人兵器〈レギオン〉との過酷な戦いに身を投じていた。\nそして次々と数を減",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_237",
           "name": "GHOST IN THE SHELL / 攻殻機動隊",
           "name_cn": "攻壳机动队",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "2029年，公安九课在市容很像香港的日本城市“新港市”中执行各种秘密任务。九课因为不顾正当程序的自作主张、强硬行事，往往与政府其他部门起冲突，例如负责外交的公安六课就与九课不合。另一方面，九课之中的重要人物，全身是义体的机械生化人草薙素子，",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_326",
           "name": "攻殻機動隊 S.A.C. 2nd GIG",
           "name_cn": "攻壳机动队 S.A.C. 2nd GIG",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "这个世界距离我们并不遥远，你把它看作是现代社会的镜子亦为不可。\n也许：无论人类怎样发展，人性是不会改变的，即使容纳这渺小人性的外壳换作了机器身体亦是一样。\n无论怎样，在一个充斥着改装身体的社会里，人类的欲望得以被延续且发扬光大，由此相关的犯",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_349441",
-          "name": "機動戦士ガンダム 水星の魔女",
-          "name_cn": "机动战士高达 水星的魔女",
-          "entity_type": "subject",
-          "snippet": "星元122年――\n\n在众多企业扩展到宇宙并构筑巨大经济圈的时代，\n有一名少女自边境地区·水星转来MS产业的最大企业“贝纳里特集团”旗下所经营的“阿斯提卡西亚高等专门学园”。\n\n她名为苏莱塔·墨丘利。\n内心纯真的少女随着胸口鲜红的闪烁亮光逐步",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_218713",
           "name": "プロメア",
           "name_cn": "普罗米亚",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "世界大燃烧——全世界的一半化为了焦土。引发了这未曾有过的事态的是，突然变异而诞生的能够操纵火焰的人种“燃烧者”的出现。\n在那之后过去了30年——有着攻击性的一部分自称“疯狂燃烧者”的燃烧者，再度对世界发动了攻击。\n专门对应燃烧者之特殊火焰的",
-          "relevant": null
+          "relevant": true
         },
         {
-          "entity_id": "subject_202419",
-          "name": "Re:CREATORS",
-          "name_cn": "Re：创世主们",
+          "entity_id": "subject_286",
+          "name": "機動戦士ガンダム00",
+          "name_cn": "机动战士高达00",
           "entity_type": "subject",
-          "snippet": "人类创作了许许多多的故事。\n喜悦、悲伤、愤怒、感动。这些引人入胜的故事撼动着人们的心灵。\n但是，那些不过是作为旁观者的感想罢了。\n如果，故事中的登场人物们拥有了“意志”。那么对于他们来说，创作出故事的我们，是神一般的存在吗？\n\n——在我等的",
-          "relevant": null
+          "subject_type": 2,
+          "snippet": "在西历2307年，虽然化石燃料枯竭了，但是人类得到了截然不同的新型能源。三台巨大的轨道升降机以及伴随它们的大规模的太阳光发电系统。但是能得到这个系统恩惠的，只有一部分大国和其同盟国而已。\n拥有三台轨道升降机的三个超大国群分别是，以美利坚合众",
+          "relevant": true
         },
         {
-          "entity_id": "subject_390980",
-          "name": "シャングリラ・フロンティア～クソゲーハンター、神ゲーに挑まんとす～",
-          "name_cn": "香格里拉边境",
+          "entity_id": "subject_403238",
+          "name": "機動戦士ガンダム 水星の魔女 Season2",
+          "name_cn": "机动战士高达 水星的魔女 第二季",
           "entity_type": "subject",
-          "snippet": "你是为了什么而玩游戏的？\n如果世上有100部神作，那么也存在着1000部粪作。这是喜爱粪作，同时也被粪作所爱的男人“阳务乐郎”，向粪作的对立面——神作「香格里拉边境」发起挑战的故事。\n原作网络小说的总阅览数超过5亿，并少见的跳过书籍出版直接",
-          "relevant": null
+          "subject_type": 2,
+          "snippet": "A.S. 122年――\n这是许多企业进出宇宙，建构起巨大经济圈的时代。\n从水星转学到阿斯提卡西亚高等专门学园的斯莱塔·墨丘利，\n作为米奥莉奈的新郎，作为股份有限公司高达的一员，度过了充满邂逅与刺激的学园生活。\n\n自奎达工厂发生的事件至今已过",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_526448",
+          "name": "グノーシア",
+          "name_cn": "古诺希亚",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "故事发生在一艘漂流的太空船上。由于一种“会伪装成人类来袭击人类的未知敌人”——「古诺希亚」混入船内，互相猜疑的乘员们决定每天投票选出一名可疑人物，让其进入冷冻睡眠。\n如果能让所有古诺希亚全部进入冷冻睡眠则人类获胜。反之，若无法找出古诺希亚，",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_111097",
+          "name": "Big Hero 6",
+          "name_cn": "超能陆战队",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "影片故事设定在一个融合东西方文化（旧金山+东京）的虚构大都市旧京山（SanFransokyo）中，一位精通机器人技术的小神童滨田广（Hiro Hamada）发现，这座充斥高新技术的城市正遭遇着一场犯罪危机，为了拆穿阴谋拯救家园，他将携伙伴机",
+          "relevant": false
+        },
+        {
+          "entity_id": "character_273",
+          "name": "アルトリア・ペンドラゴン",
+          "name_cn": "阿尔托莉雅·潘德拉贡",
+          "entity_type": "character",
+          "subject_type": null,
+          "snippet": "Fate/stay night\n被卫宫士郎召唤的英灵。作为三骑士之一的Saber，以「最优秀的剑之骑士」闻名。她曾在第四次圣杯战争中被召唤，当时士郎的养父——卫宫切嗣是她的Master。\n她的真实身份是英格兰传说中的英雄——亚瑟王。从石中拔",
+          "relevant": false
+        },
+        {
+          "entity_id": "person_1286",
+          "name": "Production I.G",
+          "name_cn": "Production I.G",
+          "entity_type": "person",
+          "subject_type": null,
+          "snippet": "日本的一家动画制作公司，成立于1987年12月6日。英文字“I.G”分别取自首任社长石川光久和首任副社长兼原画师后藤隆幸的日文罗马拼音开头“I”和“G”作命名。Production I.G便是在他们两人共同出资之下而创立，创立初期名称为IG",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_309311",
+          "name": "Cyberpunk: Edgerunners",
+          "name_cn": "赛博浪客",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "《赛博朋克：浪客》是与《赛博朋克2077》共享同一世界观的原创动画项目，为一部十集的独立故事剧集，讲述了一名街头小子尝试在技术高度繁荣、人体改造盛行的未来城市中挣扎求生的故事。冒着失去一切的风险，他选择成为一名浪客 —— 游走于法外的雇佣兵",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_18635",
+          "name": "ギルティクラウン",
+          "name_cn": "罪恶王冠",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "时间是2039年，在10年前突然爆发的“末日病毒”使日本陷入无政府的混乱状态，被跨国组织GHQ武力介入并统治。在日后被称为“失落圣诞”（Lost X'mas）的此次事件之后，日本丧失了独立主权，仅剩形式上的自治权，人们得以享受暂时的和平。\n",
+          "relevant": false
         }
       ]
     },
@@ -432,136 +517,162 @@
           "name": "虚構推理 Season2",
           "name_cn": "虚构推理 第二季",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "被称为“鬼怪”的生物，如理所当然般真实存在于世。\n少女岩永琴子作为鬼怪们的“智慧之神”，今天也有鬼怪找她排忧解难。琴子身边有一名连鬼怪都畏惧不已的男子，那就是她一见钟情的恋人，名叫樱川九郎。\n本片讲述这两个不普通的人齐心协力，使用【虚构】解",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_1773",
-          "name": "DEATH NOTE",
-          "name_cn": "死亡笔记",
-          "entity_type": "subject",
-          "snippet": "高三生夜神月意外捡到一本名《DEATH NOTE》的笔记本，并且发现只要写下想要杀死的人的名字，就会变成现实。\n月开始利用死亡笔记制裁那些他认为该死的人。接着，笔记的原主人：死神也以旁观者的姿态出现在月面前。\n另一方面越来越多的罪犯离奇死亡",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_425591",
-          "name": "アンデッドガール・マーダーファルス",
-          "name_cn": "不死少女 杀人笑剧",
-          "entity_type": "subject",
-          "snippet": "吸血鬼及人造人、怪盗、狼人、开膛手，还有名侦探。异形蠢动的十九世纪末欧洲，人类亲和派的吸血鬼遭到银桩贯穿虐杀死亡。找来解决此案的，是专门处理人类避之唯恐不及的「怪物案件」的专门侦探轮堂鸦夜，以及带着奇怪鸟笼的男人真打津轻。他们从留存的线索和",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_1671",
-          "name": "化物語",
-          "name_cn": "化物语",
-          "entity_type": "subject",
-          "snippet": "所谓怪异——是因为世界上没有那种东西的存在。\n与生物有所不同——但与世界紧紧相连。\n故事主人公阿良良木历，因为知道了同班同学战场原的某个“秘密”，从此被卷入一连串的怪异事件中……。",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_271687",
-          "name": "虚構推理",
-          "name_cn": "虚构推理",
-          "entity_type": "subject",
-          "snippet": "成为“怪异”们的智慧之神，每天都在解决着“怪异”们带来的麻烦的少女·岩永琴子，她一见钟情的对象·樱川九郎，是个让“怪异”都感到畏惧的男人！？\n这样毫不普通的两人，迎战“怪异”们引发的神秘事件的［恋爱×传奇×推理］！！\n两人所面临的诡异事件，",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_9774",
-          "name": "これはゾンビですか?",
-          "name_cn": "这个是僵尸吗？",
-          "entity_type": "subject",
-          "snippet": "平凡的高中生相川步，在莫名其妙的因缘下被卷入震惊社会的连环杀人案身亡，但他竟然死而复生了。原来在事件发生之前与步偶然邂逅的死灵法师“优”，将他变成了不死身而复活。再加上来自魔法世界的少女战士春奈，与另一个吸血忍者少女瑟拉芬，甚至演变成步跟她",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_100443",
-          "name": "残響のテロル",
-          "name_cn": "东京残响",
-          "entity_type": "subject",
-          "snippet": "某个平凡的夏日。\n突然，东京遭到了大规模炸弹恐怖袭击。\n这个导致日本从平稳的睡梦中惊醒的事件的犯人，仅仅是两个少年。\n自称为“斯芬克斯”的犯人们，将把全日本卷中一场壮大的游戏。",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_5653",
-          "name": "屍鬼",
-          "name_cn": "尸鬼",
-          "entity_type": "subject",
-          "snippet": "外场村是一个几乎与外界隔绝的村落，虽然距离大城市只有一小时的车程，但是很少与外界接触。这里的村民一直以来都保留着土葬和其他古老的传统习俗。\n于八月份晚，村民举行送虫祭的晚上，村民发现一辆神秘的搬运公司货车正驶入村子。不久村民发现住在山入的三",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_141530",
-          "name": "Rick and Morty Season 2",
-          "name_cn": "瑞克和莫蒂 第二季",
-          "entity_type": "subject",
-          "snippet": "疯子科学家Rick Sanchez在失踪20年之后突然回到女儿Beth的生活中，并且在她的车库中开了一个商店。更糟的是，Rick总是将他的孙子Morty和孙女Summer「拖」进他的疯狂实验。每当他发明一个充满科幻色彩的小玩意之后，Mort",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_325727",
           "name": "探偵はもう、死んでいる。",
           "name_cn": "侦探已经死了。",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "“你来做我的助手吧。”\n有着被卷入事件体质的少年・君冢君彦，在高空一万米的飞机中成为了自称是侦探的天使般的美丽少女・希耶丝塔的助手。两个人为了同世界各地的敌人战斗，三年来在世界各地飞来飞去，展开了令人目眩的冒险旅程。——不久之后，侦探就去世",
-          "relevant": null
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_1773",
+          "name": "DEATH NOTE",
+          "name_cn": "死亡笔记",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "高三生夜神月意外捡到一本名《DEATH NOTE》的笔记本，并且发现只要写下想要杀死的人的名字，就会变成现实。\n月开始利用死亡笔记制裁那些他认为该死的人。接着，笔记的原主人：死神也以旁观者的姿态出现在月面前。\n另一方面越来越多的罪犯离奇死亡",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_1671",
+          "name": "化物語",
+          "name_cn": "化物语",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "所谓怪异——是因为世界上没有那种东西的存在。\n与生物有所不同——但与世界紧紧相连。\n故事主人公阿良良木历，因为知道了同班同学战场原的某个“秘密”，从此被卷入一连串的怪异事件中……。",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_271687",
+          "name": "虚構推理",
+          "name_cn": "虚构推理",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "成为“怪异”们的智慧之神，每天都在解决着“怪异”们带来的麻烦的少女·岩永琴子，她一见钟情的对象·樱川九郎，是个让“怪异”都感到畏惧的男人！？\n这样毫不普通的两人，迎战“怪异”们引发的神秘事件的［恋爱×传奇×推理］！！\n两人所面临的诡异事件，",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_9774",
+          "name": "これはゾンビですか?",
+          "name_cn": "这个是僵尸吗？",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "平凡的高中生相川步，在莫名其妙的因缘下被卷入震惊社会的连环杀人案身亡，但他竟然死而复生了。原来在事件发生之前与步偶然邂逅的死灵法师“优”，将他变成了不死身而复活。再加上来自魔法世界的少女战士春奈，与另一个吸血忍者少女瑟拉芬，甚至演变成步跟她",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_100443",
+          "name": "残響のテロル",
+          "name_cn": "东京残响",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "某个平凡的夏日。\n突然，东京遭到了大规模炸弹恐怖袭击。\n这个导致日本从平稳的睡梦中惊醒的事件的犯人，仅仅是两个少年。\n自称为“斯芬克斯”的犯人们，将把全日本卷中一场壮大的游戏。",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_425591",
+          "name": "アンデッドガール・マーダーファルス",
+          "name_cn": "不死少女 杀人笑剧",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "吸血鬼及人造人、怪盗、狼人、开膛手，还有名侦探。异形蠢动的十九世纪末欧洲，人类亲和派的吸血鬼遭到银桩贯穿虐杀死亡。找来解决此案的，是专门处理人类避之唯恐不及的「怪物案件」的专门侦探轮堂鸦夜，以及带着奇怪鸟笼的男人真打津轻。他们从留存的线索和",
+          "relevant": true
         },
         {
           "entity_id": "subject_6686",
           "name": "白夜行",
           "name_cn": "白夜行",
           "entity_type": "subject",
+          "subject_type": 1,
           "snippet": "1973年10月，大阪某座大樓中發生一件命案，52歲的當鋪老闆桐原洋介被人以利器刺死。一個月後，隨着兩位主要嫌疑人寺崎忠夫因車禍喪生，西本文代因煤氣意外死亡，案件不了了之。自此之後，被害人之子桐原亮司和嫌疑人之女唐澤雪穂走上了各自的人生道路",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_3389",
-          "name": "容疑者Xの献身",
-          "name_cn": "嫌疑犯X的献身",
-          "entity_type": "subject",
-          "snippet": "“究竟爱一个人，可以爱到什么地步？\n\n究竟什么样的邂逅，可以舍命不悔？\n\n逻辑的尽头，不是理性与秩序的理想国，\n\n而是我用生命奉献的爱情。”\n\n“拟一个无法解答的问题，和解答那个问题，何者比较困难，不过答案绝对存在。怎样，你不觉得很有意思吗",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "character_71479",
           "name": "アーニャ・フォージャー",
           "name_cn": "阿尼亚·福杰",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "とある組織の実験で偶然生み出された他人の心を読める超能力者。孤児院にいたところ、ロイドに引き取られる。超能力については周囲に秘密にしているが、ロイドがスパイであることに気づき、陰ながら彼の力になろうと奮闘している。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_71478",
           "name": "ヨル・フォージャー",
           "name_cn": "约尔·福杰",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "バーリント市役所の女性職員。裏の顔は凄腕の殺し屋。27歳。\n同じく公務員で歳の離れた弟のユーリがいる。幼い頃に両親を亡くし、弟を養うために殺し屋「いばら姫」として生活してきた。「店長」なる人物から指示を受けて暗殺を行う。黄昏をも凌ぐ高い身体",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_386809",
-          "name": "【推しの子】",
-          "name_cn": "【我推的孩子】",
-          "entity_type": "subject",
-          "snippet": "“在演艺圈里，谎言就是武器。 ”\n在小城市工作的妇产科医生・五郎，有一天他所推的偶像“B小町”出现在了他的面前。“B小町”有着一个禁忌的秘密。\n如此这般的两人实现了最糟糕的相遇，从此命运的齿轮开始转动——",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_285776",
           "name": "ID:INVADED イド：インヴェイデッド",
           "name_cn": "异度侵入",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "利用检测杀意的系统“罔象女”搜查犯罪事件的组织，通称“仓”。\n然后，神探·酒井户身为“罔象女”的驾驶员进入犯人的深层心理“杀意世界（井）”，对事件进行推理。\n他不断追寻着频繁发生、谜团重重的凶恶事件，以及在其中若隐若现的连续杀人鬼制造者“约",
-          "relevant": null
+          "relevant": true
         },
         {
-          "entity_id": "subject_404804",
-          "name": "天国大魔境",
-          "name_cn": "天国大魔境",
+          "entity_id": "subject_20851",
+          "name": "Another",
+          "name_cn": "",
           "entity_type": "subject",
-          "snippet": "2024年，世界发生了史无前例的灾难，然后15年过去了。\n成为废墟的日本栖息着一种食人的怪物（蛭子），人们艰难地生存着。\n在东京·中野经营万事屋的的斩子接受了一个神秘女人的委托，“带这个孩子去天国”。\n这个被留下的名叫真流的孩子说“天国好像",
-          "relevant": null
+          "subject_type": 2,
+          "snippet": "26年前夜见山北中学的三年三班里，曾经有一位名叫「misaki」的学生。她不仅是位运动天才还是个优等生，个性平易近人广受众人喜爱的她却在某日突然猝死，极度悲伤的同班同学们无法接受这件事实，众人决定到毕业之前仍想像见崎还活著般度过每一天。因此",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_899",
+          "name": "名探偵コナン",
+          "name_cn": "名侦探柯南",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "主角工藤新一原本是一位颇具名声的高中生侦探，在目击黑暗组织的地下交易后，正准备追踪时却被突袭击昏，并被灌下代号为“APTX4869”（アポトキシン4869）的不明药物。后来虽然幸免于死，但身体就此缩小为小学时期的模样。之后他化名为江户川柯南",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_204027",
+          "name": "斉木楠雄のΨ難 第2期",
+          "name_cn": "齐木楠雄的灾难 第二季",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_839",
+          "name": "PERFECT BLUE",
+          "name_cn": "蓝色恐惧",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "雾越未麻是流行音乐偶像团体“CHAM!”中的成员之一，但是在公司的决策下，她开始转型为演员。但她却感觉内心有个声音在拒绝自己的选择，而未麻的一些歌迷也反对这个决定。随着越来越多电视剧的演出，未麻却觉得自己的头脑越来越奇怪，仿佛有“另一个自己",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_3423",
+          "name": "劇場版 空の境界 第七章 殺人考察(後)",
+          "name_cn": "剧场版 空之境界 第七章 杀人考察（后）",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "1999年2月，杀人鬼回来了！\n 1995年在日本发生的连续猎奇杀人事件，因嫌疑人遇到车祸住院而草草结案。如今疯狂的犯罪再次出现，恐怖的气氛来袭，原嫌疑人的嫌疑被洗清，到底谁才是这一系列事件的凶手？\n 解决都市不可思议事件的伽蓝堂的成员开始",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_5653",
+          "name": "屍鬼",
+          "name_cn": "尸鬼",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "外场村是一个几乎与外界隔绝的村落，虽然距离大城市只有一小时的车程，但是很少与外界接触。这里的村民一直以来都保留着土葬和其他古老的传统习俗。\n于八月份晚，村民举行送虫祭的晚上，村民发现一辆神秘的搬运公司货车正驶入村子。不久村民发现住在山入的三",
+          "relevant": false
         }
       ]
     },
@@ -577,152 +688,180 @@
           "name": "保登心愛",
           "name_cn": "保登心爱",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "本作品的主角，15岁高一生，橘色短发，头上戴着花朵造型的发饰，就读高中时搬到木造房屋与石板路的小镇，在偶然的机会之下到Rabbit House寄宿。当初由于她无法辨识咖啡的味道与香气，因此与咖啡店有疏离感，不过后来来到Rabbit Hous",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_41488",
           "name": "さくら荘のペットな彼女",
           "name_cn": "樱花庄的宠物女孩",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "就读水明艺术大学附属高中的神田空太，一年级夏天时在宿舍养猫，而被校长叫去问话，并要他把猫赶走，不然就搬出宿舍。身为爱猫一族的空太，企图反抗权威，结果被撵出宿舍，流落到恶名昭彰的“樱花庄”。 隔年春天，随着世界级天才画家椎名真白搬进了樱花庄，",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_36261",
           "name": "おやすみプンプン",
           "name_cn": "晚安，布布",
           "entity_type": "subject",
+          "subject_type": 1,
           "snippet": "父亲失踪、母亲住院。孤单一人的少年，他的名字叫做「布布」。这是某个城镇的某个平凡少年之成长故事？？他并不是涂鸦，布布只是个随处可见，平凡至极的男孩子。全新表现手法描绘的本作，将带给您前所未有的惊艳！！无可比拟、令人震撼之写实×超现实的悲喜剧",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_6207",
           "name": "入間人間",
           "name_cn": "入间人间",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "入间人间，日本轻小说作家，出身于岐阜县。\n\n以进入第十三届电撃小说大赏最终选考会的作品《说谎的男孩与坏掉的女孩》出道成为小说家。当时投稿的原题为“幸福的背景是不幸”，后来成为小说第一册副标题。\n\n接受采访时提到，作品的风格式受到西尾维新、乙",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_127794",
           "name": "椎名立希",
           "name_cn": "椎名立希",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "花咲川女子学園の高校1年生。ひとりでいることが好きな一匹狼。ライブハウス『RiNG』のスタッフとしてアルバイトをしているが、接客は苦手。燈に甘い。4つ上の姉がいる。\n\n同时也负责作曲，在拿到灯的歌词以后，创作出切合她世界观的歌曲。\n觉得灯的",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_9717",
           "name": "魔法少女まどか☆マギカ",
           "name_cn": "魔法少女小圆",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "大好きな家族がいて、親友がいて、時には笑い、時には泣く、そんなどこにでもある日常。\n見滝原中学校に通う、普通の中学二年生・鹿目まどかも、そんな日常の中で暮らす一人。\nある日、彼女に不思議な出会いが訪れる。\nこの出会いは偶然なのか、必然なのか",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_207195",
           "name": "ゆるキャン△",
           "name_cn": "摇曳露营△",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "这是，某个冬日的故事。\n从静冈搬家到山梨的女高中生·抚子，为了观赏“在千圆纸币上都有图案的富士山”而骑着自行车来到本栖湖，但不巧天气是阴天。没能看到富士山，十分疲倦的抚子当场进入了梦乡。当她醒来的时候，时间已是深夜。在这初来乍到的地方，连回",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_234",
-          "name": "AIR",
-          "name_cn": "",
-          "entity_type": "subject",
-          "snippet": "我的孩子，仔细听好\n接下来我说的，是一件非常重要的事\n已经忘了从何时开始\n由上代讲给下代，代代传下来的故事\n一个关于长久的旅程的故事……\n\n夏天，在靠近海边小小的街道上\n一位青年从公共汽车站下车了\n青年一直在旅行中\n这样的小镇他无心久留\n在",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_78405",
-          "name": "のんのんびより",
-          "name_cn": "悠哉日常大王",
-          "entity_type": "subject",
-          "snippet": "作品舞台是一个挂著“牛经过注意”的看板，公车不等上5个小时不会来的乡下农村，而主角一条萤因父亲工作调职的关系从东京迁居此地，故事即是描写萤与越谷姐妹及宫内姐妹渡过的日常光景。",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_123568",
-          "name": "ご注文はうさぎですか？？",
-          "name_cn": "请问您今天要来点兔子吗？？",
-          "entity_type": "subject",
-          "snippet": "道に迷って喫茶ラビットハウスにやってきたココア。\n実は、そこが彼女が住み込むことになっていた喫茶店で…。\nちっちゃくてクールなチノ、軍人気質なリゼ、おっとり和風な千夜、気品あふれる庶民派のシャロと全方位的なかわいさの登場人物に、チノの同級生",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_13603",
-          "name": "罗小黑战记",
-          "name_cn": "罗小黑战记",
-          "entity_type": "subject",
-          "snippet": "这是讲述一个少女养猫的平淡故事。\n号称耗资三千元打造的中国动画癫疯之作。\n故事主要讲述一个少女养猫而发生的种种离奇事件，整个作品画面风格很“中国式”。故事情节搞笑！目前正在连载中。",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_847",
-          "name": "ハチミツとクローバー",
-          "name_cn": "蜂蜜与四叶草",
-          "entity_type": "subject",
-          "snippet": "美大学生竹本、真山、森田在破旧不堪的公寓中过着贫困而快乐的生活。\n有一天，花本老师向3人介绍了他堂兄弟的女儿——小巧、惹人爱怜的插班生花本叶久美。\n看到天真烂漫的叶久美，竹本和森田在一瞬间坠入情网。\n单纯得令周围人不耐烦、迟钝的竹本，以及用",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_7883",
-          "name": "それでも町は廻っている",
-          "name_cn": "即使如此小镇依然转动",
-          "entity_type": "subject",
-          "snippet": "女高中生岚山步鸟，在丸子商店街的咖啡厅SEASIDE的做兼职服务生。有一天，店长宣告为了咖啡厅的繁盛要构想新策略。于是，最终敲定把咖啡厅改造成时下流行的女仆咖啡厅。但是，店里的相关人员没人了解女仆咖啡厅，最后就只让服务员换上女仆装就宣布重新",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_10787",
-          "name": "それでも町は廻っている",
-          "name_cn": "女仆咖啡厅",
-          "entity_type": "subject",
-          "snippet": "岚山步鸟是一名住在丸子镇的女高中生，同时在商店街的咖啡厅“SEASIDE”打工。这咖啡厅特别的地方在于服务员都穿女仆装，成为店长心目中全国流行、充满卖点的女仆咖啡厅。个性迷糊的步鸟，以及身边形形色色的人们，天天都上演着笑料不断的故事。在不同",
-          "relevant": null
-        },
-        {
-          "entity_id": "character_4",
-          "name": "古河渚",
-          "name_cn": "古河渚",
-          "entity_type": "character",
-          "snippet": "就读某高中的3年B班，比朋也大一岁，因为久病重读一年，对于将面对新的环境而在往校门前的坡道上不敢前行，也因此和朋也相遇并熟识。\n家里开面包店，有个直爽的父亲和温柔的母亲。\n个性认真温柔，缺乏自信，不过有时却意外的顽固。\n十分喜欢演戏，可是却",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_165829",
           "name": "坂本ですが？",
           "name_cn": "在下坂本，有何贵干？",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "酷、很酷、最最酷的高中生登场了！\n本故事是某个很酷，不，是最酷的高中生坂本的校园生活的集锦。\n刚入学不久，就出现一位被全班，不是被全校瞩目的学生。\n他名为坂本。\n一旦与他扯上关系，普通的反复横跳就会升级为秘技“Repetition Side",
-          "relevant": null
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_78405",
+          "name": "のんのんびより",
+          "name_cn": "悠哉日常大王",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "作品舞台是一个挂著“牛经过注意”的看板，公车不等上5个小时不会来的乡下农村，而主角一条萤因父亲工作调职的关系从东京迁居此地，故事即是描写萤与越谷姐妹及宫内姐妹渡过的日常光景。",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_123568",
+          "name": "ご注文はうさぎですか？？",
+          "name_cn": "请问您今天要来点兔子吗？？",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "道に迷って喫茶ラビットハウスにやってきたココア。\n実は、そこが彼女が住み込むことになっていた喫茶店で…。\nちっちゃくてクールなチノ、軍人気質なリゼ、おっとり和風な千夜、気品あふれる庶民派のシャロと全方位的なかわいさの登場人物に、チノの同級生",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_13603",
+          "name": "罗小黑战记",
+          "name_cn": "罗小黑战记",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "这是讲述一个少女养猫的平淡故事。\n号称耗资三千元打造的中国动画癫疯之作。\n故事主要讲述一个少女养猫而发生的种种离奇事件，整个作品画面风格很“中国式”。故事情节搞笑！目前正在连载中。",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_847",
+          "name": "ハチミツとクローバー",
+          "name_cn": "蜂蜜与四叶草",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "美大学生竹本、真山、森田在破旧不堪的公寓中过着贫困而快乐的生活。\n有一天，花本老师向3人介绍了他堂兄弟的女儿——小巧、惹人爱怜的插班生花本叶久美。\n看到天真烂漫的叶久美，竹本和森田在一瞬间坠入情网。\n单纯得令周围人不耐烦、迟钝的竹本，以及用",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_10787",
+          "name": "それでも町は廻っている",
+          "name_cn": "即使如此小镇依然转动",
+          "entity_type": "subject",
+          "subject_type": 1,
+          "snippet": "岚山步鸟是一名住在丸子镇的女高中生，同时在商店街的咖啡厅“SEASIDE”打工。这咖啡厅特别的地方在于服务员都穿女仆装，成为店长心目中全国流行、充满卖点的女仆咖啡厅。个性迷糊的步鸟，以及身边形形色色的人们，天天都上演着笑料不断的故事。在不同",
+          "relevant": true
+        },
+        {
+          "entity_id": "character_4",
+          "name": "古河渚",
+          "name_cn": "古河渚",
+          "entity_type": "character",
+          "subject_type": null,
+          "snippet": "就读某高中的3年B班，比朋也大一岁，因为久病重读一年，对于将面对新的环境而在往校门前的坡道上不敢前行，也因此和朋也相遇并熟识。\n家里开面包店，有个直爽的父亲和温柔的母亲。\n个性认真温柔，缺乏自信，不过有时却意外的顽固。\n十分喜欢演戏，可是却",
+          "relevant": false
+        },
+        {
+          "entity_id": "character_127791",
+          "name": "千早愛音",
+          "name_cn": "千早爱音",
+          "entity_type": "character",
+          "subject_type": null,
+          "snippet": "羽丘女子学園の高校1年生。成績優秀でコミュ力と行動力があり、中学時代はクラスの人気者で、生徒会長も務めていた。ミーハーな性格で流行っているものに手を出しがち。\n\n昵称是爱音或者爱音酱。\n即使为了Live而进行的练习都很辛苦，爱音还是很努力去",
+          "relevant": false
         },
         {
           "entity_id": "subject_98286",
           "name": "六畳間の侵略者!?",
           "name_cn": "三坪房间的侵略者!?",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "故事的主角里见孝太郎，在高中入学前因为父亲调职而开始一个人生活。孝太郎租下了房租每月五千日币，免押金、礼金，价格特别便宜的屋龄25年公寓，可乐娜庄的106号房，决定住进这间只有三坪（六榻榻米）大的房间开始新生活。但106号房却是间因为闹鬼，",
-          "relevant": null
+          "relevant": true
         },
         {
-          "entity_id": "subject_870",
-          "name": "狼と香辛料",
-          "name_cn": "狼与香辛料",
+          "entity_id": "subject_9912",
+          "name": "日常",
+          "name_cn": "日常",
           "entity_type": "subject",
-          "snippet": "旅行于各地贩卖并收购物品的商人克拉福·罗伦斯，拜访帕斯罗村并离开后，在自己的马车上发现了不知从哪里跑来的东西。拨开从帕斯罗村购买的小麦束后，竟然发现一位拥有兽耳与尾巴的美少女。\n 少女自称为贤狼赫萝，是带给帕斯罗村长期丰收的少女。见到少女的",
-          "relevant": null
+          "subject_type": 2,
+          "snippet": "故事的主角机器人——东云名乃，一直憧憬成为一名普通的女生，却因为背上的发条而感到自卑，在被自称为博士的8岁萝莉胡乱改造之后，每次都无可奈何地感到自己与“普通女生”的距离越来越远了。除了萝莉博士外，故事还出现了很多非日常角色，如年龄为20岁且",
+          "relevant": true
         },
         {
-          "entity_id": "subject_22867",
-          "name": "ネムルバカ",
-          "name_cn": "睡觉的笨蛋",
+          "entity_id": "subject_135275",
+          "name": "この素晴らしい世界に祝福を！",
+          "name_cn": "为美好的世界献上祝福！",
           "entity_type": "subject",
-          "snippet": "古大学の女子寮で同室のセンパイ&コウハイ。バンド活動に打ち込むセンパイは、いつも金欠ピーピー状態。これといって打ち込むもののないコウハイは、とりあえず「古本MAX」でバイト中。ぬるま湯に頭まで浸かったような、でも当人にはそれなりに切実だった",
-          "relevant": null
+          "subject_type": 2,
+          "snippet": "热爱游戏的家里蹲少年·佐藤和真的人生，因交通事故（!?）而轻易闭幕……本该是这样，但当他醒来之时，眼前有一位自称是女神的美少女。“喂，我有点好事要告诉你。要去异世界吗？只带一样你喜欢的东西没问题喔。”“那，我就带着你好了。”由此开始，在异世",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_100449",
+          "name": "月刊少女野崎くん",
+          "name_cn": "月刊少女野崎君",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "高中女生佐仓千代好不容易提起勇气向同年级的野崎梅太郎告白，得到的却是野崎的亲笔签名，和“要不要来我家？”的邀请。佐仓虽然对意料之外的展开感到困惑，却还是带着期待来到野崎家，没想到等着她的却是漫画原稿，不知不觉间就顺着野崎的指示开始进行涂黑作",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_234",
+          "name": "AIR",
+          "name_cn": "",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "我的孩子，仔细听好\n接下来我说的，是一件非常重要的事\n已经忘了从何时开始\n由上代讲给下代，代代传下来的故事\n一个关于长久的旅程的故事……\n\n夏天，在靠近海边小小的街道上\n一位青年从公共汽车站下车了\n青年一直在旅行中\n这样的小镇他无心久留\n在",
+          "relevant": false
         }
       ]
     },
@@ -738,160 +877,180 @@
           "name": "Production I.G",
           "name_cn": "Production I.G",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本的一家动画制作公司，成立于1987年12月6日。英文字“I.G”分别取自首任社长石川光久和首任副社长兼原画师后藤隆幸的日文罗马拼音开头“I”和“G”作命名。Production I.G便是在他们两人共同出资之下而创立，创立初期名称为IG",
-          "relevant": null
-        },
-        {
-          "entity_id": "character_88130",
-          "name": "南夢芽",
-          "name_cn": "南梦芽",
-          "entity_type": "character",
-          "snippet": "",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_2751",
           "name": "SHAFT",
           "name_cn": "SHAFT",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "一间企划、制作日本动画的公司。杉并动画振兴协议会会员。\n\n该公司与新房昭之合作的作品风格特异，被称为“SHAFT角度”（シャフ度，又称“新房45度”）的45度侧头动作尤其知名。在历史上最畅销的56部日本电视动画榜中，该公司的作品高踞第2名、",
-          "relevant": null
+          "relevant": false
+        },
+        {
+          "entity_id": "character_88130",
+          "name": "南夢芽",
+          "name_cn": "南梦芽",
+          "entity_type": "character",
+          "subject_type": null,
+          "snippet": "",
+          "relevant": false
         },
         {
           "entity_id": "character_112479",
           "name": "狼嵜光",
           "name_cn": "狼嵜光",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "小学6年级学生、来自名港之窗FSC。在全日本新秀赛B组碾压连冠的天才少女。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_375817",
           "name": "Engage Kiss",
           "name_cn": "契约之吻",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "因为新能源资源的发现而建立的巨型漂浮城市・贝隆城。在那里经营着一家小公司的青年・修，因为平时花钱大手大脚而过着贫穷的生活。\n一位少女木更担心着这样的修，因此前往修的事务所兼家里。她在贝隆城里念着高中的同时，也照顾着事务所的工作和家务活。还有",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_302",
-          "name": "となりのトトロ",
-          "name_cn": "龙猫",
-          "entity_type": "subject",
-          "snippet": "本片是對日本鄉村生活的迷人及節奏緩慢的描繪。故事背景設定於1958年（昭和33年），一位大學教授和他的兩個女兒搬進一個森林附近的一所舊房子，因為他的妻子染上了結核病，在附近的一所醫院康復中。他的女兒們發現了「煤炭屎」，她們又名「煤炭屎鬼」。",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_148099",
-          "name": "劇場版 ソードアート・オンライン -オーディナル・スケール-",
-          "name_cn": "刀剑神域 序列之争",
-          "entity_type": "subject",
-          "snippet": "2022年，天才编程者茅场晶彦所开发的世界最早的完全潜行专用装备设备《NERvGear》。\n这个革命性的机器给VR（假想现实）世界带来了无限的可能性。那之后经过了4年——\n《NERvGear》的后继品VR机为了对抗《AmuSphere》（第",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_326",
           "name": "攻殻機動隊 S.A.C. 2nd GIG",
           "name_cn": "攻壳机动队 S.A.C. 2nd GIG",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "这个世界距离我们并不遥远，你把它看作是现代社会的镜子亦为不可。\n也许：无论人类怎样发展，人性是不会改变的，即使容纳这渺小人性的外壳换作了机器身体亦是一样。\n无论怎样，在一个充斥着改装身体的社会里，人类的欲望得以被延续且发扬光大，由此相关的犯",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_279457",
           "name": "ソードアート・オンライン アリシゼーション War of Underworld",
           "name_cn": "刀剑神域 爱丽丝篇 异界战争",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "桐人、尤吉欧、爱丽丝。\n距离两名修剑士和一名整合骑士打败了最高祭司阿多米尼斯多雷特已过去了半年。\n结束了战斗，爱丽丝在故乡卢利特村生活。\n在她的身旁，是失去了挚友，自己也失去了手臂和心的桐人。\n献身般支撑着他的爱丽丝，丝毫没有保留像以前一样",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_218713",
-          "name": "プロメア",
-          "name_cn": "普罗米亚",
-          "entity_type": "subject",
-          "snippet": "世界大燃烧——全世界的一半化为了焦土。引发了这未曾有过的事态的是，突然变异而诞生的能够操纵火焰的人种“燃烧者”的出现。\n在那之后过去了30年——有着攻击性的一部分自称“疯狂燃烧者”的燃烧者，再度对世界发动了攻击。\n专门对应燃烧者之特殊火焰的",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_2464",
           "name": "荒川アンダー ザ ブリッジ",
           "name_cn": "荒川爆笑团",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "故事主人翁市之宫行是企业社长的儿子，事刻准备着继承那间世界顶尖的家族生意。从年幼的时候开始，父亲就告诉他“不欠人，不求人”的道理，生活时刻遵守家训。\n可是，在一次意外溺水，行被住在桥下荒川钓鱼的ニノ救回性命，就此欠下救命之恩。为了报恩，ニノ",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_860",
           "name": "カウボーイビバップ 天国の扉",
           "name_cn": "星际牛仔 天国之扉",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "2071年，即将迎接万圣节的火星都市阿尔帕城。在高速道路上一辆油罐车突然发生了爆炸，而在案发现场周边的人们，却也出现了原因不明的症状相继倒地，造成相关死伤者高达400人以上的惨案。警方认为这可能是使用不明生化武器的恐怖活动，火星政府也发出3",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_769",
-          "name": "トップをねらえ!",
-          "name_cn": "飞跃巅峰！",
-          "entity_type": "subject",
-          "snippet": "21世纪人类开始开发宇宙。但是宇宙生物群(通称宇宙怪兽, STMC)，一种以恒星作载体繁殖的生物来袭，使人类文明受到重大威胁。\n 为了对抗宇宙怪兽，机械人兵器和宇宙战舰持续开发中，由地球上的机械人训练学校找出优胜的驾驶员控制。\n 2015年",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_120791",
           "name": "銀魂°",
           "name_cn": "银魂°",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_1287",
           "name": "押井守",
           "name_cn": "押井守",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "出生地是日本东京大田区的日本动画、电影导演。\n\n代表作有《福星小子》、《机动警察》、《攻壳机动队》等。曾于2004年以剧场动画《攻壳机动队2:INNOCENCE》获得日本SF大赏。\n\n生于东京大田区的大森，1976年毕业于东京学艺大学教育学",
-          "relevant": null
+          "relevant": false
+        },
+        {
+          "entity_id": "person_538",
+          "name": "岡田麿里",
+          "name_cn": "冈田麿里",
+          "entity_type": "person",
+          "subject_type": null,
+          "snippet": "日本女性编剧。日本剧本家联盟会员。出身于埼玉县秩父市。于1997年以创作video电影剧本出道，后专注以电视动画、动画电影等作品编写剧本，代表作有《真实之泪》、《龙与虎》、《花开伊吕波》、《我们仍未知道那天所看见的花的名字》、《好想大声说出",
+          "relevant": false
+        },
+        {
+          "entity_id": "character_130665",
+          "name": "安和すばる",
+          "name_cn": "安和昴",
+          "entity_type": "character",
+          "subject_type": null,
+          "snippet": "芸能スクールに通う女の子。有望株として CM に出たりしている。世渡り上手の美少女で愛想も良い。モデルと言われてもおかしくない美貌をほこっているが、中身は気が強く負けず嫌いなお嬢様。",
+          "relevant": false
+        },
+        {
+          "entity_id": "person_6305",
+          "name": "動画工房",
+          "name_cn": "动画工房",
+          "entity_type": "person",
+          "subject_type": null,
+          "snippet": "一家位于日本东京都练马区，主要从事动画企画制作的日本动画企业。练马动画协议会会员。\n\n成立于1973年7月11日。由战前活跃的漫画家兼动画师古泽日出夫，于退出东映动画后成立公司雏形“古泽动画工房”，并由动画师及导演石黑育担任第一任社长。在此",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_1671",
+          "name": "化物語",
+          "name_cn": "化物语",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "所谓怪异——是因为世界上没有那种东西的存在。\n与生物有所不同——但与世界紧紧相连。\n故事主人公阿良良木历，因为知道了同班同学战场原的某个“秘密”，从此被卷入一连串的怪异事件中……。",
+          "relevant": false
         },
         {
           "entity_id": "subject_160209",
           "name": "君の名は。",
           "name_cn": "你的名字。",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "在每千年回归一次的彗星造访过一个月之后的日本。\n 某个深山的乡下小镇，女高中生三叶每天都过着忧郁的生活。\n 而她烦恼的不光有担任镇长的父亲所举行的选举运动，还有家传神社的古老习俗。\n 在这个小小的城镇，周围都只是些爱瞎操心的老人。为此三叶对",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_265",
-          "name": "新世紀エヴァンゲリオン",
-          "name_cn": "新世纪福音战士",
-          "entity_type": "subject",
-          "snippet": "2000年，一个科学探险队在南极洲针对被称作“第一使徒”亚当的“光之巨人”进行探险。在对其进行接触实验时，“光之巨人”自毁，从而发生了“第二次冲击”，进而导致世界大战。最后，人类人口减半，地轴偏转、气候改变。根据对“第二次冲击”的调查，联合",
-          "relevant": null
-        },
-        {
-          "entity_id": "subject_127563",
-          "name": "ワンパンマン",
-          "name_cn": "一拳超人",
-          "entity_type": "subject",
-          "snippet": "因为兴趣而开始当英雄的男人「埼玉」，在经过三年特训之後，得到了无敌的力量。\n 然而，他实在是强过了头，所以无论多厉害的对手，都被他一拳解决。「绝对强势的力量，实在是很无聊。」在这种普通热血的最强英雄面前，今天也出现新的敌踪。今天可以让他拿出",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "subject_772",
           "name": "ヱヴァンゲリヲン新劇場版:序",
           "name_cn": "福音战士新剧场版：序",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "突然袭向全世界的一个前所未有的大灾难“第二次冲击”。这灾害令接近半数人类死亡，世界各地亦留下了大破坏的痕迹。正当人们以为终于回复和平日子的时候──14岁的少年碇真嗣被父亲召来第三新东京市。\n\n当他正等待迎接时，眼前的山间突然出现一只巨型生物",
-          "relevant": null
+          "relevant": true
         },
         {
-          "entity_id": "subject_22505",
-          "name": "ヱヴァンゲリヲン新劇場版:Q",
-          "name_cn": "福音战士新剧场版：Q",
+          "entity_id": "subject_302",
+          "name": "となりのトトロ",
+          "name_cn": "龙猫",
           "entity_type": "subject",
-          "snippet": "14年前，初号机疑似神化第一形态的觉醒带来近三冲击，使世界发生前所未有的巨变。在此之后，葛城美里等NERV旧部出走，成立了反抗seele和NERV的Wille。Wille授命明日香和真希波夺回被封印在卫星轨道上的初号机和碇真嗣，但绝对禁止真",
-          "relevant": null
+          "subject_type": 2,
+          "snippet": "本片是對日本鄉村生活的迷人及節奏緩慢的描繪。故事背景設定於1958年（昭和33年），一位大學教授和他的兩個女兒搬進一個森林附近的一所舊房子，因為他的妻子染上了結核病，在附近的一所醫院康復中。他的女兒們發現了「煤炭屎」，她們又名「煤炭屎鬼」。",
+          "relevant": true
+        },
+        {
+          "entity_id": "subject_324",
+          "name": "攻殻機動隊 STAND ALONE COMPLEX",
+          "name_cn": "攻壳机动队 STAND ALONE COMPLEX",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "公元2030的世界，改造人、生化人、机器人等等的存在已经非常普及。主人公草薙素子正是人类最高科技的结晶：只有大脑是人脑，其余身体部分皆为机械装置，外表看起来则是一名美貌兼干练的年轻女性。在这个高科技的世界里，人类通过更换身体的各个部件而达到",
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_56117",
+          "name": "猫物語（黒）",
+          "name_cn": "猫物语（黑）",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "美しき吸血鬼に出逢った春休みの後、 \n空から女の子が降ってくる少し前。 \n\nゴールデンウィーク最初の日、 \n主人公・阿良々木暦は委員長・羽川翼とともに \n車に轢かれた、尾のない猫を埋葬する。 \n\n些細でありふれたはずの出来事。 \nしかし、こ",
+          "relevant": false
         }
       ]
     },
@@ -903,164 +1062,184 @@
       "description": "角色 — 属性组合",
       "candidates": [
         {
-          "entity_id": "subject_763",
-          "name": "ゼロの使い魔 ～三美姫の輪舞～",
-          "name_cn": "零之使魔 三美姬的轮舞",
-          "entity_type": "subject",
-          "snippet": "再次相见的露易斯和才人。据才人所说，在森林中倒下时为一漂亮的妖精所救，总算是保住了性命。与才人的距离更近了一步的露易斯终于能够坦率的面对自己的心情\n 露易斯和才人受到安莉艾塔的命令和谢丝塔一起，踏上了寻找拥有不可思议力量的精灵之旅。旅途中，",
-          "relevant": null
-        },
-        {
           "entity_id": "character_35980",
           "name": "桜島麻衣",
           "name_cn": "樱岛麻衣",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "ちょっぴりSなバニーガール先輩\n\n峰ヶ原高校に通う3年生。\n国民的な人気タレントだったが、現在は芸能活動を休止している。\n 芸能活動を中心とした生活を送ってきたため学校では孤立している。\n真面目で礼儀正しいが、気が強い。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_12523",
           "name": "柏崎星奈",
           "name_cn": "柏崎星奈",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "金发碧眼、巨乳、长相漂亮，成绩优秀且运动万能的美少女。因为太受男生欢迎以及被良好的家境给宠坏，因而造成了高傲的性格。对羽濑川小鹰抱有好感，很喜欢羽濑川小鹰的妹妹羽濑川小鸠，但怕生的小鸠对她有些厌烦。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_319",
           "name": "川嶋亜美",
           "name_cn": "川岛亚美",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "北村祐作的青梅竹馬，在第一學期中轉學到2年C班的美少女。原本的工作是模特兒，但因為某些事情，在轉學後就暫時停止工作。模特兒的工作外，同時在拳擊場練習，對保持完美的體態以及美貌的事情十分注意。外表看起來對人很好，事實上是個驕縱的腹黑女。自我中",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_61551",
           "name": "双葉理央",
           "name_cn": "双叶理央",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "冷静沈着な理系女子\n\n冷静沈着な咲太の同級生。\nたった一人の科学部の部員で校内では変人として知られている。\n咲太の数少ない友人の一人で思春期症候群についてもいろいろとアドバイスをしてくれる。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_61552",
           "name": "梓川かえで",
           "name_cn": "梓川枫",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "おうち大好きブラコン妹\n\n咲太の妹。\n 過去のいじめが原因で外に出られず、常に家でお留守番をしている。\nパンダとお兄ちゃんが大好きで、理想の妹になるため日々邁進する。\n毎朝、咲太を起こすことを日課としている。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_212003",
           "name": "ウマ娘 プリティーダービー",
           "name_cn": "赛马娘 Pretty Derby",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "这是从异世界传承下光辉的姓名与竞跑能力的“马娘”、自久以来与人类共存着的世界的故事。\n从乡下转学到大都市的训中学园的马娘·特别周，与同学们互相切磋、赌上“日本第一马娘”的称号，目标：在“Twinkle系列”中的胜利！",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_208450",
           "name": "アホガール",
           "name_cn": "笨女孩",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "空前绝后的笨蛋，就在这里！ 笨到无可救药的女高中生·花畑佳子。 非常喜欢香蕉。 非常喜欢青梅竹马的阿君。 以上！",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_489820",
           "name": "らんま1/2",
           "name_cn": "乱马1/2",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "早乙女乱馬と、 天道道場三女の天道あかねは親が決めた許婚同士。\nしかし乱馬にはある悩みが…。\n中国での修行中、伝説の修行場「呪泉郷」に落ちてしまい、\n水をかぶると女に、\nお湯をかぶると男に戻る\nという、不思議な体質になってしまっていた！？\n",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "subject_167434",
           "name": "ガーリッシュ ナンバー",
           "name_cn": "少女编号",
           "entity_type": "subject",
+          "subject_type": 2,
           "snippet": "拥有可爱的外表以及蔑视世间内心的女大学生·乌丸千岁，在怀抱着梦想与希望与野心踏入的声优业界，她所见到的是，残酷业界的种种严苛现实——。无工作×无干劲的新人声优·千岁，究竟能否开辟通往人气声优的道路！？",
-          "relevant": null
+          "relevant": false
+        },
+        {
+          "entity_id": "subject_763",
+          "name": "ゼロの使い魔 ～三美姫の輪舞～",
+          "name_cn": "零之使魔 三美姬的轮舞",
+          "entity_type": "subject",
+          "subject_type": 2,
+          "snippet": "再次相见的露易斯和才人。据才人所说，在森林中倒下时为一漂亮的妖精所救，总算是保住了性命。与才人的距离更近了一步的露易斯终于能够坦率的面对自己的心情\n 露易斯和才人受到安莉艾塔的命令和谢丝塔一起，踏上了寻找拥有不可思议力量的精灵之旅。旅途中，",
+          "relevant": false
         },
         {
           "entity_id": "character_303",
           "name": "綾波レイ",
           "name_cn": "绫波零",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "有着蓝色短发与红色眼睛的瘦弱少女，EVA驾驶员第一适格者，驾驶零号机。EVA零号机启动实验事故中负重伤，初次登场时包扎有大量绷带。过去经历全部被抹消，资料显示为14岁，行为举止特别。\n\n出生日期不明，在CD『エヴァンゲリオン THE BIR",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_1152",
           "name": "春日野穹",
           "name_cn": "春日野穹",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "主人公春日野悠的孪生妹妹。沉默寡言，弱不禁风，深居简出。\n家务无能，麻烦的事情完全推给了哥哥悠。\n那犹如人偶一般的脸色，十分引人注目。\n或许是因为病弱，时常会住进医院，和悠的体格存在鲜明的反差。\n喜欢除了泡面之外的全部无营养食品，如果不注意",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_67408",
           "name": "藤原千花",
           "name_cn": "藤原千花",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "本作的女主角，高中部2年B班的女学生，担任学生会书记。桌游部所属，三姐妹中的次女。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_67410",
           "name": "早坂愛",
           "name_cn": "早坂爱",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "高中部2年A班的女学生，四宫集团高管的女儿，在四宫家担任辉夜的侍女。\n有着四分之一的爱尔兰血统。\n出生于代代对四宫家效忠的家系，从小就开始服侍辉夜，与辉夜有着姐妹般的关系。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_50578",
           "name": "トウカイテイオー",
           "name_cn": "东海帝王",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "在周围的期待与艳羡下长大的精英马娘，她的母亲是被称为“皇帝”的传说中的马娘。\n身体轻巧脚步敏捷，像是跳跃一般的独特的跑法被称呼为“帝皇步”。\n性格不服输且稍微有点自大，自尊心很高。虽然容易闹情绪但对赛跑的热情不输给任何人。\n从心底里敬爱着母",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_58444",
           "name": "緒山まひろ",
           "name_cn": "绪山真寻",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "被妹妹下了奇怪的药，变成了女孩子的孤高自宅警备员。\n深爱的黄油和黄书被夺走后，苦命地过活。\n被妹妹当妹妹养，已经慢慢习惯了。\n外表大概初中左右。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_27371",
           "name": "綾地寧々",
           "name_cn": "绫地宁宁",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "姫松学院の2年生。 可愛くて人当たりが良く、学院でも人気者。\nただ、魔女という秘密を抱えているために、人付き合いはあまり良くない。\nなぜなら魔女の契約を交わした代償として、ところ構わず “発情” してしまうから。\n発情してしまうとオナニーな",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_43536",
           "name": "古手川千紗",
           "name_cn": "古手川千纱",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "伊豆大学一年级，伊织的表妹。老家经营潜水用品店，热爱大海，将来的梦想是成为潜水指导员。\n\n[简介原文]\n 本作におけるヒロイン。伊織の同い年の従姉妹。同じく伊豆大学機械工作科の1年生。\n ダイビング経験者。将来の夢はインストラクターで、水族",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_19526",
           "name": "鳶一折紙",
           "name_cn": "鸢一折纸",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "本作女主角之一。士道的同班同学。有着纯白如雪的直发，经常面无表情如人偶般的少女。\n喜欢的东西是士道，讨厌的东西是精灵。\n成绩超群绝伦，经常是全年级的榜首。在全国性的模拟考中也曾摘得首位。另外也是运动能力全能的完美美少女。但是，除了士道以外，",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_18178",
           "name": "雪村あおい",
           "name_cn": "雪村葵",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "本作主角。2月19日生，15岁。B型。高校1年的女学生。为亚麻色、长度剪到齐领的发型、平时在左眉边附近夹着黑色的发饰。于小学生时期因从马骝架掉下来而患上畏高症，所以不能乘坐吊车之类的交通工具。而从这个时候开始，开始喜欢上烹饪、裁缝、阅读等一",
-          "relevant": null
+          "relevant": false
         }
       ]
     },
@@ -1076,152 +1255,171 @@
           "name": "草薙素子",
           "name_cn": "草薙素子",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "自卫军出身,军衔三佐.\n极其擅长电子战,作战经验丰富,领导能力优秀.\n幼年6岁时,遭遇空难,除脑和脊髓部分全身义体化.\n外部记忆装置,义体大小调整前所佩带女式手表",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_31322",
           "name": "草薙直哉",
           "name_cn": "草薙直哉",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "主人公。 無口でストイックなクール系を気取った熱血漢。\n天才画家・草薙健一郎の子にして幼少期に神童と呼ばれるほどの腕を持ちながら、現在は筆を折っている。\n長らく貧乏生活であったが、夏目家に厄介になることで人並みの生活を送れるようになる。\n\n",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_4513",
           "name": "杉田智和",
           "name_cn": "杉田智和",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "在其代表作品中常出演擅长吐槽的男主角（特别是凉宫春日中的阿虚），号称“第一吐槽男”。\n专长是按摩、少林寺拳法初段。爱犬的名字为Naoji。\n著名的“超级机器人大战FAN”，其称为“老师”的绿川光是著名的“超级玩家”，并且同为系列死忠。\n在声",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_77",
           "name": "スパイク・スピーゲル",
           "name_cn": "史派克·斯皮格尔",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "本作的主人公。体型消瘦，留着一头类似爆炸头的头发，是Bebop号上的最早成员之一。在赏金猎人的工作中，因为懂得类似李小龙截拳道的武术，常担任战斗前线的罪犯逮捕工作，在驾驶经过改装的红色高速战机「剑鱼II」（ソードフィッシュII）时也表现出了",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "character_71478",
           "name": "ヨル・フォージャー",
           "name_cn": "约尔·福杰",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "バーリント市役所の女性職員。裏の顔は凄腕の殺し屋。27歳。\n同じく公務員で歳の離れた弟のユーリがいる。幼い頃に両親を亡くし、弟を養うために殺し屋「いばら姫」として生活してきた。「店長」なる人物から指示を受けて暗殺を行う。黄昏をも凌ぐ高い身体",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_3",
           "name": "C.C.",
           "name_cn": "C.C.",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "在鲁路修面临生死关头时，给予他Geass的力量救了鲁路修一命。目前寄住在鲁路修家中。但是在R2中只出没于黑色骑士团。\nC.C.不会容许鲁路修死去，因为她还有“事情”要去完成。\nC.C.经常跟著鲁路修行动，目的在于“保护鲁路修”。不过，有一次",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_12797",
           "name": "西川貴史",
           "name_cn": "西川贵史",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "西川 貴史（にしかわ たかし）は、日本の男性アニメーター、キャラクターデザイナー、アニメーション演出家、アニメーション監督、脚本家。別名義として、西川鷹司、おはぎ。\n京都府出身、大阪アニメーター学院アニメーション科卒、その後同講師も勤める。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_1466",
           "name": "奈須きのこ",
           "name_cn": "奈须蘑菇",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本男性腳本家與小說家。由於不公開露面，因此曾因名字的漢字寫法惹來性別上的猜測。座右銘為「人類皆強大」，自畫像是一顆蘑菇怪物。\n與武內崇為國中同學和好友，兩人成立同人團體「TYPE-MOON」，2000年發表遊戲《月姬》，奈須負責劇本。20",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_11475",
           "name": "中村豊",
           "name_cn": "中村丰",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "1967年12月22日出生，福冈出身。代代木动画学院毕业。アドコスモ出身。\n经由アートオフィス写楽，转入アニメトロトロへ（派驻于SUNRISE、BONES工作）。（截至2003年4月23日）\n\n是在BONES大显身手的动作原画师，初期常与小",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_12392",
           "name": "岡部倫太郎",
           "name_cn": "冈部伦太郎",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "主人公，东京电机大学一年级，“未来道具研究所”研究员No.001。\n虽然清瘦的外表看上去很帅，但交谈时会突然掏出手机，然后开始莫名其妙的自言自语，并在结束的时候附上“这是 Steins;Gate 的选择”和不明所以的“エル・プサイ・コングル",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_14822",
           "name": "折木奉太郎",
           "name_cn": "折木奉太郎",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "神山高中一年级B班的男生。《古典部连载》中的主人公，也是最主要的描述者。有出色的洞察力和推理能力，也是一个奉行多一事不如少一事的\n宗旨，座右铭是“能不做的事就不做。非要做不可的话就从简”。由于这种性格，对校内的社团活动几乎没有兴趣，但在作为",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "character_79",
           "name": "フェイ・ヴァレンタイン",
           "name_cn": "菲·瓦伦坦",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "曾经被悬赏的赏金猎人，原来是一名以诈骗和偷窃为生的美艳女郎，在一次赌场的犯罪中卷入了Bebop号的成员而入伙。性格上是个嗜财如命、非常开放的女人，可以为了钱不择手段。爱机是拥有2个火力口的「红尾」，爱枪是Glock 30。因为好赌和长达54",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_71337",
           "name": "マキマ",
           "name_cn": "玛奇玛",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "电次的上司，内阁官房长官直属的恶魔猎人。性格捉摸不透，将下属称为“狗”，就算牺牲部下也无所谓，想杀她的人不在少数。\n\n公安対魔特異4課、\n内閣官房長官直属のデビルハンター。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_12887",
           "name": "霧切響子",
           "name_cn": "雾切响子",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "超高中级的？？？[mask]侦探[/mask]\n 在汇集的学生中唯一不明自己才能的人物。非常陌生的感觉，拥有相当神秘的美少女。在不流露出的表情里是给予苗木推理多次提示的人物。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_47695",
           "name": "カンナカムイ",
           "name_cn": "康娜卡姆依",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "トールを追って現れたドラゴン娘。\n本名はカンナカムイ。\n悪戯好きでちょっぴり寂しがり屋のマイペース。\n自分の力では元の世界に戻れず、小林さんちに居候することに。\n電気が力の源で、尻尾の先をコンセントにさして充電する。\n好奇心旺盛で食べること",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_855",
           "name": "アルクェイド・ブリュンスタッド",
           "name_cn": "爱尔奎特·布伦史坦德",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "生存了八百年以上的吸血鬼，真祖的公主。\n \n《月姬》的故事开始时，Arcueid 来到远野志贵所住的城市，目的是消灭数百年来她不断追杀的一名吸血鬼。她在寻找目标时，偶然遇到了志贵；受退魔一族本能支配的志贵跟踪她回住处，以苏醒的杀人技巧和直死",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_104093",
           "name": "スザイルギラーゼガルネルブゼギルレアグランゼルガ=エルガ",
           "name_cn": "苏翠路奇拉泽加鲁涅尔鲁蕾娅阿格兰泽尔加·艾尔加",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "おじさんが異世界で知り合ったエルフの冒険者。\n窮地を救ってくれたおじさんに恋心を抱き、何かとつきまとっているが、照れ隠しで常に罵詈雑言を浴びせてしまう、いわゆるツンデレ。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_13245",
           "name": "シャア・アズナブル",
           "name_cn": "夏亚·阿兹纳布尔",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "宇宙世纪（U.C.）一世纪末期杰出的军事家、政治家、演说家及王牌驾驶员。\n[mask]U.C.0059年出生在宇宙殖民卫星，原名卡斯巴尔·雷姆·戴肯。父亲为吉恩共和国创始人吉恩·奥姆·戴肯。\nU.C.0069年吉恩·戴肯遭到政敌德金·索德·",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "character_11538",
           "name": "朽木冬子",
           "name_cn": "朽木冬子",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "有成人气质，既不是成人也不是少女的生物。\n喜爱绘画、月下散步。\n身材颀长，肤色白皙，拥有如瀑般的披肩黑发，说话带男性的口吻，略微轻佻，却不令人生厌。从周围看来稍稍有些轻佻，但本人对周围的反应毫不在意，丝毫不影响自己的步调。\n对于现在的‘名为",
-          "relevant": null
+          "relevant": false
         }
       ]
     },
@@ -1237,128 +1435,144 @@
           "name": "渡辺信一郎",
           "name_cn": "渡边信一郎",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "アニメ演出家、監督。\n\n学生時代は映画青年だったというが、実写映画の世界は助監督での下積みが長いということでアニメ業界入り。これには、1984年、19歳のときに宮崎駿監督の『風の谷のナウシカ』、押井守監督の『うる星やつら2 ビューティフル・",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_31113",
           "name": "斎藤圭一郎",
           "name_cn": "斋藤圭一郎",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "动画师、演出家、导演，毕业于京都精华大学漫画系动画专业。\n\n毕业制作并担任导演的动画《イタダキノサキ》获得2015年度京都精华大学漫画系动画专业毕业制作优秀作品，以及第12届吉祥寺动画电影节优秀奖 / Production I.G奖。\n\n另",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_538",
           "name": "岡田麿里",
           "name_cn": "冈田麿里",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本女性编剧。日本剧本家联盟会员。出身于埼玉县秩父市。于1997年以创作video电影剧本出道，后专注以电视动画、动画电影等作品编写剧本，代表作有《真实之泪》、《龙与虎》、《花开伊吕波》、《我们仍未知道那天所看见的花的名字》、《好想大声说出",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_1755",
           "name": "今石洋之",
           "name_cn": "今石洋之",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "今石洋之（1971年10月4日－），日本动画监督、演出家。东京都出身。\n\n就读日本多摩美术大学美术部艺术学科，专攻影像制作。毕业后进入GAINAX。首次工作就遇上掀起社会现象的《新世纪福音战士》。此后在《彼氏彼女的故事》及《FLCL》担任多",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_1916",
           "name": "麻枝准",
           "name_cn": "麻枝准",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "本名前田纯，是日本Key公司的剧本作家、作词家、作曲家。\n三重县出身。\n中京大学心理学科毕业。\n爱称是だーまえ。\n因撰写之剧本十分催泪而在台湾后至整个华语圈有着“麻枝大魔王”的称号，这一点亦被其本人获知。 \nLittle Busters!推",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_6126",
           "name": "丸戸史明",
           "name_cn": "丸户史明",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本的剧本作家、轻小说作家。出身于爱知县名古屋市。\n主要从事ACGN剧本创作。\n\n上高中之前，丸户对横沟正史的小说及相关动画、电视剧都很着迷。\n\n进入大学后，丸户的兴趣转向星新一、阿刀田高的短篇小说。在成人游戏方面喜欢蛭田昌人的作品，毕业后",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_12797",
           "name": "西川貴史",
           "name_cn": "西川贵史",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "西川 貴史（にしかわ たかし）は、日本の男性アニメーター、キャラクターデザイナー、アニメーション演出家、アニメーション監督、脚本家。別名義として、西川鷹司、おはぎ。\n京都府出身、大阪アニメーター学院アニメーション科卒、その後同講師も勤める。",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_613",
           "name": "富野由悠季",
           "name_cn": "富野由悠季",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "本名富野喜幸，为日本的动画导演、作词家、小说家。出身日本神奈川县小田原市，日本大学艺术学院电影科毕业。从参与日本最早的电视动画《铁臂阿童木》的制作开始至今，是日本动画界资历最长的人物之一。\n\n代表作有《机动战士高达》系列、《传说巨神伊迪安》",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "character_27244",
           "name": "小笠原綸子",
           "name_cn": "小笠原纶子",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "《EXODUS!》的角色设计兼总作画监督。不论名实都是武藏野动画的招牌动画师。举止优雅，在修正时也犹如书法家一般。\n由于常穿哥特萝莉式服装，被同事们称为哥特萝莉大人，而且在井口加入公司前就已经是这幅打扮了。在公司有自己独有的哥特风办公桌，衣",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_1313",
           "name": "今敏",
           "name_cn": "今敏",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本动画导演、漫画家，日本动画从业人员协会会员。北海道钏路市出身（出生地为札幌市），武藏野美术大学造形研究科视觉传达设计系毕业。其兄今刚为日本流行乐坛的知名吉他手。\n《妄想代理人》中使用“鰐淵良宏”名义。\n\n今敏出生在日本北海道札幌市，后来",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_6149",
           "name": "田中ロミオ",
           "name_cn": "田中罗密欧",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "田中罗密欧（田中ロミオ）是日本自由小说家、游戏剧本作家，主要经手成人游戏剧本。\n\n田中罗密欧作品中常见的是如在《CROSS†CHANNEL》与《梦见之药》中，对与俗世或周围的人保持距离而活的人，或不得已这么做却又笨拙地为他人着想的人，将其身",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_94",
           "name": "庵野秀明",
           "name_cn": "庵野秀明",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "株式会社カラー代表取締役社長。\n一般には『エヴァンゲリオン』の監督としての認知度が高いが、もともとは凄腕のアニメーターでありエフェクト、メカを得意としていた。\n\n山口県立宇部高校在学中、自ら部長を務める美術部にてセルアニメ、スチルアニメや、",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_1287",
           "name": "押井守",
           "name_cn": "押井守",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "出生地是日本东京大田区的日本动画、电影导演。\n\n代表作有《福星小子》、《机动警察》、《攻壳机动队》等。曾于2004年以剧场动画《攻壳机动队2:INNOCENCE》获得日本SF大赏。\n\n生于东京大田区的大森，1976年毕业于东京学艺大学教育学",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_1286",
           "name": "Production I.G",
           "name_cn": "Production I.G",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本的一家动画制作公司，成立于1987年12月6日。英文字“I.G”分别取自首任社长石川光久和首任副社长兼原画师后藤隆幸的日文罗马拼音开头“I”和“G”作命名。Production I.G便是在他们两人共同出资之下而创立，创立初期名称为IG",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_1466",
           "name": "奈須きのこ",
           "name_cn": "奈须蘑菇",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本男性腳本家與小說家。由於不公開露面，因此曾因名字的漢字寫法惹來性別上的猜測。座右銘為「人類皆強大」，自畫像是一顆蘑菇怪物。\n與武內崇為國中同學和好友，兩人成立同人團體「TYPE-MOON」，2000年發表遊戲《月姬》，奈須負責劇本。20",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_11475",
           "name": "中村豊",
           "name_cn": "中村丰",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "1967年12月22日出生，福冈出身。代代木动画学院毕业。アドコスモ出身。\n经由アートオフィス写楽，转入アニメトロトロへ（派驻于SUNRISE、BONES工作）。（截至2003年4月23日）\n\n是在BONES大显身手的动作原画师，初期常与小",
-          "relevant": null
+          "relevant": false
         }
       ]
     },
@@ -1374,136 +1588,153 @@
           "name": "麻枝准",
           "name_cn": "麻枝准",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "本名前田纯，是日本Key公司的剧本作家、作词家、作曲家。\n三重县出身。\n中京大学心理学科毕业。\n爱称是だーまえ。\n因撰写之剧本十分催泪而在台湾后至整个华语圈有着“麻枝大魔王”的称号，这一点亦被其本人获知。 \nLittle Busters!推",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "character_466",
           "name": "平沢唯",
           "name_cn": "平泽唯",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "主人公。轻音部主唱，同时兼任吉他手，因误解而加入轻音部，刚入轻音部时是位连乐谱也看不懂的新人。\n 天然呆，废柴，慢半拍，学习成绩又差。只能用心做一件事并且可以做到很好。\n 轻音部吉他手，错以为轻音部是指轻松易学的音乐（如响板），结果误入轻音",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_262",
           "name": "花田十輝",
           "name_cn": "花田十辉",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本のアニメ脚本家、ライトノベル作家。\n祖父は作家・文芸評論家の花田清輝。小山高生主宰の脚本家集団・ぶらざあのっぽ（アニメシナリオハウス）出身。\n現在は株式会社「SATZ」所属。",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_100",
           "name": "渡辺信一郎",
           "name_cn": "渡边信一郎",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "アニメ演出家、監督。\n\n学生時代は映画青年だったというが、実写映画の世界は助監督での下積みが長いということでアニメ業界入り。これには、1984年、19歳のときに宮崎駿監督の『風の谷のナウシカ』、押井守監督の『うる星やつら2 ビューティフル・",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_31113",
           "name": "斎藤圭一郎",
           "name_cn": "斋藤圭一郎",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "动画师、演出家、导演，毕业于京都精华大学漫画系动画专业。\n\n毕业制作并担任导演的动画《イタダキノサキ》获得2015年度京都精华大学漫画系动画专业毕业制作优秀作品，以及第12届吉祥寺动画电影节优秀奖 / Production I.G奖。\n\n另",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_101",
           "name": "菅野よう子",
           "name_cn": "菅野洋子",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "菅野洋子（菅野よう子，1964年3月18日－）是日本的作曲家、编曲家、音乐制作人。出生于日本宫城县仙台市。GRAND FUNK、FlyingDog所属。\n\n日本早稻田大学文学系中退。主要为日本广告、动画、游戏、电影、电视剧制作配乐，也为日本",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_4249",
           "name": "斎藤千和",
           "name_cn": "斋藤千和",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "高中三年级时的7月，日本播音演技研究所入学。次年1月加入I'm Enterprise旗下声优养成机构剧团ヴォアレーヴ。\n2001年，初次出演动画《可可露图书馆》的主人公可可露，表现优异，完全表现出主人公的可爱之处，但随后的一年半因学业问题，",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_3103",
           "name": "澤野弘之",
           "name_cn": "泽野弘之",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "泽野弘之，日本作曲家。出生于东京都。以电视剧、动画、电影、电影音乐为中心进行作曲和编曲工作，同时也为许多艺人写作曲子。离开Legendoor后自立公司VV-ALKLINE。\n\n作品普遍以激昂的交响乐为主调，代表作包括电视剧《医龙-Team ",
-          "relevant": null
+          "relevant": true
         },
         {
           "entity_id": "person_1913",
           "name": "石原立也",
           "name_cn": "石原立也",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本男性动画演出家及监督，京都府舞鹤市出身。株式会社京都动画的取缔役（董事）。 \n\n在大阪设计专门学校毕业後进入京都动画工作室（京都动画的前身）。入社后开始几年从事原画与动画的绘制工作，后来1992的哆啦A梦初次参加演出工作，此后开始转向专",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "character_40739",
           "name": "鎧塚みぞれ",
           "name_cn": "铠冢霙",
           "entity_type": "character",
+          "subject_type": null,
           "snippet": "北宇治高校2年生。使用的乐器是双簧管。\n出身于管乐强校南中。初中时，因为性格陰沉而没有朋友，后来被希美邀请加入管乐团。视希美为很重要的朋友。\n在希美退出之后，觉得管乐是与希美唯一的连系，因此继续留在管乐团孤独地练习。\n♪好きな色\n青、紺、灰",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_5788",
           "name": "深崎暮人",
           "name_cn": "深崎暮人",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "深崎暮人（みさき くれひと），日本男性插画家与原画家，出生于北海道，目前居住于东京都。\n\n少年时代沉迷于SD钢弹与游戏软件，描摹攻略本上的机械与怪物。 受到女神转生系列游戏的影响，进入了游戏CG的专业学校。学校学科以视讯与3D为主，并在这时",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_3687",
           "name": "山田尚子",
           "name_cn": "山田尚子",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "1984年11月28日出生于京都府。\n\n幼年时期喜爱观看《哆啦A梦》《蜡笔小新》与吉卜力的作品。此外她从小学时期开始就喜欢画画，曾临摹《龙珠》《机动警察》《高中奇面组》等作品。\n\n2004年，作为动画师进入京都动画公司。2005年，在《AI",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_724",
           "name": "幾原邦彦",
           "name_cn": "几原邦彦",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "幾原 邦彦（いくはら くにひこ、男性、1964年12月21日 - ）は、徳島県小松島市出身の日本のアニメ監督、音楽プロデューサー、小説家、漫画原作者、ラジオパーソナリティ。日本映画監督協会会員。\n\n1985年 - 京都芸術短期大学（のちの京",
-          "relevant": null
+          "relevant": false
+        },
+        {
+          "entity_id": "person_1595",
+          "name": "梶浦由記",
+          "name_cn": "梶浦由记",
+          "entity_type": "person",
+          "subject_type": null,
+          "snippet": "梶浦由记（1965年8月6日－），日本作、编曲家，出生于日本东京都，现居于日本东京都西部。梶浦现以制作动画及游戏配乐为主，她亦活跃于电视广告界及电影界。创作动画配乐的特色是在乐句中串插一些歌声。\n\n早年作为女子乐队See-Saw的成员出道，",
+          "relevant": true
         },
         {
           "entity_id": "person_6126",
           "name": "丸戸史明",
           "name_cn": "丸户史明",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本的剧本作家、轻小说作家。出身于爱知县名古屋市。\n主要从事ACGN剧本创作。\n\n上高中之前，丸户对横沟正史的小说及相关动画、电视剧都很着迷。\n\n进入大学后，丸户的兴趣转向星新一、阿刀田高的短篇小说。在成人游戏方面喜欢蛭田昌人的作品，毕业后",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_538",
           "name": "岡田麿里",
           "name_cn": "冈田麿里",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "日本女性编剧。日本剧本家联盟会员。出身于埼玉县秩父市。于1997年以创作video电影剧本出道，后专注以电视动画、动画电影等作品编写剧本，代表作有《真实之泪》、《龙与虎》、《花开伊吕波》、《我们仍未知道那天所看见的花的名字》、《好想大声说出",
-          "relevant": null
+          "relevant": false
         },
         {
           "entity_id": "person_4456",
           "name": "小野大輔",
           "name_cn": "小野大辅",
           "entity_type": "person",
+          "subject_type": null,
           "snippet": "在日本大学艺术学部放送学科就读时，主要是专攻电视节目制作。但因为当时提出的企划作品被教授评价的很差，所以转而改以演出者方式参与，并在参与过程中感受到演戏的有趣，因此决定以成为声优为目标。\n 出道当时，以动画节目的准常态出演（担任非固定角色名",
-          "relevant": null
-        },
-        {
-          "entity_id": "person_613",
-          "name": "富野由悠季",
-          "name_cn": "富野由悠季",
-          "entity_type": "person",
-          "snippet": "本名富野喜幸，为日本的动画导演、作词家、小说家。出身日本神奈川县小田原市，日本大学艺术学院电影科毕业。从参与日本最早的电视动画《铁臂阿童木》的制作开始至今，是日本动画界资历最长的人物之一。\n\n代表作有《机动战士高达》系列、《传说巨神伊迪安》",
-          "relevant": null
+          "relevant": false
         }
       ]
     }

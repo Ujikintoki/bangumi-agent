@@ -62,6 +62,7 @@ class RagSearchResult(BaseModel):
     rag_output: str = Field(description="预构建 JSON dict，与 API detail 工具 schema 对齐")
     name: str = Field(default="", description="实体原文名称")
     name_cn: Optional[str] = Field(default=None, description="实体中文名称")
+    subject_type: Optional[int] = Field(default=None, description="Subject 子类型: 1=书籍, 2=动画, NULL=非 subject")
     nsfw: bool = Field(default=False, description="是否 R18 内容")
     cosine_distance: float = Field(description="余弦距离，越小越相似")
     popularity: int = Field(default=0, description="热度信号（列级提取）")
@@ -246,6 +247,7 @@ class RagEntityRetriever:
                 RagSearchResult(
                     entity_id=entity.id,
                     entity_type=entity.entity_type,
+                    subject_type=entity.subject_type,
                     rag_output=entity.rag_output,
                     name=entity.name or "",
                     name_cn=entity.name_cn,
