@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -322,6 +323,130 @@ class RagEntityRetriever:
         )
 
         return final_results
+
+    def name_search(
+        self,
+        query: str,
+        entity_type: Literal["subject", "character", "person", "all"] = "all",
+        subject_type: Optional[int] = None,
+        limit: int = 10,
+        similarity_threshold: float = 0.25,
+    ) -> list[RagSearchResult]:
+        """名称模糊匹配检索 — 用 pg_trgm 比对 name + name_cn 列。
+
+        与 hybrid_search() 互补：hybrid 用向量理解语义（"温馨的日常故事"），
+        name_search 用 trigram 匹配名称（"進撃の巨人" = "进击的巨人"）。
+
+        内部流程：
+          1. 查询归一化（去标点、小写）
+          2. 别名展开（"邦邦" → "BanG Dream!"）
+          3. trigram SIMILARITY 比对 name 和 name_cn
+          4. 按 max(similarity) DESC, popularity DESC 排序
+
+        Args:
+            query: 名称查询，如 ``"進撃の巨人 第三季"``。
+            entity_type: 实体类型过滤。
+            subject_type: Subject 子类型过滤。
+            limit: 最大返回条数。
+            similarity_threshold: trigram 相似度下限 [0, 1]。
+
+        Returns:
+            按相似度 + 热度排序的 RagSearchResult 列表。
+        """
+        if not query or not query.strip():
+            return []
+
+        from ._aliases import expand_aliases
+        from sqlalchemy import func as sa_func, or_
+        from sqlmodel import Session, select
+
+        # ── 查询归一化 ──
+        def _normalize(s: str) -> str:
+            s = s.lower().strip()
+            s = re.sub(r"[^\w\s一-鿿぀-ゟ゠-ヿ]", " ", s)
+            s = re.sub(r"\s+", " ", s).strip()
+            return s
+
+        search_terms = [_normalize(query)]
+        for alias_name in expand_aliases(query):
+            search_terms.append(_normalize(alias_name))
+
+        # ── trigram 搜索 ──
+        try:
+            with Session(self.engine) as session:
+                # 取所有 search term 在 name + name_cn 上的最高 similarity
+                sim_exprs = []
+                for t in search_terms:
+                    sim_exprs.append(sa_func.similarity(RagEntity.name, t))
+                    sim_exprs.append(sa_func.similarity(RagEntity.name_cn, t))
+                max_sim = sa_func.greatest(*sim_exprs)
+
+                stmt = select(RagEntity, max_sim.label("name_sim"))
+
+                if entity_type != "all":
+                    stmt = stmt.where(RagEntity.entity_type == entity_type)
+                if subject_type is not None:
+                    stmt = stmt.where(RagEntity.subject_type == subject_type)
+                stmt = stmt.where(RagEntity.nsfw == False)
+
+                # 至少一个 search term 的 similarity > threshold
+                conditions = []
+                for t in search_terms:
+                    conditions.append(
+                        sa_func.similarity(RagEntity.name, t) > similarity_threshold
+                    )
+                    conditions.append(
+                        sa_func.similarity(RagEntity.name_cn, t) > similarity_threshold
+                    )
+                stmt = stmt.where(or_(*conditions))
+
+                stmt = stmt.order_by(
+                    max_sim.desc(),
+                    RagEntity.popularity.desc(),
+                ).limit(limit * 2)
+
+                rows = session.execute(stmt).fetchall()
+
+        except Exception as exc:
+            logger.error("名称搜索失败: %s", exc)
+            return []
+
+        # ── 组装 + 去重 ──
+        results: list[RagSearchResult] = []
+        seen: set[str] = set()
+        for row in rows:
+            entity: RagEntity = row[0]
+            if entity.id in seen:
+                continue
+            seen.add(entity.id)
+            sim: float = float(row[1])
+
+            results.append(
+                RagSearchResult(
+                    entity_id=entity.id,
+                    entity_type=entity.entity_type,
+                    subject_type=entity.subject_type,
+                    rag_output=entity.rag_output,
+                    name=entity.name or "",
+                    name_cn=entity.name_cn,
+                    nsfw=entity.nsfw,
+                    cosine_distance=0.0,
+                    popularity=entity.popularity,
+                    final_score=1.0 - sim,
+                    meta_info=entity.meta_info or {},
+                )
+            )
+
+        logger.info(
+            "名称搜索: query='%s', terms=%s, 候选=%d, top1='%s'(sim=%.3f)",
+            query[:50],
+            search_terms,
+            len(results[:limit]),
+            results[0].name if results else "N/A",
+            1.0 - results[0].final_score if results else 0,
+        )
+
+        return results[:limit]
 
 """
 [DEPRECATED — 2026-08-05] SearchResult + BangumiRetriever 已废弃。

@@ -40,7 +40,12 @@
         "subject_485936",
         "subject_531159"
       ],
-      "gt_size": 31
+      "gt_size": 31,
+      "keyword_filters": {
+        "required_tags": [
+          "芳文社"
+        ]
+      }
     },
     {
       "id": "a02",
@@ -74,7 +79,12 @@
         "subject_498378",
         "subject_513345"
       ],
-      "gt_size": 24
+      "gt_size": 24,
+      "keyword_filters": {
+        "required_tags": [
+          "CloverWorks"
+        ]
+      }
     },
     {
       "id": "a03",
@@ -133,7 +143,12 @@
         "subject_386195",
         "subject_514358"
       ],
-      "gt_size": 49
+      "gt_size": 49,
+      "keyword_filters": {
+        "required_tags": [
+          "京都动画"
+        ]
+      }
     },
     {
       "id": "a04",
@@ -167,7 +182,12 @@
         "subject_441939",
         "subject_501958"
       ],
-      "gt_size": 24
+      "gt_size": 24,
+      "keyword_filters": {
+        "required_tags": [
+          "ufotable"
+        ]
+      }
     },
     {
       "id": "a05",
@@ -206,7 +226,12 @@
         "subject_394623",
         "subject_404804"
       ],
-      "gt_size": 29
+      "gt_size": 29,
+      "keyword_filters": {
+        "required_tags": [
+          "Production.I.G"
+        ]
+      }
     },
     {
       "id": "a06",
@@ -230,7 +255,12 @@
         "subject_390555",
         "subject_395378"
       ],
-      "gt_size": 14
+      "gt_size": 14,
+      "keyword_filters": {
+        "required_tags": [
+          "TRIGGER"
+        ]
+      }
     },
     {
       "id": "a07",
@@ -265,7 +295,12 @@
         "subject_443428",
         "subject_517057"
       ],
-      "gt_size": 25
+      "gt_size": 25,
+      "keyword_filters": {
+        "required_tags": [
+          "动画工房"
+        ]
+      }
     },
     {
       "id": "a08",
@@ -284,7 +319,12 @@
         "subject_77625",
         "subject_96918"
       ],
-      "gt_size": 9
+      "gt_size": 9,
+      "keyword_filters": {
+        "required_tags": [
+          "虚渊玄"
+        ]
+      }
     },
     {
       "id": "a09",
@@ -326,7 +366,12 @@
         "subject_400602",
         "subject_515759"
       ],
-      "gt_size": 32
+      "gt_size": 32,
+      "keyword_filters": {
+        "required_tags": [
+          "MADHouse"
+        ]
+      }
     },
     {
       "id": "a10",
@@ -360,7 +405,12 @@
         "subject_240760",
         "subject_353605"
       ],
-      "gt_size": 24
+      "gt_size": 24,
+      "keyword_filters": {
+        "required_tags": [
+          "BONES"
+        ]
+      }
     },
     {
       "id": "a11",
@@ -390,7 +440,12 @@
         "subject_477207",
         "subject_531159"
       ],
-      "gt_size": 20
+      "gt_size": 20,
+      "keyword_filters": {
+        "required_tags": [
+          "P.A.WORKS"
+        ]
+      }
     },
     {
       "id": "a12",
@@ -411,7 +466,12 @@
         "subject_56846",
         "subject_228715"
       ],
-      "gt_size": 11
+      "gt_size": 11,
+      "keyword_filters": {
+        "required_tags": [
+          "吉卜力"
+        ]
+      }
     },
     {
       "id": "a13",
@@ -471,7 +531,10 @@
         "subject_426239",
         "subject_428735"
       ],
-      "gt_size": 50
+      "gt_size": 50,
+      "keyword_filters": {
+        "year": 2023
+      }
     },
     {
       "id": "a14",
@@ -523,7 +586,10 @@
         "subject_389450",
         "subject_389474"
       ],
-      "gt_size": 42
+      "gt_size": 42,
+      "keyword_filters": {
+        "year": 2022
+      }
     },
     {
       "id": "a15",
@@ -543,7 +609,10 @@
         "subject_25961",
         "subject_211567"
       ],
-      "gt_size": 10
+      "gt_size": 10,
+      "keyword_filters": {
+        "min_score": 8.8
+      }
     },
     {
       "id": "a16",
@@ -608,7 +677,10 @@
         "person_30858",
         "person_40794"
       ],
-      "gt_size": 55
+      "gt_size": 55,
+      "keyword_filters": {
+        "career": "seiyu"
+      }
     },
     {
       "id": "a17",
@@ -661,7 +733,10 @@
         "person_19339",
         "person_30858"
       ],
-      "gt_size": 43
+      "gt_size": 43,
+      "keyword_filters": {
+        "career": "artist"
+      }
     },
     {
       "id": "a18",
@@ -729,7 +804,10 @@
         "person_16005",
         "person_31113"
       ],
-      "gt_size": 58
+      "gt_size": 58,
+      "keyword_filters": {
+        "career": "producer"
+      }
     },
     {
       "id": "a19",
@@ -740,7 +818,8 @@
       "ground_truth": [
         "subject_328609"
       ],
-      "gt_size": 1
+      "gt_size": 1,
+      "keyword_filters": {}
     },
     {
       "id": "a20",
@@ -749,9 +828,10 @@
       "subject_type": 2,
       "category": "exact",
       "ground_truth": [
-        "subject_290980"
+        "subject_55770"
       ],
-      "gt_size": 1
+      "gt_size": 1,
+      "keyword_filters": {}
     },
     {
       "id": "a21",
@@ -762,7 +842,8 @@
       "ground_truth": [
         "subject_10380"
       ],
-      "gt_size": 1
+      "gt_size": 1,
+      "keyword_filters": {}
     },
     {
       "id": "a22",
@@ -771,9 +852,10 @@
       "subject_type": 2,
       "category": "exact",
       "ground_truth": [
-        "subject_793"
+        "subject_1671"
       ],
-      "gt_size": 1
+      "gt_size": 1,
+      "keyword_filters": {}
     },
     {
       "id": "a23",
@@ -784,7 +866,8 @@
       "ground_truth": [
         "subject_51"
       ],
-      "gt_size": 1
+      "gt_size": 1,
+      "keyword_filters": {}
     },
     {
       "id": "a24",
@@ -795,7 +878,8 @@
       "ground_truth": [
         "character_12393"
       ],
-      "gt_size": 1
+      "gt_size": 1,
+      "keyword_filters": {}
     },
     {
       "id": "a25",
@@ -806,7 +890,8 @@
       "ground_truth": [
         "person_4765"
       ],
-      "gt_size": 1
+      "gt_size": 1,
+      "keyword_filters": {}
     }
   ]
 }

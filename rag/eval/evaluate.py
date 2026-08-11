@@ -33,6 +33,7 @@ import argparse
 import json
 import logging
 import math
+import re
 import statistics
 import time
 from pathlib import Path
@@ -88,6 +89,78 @@ def _query_db(sql: str) -> list[str]:
     return [row[0] for row in rows]
 
 
+def _parse_keyword_filters(sql: str) -> dict:
+    """从 GT SQL 中提取关键词匹配参数，零手工维护。
+
+    支持的 SQL 模式::
+        meta_info->'tags' @> '[{"name": "XXX"}]'  →  required_tags: ["XXX"]
+        meta_info->>'year' = 'YYYY'               →  year: YYYY
+        (meta_info->>'score')::float >= X.X       →  min_score: X.X
+        meta_info->'career' ? 'XXX'               →  career: "XXX"
+    """
+    filters: dict = {}
+    tag_match = re.findall(r"""@>\s*'\[\{"name":\s*"([^"]+)"\}\]'""", sql)
+    if tag_match:
+        filters["required_tags"] = tag_match
+    year_match = re.search(r"->>'year'\s*=\s*'(\d{4})'", sql)
+    if year_match:
+        filters["year"] = int(year_match.group(1))
+    score_match = re.search(r"::float\s*>=\s*([\d.]+)", sql)
+    if score_match:
+        filters["min_score"] = float(score_match.group(1))
+    career_match = re.search(r"\?\s*'(\w+)'", sql)
+    if career_match:
+        filters["career"] = career_match.group(1)
+    return filters
+
+
+def _run_keyword_search(
+    entity_type: str,
+    subject_type: Optional[int],
+    required_tags: Optional[list[str]] = None,
+    year: Optional[int] = None,
+    min_score: Optional[float] = None,
+    career: Optional[str] = None,
+    limit: int = 10,
+) -> list[str]:
+    """精确关键词匹配检索 — 用结构化 WHERE 条件而非向量。"""
+    from database.engine import engine
+    from database.rag_tables import RagEntity
+    from sqlmodel import Session, select, desc
+
+    if not any([required_tags, year is not None, min_score is not None, career]):
+        return []
+
+    with Session(engine) as session:
+        stmt = select(RagEntity.id, RagEntity.popularity)
+        if entity_type and entity_type != "all":
+            stmt = stmt.where(RagEntity.entity_type == entity_type)
+        if subject_type is not None:
+            stmt = stmt.where(RagEntity.subject_type == subject_type)
+        stmt = stmt.where(RagEntity.nsfw == False)
+
+        if required_tags:
+            for tag_name in required_tags:
+                stmt = stmt.where(
+                    RagEntity.meta_info["tags"].contains([{"name": tag_name}])
+                )
+        if year is not None:
+            stmt = stmt.where(
+                RagEntity.meta_info["year"].as_string() == str(year)
+            )
+        if min_score is not None:
+            from sqlalchemy import cast, Float
+            stmt = stmt.where(
+                cast(RagEntity.meta_info["score"].as_string(), Float) >= min_score
+            )
+        if career:
+            stmt = stmt.where(RagEntity.meta_info["career"].has_key(career))
+
+        stmt = stmt.order_by(desc(RagEntity.popularity)).limit(limit)
+        rows = session.execute(stmt).all()
+    return [row[0] for row in rows]
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Phase 1: --build — 生成 Ground Truth
 # ═══════════════════════════════════════════════════════════════════════
@@ -118,6 +191,7 @@ def build_auto_gt() -> list[dict]:
             "category": cat,
             "ground_truth": gt,
             "gt_size": len(gt),
+            "keyword_filters": _parse_keyword_filters(sql),
         })
         print(f"GT={len(gt)}")
 
@@ -291,27 +365,57 @@ def _run_retrieval(
     entity_type: str,
     subject_type: Optional[int] = None,
     limit: int = 10,
+    keyword_filters: Optional[dict] = None,
     **ablation_kwargs: bool,
 ) -> list[str]:
-    """检索并返回 entity_id 有序列表。
+    """三通道检索：关键词精确 > trigram 名称 > 向量语义补位。
 
-    ablation_kwargs 透传给 hybrid_search 的消融开关：
-    enable_threshold / enable_bucketing / enable_mmr。
+    ablation_kwargs 透传给 hybrid_search 的消融开关。
     """
+    # 通道 1: 关键词精确匹配
+    keyword_ids: list[str] = []
+    if keyword_filters:
+        keyword_ids = _run_keyword_search(
+            entity_type=entity_type, subject_type=subject_type,
+            limit=limit, **keyword_filters,
+        )
+    keyword_seen = set(keyword_ids)
+
     retriever = _get_retriever()
+
+    # 通道 2: trigram 名称匹配
+    name_ids: list[str] = []
+    try:
+        name_results = retriever.name_search(
+            query=query, entity_type=entity_type,
+            subject_type=subject_type, limit=limit,
+        )
+        name_ids = [r.entity_id for r in name_results]
+    except Exception:
+        pass
+    name_seen = set(name_ids) | keyword_seen
+
+    # 通道 3: 向量语义匹配
     try:
         results = retriever.hybrid_search(
-            query=query,
-            entity_type=entity_type,
-            subject_type=subject_type,
-            limit=limit,
-            distance_threshold=0.9,
-            **ablation_kwargs,
+            query=query, entity_type=entity_type,
+            subject_type=subject_type, limit=limit,
+            distance_threshold=0.9, **ablation_kwargs,
         )
-        return [r.entity_id for r in results]
+        vector_ids = [r.entity_id for r in results]
     except Exception as e:
         logger.error("检索失败 %s: %s", query, e)
-        return []
+        vector_ids = []
+
+    # 合并: 关键词 > 名称 > 向量 去重
+    merged = list(keyword_ids)
+    for nid in name_ids:
+        if nid not in keyword_seen:
+            merged.append(nid)
+    for vid in vector_ids:
+        if vid not in keyword_seen and vid not in name_seen:
+            merged.append(vid)
+    return merged[:limit]
 
 
 def _dcg(relevances: list[int]) -> float:
@@ -395,7 +499,10 @@ def cmd_evaluate():
             continue
 
         print(f"  [{i+1:2d}/{len(all_queries)}] {qid} \"{qtext}\" GT={len(gt)}", end=" ... ")
-        retrieved = _run_retrieval(qtext, etype, q.get("subject_type"))
+        retrieved = _run_retrieval(
+            qtext, etype, q.get("subject_type"),
+            keyword_filters=q.get("keyword_filters"),
+        )
         metrics = _compute_metrics(retrieved, gt)
         print(f"{len(retrieved)} hits, Recall@5={metrics.get('Recall@5', 0):.3f}")
 
@@ -573,7 +680,9 @@ def cmd_ablate():
 
             retrieved = _run_retrieval(
                 q["query"], q.get("entity_type", "all"),
-                q.get("subject_type"), **kwargs,
+                q.get("subject_type"),
+                keyword_filters=q.get("keyword_filters"),
+                **kwargs,
             )
             metrics = _compute_metrics(retrieved, gt)
             for key, val in metrics.items():
