@@ -101,8 +101,8 @@ class TestProfiles:
         assert "Bangumi 看板娘" in card or "ACGN 爱好者" in card
         # 应包含审美体系关键词
         assert "好不好看" in card or "重不重要" in card
-        # 应包含数据态度
-        assert "注脚" in card or "正文" in card
+        # 数据态度已移入 tool_behavior（Aggregator 层读取），Card 不含此段
+        assert "诚实" in card or "有品位的动画迷" in card
 
     def test_character_card_exists_for_neutral(self):
         """Neutral 应有 Character Card。"""
