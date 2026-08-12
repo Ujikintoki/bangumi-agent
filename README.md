@@ -89,7 +89,7 @@ curl -s -X POST http://localhost:8000/chat \
 |------|------|--------|------|
 | `message` | `str` | *必填* | 用户消息 |
 | `depth` | `"fast"` \| `"deep"` | `"fast"` | 深度控制 |
-| `output_style` | `"bangumi"` \| `"bangumi_tsundere"` \| `"bangumi_kawaii"` \| `"neutral"` | `"bangumi"` | 人格模式 |
+| `output_style` | `"bangumi"` \| `"bangumi_kawaii"` \| `"neutral"` | `"bangumi"` | 人格模式 |
 | `session_id` | `str` | 自动生成 | 多轮会话 ID |
 | `user_id` | `str` | `"anonymous"` | 跨会话记忆用户 ID |
 

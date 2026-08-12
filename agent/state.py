@@ -34,7 +34,7 @@ class AgentState(TypedDict):
         user_id: 用户标识（L2 跨会话记忆）。(未来可考虑优化)
         error_flag: 降级标记。底层组件异常或循环超限时置 True。
         _memory_context: 首轮 L2 记忆召回缓存。None 表示未初始化，空字符串表示已召回但无记忆。
-        output_style: 输出渲染风格：neutral | bangumi | bangumi_tsundere | bangumi_kawaii
+        output_style: 输出渲染风格：neutral | bangumi | bangumi_kawaii
         depth: 深度模式：auto | quick | deep。
     """
 
@@ -72,7 +72,7 @@ class AgentState(TypedDict):
     """首轮 L2 记忆召回缓存。None 表示未初始化，空字符串表示已召回但无记忆。"""
 
     output_style: str
-    """输出渲染风格：neutral | bangumi | bangumi_tsundere | bangumi_kawaii。"""
+    """输出渲染风格：neutral | bangumi | bangumi_kawaii。"""
 
     depth: str
     """深度模式：fast | deep。控制迭代上限和 token 预算。"""
