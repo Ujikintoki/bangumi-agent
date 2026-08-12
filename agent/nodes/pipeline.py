@@ -49,24 +49,25 @@ async def _pipeline_step(
         tool_names: 此步骤可用的工具名列表。
         tool_choice: tool_choice 参数。
         system_content: 此步骤专属的 System Prompt。
-        is_first_step: 是否为首步（需要记忆召回 + 消息列表构建）。
+        is_first_step: 是否为首步（控制记忆召回）。System Prompt 每步都会更新。
     """
     new_iterations = state.get("iterations", 0) + 1
     messages = state.get("messages", [])
     depth = state.get("depth", "fast")
     query_intent = state.get("query_intent", "fallback")
 
-    # 首步：记忆召回 + 构建消息列表
+    # 首步：记忆召回
     if is_first_step:
         memory_context = await recall_memory_step(
             state,
             max_tokens=get_settings().MEMORY_DIALOGUE_MAX_INJECT_TOKENS,
             recall_threshold=get_settings().MEMORY_DIALOGUE_RECALL_THRESHOLD,
         )
-        built = build_message_list(messages, system_content)
     else:
         memory_context = state.get("_memory_context", "") or ""
-        built = list(messages)
+
+    # 每步都重建消息列表——替换 SystemMessage 为当前步骤的专属 prompt
+    built = build_message_list(messages, system_content)
 
     # L1 记忆截断
     token_budget = DEPTH_TOKEN_BUDGETS.get(depth, DEFAULT_MAX_TOKENS)
