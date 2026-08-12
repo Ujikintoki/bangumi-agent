@@ -332,16 +332,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
             render_input = "（无数据）"
             force_render = False
 
-    # 获取角色人格参数（snark/initiative 来自角色定义，不被 depth 覆盖）
+    # 获取角色人格参数
     character = get_character(output_style)
 
     rendered = await render_reply(
         render_input=render_input,
         user_query=user_query,
-        output_style=output_style,
+        character=character,
         depth=depth,
-        snark=character.snark,
-        initiative=character.initiative,
         force=force_render,
     )
     if rendered:
@@ -455,10 +453,8 @@ async def chat_stream(request: ChatRequest):
             rendered_reply = await render_reply(
                 render_input=render_input,
                 user_query=user_query,
-                output_style=output_style,
+                character=character,
                 depth=depth,
-                snark=character.snark,
-                initiative=character.initiative,
                 force=force_render,
             )
             if rendered_reply:

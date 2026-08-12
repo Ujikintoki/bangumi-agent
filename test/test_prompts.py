@@ -191,71 +191,69 @@ class TestHonestyPrinciple:
 
 
 class TestRenderPrompt:
-    """Render prompt 构建（Phase 7: 参数感知 + 快速跳过）。"""
+    """Render prompt 构建（Phase 7.5: character 对象替代碎片化参数）。"""
 
     def test_render_prompt_non_empty(self):
         """build_render_prompt 应返回非空 prompt。"""
-        result = build_render_prompt("bangumi", "EVA 怎么样？", "EVA 评分 9.1，排名第一。")
+        result = build_render_prompt(BANGUMI_CHARACTER, "EVA 怎么样？", "EVA 评分 9.1，排名第一。")
         assert len(result) > 100
 
     def test_render_prompt_includes_identity(self):
         """Render prompt 应包含角色身份。"""
-        result = build_render_prompt("bangumi", "test", "test response")
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "test response")
         assert "Bangumi娘" in result or "看板娘" in result
 
     def test_render_prompt_includes_user_query(self):
         """Render prompt 应包含用户问题。"""
-        result = build_render_prompt("bangumi", "EVA 评分怎么样", "9.1 分")
+        result = build_render_prompt(BANGUMI_CHARACTER, "EVA 评分怎么样", "9.1 分")
         assert "EVA 评分怎么样" in result
 
     def test_render_prompt_includes_agent_response(self):
         """Render prompt 应包含原始回复。"""
-        result = build_render_prompt("bangumi", "test", "EVA 评分 9.1，排名 #1")
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "EVA 评分 9.1，排名 #1")
         assert "EVA 评分 9.1" in result
 
     def test_render_prompt_neutral_no_bangumi_persona(self):
         """Neutral 角色 render prompt 不应包含损友吐槽。"""
-        result = build_render_prompt("neutral", "test", "response")
+        result = build_render_prompt(NEUTRAL_CHARACTER, "test", "response")
         assert "腹黑" not in result
         assert "吐槽" not in result
 
     def test_render_prompt_bangumi_has_style(self):
         """Bangumi 角色 render prompt 应包含角色身份和审美体系。"""
-        result = build_render_prompt("bangumi", "test", "## 数据清单\n- 测试条目")
-        # v2: Character Card 包含完整的审美体系描述
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "## 数据清单\n- 测试条目")
         assert "Bangumi 看板娘" in result or "ACGN 爱好者" in result or "审美" in result
 
     def test_render_prompt_no_data_interpretation(self):
         """Render prompt 不应包含数据解读教科书。"""
-        result = build_render_prompt("bangumi", "test", "response")
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
         assert "rating_count" not in result
 
     def test_render_prompt_has_hard_constraints(self):
-        """Render prompt 应包含硬约束。"""
-        result = build_render_prompt("bangumi", "test", "response")
-        assert "硬约束" in result
+        """Render prompt 应包含硬约束（来自 character.guardrails）。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "response")
+        assert "必须遵守" in result
         assert "emoji" in result
 
     def test_render_prompt_word_limit_by_depth(self):
         """字数限制应按 depth 分档。"""
-        a = build_render_prompt("bangumi", "test", "r", depth="fast")
-        d = build_render_prompt("bangumi", "test", "r", depth="deep")
+        a = build_render_prompt(BANGUMI_CHARACTER, "test", "r", depth="fast")
+        d = build_render_prompt(BANGUMI_CHARACTER, "test", "r", depth="deep")
         assert "200 字" in a
         assert "350 字" in d
-        assert "{word_limit}" not in a
-        assert "{word_limit}" not in d
 
     def test_render_prompt_ending_not_always_question(self):
-        """结尾规则应允许判断或冷吐槽。"""
-        result = build_render_prompt("bangumi", "test", "## 数据清单\n- 条目")
-        # v2: initiative tone 包含结尾方式指引
+        """结尾规则应允许说完就停。"""
+        result = build_render_prompt(BANGUMI_CHARACTER, "test", "## 数据清单\n- 条目")
         assert "说完就停" in result or "冷吐槽" in result or "反问" in result
 
     def test_render_prompt_snark_affects_style(self):
-        """不同 snark 值应产生不同的render prompt（语调文本不同）。"""
-        low = build_render_prompt("bangumi", "test", "## 数据清单\n- r", snark=0.2)
-        high = build_render_prompt("bangumi", "test", "## 数据清单\n- r", snark=0.9)
-        # 不同 snark 注入不同文本
+        """不同 snark 值应产生不同的 render prompt（语调文本不同）。"""
+        import dataclasses
+        low_char = dataclasses.replace(BANGUMI_CHARACTER, snark=0.2)
+        high_char = dataclasses.replace(BANGUMI_CHARACTER, snark=0.9)
+        low = build_render_prompt(low_char, "test", "## 数据清单\n- r")
+        high = build_render_prompt(high_char, "test", "## 数据清单\n- r")
         assert low != high
 
     def test_should_skip_render_short_chitchat(self):

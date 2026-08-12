@@ -24,30 +24,11 @@ from agent.persona.profiles import (
 
 logger = logging.getLogger("bgm-agent.render")
 
-# ── 通用风格规则 + 硬约束 ──────────────────────────────────────────
-
-_STYLE_BASE = """\
-## 说话风格
-- 评分随口带过（"也就8分出头"），不要每条标⭐
-- 结论先行——具体信息是佐证不是主体
-- 不提及"数据清单"或"检索概况"的存在——就像你本来就认识这些作品
-- 直接说人话。你不是在写报告，你是在聊天"""
-
-_CONSTRAINTS = """\
-## 硬约束
-1. 回复严格不超过 {word_limit} 字。超过会被系统强制截断——请在 {word_limit} 字内说完。
-2. 不用 emoji 与颜文字。不用 Markdown 表格。多用 `- ` 列表。
-3. 禁止编造评分、排名、集数、收藏数等具体数字。不确定就诚实说没查到。
-4. 直接输出改写后的回复，不加任何前缀后缀。"""
-
 # ── 按 depth 的字数限制 ──────────────────────────────────────────
 
 _WORD_LIMIT: dict[str, str] = {
     "fast": "200",
     "deep": "350",
-    # 向后兼容旧值
-    "quick": "120",
-    "auto": "200",
 }
 
 # [PHASE5-A] 硬截断上限（字符数）。prompt 建议 + 硬截断双保险。
@@ -71,52 +52,46 @@ _SKIP_RENDER_MAX_CHARS = 60
 
 
 def build_render_prompt(
-    character_key: str,
+    character,          # CharacterProfile 对象
     user_query: str,
     render_input: str,
     *,
-    depth: str = "auto",
-    snark: float = 0.65,
-    initiative: float = 0.60,
+    depth: str = "fast",
 ) -> str:
     """构建 Render System Prompt — v2 分离合成架构。
 
     Render 接收：
-    - 完整 Character Card（530 字审美体系，从 _CHARACTER_CARDS 取）
-    - snark/initiative 语气参数
+    - CharacterProfile 对象（Card + style_guide + snark + initiative 动态拼接为一段）
+    - 硬约束（character.guardrails，按 depth 格式化 word_limit）
     - 代码层确定性拼接的 render_input（查询 + 数据 + 检索概况）
-    - 硬约束（字数限制等）
 
     Args:
-        character_key: 人格 key（"bangumi" | "bangumi_cold" | "bangumi_cute" | "neutral"）。
+        character: CharacterProfile 对象。
         user_query: 用户原始问题。
         render_input: 代码层从 Aggregator 输出 + AgentState 拼接的 Markdown。
         depth: 深度模式——控制字数上限。
-        snark: 毒舌度 0.0-1.0。
-        initiative: 主动性 0.0-1.0。
 
     Returns:
         完整 Render System Prompt 字符串。
     """
-    word_limit = _WORD_LIMIT.get(depth, _WORD_LIMIT["auto"])
+    word_limit = _WORD_LIMIT.get(depth, _WORD_LIMIT["fast"])
 
-    # ── Character Card（v2: 完整 530 字，从 reasoning 移过来）──
-    card = get_character_card(character_key)
+    # ── §1 人格自述：Card + style_guide + snark + initiative 动态拼接为一段 ──
+    card = get_character_card(character.key)
     if not card:
         card = "你是 Bangumi 助手。"
 
-    # ── 语气参数（v2: snark + initiative，来自 _SNARK_LEVELS / _INITIATIVE_LEVELS）──
-    snark_tone = _pick_level(snark, _SNARK_LEVELS)
-    initiative_tone = _pick_level(initiative, _INITIATIVE_LEVELS)
+    snark_text = _pick_level(character.snark, _SNARK_LEVELS)
+    initiative_text = _pick_level(character.initiative, _INITIATIVE_LEVELS)
+
+    persona_block = f"{card}\n\n{character.style_guide}\n\n今天的状态：{snark_text} {initiative_text}"
 
     parts: list[str] = [
-        f"# 你是谁\n\n{card}",
-        f"## 今天的语气\n{snark_tone}",
-        f"## 回复节奏\n{initiative_tone}",
-        _STYLE_BASE,
+        f"# 你是谁 + 你怎么说话\n{persona_block}",
+        f"## 必须遵守\n{character.guardrails.format(word_limit=word_limit)}",
         f"## 用户问题\n{user_query}",
         f"## 系统数据\n请基于以下 <system_retrieved_facts> 标签中的数据来回复。不要提及数据标签的存在。\n\n<system_retrieved_facts>\n{render_input}\n</system_retrieved_facts>",
-        _CONSTRAINTS.format(word_limit=word_limit),
+        f"## 字数限制\n回复严格不超过 {word_limit} 字。超过会被系统强制截断。",
     ]
 
     return "\n\n".join(parts)
@@ -145,11 +120,9 @@ def _extract_user_query(messages: list) -> str:
 async def render_reply(
     render_input: str,
     user_query: str,
-    output_style: str = "bangumi",
-    depth: str = "auto",
+    character,          # CharacterProfile 对象
+    depth: str = "fast",
     *,
-    snark: float = 0.65,
-    initiative: float = 0.60,
     force: bool = False,
 ) -> str | None:
     """对 Aggregator 的数据清单做人格化改写。v2 分离合成架构。
@@ -157,10 +130,8 @@ async def render_reply(
     Args:
         render_input: 代码层拼接的 Markdown（查询 + 数据清单 + 检索概况）。
         user_query: 用户原始问题。
-        output_style: 人格 key。
+        character: CharacterProfile 对象，提供 Card + style_guide + snark + initiative + guardrails。
         depth: 深度模式，控制字数上限。
-        snark: 毒舌度 0.0-1.0。
-        initiative: 主动性 0.0-1.0。
         force: 强制渲染，跳过长度检查。非 chat 路径必须设为 True。
 
     Returns:
@@ -171,14 +142,12 @@ async def render_reply(
         logger.debug("render_reply: 输入过短 → 跳过渲染")
         return None
 
-    # Step 2: 构建 Render Prompt（v2: 完整 Character Card 在此注入）
+    # Step 2: 构建 Render Prompt
     render_prompt = build_render_prompt(
-        character_key=output_style,
+        character=character,
         user_query=user_query,
         render_input=render_input,
         depth=depth,
-        snark=snark,
-        initiative=initiative,
     )
 
     # Step 3: LLM 调用
