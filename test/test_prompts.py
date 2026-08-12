@@ -19,8 +19,7 @@ from agent.persona.profiles import (
     get_character,
     get_character_card,
 )
-from agent.prompts.tool_config import TOOL_GUIDANCE
-from agent.prompts.aggregator import build_aggregator_prompt as _build_agg
+from agent.prompts.aggregator import build_aggregator_prompt as _build_agg, TOOL_GUIDANCE
 from agent.prompts.scene_hints import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
 from agent.persona.render import (
     _should_skip_render,

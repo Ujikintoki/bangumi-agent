@@ -12,9 +12,9 @@ Phase 7.5: 人格描述哲学转变——从"教 model 怎么表演"（行为指
 2. **Aesthetic system** — 角色有自己的审美体系（"好不好看 vs 重不重要"），
    这个体系比任何行为规则都更稳定地约束输出。
 3. **参数分流** — snark/initiative 由 Render 层通过 ``_pick_level()``
-   注入 ""## 今天的语气"" / ""## 回复节奏"" 段；depth_taste 由 Aggregator 层
-   通过 ``get_aggregator_depth_instruction()`` 注入搜索深度指令。
-4. **Guardrails 字数占位符** — ``{word_limit}`` 由 prompt_builder 按 depth 格式化。
+   注入 §1 人格块的"今天的状态"提示；depth_taste 由 Aggregator 层
+   ``aggregator.py:get_aggregator_depth_instruction()`` 注入 §2 搜索深度指令。
+4. **Guardrails 字数占位符** — ``{word_limit}`` 由 render.py 按 depth 格式化。
 
 ==== 扩展方式 ====
 
@@ -134,76 +134,12 @@ _INITIATIVE_LEVELS = [
 ]
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 搜索深度指令 — Aggregator 行为控制（v2: 分离合成架构）
-#
-# 告诉 Aggregator 查多深、调哪些工具、何时停止。
-# depth_taste 参数在 reasoning 层的唯一作用点。
-# ═══════════════════════════════════════════════════════════════════════════
-
-_SEARCH_DEPTH_INSTRUCTIONS = [
-    (0.2, (
-        "搜索深度: SHALLOW（浅层）。\n"
-        "- 调用一次 search_bangumi_subject 获取基本评分和排名即可\n"
-        "- 不要拉取 detail——搜索结果里的 score/rank/info 已经够用\n"
-        "- 不要主动扩展搜索——只查用户明确问到的\n"
-        "- 数据拿到后立即输出文本摘要结束"
-    )),
-    (0.4, (
-        "搜索深度: BASIC（基础）。\n"
-        "- search 拿到基本评分和排名\n"
-        "- 用户明确问了详情（简介、标签、制作团队）时才调一次 detail\n"
-        "- 不要主动搜索同类对标作品\n"
-        "- 一次查询够用就停，不要追求完整覆盖"
-    )),
-    (0.6, (
-        "搜索深度: STANDARD（标准）。\n"
-        "- search 拿到候选列表后，对排名最高的 1-2 部调 detail 获取标签和简介\n"
-        "- 用户问到口碑时调 opinions 获取社区评论\n"
-        "- 可以有选择地扩展——但只在用户暗示了兴趣方向时才加查\n"
-        "- 数据充分就直接提交，不追求穷尽"
-    )),
-    (0.8, (
-        "搜索深度: THOROUGH（深入）。\n"
-        "- search 后对相关条目逐一调 detail 获取完整数据（评分分布、标签、简介、制作团队）\n"
-        "- 用户问到口碑/社区反应时调 opinions\n"
-        "- 如有导演/声优相关信息，主动查 person_detail\n"
-        "- 可主动检索同类型对标作品 1-2 部作为参考\n"
-        "- 确保拿到完整数据后再输出文本摘要结束"
-    )),
-    (1.0, (
-        "搜索深度: EXHAUSTIVE（全面）。\n"
-        "- search 后对全部候选条目调 detail（评分分布、标签、制作团队、关联条目）\n"
-        "- 调 opinions 获取社区评论和口碑分布\n"
-        "- 调 characters 获取角色和声优信息\n"
-        "- 主动检索同导演/同类型对标作品 2-3 部\n"
-        "- 对知名条目检索导演前作谱系\n"
-        "- 确保数据完整覆盖用户可能追问的所有方向后，再输出文本摘要结束"
-    )),
-]
-
-
 def _pick_level(value: float, levels: list[tuple[float, str]]) -> str:
     """按阈值选中一档。"""
     for threshold, text in levels:
         if value <= threshold:
             return text
     return levels[-1][1]  # fallback to highest
-
-
-def get_aggregator_depth_instruction(depth_taste: float) -> str:
-    """获取 Aggregator 的搜索深度行为指令（v2 分离合成架构）。
-
-    这是 depth_taste 参数在 Aggregator 层的唯一作用点——
-    它不参与人格表达，只控制工具调用策略。
-
-    Args:
-        depth_taste: 搜索深度 0.0-1.0 (5 档)。
-
-    Returns:
-        行为指令文本。
-    """
-    return _pick_level(depth_taste, _SEARCH_DEPTH_INSTRUCTIONS)
 
 
 # ============================================================================

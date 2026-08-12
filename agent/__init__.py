@@ -5,7 +5,7 @@ Companion Agent: 单一 graph + state，depth 参数控制模式。
 四层架构
 ========
 
-  编排层 (orchestrate/)   — 怎么思考、查多深
+  编排层 (nodes/prompts/routing/) — 怎么思考、查多深
   人格层 (persona/)       — 怎么说话、什么风格
   记忆层 (memory/)        — 能记住什么
   数据层 (clients/, tools/, rag/, database/) — 能查什么

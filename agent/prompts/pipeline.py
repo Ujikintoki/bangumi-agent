@@ -1,7 +1,5 @@
 """
 Per-node Pipeline Prompts — Phase 4 pipeline 节点的专属简短 prompt
-
-从 ``orchestrate/prompt_builder.py`` 提取。
 """
 
 from __future__ import annotations

@@ -1,8 +1,8 @@
 """
 Companion Agent 深度意图策略 — depth=="deep" 时激活
 
-Phase 8: TOOL_DEPENDENCY_CONSTRAINT + _DATA_MODEL_CONSTRAINT 已合并到
-prompt_builder.TOOL_GUIDANCE。本文件仅保留 DEEP_SCENE_HINTS + CRITIC_SYSTEM_PROMPT。
+TOOL_GUIDANCE 已归位到 ``agent/prompts/aggregator.py``。
+本文件仅保留 DEEP_SCENE_HINTS + CRITIC_SYSTEM_PROMPT。
 """
 
 from __future__ import annotations

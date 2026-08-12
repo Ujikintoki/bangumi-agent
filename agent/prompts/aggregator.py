@@ -1,17 +1,71 @@
 """
-Aggregator Prompt Builder — v2 分离合成架构
+Aggregator Prompt Builder — v3 六节结构化架构
 
 Reasoning 层是 Data Aggregator（数据聚合器），不是 Agent Persona。
 它的唯一工作：调用工具 → 收集数据 → 输出数据摘要。
 
 人格内容（Character Card、snark、initiative）全部属于 Render 层。
 
-从 ``orchestrate/prompt_builder.py`` 提取。
+所有 Aggregator 静态 prompt 文本集中在本文件。
 """
 
 from __future__ import annotations
 
-from agent.persona.profiles import get_aggregator_depth_instruction
+from agent.persona.profiles import _pick_level
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 搜索深度指令 — 5 档 SHALLOW~EXHAUSTIVE
+# ═══════════════════════════════════════════════════════════════════════════
+
+_SEARCH_DEPTH_INSTRUCTIONS = [
+    (0.2, (
+        "搜索深度: SHALLOW（浅层）。\n"
+        "- 调用一次 search_bangumi_subject 获取基本评分和排名即可\n"
+        "- 不要拉取 detail——搜索结果里的 score/rank/info 已经够用\n"
+        "- 不要主动扩展搜索——只查用户明确问到的\n"
+        "- 数据拿到后立即输出文本摘要结束"
+    )),
+    (0.4, (
+        "搜索深度: BASIC（基础）。\n"
+        "- search 拿到基本评分和排名\n"
+        "- 用户明确问了详情（简介、标签、制作团队）时才调一次 detail\n"
+        "- 不要主动搜索同类对标作品\n"
+        "- 一次查询够用就停，不要追求完整覆盖"
+    )),
+    (0.6, (
+        "搜索深度: STANDARD（标准）。\n"
+        "- search 拿到候选列表后，对排名最高的 1-2 部调 detail 获取标签和简介\n"
+        "- 用户问到口碑时调 opinions 获取社区评论\n"
+        "- 可以有选择地扩展——但只在用户暗示了兴趣方向时才加查\n"
+        "- 数据充分就直接提交，不追求穷尽"
+    )),
+    (0.8, (
+        "搜索深度: THOROUGH（深入）。\n"
+        "- search 后对相关条目逐一调 detail 获取完整数据（评分分布、标签、简介、制作团队）\n"
+        "- 用户问到口碑/社区反应时调 opinions\n"
+        "- 如有导演/声优相关信息，主动查 person_detail\n"
+        "- 可主动检索同类型对标作品 1-2 部作为参考\n"
+        "- 确保拿到完整数据后再输出文本摘要结束"
+    )),
+    (1.0, (
+        "搜索深度: EXHAUSTIVE（全面）。\n"
+        "- search 后对全部候选条目调 detail（评分分布、标签、制作团队、关联条目）\n"
+        "- 调 opinions 获取社区评论和口碑分布\n"
+        "- 调 characters 获取角色和声优信息\n"
+        "- 主动检索同导演/同类型对标作品 2-3 部\n"
+        "- 对知名条目检索导演前作谱系\n"
+        "- 确保数据完整覆盖用户可能追问的所有方向后，再输出文本摘要结束"
+    )),
+]
+
+
+def get_aggregator_depth_instruction(depth_taste: float) -> str:
+    """按 depth_taste 获取搜索深度行为指令。
+
+    这是 depth_taste 参数在 Aggregator 层的唯一作用点——
+    它不参与人格表达，只控制工具调用策略。
+    """
+    return _pick_level(depth_taste, _SEARCH_DEPTH_INSTRUCTIONS)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Aggregator 身份定义 — 数据聚合引擎
@@ -43,6 +97,33 @@ _TERMINATION_RULES = """\
 CRITICAL: 不编造数据。工具未返回的评分、排名、集数、收藏数等具体数字一律不得写入。缺失数据标注"暂无"。
 
 每条信息一行。不加"根据搜索结果"、不加个人判断、不加修饰语。"""
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 工具使用指引 — 何时查 / 多少算够 / 并行规则 / 数据真实性
+# ═══════════════════════════════════════════════════════════════════════════
+
+TOOL_GUIDANCE = """\
+## 你的工具
+
+**什么时候查**
+- 用户问到了你不知道的 → 查一下
+- 用户没问到的 → 不主动扩展（除非搜索深度指令要求）
+- 常识问题 → 基于搜索深度指令判断是否需要查
+
+**多少算够**
+- 搜索深度（调多少工具、取多少数据）遵循下方搜索深度指令——不同场景深度不同
+- 一次搜索能回答就不两次
+- search 拿到结果后，如果用户需要完整信息（详情、口碑、角色），调对应 detail 类工具——但够用就停，不要为了"查全"拖延
+- **速度比完整重要**——2轮内拿到核心数据就输出总结
+
+**并行规则**
+- 拿到 subject_id 后，detail + opinions + characters **必须同一轮并行调用**，不要串行
+- 依赖 subject_id / person_id 的工具不能和 search 同一轮并行——但拿到 id 后的下一轮就必须全部并行
+- 互不依赖的工具可以并行，同一轮最多 4 个
+- 时效类工具（calendar、trending）直接调，不需要先搜 id
+
+**数据真实性**
+- 时效性问题（"今季新番"、"当前热门"）——只使用工具返回的最新数据，工具没返回就在总结里注明"""
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 最后一轮消化态引导 — 隐式终止
@@ -182,7 +263,6 @@ def build_aggregator_prompt(
     parts.append(f"## 搜索深度\n{depth_instruction}")
 
     # ── §3 <tool_rules> 工具指引 ────────────────────────────
-    from agent.prompts.tool_config import TOOL_GUIDANCE
     parts.append(TOOL_GUIDANCE)
 
     # ── §4 <examples> 示例（偏后——近因效应）─────────────────
