@@ -10,7 +10,7 @@
 | 参数 | 值 | 说明 |
 |------|-----|------|
 | `depth` | `"fast"` / `"deep"` | 控制推理深度和 Token 预算 |
-| `output_style` | `"bangumi"` / `"bangumi_cold"` / `"bangumi_cute"` / `"neutral"` | 控制人格 |
+| `output_style` | `"bangumi"` / `"bangumi_tsundere"` / `"bangumi_kawaii"` / `"neutral"` | 控制人格 |
 
 技术栈：**FastAPI + LangGraph 异质拓扑（Pipeline + ReAct）+ DeepSeek function-calling + PostgreSQL/pgvector + Zhipu embedding-2**。
 
@@ -218,7 +218,7 @@ curl -s -X POST http://localhost:8000/chat \
 | Deep 模式不调工具 | `prompts/tool_config.py` | `TOOL_GUIDANCE` + deep 场景提示 |
 | 常识问题误调工具 | `nodes/classify.py` | intent 分类规则 |
 | 搜索空结果耗时过长 | `prompts/scene_hints.py` | 空结果处理策略 |
-| 切换人格 | 请求参数 | `output_style="bangumi_cold"` / `"bangumi_cute"` |
+| 切换人格 | 请求参数 | `output_style="bangumi_tsundere"` / `"bangumi_kawaii"` |
 
 ## 7. Known Issues
 

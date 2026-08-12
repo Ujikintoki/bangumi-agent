@@ -75,11 +75,11 @@ class ChatRequest(BaseModel):
     1. fast（默认）：轻量 ReAct ≤5 轮，快速获取核心数据。
     2. deep：高预算（16000 tok），12 轮迭代上限，深度链式调用。
 
-    有四种输出风格，neutral、bangumi、bangumi_cold、bangumi_cute，分别对应不同的输出风格。
+    有四种输出风格，neutral、bangumi、bangumi_tsundere、bangumi_kawaii，分别对应不同的输出风格。
     1. neutral：中性输出，适合正式场合。
     2. bangumi：Bangumi娘腹黑吐槽，适合娱乐场合。
-    3. bangumi_cold：高冷腹黑，适合冷幽默场合。
-    4. bangumi_cute：可爱安利，适合可爱风格场合。
+    3. bangumi_tsundere：傲娇评论家，嘴硬心软的反差萌。
+    4. bangumi_kawaii：可爱分享者，真诚安利，发现闪光点。
     """
 
     message: str = Field(..., description="用户消息", min_length=1)
@@ -88,10 +88,10 @@ class ChatRequest(BaseModel):
         description="深度模式：fast（默认，5轮上限，快速获取核心数据）、deep（12轮上限，深度链式调用）",
     )
     output_style: (
-        Literal["neutral", "bangumi", "bangumi_cold", "bangumi_cute"] | None
+        Literal["neutral", "bangumi", "bangumi_tsundere", "bangumi_kawaii"] | None
     ) = Field(
         default=None,
-        description="输出风格。None=走默认值（bangumi），neutral=中性输出，bangumi=Bangumi娘腹黑吐槽，bangumi_cold=高冷腹黑，bangumi_cute=可爱安利",
+        description="输出风格。None=走默认值（bangumi），neutral=中性输出，bangumi=Bangumi娘腹黑吐槽，bangumi_tsundere=傲娇评论家，bangumi_kawaii=可爱分享者",
     )
     session_id: str = Field(
         default="",

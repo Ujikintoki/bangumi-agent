@@ -184,11 +184,11 @@ async def render_reply(
                 rendered = rendered[:max_chars]
         logger.warning(
             "render_reply: 硬截断 %s (%d → %d chars, limit=%d)",
-            output_style, original_len, len(rendered), max_chars,
+            character.key, original_len, len(rendered), max_chars,
         )
 
     logger.info(
         "render_reply: %s 渲染完成（%d → %d chars）",
-        output_style, len(render_input), len(rendered),
+        character.key, len(render_input), len(rendered),
     )
     return rendered
