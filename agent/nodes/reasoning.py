@@ -86,14 +86,13 @@ async def reasoning_node(state: AgentState) -> dict:
     if new_iterations == 1:
         output_style = state.get("output_style", "bangumi")
         character = get_character(output_style)
-        tone_kwargs = {"depth_taste": character.depth_taste}
         scene_hints = DEEP_SCENE_HINTS if is_deep else COMPANION_SCENE_HINTS
         system_content = build_aggregator_prompt(
+            character=character,
             depth="deep" if is_deep else depth,
             intent=query_intent,
             scene_hints=scene_hints,
             memory_context=memory_context,
-            **tone_kwargs,
         )
     else:
         system_content = None

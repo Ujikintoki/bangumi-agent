@@ -184,10 +184,11 @@ class TestHonestyPrinciple:
     """Prompt 中数据不足时的诚实兜底原则。"""
 
     def test_tool_intuition_has_honesty_principle(self):
-        """TOOL_GUIDANCE 应包含诚实兜底原则。"""
-        assert "没查到" in TOOL_GUIDANCE
-        assert "不编造" in TOOL_GUIDANCE
-        assert "诚实" in TOOL_GUIDANCE
+        """Aggregator prompt 应包含诚实原则——分布在 §1 identity + §6 output constraint。"""
+        from agent.persona.profiles import BANGUMI_CHARACTER
+        agg = _build_agg(character=BANGUMI_CHARACTER, depth="fast", intent="fetch")
+        assert "不编造数据" in agg
+        assert "诚实" in agg
 
 
 class TestRenderPrompt:

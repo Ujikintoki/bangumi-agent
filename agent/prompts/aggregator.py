@@ -22,11 +22,7 @@ _AGGREGATOR_IDENTITY = """\
 
 你是数据聚合引擎。你的工作：调用工具获取数据，整理后输出一份简洁的数据摘要。
 
-当你确认数据已足够回答用户问题时，直接输出文本摘要——你的工作就完成了。
-输出文本 = 结束。不需要调用任何"提交"工具。
-
-你的输出会被下游 Render 系统转化为用户看到的最终回复——所以你只需提供准确的数据，不需要考虑说话风格。
-不要编造数据。工具没返回的数字不要写。"""
+你不是 Bangumi 看板娘，不陪用户聊天。你的输出会被下游 Render 系统转化为用户看到的最终回复——它负责说话风格，你负责数据准确。你只输出工具返回的确切数据。"""
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 终止规则 — 隐式终止
@@ -35,14 +31,18 @@ _AGGREGATOR_IDENTITY = """\
 _TERMINATION_RULES = """\
 ## 如何结束你的工作
 
-**直接输出文本摘要 = 结束。** 当你确认数据已足够回答用户问题时，用自然语言总结关键信息，不要再调工具。系统检测到你不调工具后会自动结束数据收集。
+直接输出文本摘要即结束——不需要调用任何"提交"或"完成"工具。系统检测到你不调工具后会自动结束。
 
 **数据足够的判断标准**：
-- search 返回了相关结果 → 至少调一次 detail 类工具获取完整信息 → 输出文本摘要
-- 2 次搜索均返回空结果 → 直接输出"未找到相关条目：<关键词>"，诚实告知
 - 工具数据已覆盖用户问题的所有维度 → 立刻输出文本摘要，不要为了"查全"而拖延
+- 2 次搜索均返回空结果 → 直接告知"未找到"，诚实结束——不要继续换关键词搜
+- 数据不够时诚实说不够——诚实比完整重要
 
-**禁止**：数据不够时假装够——诚实比完整重要。"""
+## 输出约束
+
+CRITICAL: 不编造数据。工具未返回的评分、排名、集数、收藏数等具体数字一律不得写入。缺失数据标注"暂无"。
+
+每条信息一行。不加"根据搜索结果"、不加个人判断、不加修饰语。"""
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 最后一轮消化态引导 — 隐式终止
@@ -133,9 +133,8 @@ _CONTINUITY_RULES = """\
 # ═══════════════════════════════════════════════════════════════════════════
 
 _WORD_LIMITS: dict[str, str] = {
-    "quick": "120",
-    "auto": "200",
-    "deep": "350",
+    "fast": "150",   # 数据摘要（Aggregator 输出），比 Render 回复短
+    "deep": "300",
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -145,24 +144,23 @@ _WORD_LIMITS: dict[str, str] = {
 
 def build_aggregator_prompt(
     *,
+    character,          # CharacterProfile 对象
     depth: str = "fast",
-    depth_taste: float = 0.70,
     intent: str | None = None,
     scene_hints: dict[str, str] | None = None,
     intent_strategies: dict[str, str] | None = None,
     memory_context: str = "",
 ) -> str:
-    """组装 Aggregator System Prompt — v2 分离合成架构。
+    """组装 Aggregator System Prompt — v3 六节结构化架构。
 
     Aggregator 是数据聚合引擎，不是人格化角色。
-    - 不含 Character Card（属于 Render）
-    - 不含 snark / initiative 语气（属于 Render）
-    - 含搜索深度行为指令（来自 depth_taste）
-    - 含隐式终止规则
+    - 读 character.tool_behavior 注入数据态度（死数据复活）
+    - 读 character.depth_taste 控制搜索深度
+    - 六节按 Anthropic 四层+首因/近因效应排列
 
     Args:
-        depth: 深度模式（\"auto\" | \"quick\" | \"deep\"），控制字数上限。
-        depth_taste: 搜索深度 0.0-1.0 (5 档)，控制工具调用策略。
+        character: CharacterProfile 对象。
+        depth: 深度模式，控制字数上限。
         intent: 查询意图。
         scene_hints: Phase 7 简短场景提示 dict。
         intent_strategies: [deprecated] 旧意图策略 dict，向后兼容 fallback。
@@ -173,41 +171,47 @@ def build_aggregator_prompt(
     """
     parts: list[str] = []
 
-    # ── Section 1: Aggregator 身份 ──────────────────────────
-    parts.append(_AGGREGATOR_IDENTITY)
+    # ── §1 <role> 你是谁 + 对数据的态度 ── 首因效应 ─────────
+    identity_block = _AGGREGATOR_IDENTITY
+    if character.tool_behavior:
+        identity_block += f"\n\n## 你对数据的态度\n{character.tool_behavior}"
+    parts.append(identity_block)
 
-    # ── Section 1.5: Few-Shot 示例 ────────────────────────────
-    parts.append(_FEW_SHOT_EXAMPLES)
-
-    # ── Section 2: 搜索深度指令 ─────────────────────────────
-    depth_instruction = get_aggregator_depth_instruction(depth_taste)
+    # ── §2 <search_policy> 搜多深 ────────────────────────────
+    depth_instruction = get_aggregator_depth_instruction(character.depth_taste)
     parts.append(f"## 搜索深度\n{depth_instruction}")
 
-    # ── Section 3: 工具指引 ─────────────────────────────────
+    # ── §3 <tool_rules> 工具指引 ────────────────────────────
     from agent.prompts.tool_config import TOOL_GUIDANCE
     parts.append(TOOL_GUIDANCE)
 
-    # ── Section 4: 对话连续性 ───────────────────────────────
-    parts.append(_CONTINUITY_RULES)
+    # ── §4 <examples> 示例（偏后——近因效应）─────────────────
+    parts.append(_FEW_SHOT_EXAMPLES)
 
-    # ── Section 5: Scene Hint ───────────────────────────────
+    # ── §5 <context> 当前上下文（动态内容合并）───────────────
+    context_parts: list[str] = []
+
     hint = None
     if scene_hints and intent:
         hint = scene_hints.get(intent, scene_hints.get("unknown", ""))
     elif intent_strategies and intent:
         hint = intent_strategies.get(intent, intent_strategies.get("unknown", ""))
     if hint:
-        parts.append(hint)
+        context_parts.append(hint)
 
-    # ── Section 6: Memory Context ────────────────────────────
+    context_parts.append(_CONTINUITY_RULES)
+
     if memory_context:
-        parts.append(memory_context)
+        context_parts.append(memory_context)
 
-    # ── Section 7: 输出约束 ─────────────────────────────────
-    word_limit = _WORD_LIMITS.get(depth, _WORD_LIMITS["auto"])
-    parts.append(f"## 输出约束\n文本摘要不超过 {word_limit} 字。简洁、准确、不编造数据。")
+    if context_parts:
+        parts.append("## 当前上下文\n" + "\n\n".join(context_parts))
 
-    # ── Section 8: 终止规则（必须放在最后——近因效应）─────────
-    parts.append(_TERMINATION_RULES)
+    # ── §6 <output> 如何结束 + 输出约束（最后——近因效应）────
+    word_limit = _WORD_LIMITS.get(depth, _WORD_LIMITS["fast"])
+    parts.append(
+        f"## 输出约束\n文本摘要不超过 {word_limit} 字。简洁、准确。\n\n"
+        + _TERMINATION_RULES
+    )
 
     return "\n\n".join(parts)
