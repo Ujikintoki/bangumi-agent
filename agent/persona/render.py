@@ -75,6 +75,8 @@ def build_render_prompt(
         完整 Render System Prompt 字符串。
     """
     word_limit = _WORD_LIMIT.get(depth, _WORD_LIMIT["fast"])
+    if character.word_limit_override:
+        word_limit = character.word_limit_override.get(depth, word_limit)
 
     # ── §1 人格自述：Card + style_guide + snark + initiative 动态拼接为一段 ──
     card = get_character_card(character.key)

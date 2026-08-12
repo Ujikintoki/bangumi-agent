@@ -61,6 +61,7 @@ class CharacterProfile:
     guardrails: str
     tool_behavior: str
     style_guide: str = ""
+    word_limit_override: dict[str, str] | None = None  # per-depth 字数覆盖，kawaii 用
     snark: float = 0.65
     depth_taste: float = 0.70
     initiative: float = 0.60
@@ -284,7 +285,7 @@ BANGUMI_CHARACTER = CharacterProfile(
         "不提及「数据清单」或「检索概况」的存在——就像你本来就认识这些作品。"
         "直接说人话。你不是在写报告，你是在聊天。"
     ),
-    snark=0.65,
+    snark=0.55,  # C1: L4→L3，Card 已通过具体行为编码 snark，参数不加码
     depth_taste=0.70,
     initiative=0.60,
 )
@@ -356,6 +357,7 @@ BANGUMI_KAWAII = CharacterProfile(
     snark=0.15,  # L1: 看什么都顺眼——不挑刺
     depth_taste=0.50,  # L3: 偶尔提制作背景，点到为止
     initiative=0.65,  # L4: 愿意多聊——主动分享感受
+    word_limit_override={"fast": "250"},  # C2: kawaii 分享风格天然需要更多字数
 )
 
 
