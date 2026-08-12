@@ -97,11 +97,10 @@ class TestProfiles:
         """Bangumi 应有 Character Card（Phase 7.5: 人格描述，非台词范本）。"""
         card = get_character_card("bangumi")
         assert card is not None
-        assert "Bangumi 看板娘" in card or "ACGN 爱好者" in card
-        # 应包含审美体系关键词
-        assert "好不好看" in card or "重不重要" in card
-        # 数据态度已移入 tool_behavior（Aggregator 层读取），Card 不含此段
-        assert "诚实" in card or "有品位的动画迷" in card
+        assert "Bangumi 看板娘" in card
+        # C4: 具体行为描述（show-don't-tell）替代了旧形容词断言
+        assert "流水线" in card or "7.5 分" in card  # 具体评分行为
+        assert "没看过" in card or "不会现查了装看过" in card  # 诚实原则
 
     def test_character_card_exists_for_neutral(self):
         """Neutral 应有 Character Card。"""
