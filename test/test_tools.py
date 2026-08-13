@@ -102,7 +102,7 @@ class TestSchemaFieldConsistency:
         (get_user_profile, {"username", "collections_limit", "include_blogs", "include_characters", "include_persons"}),
         (get_blog, {"entry_id", "include_comments", "include_subjects"}),
         (get_user_timeline, {"username", "limit"}),
-        (search_local_bangumi, {"query", "entity_type", "limit", "nsfw"}),
+        (search_local_bangumi, {"query", "entity_type", "limit", "nsfw", "subject_type", "tags", "year", "min_score"}),
     ]
 
     @pytest.mark.parametrize("tool,expected_fields", CHECKS)

@@ -925,6 +925,169 @@ async def get_user_timeline(username: str, limit: int = 20) -> dict:
 # 本地 RAG 语义检索
 # ═══════════════════════════════════════════════════════════════════
 
+import re as _re
+
+_YEAR_RE = _re.compile(r"(?<!\d)(19|20)\d{2}(?!\d)")
+_MIN_SCORE_RE = _re.compile(r"(\d+(?:\.\d+)?)\s*分(?:\s*以上)?")
+_CAREER_MAP = {
+    "声优": "seiyu",
+    "歌手": "artist",
+    "动画制作人": "producer",
+    "制作人": "producer",
+    "导演": "director",
+    "漫画家": "manga_artist",
+    "作家": "writer",
+    "音乐人": "musician",
+}
+
+
+def _extract_keyword_filters(
+    query: str,
+    tags: Optional[list[str]] = None,
+    year: Optional[int] = None,
+    min_score: Optional[float] = None,
+) -> dict:
+    """从 query 文本中提取结构化关键词参数，LLM 传参优先，规则兜底。
+
+    提取策略（每种字段独立补缺，LLM 已传的值不被覆盖）：
+      - tags: LLM 传参优先 → 规则：load_tag_vocabulary() 子串匹配（长度≥2, 上限5）
+      - year: LLM 传参优先 → 规则：正则 \\b(19|20)\\d{2}\\b
+      - min_score: LLM 传参优先 → 规则：正则 "X.X 分"
+      - career: 硬编码 _CAREER_MAP 子串扫描
+
+    Args:
+        query: 用户原始查询文本。
+        tags: LLM 传入的标签列表。
+        year: LLM 传入的年份。
+        min_score: LLM 传入的评分下限。
+
+    Returns:
+        仅包含非空字段的过滤参数 dict。
+    """
+    filters: dict = {}
+
+    # ── tags: LLM 优先 → 标签词表子串兜底 ──
+    final_tags = list(tags) if tags else []
+    if not final_tags:
+        try:
+            from rag._tag_dict import load_tag_vocabulary
+
+            vocab = load_tag_vocabulary()
+            final_tags = [t for t in vocab if len(t) >= 2 and t in query][:5]
+        except Exception:
+            pass
+    if final_tags:
+        filters["required_tags"] = final_tags
+
+    # ── year: LLM 优先 → 正则兜底 ──
+    final_year = year
+    if final_year is None:
+        ym = _YEAR_RE.search(query)
+        if ym:
+            final_year = int(ym.group())
+    if final_year is not None:
+        filters["year"] = final_year
+
+    # ── score: LLM 优先 → 正则兜底 ──
+    final_score = min_score
+    if final_score is None:
+        sm = _MIN_SCORE_RE.search(query)
+        if sm:
+            final_score = float(sm.group(1))
+    if final_score is not None:
+        filters["min_score"] = final_score
+
+    # ── career: 硬编码子串扫描 ──
+    for cn, key in _CAREER_MAP.items():
+        if cn in query:
+            filters["career"] = key
+            break
+
+    return filters
+
+
+def _unified_search(
+    retriever,
+    query: str,
+    entity_type: str,
+    subject_type: Optional[int],
+    limit: int,
+    exclude_nsfw: bool,
+    keyword_filters: dict,
+) -> list:
+    """三通道合并检索：关键词精确 > trigram 名称 > 向量语义。
+
+    每通道独立 try/except，一个通道失败不影响其他通道。
+    按 entity_id 去重（后续通道不覆盖先前通道已命中的结果）。
+
+    Args:
+        retriever: RagEntityRetriever 实例。
+        query: 用户查询文本。
+        entity_type: 实体类型。
+        subject_type: Subject 子类型。
+        limit: 返回数量上限。
+        exclude_nsfw: 是否排除 NSFW。
+        keyword_filters: _extract_keyword_filters 的输出。
+
+    Returns:
+        RagSearchResult 列表（最多 limit 条）。
+    """
+    merged: list = []
+    seen: set[str] = set()
+
+    # 通道 1: 关键词精确匹配
+    if keyword_filters:
+        try:
+            keyword_results = retriever.keyword_search(
+                entity_type=entity_type,
+                subject_type=subject_type,
+                limit=limit,
+                exclude_nsfw=exclude_nsfw,
+                **keyword_filters,
+            )
+            for r in keyword_results:
+                if r.entity_id not in seen:
+                    merged.append(r)
+                    seen.add(r.entity_id)
+        except Exception as exc:
+            logger.warning("关键词通道失败（降级继续）: %s", exc)
+
+    # 通道 2: trigram 名称匹配
+    if len(merged) < limit:
+        try:
+            name_results = retriever.name_search(
+                query=query,
+                entity_type=entity_type,
+                subject_type=subject_type,
+                limit=limit,
+                exclude_nsfw=exclude_nsfw,
+            )
+            for r in name_results:
+                if r.entity_id not in seen:
+                    merged.append(r)
+                    seen.add(r.entity_id)
+        except Exception as exc:
+            logger.warning("名称通道失败（降级继续）: %s", exc)
+
+    # 通道 3: 向量语义匹配
+    if len(merged) < limit:
+        try:
+            vector_results = retriever.hybrid_search(
+                query=query,
+                entity_type=entity_type,
+                subject_type=subject_type,
+                limit=limit,
+                exclude_nsfw=exclude_nsfw,
+            )
+            for r in vector_results:
+                if r.entity_id not in seen:
+                    merged.append(r)
+                    seen.add(r.entity_id)
+        except Exception as exc:
+            logger.warning("向量通道失败（降级返回已有结果）: %s", exc)
+
+    return merged[:limit]
+
 
 @tool(args_schema=LocalSearchInput)
 async def search_local_bangumi(
@@ -932,31 +1095,47 @@ async def search_local_bangumi(
     entity_type: str = "all",
     limit: int = 5,
     nsfw: bool = False,
+    subject_type: Optional[int] = None,
+    tags: Optional[list[str]] = None,
+    year: Optional[int] = None,
+    min_score: Optional[float] = None,
 ) -> dict:
-    """本地语义搜索引擎，基于 RAG 向量检索查找 Bangumi 条目。
+    """本地语义搜索引擎 — 三通道混合检索：关键词精确匹配 > trigram 名称 > 向量语义。
 
-    从本地已索引的番剧/角色/声优数据库中，通过语义匹配召回最相关的实体。
-    返回格式与对应的 API detail 工具保持一致，LLM 可无缝切换。
+    三通道：
+      1. 关键词精确：用 tags/year/score/career 做 JSONB 结构化匹配（最高优先级）
+      2. trigram 名称：用 pg_trgm 模糊匹配作品名/人名
+      3. 向量语义：用 embedding 做语义相似度匹配（兜底）
 
-    典型场景：
-    - "帮我找一个80年代评分最高的机战番" → entity_type="subject"
-    - "有哪些知名的傲娇系角色？" → entity_type="character"
-    - "配过最多主角的声优是谁？" → entity_type="person"
+    何时使用（满足任一）：
+      - 用户按标签/类型/年份/评分筛选作品（"芳文社的动画""2023年""评分 8 分以上"）
+      - 用户描述氛围/风格/主题找作品（"治愈""热血""悬疑推理"）
+      - 用户找"类似XX"的推荐
+
+    何时不用——请用 search_bangumi_subject 代替：
+      - 用户指定了精确作品名/人名且只需要基本信息（"EVA 评分"）
+      - 用户需要实时数据（评分、排名、在播状态——本地索引可能过期）
 
     Args:
-        query: 自然语言查询。
+        query: 自然语言查询，如 "温馨的日常治愈番"。
         entity_type: subject / character / person / all。
         limit: 返回结果数上限，默认 5。
         nsfw: 是否包含 R18 内容，默认 False。
+        subject_type: 条目子类型：1=书籍, 2=动画, 3=音乐, 4=游戏, 6=真人。
+        tags: 必须同时包含的标签（AND 逻辑），如 ['芳文社', '原创']。
+        year: 年份精确匹配，如 2023。
+        min_score: 评分下限 (0-10)，如 8.5。
 
     Returns:
         结构化 dict: {"results": [dict, ...], "total": N}，
-        每个 dict 格式对应 get_bangumi_subject_detail / get_character_detail / get_person_detail。
+        每个 dict 格式对应 API detail 工具。
         无结果或出错时返回 {"_error": "..."}。
     """
     import asyncio
     return await asyncio.to_thread(
-        _search_local_bangumi_sync, query, entity_type, limit, nsfw
+        _search_local_bangumi_sync,
+        query, entity_type, limit, nsfw,
+        subject_type, tags, year, min_score,
     )
 
 
@@ -965,8 +1144,12 @@ def _search_local_bangumi_sync(
     entity_type: str = "all",
     limit: int = 5,
     nsfw: bool = False,
+    subject_type: Optional[int] = None,
+    tags: Optional[list[str]] = None,
+    year: Optional[int] = None,
+    min_score: Optional[float] = None,
 ) -> dict:
-    """search_local_bangumi 的同步实现。"""
+    """search_local_bangumi 的同步实现 — 三通道合并检索。"""
     try:
         from core.config import get_settings as _get_rag_settings
         from database.engine import engine
@@ -985,12 +1168,21 @@ def _search_local_bangumi_sync(
         logger.exception("检索器初始化失败")
         return {"_error": f"本地搜索引擎初始化失败。{exc}"}
 
+    # ── 关键词提取：LLM 参数优先 + 规则兜底 ──
+    keyword_filters = _extract_keyword_filters(
+        query=query, tags=tags, year=year, min_score=min_score,
+    )
+
+    # ── 三通道合并检索 ──
     try:
-        results = retriever.hybrid_search(
+        results = _unified_search(
+            retriever=retriever,
             query=query,
-            entity_type=entity_type,  # type: ignore[arg-type]
+            entity_type=entity_type,
+            subject_type=subject_type,
             limit=limit,
             exclude_nsfw=not nsfw,
+            keyword_filters=keyword_filters,
         )
     except Exception as exc:
         logger.exception("RAG 检索执行失败")

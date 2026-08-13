@@ -342,6 +342,30 @@ class LocalSearchInput(BaseModel):
         default=False,
         description="是否包含 R18 内容，默认 False（安全护栏）",
     )
+    subject_type: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=6,
+        description="【仅 entity_type=subject 时生效】条目类型过滤："
+        "1=书籍, 2=动画, 3=音乐, 4=游戏, 6=真人。留空则不限制类型",
+    )
+    tags: Optional[list[str]] = Field(
+        default=None,
+        description="条目必须同时包含的标签名列表（AND 逻辑），如 ['芳文社', '原创']。"
+        "识别到明确的制作公司/类型/风格标签时填写。仅 entity_type=subject 时可用",
+    )
+    year: Optional[int] = Field(
+        default=None,
+        ge=1900,
+        le=2100,
+        description="播出/发售年份精确匹配，如 2023。仅当查询中含明确年份数字时填写",
+    )
+    min_score: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=10,
+        description="评分下限（Bangumi 评分 0-10），如 8.5。仅当查询中含明确评分要求时填写",
+    )
 
 
 class UserTimelineInput(BaseModel):

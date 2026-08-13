@@ -331,6 +331,7 @@ class RagEntityRetriever:
         subject_type: Optional[int] = None,
         limit: int = 10,
         similarity_threshold: float = 0.25,
+        exclude_nsfw: bool = True,
     ) -> list[RagSearchResult]:
         """名称模糊匹配检索 — 用 pg_trgm 比对 name + name_cn 列。
 
@@ -349,6 +350,7 @@ class RagEntityRetriever:
             subject_type: Subject 子类型过滤。
             limit: 最大返回条数。
             similarity_threshold: trigram 相似度下限 [0, 1]。
+            exclude_nsfw: 是否排除 NSFW 内容，默认 True。
 
         Returns:
             按相似度 + 热度排序的 RagSearchResult 列表。
@@ -387,7 +389,8 @@ class RagEntityRetriever:
                     stmt = stmt.where(RagEntity.entity_type == entity_type)
                 if subject_type is not None:
                     stmt = stmt.where(RagEntity.subject_type == subject_type)
-                stmt = stmt.where(RagEntity.nsfw == False)
+                if exclude_nsfw:
+                    stmt = stmt.where(RagEntity.nsfw == False)
 
                 # 至少一个 search term 的 similarity > threshold
                 conditions = []
@@ -447,6 +450,109 @@ class RagEntityRetriever:
         )
 
         return results[:limit]
+
+    def keyword_search(
+        self,
+        entity_type: Literal["subject", "character", "person", "all"] = "all",
+        subject_type: Optional[int] = None,
+        required_tags: Optional[list[str]] = None,
+        year: Optional[int] = None,
+        min_score: Optional[float] = None,
+        career: Optional[str] = None,
+        limit: int = 10,
+        exclude_nsfw: bool = True,
+    ) -> list[RagSearchResult]:
+        """结构化关键词精确匹配 — 用 JSONB 运算符做 tags/year/score/career 过滤。
+
+        与 hybrid_search() 互补：hybrid 做语义模糊匹配，keyword_search 做标签/年份/
+        评分等结构化条件的精确匹配。纯 SQL，不依赖 embedding。
+
+        内部流程：
+          1. 检查是否有任何过滤条件（无则返回空）
+          2. 构建 WHERE：entity_type, subject_type, nsfw, tags, year, score, career
+          3. 按 popularity DESC 排序
+
+        Args:
+            entity_type: 实体类型过滤。
+            subject_type: Subject 子类型过滤。
+            required_tags: 条目必须同时包含的标签名列表（AND 语义），
+                如 ``["芳文社", "原创"]``。
+            year: 播出/发售年份精确匹配。
+            min_score: 评分下限（0-10），如 ``8.5``。
+            career: 人物职业过滤（如 ``"seiyu"``, ``"artist"``, ``"producer"``）。
+            limit: 最大返回条数。
+            exclude_nsfw: 是否排除 NSFW 内容，默认 True。
+
+        Returns:
+            按热度排序的 RagSearchResult 列表。
+        """
+        if not any([required_tags, year is not None, min_score is not None, career]):
+            return []
+
+        from sqlalchemy import cast, Float
+        from sqlmodel import Session, select, desc
+
+        try:
+            with Session(self.engine) as session:
+                stmt = select(RagEntity)
+
+                if entity_type != "all":
+                    stmt = stmt.where(RagEntity.entity_type == entity_type)
+                if subject_type is not None:
+                    stmt = stmt.where(RagEntity.subject_type == subject_type)
+                if exclude_nsfw:
+                    stmt = stmt.where(RagEntity.nsfw == False)
+
+                if required_tags:
+                    for tag_name in required_tags:
+                        stmt = stmt.where(
+                            RagEntity.meta_info["tags"].contains([{"name": tag_name}])
+                        )
+                if year is not None:
+                    stmt = stmt.where(
+                        RagEntity.meta_info["year"].as_string() == str(year)
+                    )
+                if min_score is not None:
+                    stmt = stmt.where(
+                        cast(RagEntity.meta_info["score"].as_string(), Float) >= min_score
+                    )
+                if career:
+                    stmt = stmt.where(RagEntity.meta_info["career"].has_key(career))
+
+                stmt = stmt.order_by(desc(RagEntity.popularity)).limit(limit)
+                rows = session.execute(stmt).fetchall()
+
+        except Exception as exc:
+            logger.error("关键词搜索失败: %s", exc)
+            return []
+
+        # ── 组装 ──
+        results: list[RagSearchResult] = []
+        for row in rows:
+            entity: RagEntity = row[0]
+            results.append(
+                RagSearchResult(
+                    entity_id=entity.id,
+                    entity_type=entity.entity_type,
+                    subject_type=entity.subject_type,
+                    rag_output=entity.rag_output,
+                    name=entity.name or "",
+                    name_cn=entity.name_cn,
+                    nsfw=entity.nsfw,
+                    cosine_distance=0.0,
+                    popularity=entity.popularity,
+                    final_score=0.0,
+                    meta_info=entity.meta_info or {},
+                )
+            )
+
+        logger.info(
+            "关键词搜索: type=%s, tags=%s, year=%s, score=%s, career=%s → %d 条",
+            entity_type, required_tags, year, min_score, career, len(results),
+        )
+
+        return results
+
 
 """
 [DEPRECATED — 2026-08-05] SearchResult + BangumiRetriever 已废弃。
