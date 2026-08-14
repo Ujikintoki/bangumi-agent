@@ -973,7 +973,10 @@ def _extract_keyword_filters(
             from rag._tag_dict import load_tag_vocabulary
 
             vocab = load_tag_vocabulary()
-            final_tags = [t for t in vocab if len(t) >= 2 and t in query][:5]
+            matched = [t for t in vocab if len(t) >= 2 and t in query]
+            # 确定性排序：长度降序（长标签更具体）→ 名称升序。
+            # frozenset 迭代顺序受哈希随机化影响，直接切片会取到不确定的 5 个。
+            final_tags = sorted(matched, key=lambda t: (-len(t), t))[:5]
         except Exception:
             pass
     if final_tags:

@@ -17,6 +17,7 @@ import pytest
 from tools.bgm_tools import (
     _ROLE_MAP,
     _TYPE_ICONS,
+    _extract_keyword_filters,
     get_agent_tools,
     get_blog,
     get_calendar,
@@ -111,6 +112,59 @@ class TestSchemaFieldConsistency:
         assert actual == expected_fields, (
             f"{tool.name}: expected {expected_fields}, got {actual}"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 关键词过滤提取 — LLM 传参优先 + 规则兜底（纯函数，不触 DB）
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestExtractKeywordFilters:
+    """_extract_keyword_filters 的规则兜底路径。
+
+    所有用例显式传 tags，避免触发词表加载（DB 路径）。
+    """
+
+    def test_llm_params_priority(self):
+        """LLM 传参时原样保留，规则不覆盖。"""
+        filters = _extract_keyword_filters(
+            "2023年的治愈番", tags=["芳文社"], year=2020, min_score=7.0,
+        )
+        assert filters == {
+            "required_tags": ["芳文社"],
+            "year": 2020,
+            "min_score": 7.0,
+        }
+
+    def test_year_regex_fallback(self):
+        """LLM 未传 year 时，正则从 query 提取 19xx/20xx。"""
+        filters = _extract_keyword_filters("2023年的治愈番", tags=["治愈"])
+        assert filters["year"] == 2023
+
+    def test_year_regex_ignores_episode_numbers(self):
+        """"第1088集" 不是年份，不应误提取。"""
+        filters = _extract_keyword_filters("海贼王第1088集", tags=["治愈"])
+        assert "year" not in filters
+
+    def test_min_score_regex_fallback(self):
+        """LLM 未传 min_score 时，正则提取 "X.X 分" 模式。"""
+        filters = _extract_keyword_filters("评分8.5分以上的动画", tags=["治愈"])
+        assert filters["min_score"] == 8.5
+
+    def test_career_map(self):
+        """career 无 LLM 通道，纯规则映射中文职业词 → DB key。"""
+        filters = _extract_keyword_filters("找声优", tags=["治愈"])
+        assert filters["career"] == "seiyu"
+
+    def test_career_map_long_word_priority(self):
+        """"动画制作人" 包含 "制作人"——长词先匹配，两者同映射 producer。"""
+        filters = _extract_keyword_filters("动画制作人", tags=["治愈"])
+        assert filters["career"] == "producer"
+
+    def test_no_extractable_content(self):
+        """无年份/评分/职业词时，仅保留 LLM 传入的 tags。"""
+        filters = _extract_keyword_filters("随便聊聊天", tags=["治愈"])
+        assert filters == {"required_tags": ["治愈"]}
 
 
 # ═══════════════════════════════════════════════════════════════════

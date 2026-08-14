@@ -462,15 +462,27 @@ class RagEntityRetriever:
         limit: int = 10,
         exclude_nsfw: bool = True,
     ) -> list[RagSearchResult]:
-        """结构化关键词精确匹配 — 用 JSONB 运算符做 tags/year/score/career 过滤。
+        """两阶段结构化关键词检索 — 严格匹配优先，约束计数软兜底。
 
         与 hybrid_search() 互补：hybrid 做语义模糊匹配，keyword_search 做标签/年份/
         评分等结构化条件的精确匹配。纯 SQL，不依赖 embedding。
 
+        契约（兜底靠结构，不靠识别）：
+          1. 阶段1 严格匹配：全部约束做 AND WHERE，按热度取前 limit 条。
+          2. 阶段2 软兜底：阶段1 未凑满 limit 时，按「约束匹配计数」补齐——
+             每个约束是一个 0/1 加分项，至少命中一个约束才有资格，
+             按 (match_count DESC, popularity DESC) 排序，排除阶段1 已命中。
+        垃圾约束（标签不存在/误拼）在阶段1 制造空结果、在阶段2 贡献零分——
+        自然失效，等效于未传。检索层不感知约束来源（LLM 或规则），不校验、
+        不修正——任何输入的破坏面都有界：最坏是排序噪声，绝不空手、绝不崩溃。
+
         内部流程：
           1. 检查是否有任何过滤条件（无则返回空）
-          2. 构建 WHERE：entity_type, subject_type, nsfw, tags, year, score, career
-          3. 按 popularity DESC 排序
+          2. 构造约束条件列表（tags @> / year = / score >= / career ?）
+          3. 阶段1: entity_type/subject_type/nsfw 域过滤 + 全部约束 AND，
+             按 popularity DESC 排序
+          4. 阶段2: 仅当阶段1 不足 limit——CASE WHEN 计算每实体的约束匹配计数，
+             or_() 保证至少命中一个约束，按匹配数降序补齐
 
         Args:
             entity_type: 实体类型过滤。
@@ -484,71 +496,101 @@ class RagEntityRetriever:
             exclude_nsfw: 是否排除 NSFW 内容，默认 True。
 
         Returns:
-            按热度排序的 RagSearchResult 列表。
+            RagSearchResult 列表——前段为严格匹配（final_score=0.0），
+            后段为软兜底补齐（final_score=1.0）。
         """
         if not any([required_tags, year is not None, min_score is not None, career]):
             return []
 
-        from sqlalchemy import cast, Float
+        from sqlalchemy import Float, case, cast, or_
         from sqlmodel import Session, select, desc
+
+        # ── 约束条件构造（阶段1 AND 过滤 / 阶段2 逐条计分共用）──
+        conditions = []
+        if required_tags:
+            for tag_name in required_tags:
+                conditions.append(
+                    RagEntity.meta_info["tags"].contains([{"name": tag_name}])
+                )
+        if year is not None:
+            conditions.append(RagEntity.meta_info["year"].as_string() == str(year))
+        if min_score is not None:
+            conditions.append(
+                cast(RagEntity.meta_info["score"].as_string(), Float) >= min_score
+            )
+        if career:
+            conditions.append(RagEntity.meta_info["career"].has_key(career))
+
+        def _apply_domain(stmt):
+            """结构性域过滤（类型/子类型/NSFW）——两个阶段都硬过滤。"""
+            if entity_type != "all":
+                stmt = stmt.where(RagEntity.entity_type == entity_type)
+            if subject_type is not None:
+                stmt = stmt.where(RagEntity.subject_type == subject_type)
+            if exclude_nsfw:
+                stmt = stmt.where(RagEntity.nsfw == False)
+            return stmt
+
+        def _to_result(entity: RagEntity, final_score: float = 0.0) -> RagSearchResult:
+            return RagSearchResult(
+                entity_id=entity.id,
+                entity_type=entity.entity_type,
+                subject_type=entity.subject_type,
+                rag_output=entity.rag_output,
+                name=entity.name or "",
+                name_cn=entity.name_cn,
+                nsfw=entity.nsfw,
+                cosine_distance=0.0,
+                popularity=entity.popularity,
+                final_score=final_score,
+                meta_info=entity.meta_info or {},
+            )
+
+        results: list[RagSearchResult] = []
+        stage1_count = 0
 
         try:
             with Session(self.engine) as session:
-                stmt = select(RagEntity)
-
-                if entity_type != "all":
-                    stmt = stmt.where(RagEntity.entity_type == entity_type)
-                if subject_type is not None:
-                    stmt = stmt.where(RagEntity.subject_type == subject_type)
-                if exclude_nsfw:
-                    stmt = stmt.where(RagEntity.nsfw == False)
-
-                if required_tags:
-                    for tag_name in required_tags:
-                        stmt = stmt.where(
-                            RagEntity.meta_info["tags"].contains([{"name": tag_name}])
-                        )
-                if year is not None:
-                    stmt = stmt.where(
-                        RagEntity.meta_info["year"].as_string() == str(year)
-                    )
-                if min_score is not None:
-                    stmt = stmt.where(
-                        cast(RagEntity.meta_info["score"].as_string(), Float) >= min_score
-                    )
-                if career:
-                    stmt = stmt.where(RagEntity.meta_info["career"].has_key(career))
-
+                # ── 阶段1: 严格 AND 匹配 ──
+                stmt = _apply_domain(select(RagEntity))
+                for cond in conditions:
+                    stmt = stmt.where(cond)
                 stmt = stmt.order_by(desc(RagEntity.popularity)).limit(limit)
-                rows = session.execute(stmt).fetchall()
+                stage1_entities = [row[0] for row in session.execute(stmt).fetchall()]
+
+                for entity in stage1_entities:
+                    results.append(_to_result(entity))
+                stage1_count = len(results)
+
+                # ── 阶段2: 约束匹配计数软兜底（阶段1 未凑满 limit）──
+                need = limit - stage1_count
+                if need > 0:
+                    match_expr = case((conditions[0], 1), else_=0)
+                    for cond in conditions[1:]:
+                        match_expr = match_expr + case((cond, 1), else_=0)
+
+                    stmt2 = _apply_domain(
+                        select(RagEntity, match_expr.label("match_count"))
+                    ).where(or_(*conditions))
+                    if stage1_entities:
+                        stmt2 = stmt2.where(
+                            RagEntity.id.not_in([e.id for e in stage1_entities])
+                        )
+                    stmt2 = stmt2.order_by(
+                        match_expr.desc(), desc(RagEntity.popularity)
+                    ).limit(need)
+                    for row in session.execute(stmt2).fetchall():
+                        results.append(_to_result(row[0], final_score=1.0))
 
         except Exception as exc:
             logger.error("关键词搜索失败: %s", exc)
             return []
 
-        # ── 组装 ──
-        results: list[RagSearchResult] = []
-        for row in rows:
-            entity: RagEntity = row[0]
-            results.append(
-                RagSearchResult(
-                    entity_id=entity.id,
-                    entity_type=entity.entity_type,
-                    subject_type=entity.subject_type,
-                    rag_output=entity.rag_output,
-                    name=entity.name or "",
-                    name_cn=entity.name_cn,
-                    nsfw=entity.nsfw,
-                    cosine_distance=0.0,
-                    popularity=entity.popularity,
-                    final_score=0.0,
-                    meta_info=entity.meta_info or {},
-                )
-            )
-
         logger.info(
-            "关键词搜索: type=%s, tags=%s, year=%s, score=%s, career=%s → %d 条",
-            entity_type, required_tags, year, min_score, career, len(results),
+            "关键词搜索: type=%s, tags=%s, year=%s, score=%s, career=%s "
+            "→ %d 条 (阶段1=%d, 阶段2=%d)",
+            entity_type, required_tags, year, min_score, career,
+            len(results), stage1_count, len(results) - stage1_count,
         )
 
         return results
