@@ -1,6 +1,6 @@
 """test_rag.py — RAG 模块全栈测试。
 
-依赖 PostgreSQL + pgvector + 智谱 embedding-3。
+依赖 PostgreSQL + pgvector + 智谱 embedding-2。
 覆盖 text_processor / ingestion / retriever 三个子模块。
 """
 
@@ -11,11 +11,9 @@ from sqlmodel import Session, delete
 
 from database.engine import engine, init_db
 from database.models import RagEntity, SubjectMeta, CharacterMeta, PersonMeta, PersonWork, CharacterCast
+from rag.enricher import _build_chunk_text
 from rag.ingestion import (
     RagEntityIngestor,
-    _build_character_chunk_text,
-    _build_person_chunk_text,
-    _build_subject_chunk_text,
     _prefixed_character_id,
     _prefixed_person_id,
     _prefixed_subject_id,
@@ -115,29 +113,22 @@ class TestPrefixedIds:
 
 
 class TestChunkTextBuilders:
-    def test_subject_with_name(self):
-        result = _build_subject_chunk_text("进击的巨人", "在巨人支配的世界中...")
-        assert result == "[作品名] 进击的巨人。在巨人支配的世界中..."
+    """chunk_text 构建已统一为 enricher._build_chunk_text（只取 summary + 清洗）。
 
-    def test_subject_without_name(self):
-        result = _build_subject_chunk_text("", "在巨人支配的世界中...")
-        assert result == "[作品名] 在巨人支配的世界中..."
+    旧的 per-type 前缀构建器（[作品名]/[角色]/[人物]）已随 enricher 重构移除。
+    """
 
-    def test_character_full(self):
-        result = _build_character_chunk_text("艾伦", "进击的巨人", "憧憬的少年")
-        assert result == "[角色] 艾伦，出自《进击的巨人》。憧憬的少年"
+    def test_returns_cleaned_summary(self):
+        result = _build_chunk_text("在巨人支配的世界中...")
+        assert "在巨人支配的世界中" in result
 
-    def test_character_no_subject(self):
-        result = _build_character_chunk_text("艾伦", "", "憧憬的少年")
-        assert "出自" not in result
+    def test_empty_summary_returns_empty(self):
+        assert _build_chunk_text("") == ""
 
-    def test_person_with_name(self):
-        result = _build_person_chunk_text("梶裕贵", "日本男性声优")
-        assert result == "[人物] 梶裕贵。日本男性声优"
-
-    def test_person_without_name(self):
-        result = _build_person_chunk_text("", "日本男性声优")
-        assert result == "[人物] 日本男性声优"
+    def test_info_param_deprecated_ignored(self):
+        """info 参数已废弃——仅保留兼容性，不拼入 chunk_text。"""
+        result = _build_chunk_text("日本男性声优", "梶裕贵")
+        assert result == "日本男性声优"
 
 
 # ═══════════════════════════════════════════════════════════════════
