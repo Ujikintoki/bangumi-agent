@@ -20,7 +20,6 @@ from agent.prompts.scene_hints import (  # noqa: F401
     COMPANION_SCENE_HINTS,
 )
 from agent.prompts.scene_hints_deep import (  # noqa: F401
-    CRITIC_SYSTEM_PROMPT,
     DEEP_SCENE_HINTS,
 )
 from agent.prompts.tool_config import (  # noqa: F401
@@ -31,7 +30,6 @@ from agent.prompts.tool_config import (  # noqa: F401
 __all__ = [
     "COMPANION_INTENT_PROMPTS",
     "COMPANION_SCENE_HINTS",
-    "CRITIC_SYSTEM_PROMPT",
     "DEEP_SCENE_HINTS",
     "TOOL_GUIDANCE",
     "TOOLS_BY_INTENT",

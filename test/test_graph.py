@@ -15,7 +15,6 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from agent.graph import build_graph
 from agent.config import get_max_iterations
 from agent.memory.short_term import estimate_tokens
-from agent.nodes.critic import _get_last_ai_response
 from agent.nodes.reasoning import reasoning_node
 from test.conftest import MOCK_TOOLS, make_mock_llm, make_state
 
@@ -181,52 +180,6 @@ class TestStateLifecycle:
             assert len(messages) > 0
 
         await _test()
-
-    @patch("agent.nodes.reasoning.get_settings")
-    async def test_critic_status_transitions(self, mock_get_settings):
-        from agent.nodes.critic import critic_node
-        from unittest.mock import MagicMock
-
-        s = MagicMock()
-        s.CRITIC_MODE = "rule"
-        s.LLM_CRITIC_MODEL = ""
-        s.LLM_MODEL = "test"
-        mock_get_settings.return_value = s
-
-        # REVISE: 工具返回但无有效回复
-        state1 = make_state(iterations=1, depth="deep", messages=[
-            SystemMessage(content="..."), HumanMessage(content="搜"),
-            AIMessage(content="", tool_calls=[{"name": "s", "args": {}, "id": "c1"}]),
-            ToolMessage(content="结果", tool_call_id="c1"),
-        ])
-        assert (await critic_node(state1))["critic_status"] == "REVISE"
-
-        # PASS: 有效回复（长度 ≥ 20 字）
-        state2 = make_state(iterations=2, depth="deep", messages=[
-            SystemMessage(content="..."), HumanMessage(content="搜"),
-            AIMessage(content="", tool_calls=[{"name": "s", "args": {}, "id": "c1"}]),
-            ToolMessage(content="结果", tool_call_id="c1"),
-            AIMessage(content="进击的巨人最终季评分 8.7 分，排名全站前二十，非常推荐观看。"),
-        ])
-        assert (await critic_node(state2))["critic_status"] == "PASS"
-
-    async def test_get_last_ai_response_accepts_content_with_tool_calls(self):
-        msgs = [
-            AIMessage(content="根据搜索结果，以下是分析...", tool_calls=[]),
-        ]
-        assert _get_last_ai_response(msgs) is not None
-
-        msgs2 = [
-            AIMessage(content="我先介绍已知信息，同时查最新数据...",
-                      tool_calls=[{"name": "get_detail", "args": {}, "id": "c1"}]),
-        ]
-        assert _get_last_ai_response(msgs2) is not None
-
-    async def test_get_last_ai_response_skips_empty_content(self):
-        msgs = [
-            AIMessage(content="", tool_calls=[{"name": "search", "args": {}, "id": "c1"}]),
-        ]
-        assert _get_last_ai_response(msgs) is None
 
     @patch("agent.nodes.reasoning.create_llm")
     async def test_shallow_mode_skips_critic(self, mock_create_llm):

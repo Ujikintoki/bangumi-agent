@@ -156,7 +156,7 @@ def guard_xml_leak(
     """消化态 XML 泄漏安全网。
 
     DeepSeek 等模型在消化工具结果时可能在 .content 中输出
-    ``<function_calls>`` XML 标签。检测并剥离，防止脏数据进入路由器和 Critic。
+    ``<function_calls>`` XML 标签。检测并剥离，防止脏数据进入路由器。
 
     仅在 ``is_digesting=True`` 且 response.content 非空时执行检查。
 

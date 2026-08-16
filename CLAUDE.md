@@ -163,7 +163,7 @@ Render Node (独立 LLM 调用)    → 决定输出怎么表达（HOW to say it�
 
 ### Deprecated — 禁止使用或新增引用
 
-8. **Critic 节点**已从 graph 中移除（Phase 4）。如需恢复，在 `graph.py` 重新注册节点并添加路由规则。
+8. **Critic 节点**已删除（Phase 4 移出 graph，2026-08-16 连文件一并删除）。如需恢复，从 git 历史找回 `agent/nodes/critic.py`，在 `graph.py` 重新注册节点并添加路由规则。
 
 9. **L3 记忆**已废弃。`MEMORY_MIN_SESSIONS_FOR_PROFILE` 为零消费者配置项，不要引用。
 
@@ -185,8 +185,7 @@ agent/
 ├── nodes/                         # LangGraph 节点实现
 │   ├── classify.py                # classify_node + 7 intent 分类器 + 置信度路由
 │   ├── pipeline.py                # 5 个 pipeline 节点（fetch×2/realtime/profile/synthesize）
-│   ├── reasoning.py               # reasoning_node（ReAct）+ 消化态检测
-│   └── critic.py                  # [DEPRECATED] 保留以备恢复
+│   └── reasoning.py               # reasoning_node（ReAct）+ 消化态检测
 ├── routing/routes.py              # route_after_classify / _tool / _reasoning + 空搜索检测
 ├── prompts/                       # Prompt 模板与工具配置
 │   ├── aggregator.py              # build_aggregator_prompt + 身份/终止规则/深度指令

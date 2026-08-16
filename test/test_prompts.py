@@ -26,7 +26,6 @@ from agent.persona.render import (
     build_render_prompt,
 )
 from agent.prompts.scene_hints_deep import (
-    CRITIC_SYSTEM_PROMPT,
     DEEP_SCENE_HINTS,
     INTENT_PROMPTS as DEEP_INTENT_PROMPTS,
     TOOL_DEPENDENCY_CONSTRAINT,
@@ -148,10 +147,6 @@ class TestIntentPrompts:
         for intent in COMPANION_INTENT_PROMPTS:
             assert "[当前：" in COMPANION_INTENT_PROMPTS[intent] or COMPANION_INTENT_PROMPTS[intent] == "", \
                 f"companion intent {intent} 格式不正确"
-
-    def test_critic_prompt_has_escape_hatch(self):
-        assert "逃逸舱" in CRITIC_SYSTEM_PROMPT or "Escape Hatch" in CRITIC_SYSTEM_PROMPT
-        assert "必须判定为 PASS" in CRITIC_SYSTEM_PROMPT
 
     def test_deep_fetch_has_exit_conditions(self):
         """Deep fetch Scene Hint 应包含快速定位的关键词。"""

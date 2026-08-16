@@ -134,13 +134,6 @@ class Settings(BaseSettings):
     )
     """Azure OpenAI API 版本。"""
 
-    # ── LLM — Critic 可选模型 ─────────────────────────────────
-    LLM_CRITIC_MODEL: str = ""
-    """Critic 节点专用模型（可选）。留空则默认使用 LLM_MODEL。
-
-    允许为 Critic 使用更便宜的小模型以降低评估成本。
-    """
-
     # ── 记忆系统配置 ──────────────────────────────────────────
     MEMORY_ENABLED: bool = True
     """是否启用 L2 记忆系统。关闭后所有记忆操作变为 no-op，Agent 退化回无记忆模式。"""
@@ -184,13 +177,6 @@ class Settings(BaseSettings):
 
     deep 模式使用 MEMORY_MAX_INJECT_TOKENS (500)；
     非 deep 消息长度较短，使用 300 的较紧预算。"""
-
-    # ── Critic 模式 ───────────────────────────────────────────
-    CRITIC_MODE: str = "llm"
-    """Critic 评估模式：``"llm"``（LLM 定向反馈，默认）或 ``"rule"``（零 Token 规则版）。
-
-    LLM 版让模型自行评估完整性、具体性、工具利用三个维度，消除了规则版的
-    硬编码阈值（``< 10 chars`` 等）。规则版保留作为 fallback 选项。"""
 
     # ── 智谱 AI 配置 ──────────────────────────────────────────
     ZHIPU_API_KEY: str = ""
