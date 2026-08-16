@@ -20,7 +20,7 @@
 |---|------|-----------|
 | **编排层** | 🟡 稳定（Phase 4.1） | 字数控制、deep 0 工具调用、常识误分类、streaming |
 | **人格层** | 🟢 稳定 | cold/cute 措辞微调 |
-| **记忆层** | 🟢 稳定 | 长程多轮上下文不足、空字符串缓存 bug |
+| **记忆层** | 🟢 稳定 | 长程多轮上下文不足 |
 | **数据层** | 🟢 稳定 | RAG v0/v1 共存、HNSW 索引维度限制 |
 
 ---
@@ -80,7 +80,7 @@
 
 | # | 问题 | 定位 | 改动量 |
 |---|------|------|--------|
-| 6 | `_memory_context` 空字符串缓存 bug（`""` 是 falsy） | `memory/cache.py` | ~5 行 |
+| 6 | ~~`_memory_context` 空字符串缓存 bug~~（2026-08-16 核实无此 bug：helpers.py 守卫已是 `is not None`，pipeline/reasoning 各有正确守卫） | — | 划掉 |
 | 7 | 记忆阈值命名过时（`MEMORY_DIALOGUE_*`） | `core/config.py` | 重命名 |
 | 8 | Bare title 不追问确认 | `orchestrate/strategies.py` | 追问策略 |
 | 9 | `create_llm()` 无缓存 | `agent/llm.py` | 加 lru_cache |

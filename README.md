@@ -126,7 +126,7 @@ curl -s -X POST http://localhost:8000/chat \
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `LLM_API_KEY` | — | DeepSeek / Azure OpenAI / OpenAI 兼容 API key（必填） |
-| `LLM_MODEL` | `gpt-4o` | 推荐 `deepseek-v4-flash` |
+| `LLM_MODEL` | `deepseek-v4-flash` | 与 .env.example 默认一致；OpenAI 兼容模型均可 |
 | `LLM_BASE_URL` | — | 自定义 endpoint（如 `https://api.deepseek.com/v1`） |
 | `DATABASE_URL` | `postgresql://myuser:mypassword@localhost:5432/bangumidb` | PostgreSQL + pgvector 连接 |
 | `ZHIPU_API_KEY` | — | 智谱 embedding-2（RAG + L2 记忆需要） |

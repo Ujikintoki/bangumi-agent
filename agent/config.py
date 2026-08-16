@@ -14,7 +14,7 @@ _MAX_ITERATIONS_FAST = 5
 _MAX_ITERATIONS_DEEP = 12
 """deep 模式最大迭代轮次（旧，无 intent 参数时的兜底值）。"""
 
-# ── Per-intent max iterations（v4: 6 intent）─────────────────────────
+# ── Per-intent max iterations（v4: 7 intent + 3 个旧别名）─────────────
 
 _INTENT_MAX_ITERATIONS: dict[str, int] = {
     "chat": 0,  # 不走工具循环

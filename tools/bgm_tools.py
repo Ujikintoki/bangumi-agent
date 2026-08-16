@@ -1217,11 +1217,11 @@ def get_agent_tools() -> list:
     """根据当前配置动态返回 Agent 可用工具列表。
 
     工具注册策略：
-    - **无条件注册**（无需 Access Token，11 个）：``search_bangumi_subject``、
+    - **无条件注册**（无需 Access Token，13 个）：``search_bangumi_subject``、
       ``get_bangumi_subject_detail``、``get_character_detail``、``get_person_detail``、
       ``get_calendar``、``get_trending_subjects``、``get_hot_topics``、
-      ``get_subject_opinions``、``get_subject_episodes``、
-      ``get_subject_characters``、``search_local_bangumi``。
+      ``get_episode_comments``、``get_subject_opinions``、``get_subject_episodes``、
+      ``get_entity_comments``、``get_subject_characters``、``search_local_bangumi``。
     - **条件注册**（需要 ``BANGUMI_ACCESS_TOKEN``，3 个）：``get_user_timeline``、
       ``get_user_profile``、``get_blog``。
 

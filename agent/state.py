@@ -17,8 +17,11 @@ from langchain_core.messages import BaseMessage
 
 Depth = Literal["fast", "deep"]
 """深度模式：
-- ``"fast"``（默认）：轻量 ReAct ≤5 轮，10000 tok，快速获取核心数据
-- ``"deep"``：高预算（16000 tok）+ 深度人格参数，12 轮迭代上限，深度链式调用
+- ``"fast"``（默认）：10000 tok 上下文预算，快速获取核心数据
+- ``"deep"``：16000 tok 预算，更高迭代上限，深度链式调用
+
+迭代上限按 intent 细分（``agent/config.py`` per-intent 表）；
+5 轮 / 12 轮仅是旧的无 intent 兜底值。
 """
 
 
@@ -35,7 +38,7 @@ class AgentState(TypedDict):
         error_flag: 降级标记。底层组件异常或循环超限时置 True。
         _memory_context: 首轮 L2 记忆召回缓存。None 表示未初始化，空字符串表示已召回但无记忆。
         output_style: 输出渲染风格：neutral | bangumi | bangumi_kawaii
-        depth: 深度模式：auto | quick | deep。
+        depth: 深度模式：fast | deep。
     """
 
     messages: Annotated[list[BaseMessage], operator.add]
