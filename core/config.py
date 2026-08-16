@@ -40,6 +40,24 @@ class Settings(BaseSettings):
     DEV_MODE: bool = False
     """开发者可观测性开关。开启后 /chat 响应附带 token 统计 + 节点耗时。"""
 
+    # ── HTTP 服务配置 ──────────────────────────────────────────
+    REQUEST_TIMEOUT_FAST: float = 45.0
+    """fast 模式请求级超时（秒）。
+
+    包住整次 graph 调用（asyncio.wait_for）。取值逻辑：正常延迟（3-10s）的
+    5 倍以上余量，同时低于 LLM_REQUEST_TIMEOUT（60s）——病态情况下在单次
+    LLM 调用超时前先截断整请求，fail fast。"""
+
+    REQUEST_TIMEOUT_DEEP: float = 120.0
+    """deep 模式请求级超时（秒）。
+
+    deep 正常延迟 10-30s，且链式调用轮次更多，放宽到 120s。"""
+
+    RATE_LIMIT_PER_MINUTE: int = 10
+    """每 IP 每分钟 /chat 与 /chat/stream 的请求上限（滑动窗口）。
+
+    预览期保护 LLM 成本。<= 0 时完全关闭限流（测试环境用）。"""
+
     # ── 数据库配置 ────────────────────────────────────────────
     DATABASE_URL: str = "postgresql://myuser:mypassword@localhost:5432/bangumidb"
     """PostgreSQL 数据库连接 URL，默认连接本地 bangumidb 库。"""
@@ -72,12 +90,13 @@ class Settings(BaseSettings):
     """
 
     LLM_MODEL: str = Field(
-        default="gpt-4o",
+        default="deepseek-v4-flash",
         validation_alias=AliasChoices("LLM_MODEL", "AZURE_OPENAI_CHAT_DEPLOYMENT"),
     )
     """LLM 模型名称。Azure 模式下为部署名（deployment name）；其他模式下为模型名。
 
-    常用值：gpt-4o, gpt-4o-mini, deepseek-chat, qwen-plus。
+    常用值：deepseek-v4-flash（与 .env.example 默认一致）, deepseek-chat,
+    qwen-plus, gpt-4o 等 OpenAI 兼容模型。
     """
 
     LLM_BASE_URL: str = ""
@@ -133,12 +152,12 @@ class Settings(BaseSettings):
     """语义检索召回的候选 session 摘要数。"""
 
     MEMORY_RECALL_THRESHOLD: float = 0.5
-    """语义检索的余弦距离阈值（Research Agent 用）。
+    """deep 模式的语义检索余弦距离阈值。
     超过此值的 session 摘要被视为不相关并丢弃。"""
 
     MEMORY_DIALOGUE_RECALL_THRESHOLD: float = 0.35
-    """Dialogue Agent 专用的语义检索余弦距离阈值。
-    比 Research 的 0.5 更严格——dialogue 对话跳跃性大，
+    """非 deep 模式的语义检索余弦距离阈值。
+    比 deep 的 0.5 更严格——短对话跳跃性大，
     旧记忆更容易成为噪音，只有高度语义相关的才注入。"""
 
     MEMORY_MIN_SESSIONS_FOR_PROFILE: int = 5
@@ -161,10 +180,10 @@ class Settings(BaseSettings):
     不会被注入。仅当 query embedding 可用时生效。"""
 
     MEMORY_DIALOGUE_MAX_INJECT_TOKENS: int = 300
-    """Dialogue Agent 的记忆注入 Token 预算上限。
+    """非 deep 模式的记忆注入 Token 预算上限。
 
-    Deep 模式使用 MEMORY_MAX_INJECT_TOKENS (500)；
-    Dialogue 消息长度较短，使用 300 的较紧预算。"""
+    deep 模式使用 MEMORY_MAX_INJECT_TOKENS (500)；
+    非 deep 消息长度较短，使用 300 的较紧预算。"""
 
     # ── Critic 模式 ───────────────────────────────────────────
     CRITIC_MODE: str = "llm"

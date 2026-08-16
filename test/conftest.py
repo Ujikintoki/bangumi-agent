@@ -38,6 +38,22 @@ def _disable_dev_mode_for_tests():
     settings.DEV_MODE = original
 
 
+@pytest.fixture(autouse=True)
+def _disable_rate_limit_for_tests():
+    """测试环境关闭限流，避免大量 /chat 请求命中 429。
+
+    与 _disable_dev_mode_for_tests 同理：直接修改 get_settings() 缓存的单例。
+    middleware.py 每次请求读取 RATE_LIMIT_PER_MINUTE，置 0 即完全放行。
+    """
+    from core.config import get_settings
+
+    settings = get_settings()
+    original = settings.RATE_LIMIT_PER_MINUTE
+    settings.RATE_LIMIT_PER_MINUTE = 0
+    yield
+    settings.RATE_LIMIT_PER_MINUTE = original
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Mock HTTP 响应工厂
 # ═══════════════════════════════════════════════════════════════════

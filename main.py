@@ -1,7 +1,7 @@
 """
 FastAPI 应用启动入口
 
-Phase 6: depth 参数控制深度（fast/deep），单一 Companion Agent graph 处理所有请求。
+depth 参数控制深度（fast/deep），
 单一 Companion Agent graph 处理所有请求。
 """
 
@@ -12,9 +12,9 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel, Field
 
@@ -22,11 +22,14 @@ from agent.devtools import RequestTelemetry, set_current_telemetry
 from agent.graph import agent_app
 from agent.memory.cache import get_session_cache
 from agent.persona.profiles import get_agent_profile, get_character
+from agent.persona.render import (
+    _extract_user_query as _extract_user_query_from_messages,
+)
 from agent.persona.render import render_reply
-from agent.persona.render import _extract_user_query as _extract_user_query_from_messages
 from agent.state import AgentState
 from core.config import get_settings
 from database.engine import init_db
+from middleware import rate_limit_middleware
 
 try:
     from langgraph.errors import GraphRecursionError
@@ -72,8 +75,9 @@ class ChatRequest(BaseModel):
     """对话请求。
     发起对话请求
     有两种深度模式 fast、deep，分别对应不同的对话深度和预算。
-    1. fast（默认）：轻量 ReAct ≤5 轮，快速获取核心数据。
-    2. deep：高预算（16000 tok），12 轮迭代上限，深度链式调用。
+    1. fast（默认）：10000 tok 预算，快速获取核心数据。
+    2. deep：16000 tok 预算，更高迭代上限，深度链式调用。
+    迭代上限按 intent 细分，见 agent/config.py 的 per-intent 表。
 
     有三种输出风格，neutral、bangumi、bangumi_kawaii，分别对应不同的输出风格。
     1. neutral：中性输出，适合正式场合。
@@ -84,11 +88,9 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="用户消息", min_length=1)
     depth: Literal["fast", "deep"] = Field(
         default="fast",
-        description="深度模式：fast（默认，5轮上限，快速获取核心数据）、deep（12轮上限，深度链式调用）",
+        description="深度模式：fast（默认，低预算快速获取核心数据）、deep（高预算深度链式调用）。迭代上限按 intent 细分，见 agent/config.py",
     )
-    output_style: (
-        Literal["neutral", "bangumi", "bangumi_kawaii"] | None
-    ) = Field(
+    output_style: Literal["neutral", "bangumi", "bangumi_kawaii"] | None = Field(
         default=None,
         description="输出风格。None=走默认值（bangumi），neutral=中性输出，bangumi=Bangumi娘腹黑吐槽，bangumi_kawaii=可爱分享者",
     )
@@ -162,6 +164,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 限流：IP 级滑动窗口（预览期保护 LLM 成本）。
+# 挂载在 CORS 之后 → CORS 在最外层，429 响应也带 CORS 头，前端可读。
+app.middleware("http")(rate_limit_middleware)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """全局兜底：handler 内逃逸的异常统一 JSON 500 + 单点日志。
+
+    注意：middleware 抛出的异常与 SSE 开流后的异常不经过此处，
+    分别由 middleware 自身和 generator 内部 try/except 兜底。
+    """
+    logger.exception(
+        "未捕获异常 (path=%s method=%s)", request.url.path, request.method
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"error": "internal_error", "message": "服务开小差了，请稍后重试。"},
+    )
+
 # ═══════════════════════════════════════════════════════════════════
 # 隐式终止 — 统一渲染路径
 # ═══════════════════════════════════════════════════════════════════
@@ -198,20 +220,21 @@ def _degrade_render_input(text: str) -> str:
 
     # 去 emoji（Unicode 表情符号区块）
     text = re.sub(
-        r'[\U0001F300-\U0001F9FF☀-➿⭐✀-➿️]',
-        '', text,
+        r"[\U0001F300-\U0001F9FF☀-➿⭐✀-➿️]",
+        "",
+        text,
     )
     # 去 markdown table 行（以 | 开头和结尾）
-    text = re.sub(r'^\|.*\|$', '', text, flags=re.MULTILINE)
+    text = re.sub(r"^\|.*\|$", "", text, flags=re.MULTILINE)
     # 去 markdown 标题标记（## 等）
-    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
     # 去 markdown 粗体/斜体
-    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
-    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)
     # 去 markdown 分隔线
-    text = re.sub(r'^[-*_]{3,}$', '', text, flags=re.MULTILINE)
+    text = re.sub(r"^[-*_]{3,}$", "", text, flags=re.MULTILINE)
     # 合并多余空行
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 
@@ -236,8 +259,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     通过 ``depth`` 控制深度模式：
 
-    - ``"fast"``（默认）：轻量 ReAct ≤5 轮，快速获取核心数据
-    - ``"deep"``：高预算（16000 tok）+ 深度人格参数，12 轮迭代上限
+    - ``"fast"``（默认）：低预算（10000 tok），快速获取核心数据
+    - ``"deep"``：高预算（16000 tok）+ 深度人格参数
+    迭代上限按 intent 细分（agent/config.py 的 per-intent 表）。
 
     Args:
         request: 包含用户消息、深度模式、会话 ID 和用户 ID 的请求体。
@@ -276,13 +300,32 @@ async def chat(request: ChatRequest) -> ChatResponse:
         telemetry = RequestTelemetry()
         set_current_telemetry(telemetry)
 
+    timeout_s = (
+        settings.REQUEST_TIMEOUT_FAST
+        if depth == "fast"
+        else settings.REQUEST_TIMEOUT_DEEP
+    )
     try:
         if telemetry:
-            result = await _run_with_telemetry(initial_state, telemetry)
-        else:
-            result = await agent_app.ainvoke(
-                initial_state, config={"recursion_limit": 50}
+            result = await asyncio.wait_for(
+                _run_with_telemetry(initial_state, telemetry), timeout=timeout_s
             )
+        else:
+            result = await asyncio.wait_for(
+                agent_app.ainvoke(initial_state, config={"recursion_limit": 50}),
+                timeout=timeout_s,
+            )
+    except asyncio.TimeoutError:
+        # TimeoutError 是 Exception 子类，必须放在 except Exception 之前
+        logger.warning("/chat: 请求超时 (depth=%s, timeout=%ss)", depth, timeout_s)
+        return ChatResponse(
+            reply="查询处理超时，请尝试更具体的提问方式。",
+            iterations=0,
+            tools_used=[],
+            query_intent="unknown",
+            output_style=output_style,
+            depth=depth,
+        )
     except GraphRecursionError:
         logger.warning("/chat: recursion_limit 触发 (depth=%s)", depth)
         return ChatResponse(
@@ -293,7 +336,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             output_style=output_style,
             depth=depth,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("/chat: Agent 执行异常")
         return ChatResponse(
             reply="抱歉，处理请求时遇到了问题，请稍后重试。",
@@ -309,7 +352,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     # ── 后处理：统一渲染路径（隐式终止）──
     messages_for_render = result.get("messages", [])
-    user_query = _extract_user_query_from_messages(messages_for_render) or request.message
+    user_query = (
+        _extract_user_query_from_messages(messages_for_render) or request.message
+    )
     query_intent = result.get("query_intent", "fallback")
 
     # chat 意图：纯闲聊，无工具数据。直接用人格回复。
@@ -326,7 +371,10 @@ async def chat(request: ChatRequest) -> ChatResponse:
         if last_ai and last_ai.content:
             render_input = last_ai.content
             force_render = True
-            logger.info("render: 隐式终止 — 使用 Aggregator 文本摘要 (%d chars)", len(render_input))
+            logger.info(
+                "render: 隐式终止 — 使用 Aggregator 文本摘要 (%d chars)",
+                len(render_input),
+            )
         else:
             render_input = "（无数据）"
             force_render = False
@@ -347,7 +395,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
         # 降级：render 失败时清理原始文本，避免 emoji/markdown 泄漏
         cleaned = _degrade_render_input(render_input)
         result["messages"] = _replace_last_ai_content(messages_for_render, cleaned)
-        logger.warning("Render 失败，降级为清理后的原始文本 (%d → %d chars)", len(render_input), len(cleaned))
+        logger.warning(
+            "Render 失败，降级为清理后的原始文本 (%d → %d chars)",
+            len(render_input),
+            len(cleaned),
+        )
 
     # ── L1 Session 缓存：保存本轮消息 ──
     max_cached = 30 if depth == "deep" else 20
@@ -358,7 +410,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
     )
 
     # ── L2 记忆写入（fire-and-forget） ──
-    asyncio.create_task(_remember_session(result, request, depth, session_id=session_id))
+    asyncio.create_task(
+        _remember_session(result, request, depth, session_id=session_id)
+    )
 
     from agent.config import get_max_iterations
 
@@ -419,16 +473,27 @@ async def chat_stream(request: ChatRequest):
     }
 
     async def generate():
-        final_state: dict = dict(initial_state)  # 预初始化，防止 CancelledError 提前触发时 UnboundLocalError
+        final_state: dict = dict(
+            initial_state
+        )  # 预初始化，防止 CancelledError 提前触发时 UnboundLocalError
         try:
-            # ── Graph 执行（非流式：ainvoke）──
-            final_state = await agent_app.ainvoke(
-                initial_state, config={"recursion_limit": 50}
+            # ── Graph 执行（非流式：ainvoke，请求级超时）──
+            timeout_s = (
+                settings.REQUEST_TIMEOUT_FAST
+                if depth == "fast"
+                else settings.REQUEST_TIMEOUT_DEEP
+            )
+            final_state = await asyncio.wait_for(
+                agent_app.ainvoke(initial_state, config={"recursion_limit": 50}),
+                timeout=timeout_s,
             )
 
             # ── 后处理：统一渲染路径（隐式终止）──
             messages_for_render = final_state.get("messages", [])
-            user_query = _extract_user_query_from_messages(messages_for_render) or request.message
+            user_query = (
+                _extract_user_query_from_messages(messages_for_render)
+                or request.message
+            )
             query_intent = final_state.get("query_intent", "fallback")
 
             if query_intent == "chat":
@@ -468,7 +533,11 @@ async def chat_stream(request: ChatRequest):
                     messages_for_render, cleaned
                 )
                 reply_to_send = cleaned
-                logger.warning("Render 失败，降级为清理后的原始文本 (%d → %d chars)", len(render_input), len(cleaned))
+                logger.warning(
+                    "Render 失败，降级为清理后的原始文本 (%d → %d chars)",
+                    len(render_input),
+                    len(cleaned),
+                )
             else:
                 reply_to_send = None
 
@@ -483,8 +552,17 @@ async def chat_stream(request: ChatRequest):
                 final_state.get("messages", []),
                 max_messages=max_cached,
             )
-            asyncio.create_task(_remember_session(final_state, request, depth, session_id=session_id))
+            asyncio.create_task(
+                _remember_session(final_state, request, depth, session_id=session_id)
+            )
 
+        except asyncio.TimeoutError:
+            # 请求级超时——必须放在 except Exception 之前（TimeoutError 是其子类）
+            logger.warning(
+                "/chat/stream: 请求超时 (depth=%s, timeout=%ss)", depth, timeout_s
+            )
+            yield f"data: {json.dumps({'node': 'error', 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
         except GraphRecursionError:
             logger.warning("/chat/stream: recursion_limit 触发 (depth=%s)", depth)
             yield f"data: {json.dumps({'node': 'error', 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
@@ -506,14 +584,16 @@ async def chat_stream(request: ChatRequest):
             try:
                 await asyncio.shield(
                     asyncio.wait_for(
-                        _remember_session(final_state, request, depth, session_id=session_id),
+                        _remember_session(
+                            final_state, request, depth, session_id=session_id
+                        ),
                         timeout=5.0,
                     )
                 )
             except Exception:
                 pass
             # 连接已断开，不发送 SSE 事件，直接退出生成器
-        except Exception as e:
+        except Exception:
             logger.exception("/chat/stream: Agent 执行异常")
             yield f"data: {json.dumps({'node': 'error', 'message': '内部处理错误，请稍后重试'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
@@ -538,9 +618,7 @@ async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) 
     final_state: dict = dict(initial_state)
     messages_key = "messages"
 
-    async for event in agent_app.astream(
-        initial_state, config={"recursion_limit": 50}
-    ):
+    async for event in agent_app.astream(initial_state, config={"recursion_limit": 50}):
         now = time.monotonic()
         for node_name, node_output in event.items():
             if node_output is None:
@@ -647,8 +725,8 @@ async def _remember_session(
         session_id: 实际使用的 session ID（优先于 request.session_id，避免匿名 session 塌缩）。
     """
     try:
-        from agent.memory.long_term import get_memory_manager
         from agent.config import get_max_iterations
+        from agent.memory.long_term import get_memory_manager
 
         mm = get_memory_manager()
         messages: list = result.get("messages", [])
