@@ -242,4 +242,36 @@
 
 ---
 
+## 七、new check
+
+```text
+main.py 收到请求
+│
+├─ Aggregator Prompt (aggregator.py:build_aggregator_prompt)
+│  输入到 reasoning LLM，负责调工具
+│  ├─ §1 _AGGREGATOR_IDENTITY        "你是数据聚合引擎"
+│  ├─ §1.5 _FEW_SHOT_EXAMPLES        5个工具调用示例
+│  ├─ §2 搜索深度指令                来自 depth_taste → _SEARCH_DEPTH_INSTRUCTIONS
+│  ├─ §3 TOOL_GUIDANCE               来自 tool_config.py
+│  ├─ §4 _CONTINUITY_RULES           对话连续性
+│  ├─ §5 Scene Hint                  来自 scene_hints.py（按 intent 选择）
+│  ├─ §6 Memory Context              L2 记忆召回
+│  ├─ §7 输出约束                    "文本摘要不超过 {word_limit} 字"
+│  └─ §8 _TERMINATION_RULES          "直接输出文本 = 结束"
+│
+├─ Render Prompt (render.py:build_render_prompt)
+│  输入到 render LLM，负责人格化表达
+│  ├─ §1 # 你是谁                    Character Card（~500字，含审美体系+数据态度）
+│  ├─ §2 ## 今天的语气               snark 5档 → _SNARK_LEVELS
+│  ├─ §3 ## 回复节奏                 initiative 5档 → _INITIATIVE_LEVELS
+│  ├─ §4 _STYLE_BASE                 通用风格规则（4人格共享）
+│  ├─ §5 ## 用户问题                 原始 query
+│  ├─ §6 <system_retrieved_facts>    Aggregator 输出 + 工具结果
+│  └─ §7 _CONSTRAINTS                硬约束（字数/emoji/编造/前缀）
+│
+└─ Last Chance (reasoning.py)
+   最后一轮迭代时注入 HumanMessage: _LAST_CHANCE_DIGEST
+```
 *最后更新: 2026-08-09 | v3: Phase 3 prep — 死代码链清理 + depth_taste 数据流修复；审查报告同步*
+
+---

@@ -222,6 +222,7 @@ docs/           # design/、eval/、memory/、Rag/、Tools/
 | [`CLAUDE.md`](CLAUDE.md) | 架构详解、编码规范、文件地图、调参速查（AI 协作入口） |
 | [`ROADMAP.md`](ROADMAP.md) | 当前状态、待解决问题、路线图 |
 | [`docs/design/claude-on-bangumi-vision.md`](docs/design/claude-on-bangumi-vision.md) | **产品愿景**——"住在 Bangumi 里的动画损友"，功能与人格修改的锚 |
+| [`docs/architecture-blueprint.md`](docs/architecture-blueprint.md) | **宏观架构蓝图**——9 板块清单、分层接口契约、编排模式库、演化地图 |
 | [`docs/design/evolution-roadmap-phase7-9.md`](docs/design/evolution-roadmap-phase7-9.md) | Phase 7-9 分层演进路线 |
 | [`docs/design/`](docs/design/) | 设计决策（`R-*` 方法论与基线、`O-*` 历史文档） |
 | [`docs/eval/`](docs/eval/) | 评测体系（RAG / 人格 / 记忆 / 工具可靠性 / E2E） |

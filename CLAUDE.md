@@ -8,6 +8,8 @@ BGM Agent 是部署在 [bangumi.tv](https://bgm.tv) 站内的 AI 聊天角色（
 
 **产品定位（必读）**：它不是"帮你查数据的 AI"，而是一个住在 Bangumi 里的动画损友——有自己的品位和脾气、会明确说"这部过誉了"、可以被反驳也会承认错误、记得你聊过什么。完整愿景见 [`docs/design/claude-on-bangumi-vision.md`](docs/design/claude-on-bangumi-vision.md)，**修改任何功能、人格或 prompt 之前必须先读**。核心原则：AI 不必永远"正确"（否则只是搜索引擎）；存在感要低、存在要有意义；隐私第一（用户评分与观看历史是对话的一部分，不是公共数据）；记住该记住的、忘记该忘记的。愿景相对现状的增量（被动触发、页面语境、社区参与、可调人格）是 Phase 8+ 方向，参考 [`docs/design/evolution-roadmap-phase7-9.md`](docs/design/evolution-roadmap-phase7-9.md)。
 
+**架构必读**：[`docs/architecture-blueprint.md`](docs/architecture-blueprint.md) — 宏观架构蓝图（9 板块清单 / 四层接口契约 / 编排模式库 / 演化地图）。涉及跨层改动、新增板块或编排形态前先读；新功能按其中 §7"开工前四问"定位，定位不进地图的需求先评审地图而非硬塞代码。
+
 技术栈：**FastAPI + LangGraph 异质拓扑（Pipeline + ReAct）+ DeepSeek/OpenAI 兼容 function-calling + PostgreSQL/pgvector + 智谱 embedding-2 (1024d)**。
 
 两个入口参数控制一切：
