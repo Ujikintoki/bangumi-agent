@@ -20,6 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # ── 前置扩展：pgvector + pg_trgm（幂等）────────────────
+    # 迁移链必须自包含：init_db() 的 CREATE EXTENSION 只覆盖应用启动路径，
+    # 独立运行 `alembic upgrade head` 时空库会缺 vector 类型（P0-1 修复）。
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+
     # ── 建表：从 ORM 模型自动生成 ──────────────────────────
     # 相当于旧的 SQLModel.metadata.create_all(engine)
     from sqlmodel import SQLModel
@@ -52,16 +58,9 @@ def upgrade() -> None:
         if_not_exists=True,
     )
 
-    # GIN trigram — rag_entities chunk_text 模糊匹配
-    op.create_index(
-        "ix_rag_entities_chunk_text_trgm",
-        "rag_entities",
-        ["chunk_text"],
-        unique=False,
-        postgresql_ops={"chunk_text": "gin_trgm_ops"},
-        postgresql_using="gin",
-        if_not_exists=True,
-    )
+    # NOTE: chunk_text 列已废弃（2026-08 移除，替换为 rag_output + embed_text），
+    # 旧版 ix_rag_entities_chunk_text_trgm 索引随之失效——空库 create_all 不会建该列，
+    # 在此建索引会导致 alembic upgrade head 崩溃（P0-1 修复）。旧库中的悬空列与索引无害，由 ORM 忽略。
 
     # B-Tree — rag_entities nsfw 安全护栏
     op.create_index(
@@ -136,27 +135,36 @@ def upgrade() -> None:
         if_not_exists=True,
     )
 
-    # ── session_memories 去重 + 唯一约束 ─────────────────
-    # 删除重复行：每 (user_id, session_id) 只保留最新一条
-    op.execute("""
-        DELETE FROM session_memories sm
-        USING (
-            SELECT id,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY user_id, session_id
-                       ORDER BY created_at DESC
-                   ) AS rn
-            FROM session_memories
-        ) dedup
-        WHERE sm.id = dedup.id AND dedup.rn > 1
-    """)
+    # ── session_memories 去重 + 唯一约束（条件化——P0-1 修复）──
+    # 当前 SessionMemory 模型已通过 __table_args__ 声明该约束，
+    # create_all 会直接创建；此分支只服务约束尚不存在的旧库。
+    from sqlalchemy import inspect
 
-    # 添加复合唯一约束
-    op.create_unique_constraint(
-        "uq_session_memories_user_session",
-        "session_memories",
-        ["user_id", "session_id"],
-    )
+    inspector = inspect(op.get_bind())
+    existing = {
+        c["name"] for c in inspector.get_unique_constraints("session_memories")
+    }
+    if "uq_session_memories_user_session" not in existing:
+        # 删除重复行：每 (user_id, session_id) 只保留最新一条
+        op.execute("""
+            DELETE FROM session_memories sm
+            USING (
+                SELECT id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY user_id, session_id
+                           ORDER BY created_at DESC
+                       ) AS rn
+                FROM session_memories
+            ) dedup
+            WHERE sm.id = dedup.id AND dedup.rn > 1
+        """)
+
+        # 添加复合唯一约束
+        op.create_unique_constraint(
+            "uq_session_memories_user_session",
+            "session_memories",
+            ["user_id", "session_id"],
+        )
 
     # ── 数据回填：nsfw 标记从 meta_info JSONB 迁移到列 ──
     op.execute("""

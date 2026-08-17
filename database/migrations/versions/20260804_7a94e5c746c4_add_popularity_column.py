@@ -25,11 +25,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # 1. 加列
-    op.add_column(
-        "rag_entities",
-        sa.Column("popularity", sa.Integer(), nullable=False, server_default="0"),
-    )
+    bind = op.get_bind()
+    from sqlalchemy import inspect
+
+    # 1. 加列（条件化——P0-1 修复）
+    #    · 空库路径：001 的 create_all 按当前 ORM 建表，popularity 列已存在，跳过。
+    #    · 旧库路径：迁移前创建的表无该列，此处补列 + 回填。
+    columns = {c["name"] for c in inspect(bind).get_columns("rag_entities")}
+    if "popularity" not in columns:
+        op.add_column(
+            "rag_entities",
+            sa.Column("popularity", sa.Integer(), nullable=False, server_default="0"),
+        )
 
     # 2. B-Tree 索引
     op.create_index(
