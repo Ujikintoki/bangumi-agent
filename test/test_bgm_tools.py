@@ -34,7 +34,11 @@ class TestSearchLocalAsync:
         assert inspect.iscoroutinefunction(coro_func)
 
     def test_no_block_event_loop(self):
-        """调用不应阻塞事件循环（即使 RAG 不可用，函数应在超时前返回）。"""
+        """调用不应阻塞事件循环（即使 RAG 不可用，函数应在超时前返回）。
+
+        v2 契约：search_local_bangumi 返回结构化 dict
+        （{"results": [...], "total": N}，无结果/出错时 {"_error": ...}）。
+        """
         coro_func = search_local_bangumi.coroutine
         result = asyncio.run(
             asyncio.wait_for(
@@ -42,5 +46,5 @@ class TestSearchLocalAsync:
                 timeout=5.0,
             )
         )
-        assert isinstance(result, str)
-        assert len(result) > 0
+        assert isinstance(result, dict)
+        assert "results" in result or "_error" in result

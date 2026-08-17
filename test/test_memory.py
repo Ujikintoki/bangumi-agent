@@ -166,7 +166,7 @@ class TestManageMemory:
             HumanMessage(content="Hi"),
         ]
         result = manage_memory(messages, max_tokens=10000)
-        assert result is messages  # 原样返回
+        assert result == messages  # 内容原样返回（实现可能返回新列表）
 
     def test_truncation_when_over_budget(self):
         messages = [
@@ -185,7 +185,7 @@ class TestManageMemory:
     def test_default_max_tokens(self):
         messages = [HumanMessage(content="Hi")]
         result = manage_memory(messages)  # 使用默认 8000
-        assert result is messages  # 远未超限
+        assert result == messages  # 远未超限
 
 
 # ═══════════════════════════════════════════════════════════════════════════

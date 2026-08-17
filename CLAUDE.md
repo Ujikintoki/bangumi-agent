@@ -159,7 +159,7 @@ Render Node (独立 LLM 调用)    → 决定输出怎么表达（HOW to say it�
 
 6. **`AgentState`** 使用 `TypedDict + Annotated[list, operator.add]`——消息在节点间追加而非覆盖。
 
-7. **工具返回格式**：绝大多数工具返回结构化 `dict`（A/B/C/D 字段方法论）。唯一例外：`search_local_bangumi` 返回 `str`。新增工具必须遵循 dict 返回约定。
+7. **工具返回格式**：全部工具返回结构化 `dict`（A/B/C/D 字段方法论）。`search_local_bangumi` 返回 `{"results": [...], "total": N}`（无结果/出错时 `{"_error": ...}`）。新增工具必须遵循 dict 返回约定。
 
 ### Deprecated — 禁止使用或新增引用
 

@@ -147,17 +147,22 @@ class TestReasoningNode:
         assert "短路" in str(result["messages"][0].content)
 
     @patch("agent.nodes.reasoning.create_llm")
-    async def test_last_chance_unbinds_tools(self, mock_create_llm):
-        """最后一轮（depth="fast", iter=2/3）→ 强制解绑工具"""
+    async def test_last_round_still_binds_tools(self, mock_create_llm):
+        """最后一轮 → 仍绑定工具，tool_choice=auto（隐式终止，不再解绑）。
+
+        旧的"last_chance 解绑工具"机制已移除（改为 _LAST_CHANCE_DIGEST_HINT
+        软引导 + tool_choice 控制），验证工具始终绑定。
+        """
         mock = make_mock_llm(content="好吧，就这样吧。")
         mock_create_llm.return_value = mock
 
-        # fast max=3, last_chance at iter>=2 (new_iterations=3 >= 2)
+        # fast 最后一轮：new_iterations=3 达上限
         state = _make_state(query_intent="lookup", iterations=2, depth="fast")
         await reasoning_node(state)
 
-        # 最后一轮不应调用 bind_tools
-        mock.bind_tools.assert_not_called()
+        # 工具始终绑定；非首轮 tool_choice=auto（LLM 可输出文本隐式终止）
+        mock.bind_tools.assert_called_once()
+        assert mock.bind_tools.call_args.kwargs.get("tool_choice") == "auto"
 
     # ── 消化态测试 ──
 
@@ -260,11 +265,11 @@ class TestRouting:
         assert route_after_reasoning(state) == END
 
     def test_max_iterations_enforced_in_node(self):
-        """iterations 达上限时 reasoning_node 内 last_chance 解绑工具"""
+        """get_max_iterations 返回正确的 depth 兜底上限"""
         max_iter = get_max_iterations("fast")
 
         # 仅测试 get_max_iterations 返回正确值
-        assert max_iter == 3
+        assert max_iter == 5
         assert get_max_iterations("fast") == 5
         assert get_max_iterations("deep") == 12
 

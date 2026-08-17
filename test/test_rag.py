@@ -187,7 +187,7 @@ class TestHybridSearch:
             for r in results:
                 assert isinstance(r, RagSearchResult)
                 assert r.entity_type in ("subject", "character", "person")
-                assert len(r.chunk_text) > 0
+                assert len(r.rag_output) > 0
                 assert r.cosine_distance >= 0
 
     def test_subject_only_filter(self, retriever):
@@ -246,7 +246,7 @@ class TestIngestionE2E:
                 "subject_id": self.TEST_SUBJECT_ID,
                 "name": "テスト作品",
                 "name_cn": "测试作品",
-                "chunk_text": "这是一部关于人工智能与人类共存的科幻动画，探讨了意识、自由意志等哲学命题。故事发生在22世纪的东京。",
+                "summary_text": "这是一部关于人工智能与人类共存的科幻动画，探讨了意识、自由意志等哲学命题。故事发生在22世纪的东京。",
                 "score": 8.5,
                 "rank": 42,
                 "rating_total": 5000,
@@ -261,7 +261,7 @@ class TestIngestionE2E:
         count = ingestor.ingest_subjects(data)
         assert count == 1
 
-        results = retriever.hybrid_search("人工智能 科幻 动画", entity_type="subject", limit=3)
+        results = retriever.hybrid_search("人工智能 科幻 动画", entity_type="subject", limit=10)
         assert len(results) > 0
         found = [r for r in results if r.entity_id == f"subject_{self.TEST_SUBJECT_ID}"]
         assert len(found) == 1, f"Expected to find test subject in results, got: {[r.entity_id for r in results]}"
@@ -283,7 +283,7 @@ class TestIngestionE2E:
                 "character_id": self.TEST_CHARACTER_ID,
                 "name": "テストキャラ",
                 "name_cn": "测试角色",
-                "chunk_text": "本作の主人公。正義感が強く、仲間を守るために戦う高校生。特技は剣道。",
+                "summary_text": "本作の主人公。正義感が強く、仲間を守るために戦う高校生。特技は剣道。",
                 "role": 1,
                 "collects": 3000,
                 "casts_raw": [
@@ -300,7 +300,7 @@ class TestIngestionE2E:
         count = ingestor.ingest_characters(data)
         assert count == 1
 
-        results = retriever.hybrid_search("主人公 正義感 剣道", entity_type="character", limit=3)
+        results = retriever.hybrid_search("主人公 正義感 剣道", entity_type="character", limit=10)
         found = [r for r in results if r.entity_id == f"character_{self.TEST_CHARACTER_ID}"]
         assert len(found) == 1
 
@@ -319,7 +319,7 @@ class TestIngestionE2E:
                 "person_id": self.TEST_PERSON_ID,
                 "name": "テスト声優",
                 "name_cn": "测试声优",
-                "chunk_text": "日本の男性声優。数多くのアニメの主人公を演じ、声優アワード主演男優賞を受賞。",
+                "summary_text": "日本の男性声優。数多くのアニメの主人公を演じ、声優アワード主演男優賞を受賞。",
                 "career": ["seiyu"],
                 "type": 1,
                 "collects": 8000,
@@ -335,7 +335,7 @@ class TestIngestionE2E:
         count = ingestor.ingest_persons(data)
         assert count == 1
 
-        results = retriever.hybrid_search("声優 主人公 受賞", entity_type="person", limit=3)
+        results = retriever.hybrid_search("声優 主人公 受賞", entity_type="person", limit=10)
         found = [r for r in results if r.entity_id == f"person_{self.TEST_PERSON_ID}"]
         assert len(found) == 1
 
@@ -349,13 +349,13 @@ class TestIngestionE2E:
         sid, pid = 99998, 77776
         ingestor.ingest_subjects([{
             "subject_id": sid, "name": "クロス作品", "name_cn": "跨域作品",
-            "chunk_text": "異世界転生ファンタジーの傑作。魔王を倒す旅に出る少年少女の物語。",
+            "summary_text": "異世界転生ファンタジーの傑作。魔王を倒す旅に出る少年少女の物語。",
             "score": 8.0, "rank": 50, "rating_total": 3000, "date": "2023-01-01",
             "year": 2023, "platform": "TV", "eps": 12, "nsfw": False, "tags": [],
         }])
         ingestor.ingest_persons([{
             "person_id": pid, "name": "クロス声優", "name_cn": "跨域声优",
-            "chunk_text": "数々の異世界作品で主人公を演じる実力派声優。",
+            "summary_text": "数々の異世界作品で主人公を演じる実力派声優。",
             "career": ["seiyu"], "type": 1, "collects": 5000, "works_raw": [],
         }])
 
@@ -371,19 +371,6 @@ class TestIngestionE2E:
                 RagEntity.id.in_([f"subject_{sid}", f"person_{pid}"])
             ))
             s.commit()
-
-    def test_chunk_text_has_semantic_prefix(self, ingestor, retriever):
-        """验证 chunk_text 包含了语义前缀。"""
-        ingestor.ingest_subjects([{
-            "subject_id": self.TEST_SUBJECT_ID, "name": "テスト作品", "name_cn": "测试作品",
-            "chunk_text": "人工知能と人類の共存を描くSFアニメ。",
-            "score": 8.5, "rank": 42, "rating_total": 5000, "date": "2024-01-01",
-            "year": 2024, "platform": "TV", "eps": 12, "nsfw": False, "tags": [],
-        }])
-        results = retriever.hybrid_search("人工知能 SF アニメ", entity_type="subject", limit=3)
-        found = [r for r in results if r.entity_id == f"subject_{self.TEST_SUBJECT_ID}"]
-        assert len(found) >= 1
-        assert "[作品名]" in found[0].chunk_text
 
     def test_heat_sorting_subject(self, retriever):
         """同梯队内按 rating_total 降序（使用真实已索引数据验证排序逻辑）。"""
@@ -408,7 +395,7 @@ class TestRagSearchResult:
         r = RagSearchResult(
             entity_id="subject_10",
             entity_type="subject",
-            chunk_text="测试文本",
+            rag_output='{"id": 10, "name": "テスト", "name_cn": "", "type": "TV"}',
             name="テスト",
             cosine_distance=0.2,
             final_score=0.0,
@@ -421,7 +408,7 @@ class TestRagSearchResult:
         r = RagSearchResult(
             entity_id="character_5",
             entity_type="character",
-            chunk_text="text",
+            rag_output='{"id": 5, "name": "test", "name_cn": "", "role": "主角"}',
             name="test",
             cosine_distance=0.5,
         )

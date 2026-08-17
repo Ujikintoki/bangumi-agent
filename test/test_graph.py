@@ -182,19 +182,35 @@ class TestStateLifecycle:
         await _test()
 
     @patch("agent.nodes.reasoning.create_llm")
-    async def test_shallow_mode_skips_critic(self, mock_create_llm):
+    @patch("agent.nodes.pipeline.create_llm")
+    @patch("agent.nodes.pipeline.get_agent_tools")
+    async def test_shallow_mode_skips_critic(
+        self, mock_pipeline_tools, mock_pipeline_llm, mock_create_llm
+    ):
         """[DEPRECATED Phase 10] depth="fast" 模式：Critic 已移除，验证 graph 正常完成。
 
         原测试验证 critic_status 保持 PENDING。Critic 已从图谱中移除，
         graph 直接从 reasoning_node → END。
         """
-        mock_create_llm.return_value = make_mock_llm(content="根据搜索结果，巨人评分 8.5 分。")
+        mock_pipeline_tools.return_value = MOCK_TOOLS
+        mock_pipeline_llm.return_value = make_mock_llm(
+            content="根据搜索结果，巨人评分 8.5 分。"
+        )
+        mock_create_llm.return_value = make_mock_llm(
+            content="根据搜索结果，巨人评分 8.5 分。"
+        )
         graph = build_graph(tools=MOCK_TOOLS)
         state = make_state(
             messages=[
                 SystemMessage(content="..."),
                 HumanMessage(content="搜巨人"),
-                AIMessage(content="", tool_calls=[{"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}]),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "mock_search_tool", "args": {"keyword": "巨人"}, "id": "call_x"}
+                    ],
+                ),
+                ToolMessage(content="搜索结果", tool_call_id="call_x"),
             ],
             query_intent="lookup",
             depth="fast",

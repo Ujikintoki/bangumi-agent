@@ -56,10 +56,10 @@ class TestRealLLM:
         classifier_llm = create_llm(temperature=0, max_tokens=10)
 
         intents = [
-            ("你好", "chitchat"),
-            ("什么是三集定律", "factual"),
-            ("搜索进击的巨人", "lookup"),
-            ("推荐类似命运石之门的番", "discovery"),
+            ("你好", "chat"),
+            ("什么是三集定律", "chat"),  # 术语类常识问题 → chat（无 factual 意图，别名并入）
+            ("搜索进击的巨人", "fetch"),
+            ("推荐类似命运石之门的番", "explore"),
             ("今天放什么番", "realtime"),
         ]
         for query, expected in intents:
@@ -78,42 +78,43 @@ class TestChatEndpointReal:
     """通过 /chat 端点测试完整的 Agent 循环"""
 
     def test_chitchat_no_tools(self):
-        """闲聊 → 快速通道 → 不调工具 → 1 轮完成"""
+        """闲聊 → 直通 END → 不调工具 → 0 轮"""
         r = client.post("/chat", json={"message": "你好", "session_id": f"test_chitchat_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
-        assert data["query_intent"] == "chitchat"
+        assert data["query_intent"] == "chat"
         assert data["tools_used"] == []
-        assert data["iterations"] == 1
+        assert data["iterations"] == 0
         assert len(data["reply"]) > 0
         print(f"\n  chitchat reply: {data['reply'][:100]}")
 
-    def test_factual_no_tools(self):
-        """常识 → 不调工具 → 直接回复"""
-        r = client.post("/chat", json={"message": "什么是三集定律", "session_id": f"test_factual_{uuid4().hex[:8]}"})
+    def test_term_question_no_tools(self):
+        """术语类常识问题 → 新分类器归为 chat（factual 意图已并入）→ 不调工具"""
+        r = client.post("/chat", json={"message": "什么是三集定律", "session_id": f"test_term_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
-        assert data["query_intent"] == "factual"
+        assert data["query_intent"] == "chat"
         assert data["tools_used"] == []
-        print(f"\n  factual reply: {data['reply'][:120]}")
+        assert len(data["reply"]) > 0
+        print(f"\n  term reply: {data['reply'][:120]}")
 
     def test_lookup_calls_tools(self):
-        """精确查找 → 调用搜索工具 → 回复含具体数据"""
+        """精确查找 → fetch pipeline → 调用搜索工具 → 回复含具体数据"""
         r = client.post("/chat", json={"message": "进击的巨人", "session_id": f"test_lookup_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
-        assert data["query_intent"] == "lookup"
+        assert data["query_intent"] == "fetch"
         # 工具调用可能因工具结果或迭代次数而异，验证至少跑了循环
         assert data["iterations"] >= 1
         print(f"\n  lookup: iter={data['iterations']} tools={data['tools_used']}")
         print(f"  reply: {data['reply'][:200]}")
 
     def test_discovery_calls_rag(self):
-        """发现推荐 → 调用 RAG 搜索"""
+        """发现推荐 → explore（ReAct）→ 可调用 RAG 搜索"""
         r = client.post("/chat", json={"message": "推荐类似命运石之门的烧脑番", "session_id": f"test_discovery_{uuid4().hex[:8]}"})
         assert r.status_code == 200
         data = r.json()
-        assert data["query_intent"] == "discovery"
+        assert data["query_intent"] == "explore"
         print(f"\n  discovery: iter={data['iterations']} tools={data['tools_used']}")
         print(f"  reply: {data['reply'][:200]}")
 
@@ -151,10 +152,10 @@ class TestChatEndpointReal:
             r = client.post("/chat", json={"message": q, "session_id": f"test_all_{uuid4().hex[:8]}_{i}"})
             data = r.json()
             results[q] = data
-            # 验证基本正确性
+            # 验证基本正确性（chat 直通 intent 的 iterations 为 0，不做迭代断言）
             assert data["reply"], f"'{q}' 回复为空"
             assert "异常" not in data["reply"], f"'{q}' 回复含异常: {data['reply'][:100]}"
-            assert data["iterations"] >= 1
+            assert data["query_intent"] != "unknown"
             print(f"\n  '{q}' → intent={data['query_intent']} iter={data['iterations']} tools={data['tools_used']}")
             print(f"    reply: {data['reply'][:120]}...")
 
@@ -264,7 +265,7 @@ class TestDatabaseConnection:
         from sqlalchemy import inspect
         inspector = inspect(db_session.get_bind())
         columns = {c["name"]: str(c["type"]) for c in inspector.get_columns("rag_entities")}
-        required = ["id", "entity_type", "name", "chunk_text", "embedding", "meta_info"]
+        required = ["id", "entity_type", "name", "embed_text", "rag_output", "embedding", "meta_info"]
         for col in required:
             assert col in columns, f"缺少列: {col}"
 
@@ -289,6 +290,7 @@ class TestRAGDataIntegrity:
 
     def test_insert_and_query(self, db_session):
         """插入测试实体并查询"""
+        import json
         import uuid
         from sqlalchemy import text
         from database.models import RagEntity, SubjectMeta
@@ -296,7 +298,12 @@ class TestRAGDataIntegrity:
         test_id = f"test_subject_{uuid.uuid4().hex[:8]}"
         entity = RagEntity(
             id=test_id, entity_type="subject", name="Test Entity",
-            chunk_text="A test chunk for integration testing.",
+            embed_text="A test chunk for integration testing.",
+            rag_output=json.dumps({
+                "id": 0, "name": "Test Entity", "name_cn": None,
+                "type": "TV", "summary": "", "score": 0.0, "rank": 0,
+                "rating_total": 0, "tags": [],
+            }),
             embedding=[0.1] * 1024,
             nsfw=False,
             meta_info=SubjectMeta().model_dump(),
@@ -305,7 +312,7 @@ class TestRAGDataIntegrity:
         db_session.commit()
 
         row = db_session.execute(
-            text("SELECT name, chunk_text FROM rag_entities WHERE id = :id"),
+            text("SELECT name, embed_text FROM rag_entities WHERE id = :id"),
             {"id": test_id},
         ).fetchone()
         assert row is not None
