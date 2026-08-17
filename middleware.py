@@ -16,10 +16,27 @@ from core.config import get_settings
 logger = logging.getLogger("bgm-agent.middleware")
 
 _WINDOW_SECONDS = 60.0  # 滑动窗口长度
+_MAX_TRACKED_IPS = 4096  # 计数表条目上限，超过触发一次全表清扫
 
 # {ip: deque[时间戳]}，只保留窗口内的请求时间戳。
 # 单进程内存态：重启清零。多实例部署时需换成 Redis 方案。
 _requests: dict[str, deque[float]] = {}
+
+
+def _sweep_stale(now: float) -> None:
+    """全表清扫：删除窗口已完全过期的 IP 条目。
+
+    单 IP 的惰性清理只回收"再次被访问"的条目；从未再访问的 IP
+    会残留一个过期 deque，长期运行后 _requests 无界增长。
+    超过 _MAX_TRACKED_IPS 时触发一次全表清扫兜底。
+    """
+    stale = [
+        ip
+        for ip, window in _requests.items()
+        if now - window[-1] > _WINDOW_SECONDS
+    ]
+    for ip in stale:
+        del _requests[ip]
 
 
 async def rate_limit_middleware(request: Request, call_next):
@@ -47,10 +64,21 @@ async def rate_limit_middleware(request: Request, call_next):
 
     if len(window) >= limit:
         logger.warning("限流触发 (ip=%s, count=%d)", ip, len(window))
-        return JSONResponse(
+        response = JSONResponse(
             status_code=429,
             content={"error": "rate_limited", "message": "太快了，休息一下再来。"},
             headers={"Retry-After": str(int(_WINDOW_SECONDS))},
         )
+        # BaseHTTPMiddleware 直接返回响应时（不调 call_next），响应不经过外层
+        # CORSMiddleware → 429 收不到 CORS 头，浏览器无法读取错误详情。
+        # 此处自补 CORS 头，与中间件注册顺序解耦。
+        response.headers.setdefault("Access-Control-Allow-Origin", "*")
+        response.headers.setdefault("Access-Control-Allow-Methods", "*")
+        response.headers.setdefault("Access-Control-Allow-Headers", "*")
+        return response
     window.append(now)
+    # 计数表超过阈值时全表清扫，防无界增长。
+    # 当前 IP 刚 append 最新时间戳，不可能被误删。
+    if len(_requests) > _MAX_TRACKED_IPS:
+        _sweep_stale(now)
     return await call_next(request)

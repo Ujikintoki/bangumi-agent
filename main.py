@@ -157,16 +157,16 @@ app = FastAPI(
 
 # CORS: 不使用 cookie 认证（session 通过显式 session_id 参数追踪），因此不设 credentials。
 # origin 保持通配符——此 API 为公开服务，接受来自任意前端的请求。
+#
+# 注意：限流中间件直接返回 429 时不经过外层 CORS（BaseHTTPMiddleware 行为），
+# 其 CORS 头由 middleware.py 自补，与注册顺序无关。
+app.middleware("http")(rate_limit_middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 限流：IP 级滑动窗口（预览期保护 LLM 成本）。
-# 挂载在 CORS 之后 → CORS 在最外层，429 响应也带 CORS 头，前端可读。
-app.middleware("http")(rate_limit_middleware)
 
 
 @app.exception_handler(Exception)
@@ -283,16 +283,39 @@ async def chat(request: ChatRequest) -> ChatResponse:
         if depth == "fast"
         else settings.REQUEST_TIMEOUT_DEEP
     )
-    try:
+
+    async def _graph_and_render():
+        """graph 执行 + 统一渲染，两者共享同一请求级超时。
+
+        渲染是独立 LLM 调用，若在 wait_for 之外，挂起的 render 会绕过
+        请求超时（审计盲区修复）。
+        """
         if telemetry:
-            result = await asyncio.wait_for(
-                _run_with_telemetry(initial_state, telemetry), timeout=timeout_s
-            )
+            result = await _run_with_telemetry(initial_state, telemetry)
         else:
-            result = await asyncio.wait_for(
-                agent_app.ainvoke(initial_state, config={"recursion_limit": 50}),
-                timeout=timeout_s,
+            result = await agent_app.ainvoke(
+                initial_state, config={"recursion_limit": 50}
             )
+        messages_for_render = result.get("messages", [])
+        user_query = (
+            _extract_user_query_from_messages(messages_for_render) or request.message
+        )
+        query_intent = result.get("query_intent", "fallback")
+        messages_for_render, rendered = await _render_final_reply(
+            messages=messages_for_render,
+            user_query=user_query,
+            query_intent=query_intent,
+            output_style=output_style,
+            depth=depth,
+        )
+        if rendered:
+            result["messages"] = messages_for_render
+        return result, query_intent
+
+    try:
+        result, query_intent = await asyncio.wait_for(
+            _graph_and_render(), timeout=timeout_s
+        )
     except asyncio.TimeoutError:
         # TimeoutError 是 Exception 子类，必须放在 except Exception 之前
         logger.warning("/chat: 请求超时 (depth=%s, timeout=%ss)", depth, timeout_s)
@@ -327,22 +350,6 @@ async def chat(request: ChatRequest) -> ChatResponse:
     finally:
         if telemetry:
             set_current_telemetry(None)
-
-    # ── 后处理：统一渲染路径（隐式终止）──
-    messages_for_render = result.get("messages", [])
-    user_query = (
-        _extract_user_query_from_messages(messages_for_render) or request.message
-    )
-    query_intent = result.get("query_intent", "fallback")
-    messages_for_render, rendered = await _render_final_reply(
-        messages=messages_for_render,
-        user_query=user_query,
-        query_intent=query_intent,
-        output_style=output_style,
-        depth=depth,
-    )
-    if rendered:
-        result["messages"] = messages_for_render
 
     # ── L1 Session 缓存：保存本轮消息 ──
     session_cache = get_session_cache()
@@ -401,33 +408,37 @@ async def chat_stream(request: ChatRequest):
             initial_state
         )  # 预初始化，防止 CancelledError 提前触发时 UnboundLocalError
         try:
-            # ── Graph 执行（非流式：ainvoke，请求级超时）──
+            # ── Graph 执行 + 统一渲染（共享请求级超时，审计盲区修复）──
             timeout_s = (
                 settings.REQUEST_TIMEOUT_FAST
                 if depth == "fast"
                 else settings.REQUEST_TIMEOUT_DEEP
             )
-            final_state = await asyncio.wait_for(
-                agent_app.ainvoke(initial_state, config={"recursion_limit": 50}),
-                timeout=timeout_s,
-            )
 
-            # ── 后处理：统一渲染路径（隐式终止）──
-            messages_for_render = final_state.get("messages", [])
-            user_query = (
-                _extract_user_query_from_messages(messages_for_render)
-                or request.message
+            async def _graph_and_render():
+                state = await agent_app.ainvoke(
+                    initial_state, config={"recursion_limit": 50}
+                )
+                messages_for_render = state.get("messages", [])
+                user_query = (
+                    _extract_user_query_from_messages(messages_for_render)
+                    or request.message
+                )
+                query_intent = state.get("query_intent", "fallback")
+                messages_for_render, reply_to_send = await _render_final_reply(
+                    messages=messages_for_render,
+                    user_query=user_query,
+                    query_intent=query_intent,
+                    output_style=output_style,
+                    depth=depth,
+                )
+                if reply_to_send:
+                    state["messages"] = messages_for_render
+                return state, reply_to_send
+
+            final_state, reply_to_send = await asyncio.wait_for(
+                _graph_and_render(), timeout=timeout_s
             )
-            query_intent = final_state.get("query_intent", "fallback")
-            messages_for_render, reply_to_send = await _render_final_reply(
-                messages=messages_for_render,
-                user_query=user_query,
-                query_intent=query_intent,
-                output_style=output_style,
-                depth=depth,
-            )
-            if reply_to_send:
-                final_state["messages"] = messages_for_render
 
             # ── 发送 render 事件 + 最终回复 ──
             yield f"data: {json.dumps({'node': 'render', 'reply': reply_to_send}, ensure_ascii=False)}\n\n"
@@ -469,17 +480,9 @@ async def chat_stream(request: ChatRequest):
                 )
             except Exception:
                 pass
-            try:
-                await asyncio.shield(
-                    asyncio.wait_for(
-                        _remember_session(
-                            final_state, request, depth, session_id=session_id
-                        ),
-                        timeout=5.0,
-                    )
-                )
-            except Exception:
-                pass
+            # 注意：断开时只保存 L1 session 缓存，不写 L2 长期记忆——
+            # 中断的对话不完整（可能只执行到一半），写入会污染语义召回
+            # 的注入内容（审计盲区修复）。
             # 连接已断开，不发送 SSE 事件，直接退出生成器
         except Exception:
             logger.exception("/chat/stream: Agent 执行异常")
