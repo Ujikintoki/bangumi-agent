@@ -269,31 +269,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
     Returns:
         ChatResponse: 包含回复、迭代次数、工具列表、意图分类、深度模式的响应。
     """
-    depth = request.depth
-    session_id = request.session_id or uuid.uuid4().hex
-    output_style = _resolve_output_style(request)
-
-    # ── L1 Session 缓存：恢复同 session 前序消息 ──
-    session_cache = get_session_cache()
-    cached = await session_cache.load(session_id)
-
-    # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
-    _seed = get_agent_profile("companion").capabilities
-    initial_state: AgentState = {
-        "messages": [
-            SystemMessage(content=_seed),
-            *cached,
-            HumanMessage(content=request.message),
-        ],
-        "iterations": 0,
-        "query_intent": "unknown",
-        "session_id": session_id,
-        "user_id": request.user_id,
-        "error_flag": False,
-        "_memory_context": None,
-        "output_style": output_style,
-        "depth": depth,
-    }
+    initial_state, session_id, depth, output_style = await _build_initial_state(
+        request
+    )
 
     telemetry = None
     if settings.DEV_MODE:
@@ -356,52 +334,18 @@ async def chat(request: ChatRequest) -> ChatResponse:
         _extract_user_query_from_messages(messages_for_render) or request.message
     )
     query_intent = result.get("query_intent", "fallback")
-
-    # chat 意图：纯闲聊，无工具数据。直接用人格回复。
-    if query_intent == "chat":
-        render_input = (
-            f"用户对你说：{user_query}\n\n"
-            "这是一段闲聊。自然地用你的角色性格回复。"
-            "不要列数据、不要提搜索、就像朋友聊天一样。"
-        )
-        force_render = True
-    else:
-        # 隐式终止：直接使用 Aggregator 文本摘要
-        last_ai = _get_last_ai_message(messages_for_render)
-        if last_ai and last_ai.content:
-            render_input = last_ai.content
-            force_render = True
-            logger.info(
-                "render: 隐式终止 — 使用 Aggregator 文本摘要 (%d chars)",
-                len(render_input),
-            )
-        else:
-            render_input = "（无数据）"
-            force_render = False
-
-    # 获取角色人格参数
-    character = get_character(output_style)
-
-    rendered = await render_reply(
-        render_input=render_input,
+    messages_for_render, rendered = await _render_final_reply(
+        messages=messages_for_render,
         user_query=user_query,
-        character=character,
+        query_intent=query_intent,
+        output_style=output_style,
         depth=depth,
-        force=force_render,
     )
     if rendered:
-        result["messages"] = _replace_last_ai_content(messages_for_render, rendered)
-    elif force_render and render_input != "（无数据）":
-        # 降级：render 失败时清理原始文本，避免 emoji/markdown 泄漏
-        cleaned = _degrade_render_input(render_input)
-        result["messages"] = _replace_last_ai_content(messages_for_render, cleaned)
-        logger.warning(
-            "Render 失败，降级为清理后的原始文本 (%d → %d chars)",
-            len(render_input),
-            len(cleaned),
-        )
+        result["messages"] = messages_for_render
 
     # ── L1 Session 缓存：保存本轮消息 ──
+    session_cache = get_session_cache()
     max_cached = 30 if depth == "deep" else 20
     await session_cache.store(
         session_id,
@@ -447,32 +391,12 @@ async def chat_stream(request: ChatRequest):
     Returns:
         StreamingResponse: SSE 事件流（text/event-stream）。
     """
-    depth = request.depth
-    session_id = request.session_id or uuid.uuid4().hex
-    output_style = _resolve_output_style(request)
-
-    # ── L1 Session 缓存：恢复前序消息 ──
-    session_cache = get_session_cache()
-    cached = await session_cache.load(session_id)
-
-    _seed = get_agent_profile("companion").capabilities
-    initial_state: AgentState = {
-        "messages": [
-            SystemMessage(content=_seed),
-            *cached,
-            HumanMessage(content=request.message),
-        ],
-        "iterations": 0,
-        "query_intent": "unknown",
-        "session_id": session_id,
-        "user_id": request.user_id,
-        "error_flag": False,
-        "_memory_context": None,
-        "output_style": output_style,
-        "depth": depth,
-    }
+    initial_state, session_id, depth, output_style = await _build_initial_state(
+        request
+    )
 
     async def generate():
+        session_cache = get_session_cache()  # 单例，恢复/保存 L1 session
         final_state: dict = dict(
             initial_state
         )  # 预初始化，防止 CancelledError 提前触发时 UnboundLocalError
@@ -495,51 +419,15 @@ async def chat_stream(request: ChatRequest):
                 or request.message
             )
             query_intent = final_state.get("query_intent", "fallback")
-
-            if query_intent == "chat":
-                render_input = (
-                    f"用户对你说：{user_query}\n\n"
-                    "这是一段闲聊。自然地用你的角色性格回复。"
-                    "不要列数据、不要提搜索、就像朋友聊天一样。"
-                )
-                force_render = True
-            else:
-                # 隐式终止：直接使用 Aggregator 文本摘要
-                last_ai = _get_last_ai_message(messages_for_render)
-                if last_ai and last_ai.content:
-                    render_input = last_ai.content
-                    force_render = True
-                else:
-                    render_input = "（无数据）"
-                    force_render = False
-
-            character = get_character(output_style)
-            rendered_reply = await render_reply(
-                render_input=render_input,
+            messages_for_render, reply_to_send = await _render_final_reply(
+                messages=messages_for_render,
                 user_query=user_query,
-                character=character,
+                query_intent=query_intent,
+                output_style=output_style,
                 depth=depth,
-                force=force_render,
             )
-            if rendered_reply:
-                final_state["messages"] = _replace_last_ai_content(
-                    messages_for_render, rendered_reply
-                )
-                reply_to_send = rendered_reply
-            elif force_render and render_input != "（无数据）":
-                # 降级：render 失败时清理原始文本
-                cleaned = _degrade_render_input(render_input)
-                final_state["messages"] = _replace_last_ai_content(
-                    messages_for_render, cleaned
-                )
-                reply_to_send = cleaned
-                logger.warning(
-                    "Render 失败，降级为清理后的原始文本 (%d → %d chars)",
-                    len(render_input),
-                    len(cleaned),
-                )
-            else:
-                reply_to_send = None
+            if reply_to_send:
+                final_state["messages"] = messages_for_render
 
             # ── 发送 render 事件 + 最终回复 ──
             yield f"data: {json.dumps({'node': 'render', 'reply': reply_to_send}, ensure_ascii=False)}\n\n"
@@ -643,6 +531,103 @@ async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) 
 # ═══════════════════════════════════════════════════════════════════
 # 辅助函数
 # ═══════════════════════════════════════════════════════════════════
+
+
+async def _build_initial_state(
+    request: ChatRequest,
+) -> tuple[AgentState, str, str, str]:
+    """构造 graph 初始状态（/chat 与 /chat/stream 共用）。
+
+    包含：depth/output_style 解析、L1 session 缓存恢复、种子 SystemMessage。
+
+    Returns:
+        (initial_state, session_id, depth, output_style)
+    """
+    depth = request.depth
+    session_id = request.session_id or uuid.uuid4().hex
+    output_style = _resolve_output_style(request)
+
+    # ── L1 Session 缓存：恢复同 session 前序消息 ──
+    session_cache = get_session_cache()
+    cached = await session_cache.load(session_id)
+
+    # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
+    _seed = get_agent_profile("companion").capabilities
+    initial_state: AgentState = {
+        "messages": [
+            SystemMessage(content=_seed),
+            *cached,
+            HumanMessage(content=request.message),
+        ],
+        "iterations": 0,
+        "query_intent": "unknown",
+        "session_id": session_id,
+        "user_id": request.user_id,
+        "error_flag": False,
+        "_memory_context": None,
+        "output_style": output_style,
+        "depth": depth,
+    }
+    return initial_state, session_id, depth, output_style
+
+
+async def _render_final_reply(
+    messages: list,
+    user_query: str,
+    query_intent: str,
+    output_style: str,
+    depth: str,
+) -> tuple[list, str | None]:
+    """统一渲染路径（/chat 与 /chat/stream 共用，隐式终止后处理）。
+
+    - chat 意图：纯闲聊，无工具数据，直接用人格回复。
+    - 其余：隐式终止——取 Aggregator 文本摘要交给 render。
+    - render 失败时降级为清理后的原始文本，避免 emoji/markdown 泄漏。
+
+    Returns:
+        (更新后的 messages, 最终回复文本；无数据时回复为 None)
+    """
+    if query_intent == "chat":
+        render_input = (
+            f"用户对你说：{user_query}\n\n"
+            "这是一段闲聊。自然地用你的角色性格回复。"
+            "不要列数据、不要提搜索、就像朋友聊天一样。"
+        )
+        force_render = True
+    else:
+        # 隐式终止：直接使用 Aggregator 文本摘要
+        last_ai = _get_last_ai_message(messages)
+        if last_ai and last_ai.content:
+            render_input = last_ai.content
+            force_render = True
+            logger.info(
+                "render: 隐式终止 — 使用 Aggregator 文本摘要 (%d chars)",
+                len(render_input),
+            )
+        else:
+            render_input = "（无数据）"
+            force_render = False
+
+    character = get_character(output_style)
+    rendered = await render_reply(
+        render_input=render_input,
+        user_query=user_query,
+        character=character,
+        depth=depth,
+        force=force_render,
+    )
+    if rendered:
+        return _replace_last_ai_content(messages, rendered), rendered
+    if force_render and render_input != "（无数据）":
+        # 降级：render 失败时清理原始文本，避免 emoji/markdown 泄漏
+        cleaned = _degrade_render_input(render_input)
+        logger.warning(
+            "Render 失败，降级为清理后的原始文本 (%d → %d chars)",
+            len(render_input),
+            len(cleaned),
+        )
+        return _replace_last_ai_content(messages, cleaned), cleaned
+    return messages, None
 
 
 def _get_last_ai_message(messages: list):
