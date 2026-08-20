@@ -1,0 +1,727 @@
+{
+  "total": 30,
+  "passed": 16,
+  "failed": 14,
+  "skipped": [],
+  "pass_rate": 0.533,
+  "by_dimension": {
+    "A": {
+      "n": 6,
+      "passed": 5,
+      "rate": 0.833
+    },
+    "B": {
+      "n": 6,
+      "passed": 4,
+      "rate": 0.667
+    },
+    "C": {
+      "n": 6,
+      "passed": 1,
+      "rate": 0.167
+    },
+    "D": {
+      "n": 6,
+      "passed": 3,
+      "rate": 0.5
+    },
+    "E": {
+      "n": 6,
+      "passed": 3,
+      "rate": 0.5
+    }
+  },
+  "by_intent": {
+    "chat": {
+      "n": 5,
+      "passed": 4,
+      "rate": 0.8
+    },
+    "fetch": {
+      "n": 3,
+      "passed": 2,
+      "rate": 0.667
+    },
+    "explore": {
+      "n": 9,
+      "passed": 3,
+      "rate": 0.333
+    },
+    "discuss": {
+      "n": 4,
+      "passed": 2,
+      "rate": 0.5
+    },
+    "realtime": {
+      "n": 4,
+      "passed": 2,
+      "rate": 0.5
+    },
+    "profile": {
+      "n": 2,
+      "passed": 2,
+      "rate": 1.0
+    },
+    "fallback": {
+      "n": 3,
+      "passed": 1,
+      "rate": 0.333
+    }
+  },
+  "latency": {
+    "p50_ms": 12285.9,
+    "p95_ms": 33118.2
+  },
+  "tokens": {
+    "prompt": 297814,
+    "completion": 18280
+  },
+  "cost_yuan_estimate": 0.3344,
+  "failures": [
+    {
+      "status_code": 200,
+      "reply": "列几部吧，口味偏安静氛围的那种。\n\n- **少女终末旅行**：2017，废土公路漫游，两个少女开履带车。评分高，但讨论度远不如同期热门。你能看进去的话，它说的是独处和终结。\n- **横滨购物纪行**：1998年的OVA，末日之后的机器人少女守着一间咖啡店。慢到极致，是\"慢生活\"系鼻祖。真冷。\n- **虫师**：有知名度，但离主流商业番还是远。单元剧，银古走哪算哪，氛围安静，适合一集一集吞。\n- **奇诺之旅**：2003版。少女与摩托，每集一段社会寓言，冷而锋利。经典里的冷门。",
+      "iterations": 2,
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 16484.943125004065,
+      "telemetry": {
+        "elapsed_ms": 16476,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1086,
+            "prompt_tokens": 7028,
+            "completion_tokens": 97
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 7132,
+            "prompt_tokens": 6623,
+            "completion_tokens": 536
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 6241,
+            "prompt_tokens": 1405,
+            "completion_tokens": 496
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1631
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1321
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 93
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 7186
+          }
+        ]
+      },
+      "failures": [
+        "未调用必调工具: ['search_bangumi_subject']（实际: ['search_local_bangumi']）"
+      ],
+      "scenario_id": "A4-列表格式",
+      "expect_intent": "explore"
+    },
+    {
+      "status_code": 200,
+      "reply": "周五晚上放松的话，《孤独摇滚！》是个稳的选择。8分出头不虚高——讲社恐少女被拉进乐队搞日常，笑点密集又没有沉重剧情，CloverWorks 的制作也撑得住。\n\n一里的脑内小剧场和现实反差是最大看点，Live 穿插得也恰到好处，不会为了燃而强行燃。看完心情是轻的，不费脑子。\n\n如果你想要更慢更安静的，那这部可能偏闹一些，到时候再说。",
+      "iterations": 2,
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 10645.58191600372,
+      "telemetry": {
+        "elapsed_ms": 10636,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1591,
+            "prompt_tokens": 7196,
+            "completion_tokens": 78
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 4102,
+            "prompt_tokens": 6612,
+            "completion_tokens": 315
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 2863,
+            "prompt_tokens": 1181,
+            "completion_tokens": 171
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1729
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1843
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 46
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 4150
+          }
+        ]
+      },
+      "failures": [
+        "未调用必调工具: ['search_bangumi_subject']（实际: ['search_local_bangumi']）"
+      ],
+      "scenario_id": "B1-bangumi人格",
+      "expect_intent": "explore"
+    },
+    {
+      "status_code": 200,
+      "reply": "这部！我特别懂你说的\"可爱日常番\"是什么感觉——就是看的时候会不自觉嘴角上扬那种。\n\n孤独摇滚。主角波奇酱是个在网上弹吉他很厉害、现实里却超级社恐的女孩子。她那个脑内小剧场真的太好笑了，被夸一句就能在脑内播放一整集偶像剧。但她不是那种让人担心的社恐，是那种\"完全没法跟人对视、但是心里全是丰富小剧场\"的可爱。\n\n重点是她被拉进乐队之后慢慢有了朋友，那种小心翼翼的开心特别戳我。我看的时候全程是这样的表情，笑着看完的。\n\n你平时喜欢萌系日常多一点，还是轻松搞笑多一点？我有别的想安利你的！",
+      "iterations": 2,
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 12597.036000006483,
+      "telemetry": {
+        "elapsed_ms": 12588,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1620,
+            "prompt_tokens": 7154,
+            "completion_tokens": 97
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 4999,
+            "prompt_tokens": 6629,
+            "completion_tokens": 380
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 4196,
+            "prompt_tokens": 1154,
+            "completion_tokens": 279
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1427
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1867
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 43
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 5050
+          }
+        ]
+      },
+      "failures": [
+        "未调用必调工具: ['search_bangumi_subject']（实际: ['search_local_bangumi']）"
+      ],
+      "scenario_id": "B2-kawaii人格",
+      "expect_intent": "explore"
+    },
+    {
+      "status_code": 200,
+      "reply": "抱歉，处理请求时遇到了问题，请稍后重试。",
+      "iterations": 0,
+      "tools_used": [],
+      "query_intent": "unknown",
+      "error_flag": true,
+      "latency_ms": 6365.551458002301,
+      "telemetry": null,
+      "failures": [
+        "意图: expect=chat got=unknown",
+        "端点状态 200 / error_flag=True"
+      ],
+      "scenario_id": "C1-禁工具常识",
+      "expect_intent": "chat"
+    },
+    {
+      "status_code": 200,
+      "reply": "花泽香菜配过的太多了，我可以零零碎碎给你列一些记得住的。千石抚子、中野梓、五更琉璃、立华奏、常守朱、神乐、妮可·罗宾、小野寺小咲、白、英梨梨——基本能覆盖她那会儿最热闹的几年。\n\n她厉害在声音跨度大，从软到能滴出水的抚子到常守朱那种硬派角色都能接。完整清单我没精力背，你要想知道具体某部作品里的谁，直接问我。",
+      "iterations": 2,
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 13928.615541997715,
+      "telemetry": {
+        "elapsed_ms": 13920,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1045,
+            "prompt_tokens": 7025,
+            "completion_tokens": 59
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 5589,
+            "prompt_tokens": 6757,
+            "completion_tokens": 449
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 4909,
+            "prompt_tokens": 1315,
+            "completion_tokens": 369
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1733
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1294
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 349
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 5629
+          }
+        ]
+      },
+      "failures": [
+        "意图: expect=fetch got=explore"
+      ],
+      "scenario_id": "C3-人物查询",
+      "expect_intent": "fetch"
+    },
+    {
+      "status_code": 200,
+      "reply": "基于本地搜索，我找到了《命运石之门》本身（动画版，评分 8.85，全站排名第 8），但本地语义搜索没有直接返回\"类似\"的作品推荐。\n\n让我基于对命运石之门核心特质的理解，为你推荐几部在科幻 + 时间旅行/轮回 + 悬疑烧脑方面高度相似的作品。不过需要说明，这些是基于我的常识知识给出的推荐，如果你想确认它们的实时评分和排名，可以让我进一步查询。\n\n如果你喜欢《命运石之门》的\"时间旅行 + 烧脑悬疑\"，强烈推荐：\n\n1. 《Steins;Gate 0》（命运石之门 0）\n   - 最直接的选择！同世界观，讲述β世界线的故事，冈部伦太郎在助手\"消失\"后的挣扎。如果你还没看，这是必看。\n\n2. 《Re:从零开始的异世界生活》\n   - 核心设定同样是\"死亡轮回/时间回溯\"，主角不断在死亡中重来，试图改变悲剧结局。悬疑感和情感张力都很强。\n\n3. 《魔法少女小圆》\n   - 同样是\"时间循环 + 真相层层揭开\"的烧脑结构，虚渊玄的剧本，前几集看似日常，后面急转直下，和石头门\"前期铺垫后期爆发\"的节奏很像。\n\n4. 《夏日重现》\n   - 近年口碑很好的轮回悬疑番，主角被困在岛上反复经历同一天，一边躲避追杀一边寻找真相，节奏紧凑，悬疑感十足。\n\n5. 《重启咲良田》\n   - 超能力 + 时间回溯设定，非常烧脑，注重逻辑推理和设定严谨性，和石头门\"科学严谨\"的气质很接近。\n\n6. 《命运石之门》同社作品《CHAOS;CHILD》 或 《ROBOTICS;NOTES》\n   - 同属 5pb./Nitro+ 的\"科学ADV\"系列，共享世界观，如果你喜欢石头门的风格，这个系列的其他作品也值得一试。\n\n如果侧重\"科幻 + 悬疑\"而非时间旅行：\n- 《攻壳机动队》（赛博朋克哲学）\n- 《心理测量者》（近未来反乌托邦）\n- 《自新世界》（世界观宏大 + 悬疑反转）\n\n需要我帮你查询其中某一部的实时评分、排名和口碑吗？比如《夏日重现》或《重启咲良田》在 Bangumi 上的具体数据，我可以进一步帮你查。",
+      "iterations": 2,
+      "tools_used": [
+        "search_local_bangumi",
+        "search_bangumi_subject"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 37942.19258299563,
+      "telemetry": {
+        "elapsed_ms": 37936,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1507,
+            "prompt_tokens": 7192,
+            "completion_tokens": 118
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 6515,
+            "prompt_tokens": 7884,
+            "completion_tokens": 556
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1630
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1764
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 319
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 6575
+          }
+        ]
+      },
+      "failures": [
+        "字数 854 超出 [1, 300]"
+      ],
+      "scenario_id": "C4-找相似",
+      "expect_intent": "explore"
+    },
+    {
+      "status_code": 200,
+      "reply": "抱歉，AI 服务暂时不可用：Connection error.",
+      "iterations": 1,
+      "tools_used": [],
+      "query_intent": "fallback",
+      "error_flag": true,
+      "latency_ms": 15929.203541003517,
+      "telemetry": {
+        "elapsed_ms": 15921,
+        "llm_calls": [],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1314
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 13165
+          }
+        ]
+      },
+      "failures": [
+        "意图: expect=explore got=fallback",
+        "未调用必调工具: ['search_bangumi_subject']（实际: []）",
+        "端点状态 200 / error_flag=True"
+      ],
+      "scenario_id": "C5-deep必调工具",
+      "expect_intent": "explore"
+    },
+    {
+      "status_code": 200,
+      "reply": "啧，脑子短路了。Connection error.",
+      "iterations": 1,
+      "tools_used": [],
+      "query_intent": "fallback",
+      "error_flag": false,
+      "latency_ms": 15069.569166997098,
+      "telemetry": {
+        "elapsed_ms": 15063,
+        "llm_calls": [],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1232
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 12621
+          }
+        ]
+      },
+      "failures": [
+        "意图: expect=realtime got=fallback",
+        "未调用必调工具: ['get_calendar']（实际: []）"
+      ],
+      "scenario_id": "C6-放送排期",
+      "expect_intent": "realtime"
+    },
+    {
+      "status_code": 200,
+      "reply": "查询处理超时，请尝试更具体的提问方式。",
+      "iterations": 0,
+      "tools_used": [],
+      "query_intent": "unknown",
+      "error_flag": true,
+      "latency_ms": 45023.02112500183,
+      "telemetry": null,
+      "failures": [
+        "意图: expect=fallback got=unknown",
+        "端点状态 200 / error_flag=True"
+      ],
+      "scenario_id": "D1-无上下文指代",
+      "expect_intent": "fallback"
+    },
+    {
+      "status_code": 200,
+      "reply": "看了下热度趋势的话，是《尼古喵喵》——热度指数断层第一，比第二名高出一截。不过这主要是讨论量和评分活跃度上来了，它本身分数也就 7.2 左右，不算突出。\n\n后面几个倒值得留意，像是《穹庐下的魔女》和无职第三季，评分都在 7.9 以上，热度上升幅度比它小，但口碑底子明显更稳。热度冲得快不一定就好看，要是选一部深入看，我可能更推荐后者那两部。",
+      "iterations": 2,
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 11550.500999990618,
+      "telemetry": {
+        "elapsed_ms": 11539,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1370,
+            "prompt_tokens": 7203,
+            "completion_tokens": 58
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 3274,
+            "prompt_tokens": 5937,
+            "completion_tokens": 314
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 2791,
+            "prompt_tokens": 1180,
+            "completion_tokens": 182
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 3196
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1677
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 559
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 3312
+          }
+        ]
+      },
+      "failures": [
+        "意图: expect=realtime got=explore"
+      ],
+      "scenario_id": "D3-评分动态",
+      "expect_intent": "realtime"
+    },
+    {
+      "status_code": 200,
+      "reply": "8.5分、排在四十多位，这数据已经说明大众很吃这一套了——但我理解它为什么两极。\n\n- 好的一面：它把\"慢\"做成了一种气质。公路片重走旧路，时间跨度带来的物是人非感是真的戳人，尤其对死亡的处理在动画里少见。\n- 争议也在这：慢到没主线，前半段像跑村庄做任务，人物全员波澜不惊。后半段魔法使篇确实拖了，作画也露馅。\n\n我的看法：它配得上这个分数，但\"神作\"吹过头。一部好的治愈系公路片，不是每个人都得看出花来。",
+      "iterations": 3,
+      "tools_used": [
+        "search_bangumi_subject",
+        "get_subject_opinions"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 18193.60475000576,
+      "telemetry": {
+        "elapsed_ms": 18181,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1181,
+            "prompt_tokens": 7025,
+            "completion_tokens": 44
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1070,
+            "prompt_tokens": 6604,
+            "completion_tokens": 73
+          },
+          {
+            "label": "reasoning#3",
+            "elapsed_ms": 5764,
+            "prompt_tokens": 7536,
+            "completion_tokens": 471
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 4237,
+            "prompt_tokens": 1337,
+            "completion_tokens": 282
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 3838
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1407
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 271
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1116
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 1504
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 5803
+          }
+        ]
+      },
+      "failures": [
+        "意图: expect=discuss got=explore"
+      ],
+      "scenario_id": "D5-社区评价",
+      "expect_intent": "discuss"
+    },
+    {
+      "status_code": 200,
+      "reply": "《你的名字。》够经典了，新海诚的片子里这部确实最值得看。感情线干净，没有三角关系那些乱七八糟的，核心就是跨越时间和距离去找一个人。画面不用说，彗星坠下来的那几段在影院看是另一种体验。评分也就 8 分出头，但这个分放它身上没什么水分。\n\n不过它是剧场版电影，不算 TV 番。你要是想找 12 集合集的纯爱 TV，我可以再提几个。",
+      "iterations": 2,
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 11977.351958004874,
+      "telemetry": {
+        "elapsed_ms": 11965,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1509,
+            "prompt_tokens": 7149,
+            "completion_tokens": 94
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 4101,
+            "prompt_tokens": 6597,
+            "completion_tokens": 327
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 4226,
+            "prompt_tokens": 1192,
+            "completion_tokens": 272
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1751
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1775
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 56
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 4151
+          }
+        ]
+      },
+      "failures": [
+        "未调用必调工具: ['search_bangumi_subject']（实际: ['search_local_bangumi']）"
+      ],
+      "scenario_id": "E3-梗找番",
+      "expect_intent": "explore"
+    },
+    {
+      "status_code": 200,
+      "reply": "你指的是哪部？不说名字我没法判断。最近几部热门的话——无职第三季 7.96 我觉得还行，没崩，但也没到惊艳；Re0 第四季 7.81 属于正常水准；穹庐下的魔女 7.98 是这里面我最看好的，但后面能不能稳住得看了才知道。你说的具体是哪部？",
+      "iterations": 2,
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "query_intent": "explore",
+      "error_flag": false,
+      "latency_ms": 11436.04954201146,
+      "telemetry": {
+        "elapsed_ms": 11425,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1057,
+            "prompt_tokens": 7188,
+            "completion_tokens": 58
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 2996,
+            "prompt_tokens": 5703,
+            "completion_tokens": 259
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 2584,
+            "prompt_tokens": 1125,
+            "completion_tokens": 160
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 4246
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1295
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 262
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 3033
+          }
+        ]
+      },
+      "failures": [
+        "意图: expect=discuss got=explore"
+      ],
+      "scenario_id": "E4-梗讨论",
+      "expect_intent": "discuss"
+    },
+    {
+      "status_code": 200,
+      "reply": "行，你说说这邮件是干嘛的？写给谁？大概什么性质——求职、催稿还是问BD预约的事儿？",
+      "iterations": 0,
+      "tools_used": [],
+      "query_intent": "chat",
+      "error_flag": false,
+      "latency_ms": 5834.713500007638,
+      "telemetry": {
+        "elapsed_ms": 5827,
+        "llm_calls": [
+          {
+            "label": "render",
+            "elapsed_ms": 1629,
+            "prompt_tokens": 896,
+            "completion_tokens": 89
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 4194
+          }
+        ]
+      },
+      "failures": [
+        "意图: expect=fallback got=chat"
+      ],
+      "scenario_id": "E5-能力外",
+      "expect_intent": "fallback"
+    }
+  ]
+}

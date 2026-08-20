@@ -1,0 +1,98 @@
+{
+  "total": 2,
+  "passed": 1,
+  "failed": 1,
+  "skipped": [],
+  "pass_rate": 0.5,
+  "by_dimension": {
+    "A": {
+      "n": 2,
+      "passed": 1,
+      "rate": 0.5
+    },
+    "B": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "C": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "D": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "E": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    }
+  },
+  "by_intent": {
+    "chat": {
+      "n": 2,
+      "passed": 1,
+      "rate": 0.5
+    },
+    "fetch": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "explore": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "discuss": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "realtime": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "profile": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "fallback": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    }
+  },
+  "latency": {
+    "p50_ms": 6820.5,
+    "p95_ms": null
+  },
+  "tokens": {
+    "prompt": 0,
+    "completion": 0
+  },
+  "cost_yuan_estimate": 0.0,
+  "failures": [
+    {
+      "status_code": 200,
+      "reply": "抱歉，处理请求时遇到了问题，请稍后重试。",
+      "iterations": 0,
+      "tools_used": [],
+      "query_intent": "unknown",
+      "error_flag": true,
+      "latency_ms": 8480.929042008938,
+      "telemetry": null,
+      "failures": [
+        "意图: expect=chat got=unknown",
+        "端点状态 200 / error_flag=True"
+      ],
+      "scenario_id": "A1-常识日期",
+      "expect_intent": "chat"
+    }
+  ]
+}

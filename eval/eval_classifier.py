@@ -31,30 +31,60 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("eval.classifier")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 关键词基线分类器
+# 关键词基线分类器（7-intent）
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _KEYWORD_RULES: list[tuple[str, str]] = [
     # (关键词/正则, intent) — 按优先级排列
-    ("再见|拜拜|谢谢|你好|嗨|早上好|晚上好|在吗|哈哈|你是谁|你叫什么", "chitchat"),
-    ("推荐|有没有.*的|有什么.*的|想看.*的|找.*番|类似.*的|冷门.*推荐|求.*番", "discovery"),
-    ("这季|今季|今天更新|排期|热门|最近.*新番|定档|霸权|黑马|热议", "realtime"),
-    ("被高估|被过誉|真的太烂|不如以前|全是垃圾|我觉得.*比.*厉害|为什么.*吹|商业化|艺术性", "debate"),
-    ("好累|烦死了|无聊|心情不好|失恋|开心|郁闷|难过|压力|空虚|感动|看不进去", "emotional"),
-    ("评分多少|评分|帮我查|具体讲讲|是谁|叫什么|什么类型|评分|详情|系列|版本|剧情|有哪些", "lookup"),
-    ("什么是|是什么|为什么|怎么.*的|区别|区别是什么|是怎么|运作", "factual"),
-    ("^[。！？\\.\\,\\s]+$|^嗯$|^哦$|^在$|^md$|测试|123", "unknown"),
+    # 注意：基线是"朴素对比锚"，允许与黄金标签不一致；"最近"等歧义词故意不映射，交给 LLM 分类器。
+    # chat: 问候 / 情绪 / 应答词 / 中文互联网情绪梗（产品定位：用户用梗说话）
+    (
+        "你好|嗨|早上好|晚上好|再见|拜拜|谢谢|哈哈|在吗|你是谁|你叫什么|"
+        "^(在|哦|嗯|md|草|艹|666|555)$|"
+        "hhh|2333|哈哈哈|绷不住了|蚌埠住了|破防|笑死|笑不活了|典！|典中典|"
+        "emo|我破防|集美|hxd|好兄弟|家人们",
+        "chat",
+    ),
+    # profile: @ 用户 / 品味分析
+    (r"@\S+|品味|评分习惯|看番轨迹|收藏统计|追番|口味匹配|评分分布|追番进度", "profile"),
+    # fetch: 查确定实体的属性
+    (
+        "评分多少|评分是|打几分|多少分|排名|查一下|帮我查|查查|是谁|是什么类型|是啥类型|"
+        "详情|系列|版本|剧情|配过|导演|声优|讲了什么|讲什么|资源|第几季|续作",
+        "fetch",
+    ),
+    # discuss: 观点 / 评价 / 评价向梗
+    (
+        "过誉|高估|太烂|烂尾|喂屎|垃圾|不如以前|商业化|艺术性|比.*厉害|吹|吹爆|"
+        "踩一捧一|锐评|瑞平|什么水平|什么地位|什么咖位|什么档位|封神|yyds|永远滴神|"
+        "崩了|崩坏|这评分|这波|神作但|认真的吗",
+        "discuss",
+    ),
+    # realtime: 时效信息（置于 explore 之前："这季...好看" 的时效信号优先于 "好看"）
+    (
+        "这季|今季|这周|本周|今天|昨晚|昨天|更新|定档|排期|霸权|黑马|热议|最热|"
+        "评分上升|新番表|开播|暴死|出圈|破圈|月番",
+        "realtime",
+    ),
+    # explore: 推荐 / 发现（含内容类型梗：纯爱/NTR/黑深残）
+    (
+        "推荐|有没有|有啥|类似|想看|求.*番|求安利|安利|种草|冷门|治愈|致郁|"
+        "纯爱|黑深残|牛头人|ntr|好看|值得一看|活着真好|入坑|补番|适合新人|适合入坑|"
+        "求几部|有什么好的|哪些.*值得",
+        "explore",
+    ),
 ]
 
-# 单字/短作品名白名单——已知的 ACGN 作品名缩写
+# 单字/短作品名白名单——已知的 ACGN 作品名缩写/裸标题 → fetch
 _KNOWN_SHORT_TITLES = frozenset({
     "eva", "86", "k", "c", "fz", "ubw", "ab", "lb",
     "cl", "wa", "sa", "dc", "ef", "ac", "sd",
+    "钢炼", "巨人", "芙莉莲", "凉宫", "银魂", "夏目", "石头门",
 })
 
 
 def _classify_keyword(text: str) -> str:
-    """基于关键词+正则的 8-way 意图分类（基线）。
+    """基于关键词+正则的 7-intent 分类（基线）。
 
     Args:
         text: 用户输入文本。
@@ -65,23 +95,23 @@ def _classify_keyword(text: str) -> str:
     text_stripped = text.strip()
     text_lower = text_stripped.lower()
 
-    # 短文本检查: 单字或极短的已知作品名 → lookup
+    # 短文本检查: 单字或极短的已知作品名 → fetch
     if len(text_stripped) <= 3 and text_lower in _KNOWN_SHORT_TITLES:
-        return "lookup"
+        return "fetch"
 
-    # 纯标点 → unknown
-    if all(c in "。！？.…,，、 " for c in text_stripped):
-        return "unknown"
+    # 纯标点 → fallback
+    if all(c in "。！？.…,，、～~ " for c in text_stripped):
+        return "fallback"
 
     for pattern, intent in _KEYWORD_RULES:
         import re
         if re.search(pattern, text_stripped):
             return intent
 
-    # 兜底: 短文本 → unknown，长文本 → lookup
+    # 兜底: 短文本 → fallback，长文本 → fetch（沿用旧基线"默认查数据"哲学）
     if len(text_stripped) <= 2:
-        return "unknown"
-    return "lookup"
+        return "fallback"
+    return "fetch"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -90,7 +120,7 @@ def _classify_keyword(text: str) -> str:
 
 
 async def _classify_llm(text: str) -> str:
-    """使用 LLM (DeepSeek) 做 8-way 意图分类。"""
+    """使用 LLM (DeepSeek) 做 7-intent 意图分类。"""
     from agent.nodes.classify import classify_intent_llm
     from agent.llm import create_llm
 
@@ -235,8 +265,9 @@ def save_report(results: dict, output_path: str) -> None:
         lines.append(row)
 
     if results["errors"]:
-        lines.append(f"\n## 错误样本 (Top 15)\n")
-        for e in results["errors"][:15]:
+        lines.append(f"\n## 冲突清单：预测 ≠ 黄金标签 (Top 25)\n")
+        lines.append(f"\n> 冲突 ≠ 分类器错：也可能黄金标签存疑。逐条能说出'产品应该这样分'才保留。\n")
+        for e in results["errors"][:25]:
             lines.append(f"- ✗ `{e['text'][:60]}` → **true={e['true']}** pred={e['predicted']}")
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -252,8 +283,8 @@ def save_report(results: dict, output_path: str) -> None:
 def main():
     parser = argparse.ArgumentParser(description="意图分类器评测")
     parser.add_argument(
-        "--data", default="eval/data/intent_queries.json",
-        help="评测数据集路径 (默认: eval/data/intent_queries.json)",
+        "--data", default="eval/data/intent_queries_v7.json",
+        help="评测数据集路径 (默认: eval/data/intent_queries_v7.json)",
     )
     parser.add_argument(
         "--baseline", default="llm", choices=["llm", "keyword"],

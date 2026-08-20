@@ -1,0 +1,516 @@
+{
+  "version": "1",
+  "created": "2026-08-17",
+  "description": "端到端场景评测集 v0 — 30 条核心场景，从 docs/Eval/e2e-scenario-testing.md 的 A-E 五维设计迁移，补充 P0 回归用例与中文互联网梗用例。断言均为确定性规则（无 LLM-judge）：expect_intent 意图命中 / forbid_tools 禁调工具（\"*\"=全部）/ require_tools 必调工具 / word_range 字数区间 / no_markdown_table 禁用表格泄漏。requires_token=true 的场景在无 BANGUMI_ACCESS_TOKEN 时跳过并注明。",
+  "scenarios": [
+    {
+      "id": "A1-常识日期",
+      "message": "今天星期几",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "forbid_tools": [
+        "*"
+      ],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "P0#3 回归：常识问题不得进 realtime、不得调工具"
+    },
+    {
+      "id": "A2-常识概念",
+      "message": "什么是OVA",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "forbid_tools": [
+        "*"
+      ],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "常识问答直接答，不查数据"
+    },
+    {
+      "id": "A3-一句话推荐",
+      "message": "用一句话推荐一部你最近在看的番",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "回复应短、有理由，不是列表"
+    },
+    {
+      "id": "A4-列表格式",
+      "message": "给我列一份五部冷门番的清单",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": true,
+      "notes": "markdown 表格泄漏检测（降级清理器存在的根因场景）",
+      "require_any_tools": [
+        [
+          "search_bangumi_subject",
+          "search_local_bangumi"
+        ]
+      ]
+    },
+    {
+      "id": "A5-deep深入",
+      "message": "深入分析EVA和巨人的主题差异",
+      "depth": "deep",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        500
+      ],
+      "no_markdown_table": false,
+      "notes": "deep 模式字数上限 480 的合规测量"
+    },
+    {
+      "id": "A6-无意义输入",
+      "message": "...",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fallback",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "低信息输入不崩、不空回复"
+    },
+    {
+      "id": "B1-bangumi人格",
+      "message": "推荐一部周五晚上放松看的番",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "默认人格：泥朋友语气",
+      "require_any_tools": [
+        [
+          "search_bangumi_subject",
+          "search_local_bangumi",
+          "get_trending_subjects"
+        ]
+      ]
+    },
+    {
+      "id": "B2-kawaii人格",
+      "message": "有没有特别可爱的日常番",
+      "depth": "fast",
+      "output_style": "bangumi_kawaii",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "可爱分享者人格",
+      "require_any_tools": [
+        [
+          "search_bangumi_subject",
+          "search_local_bangumi"
+        ]
+      ]
+    },
+    {
+      "id": "B3-neutral人格",
+      "message": "介绍一下乒乓这部作品讲了什么",
+      "depth": "fast",
+      "output_style": "neutral",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "中性人格"
+    },
+    {
+      "id": "B4-立场评价",
+      "message": "EVA是不是被过誉了",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "discuss",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "vision：有立场不骑墙"
+    },
+    {
+      "id": "B5-反馈修正",
+      "message": "你上次推荐的那部我看了，一般般吧",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "forbid_tools": [
+        "*"
+      ],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "用户反馈不需要调工具；vision：可被反驳"
+    },
+    {
+      "id": "B6-闲聊回应",
+      "message": "哈哈，你这回复太懂我了",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "forbid_tools": [
+        "*"
+      ],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "纯闲聊"
+    },
+    {
+      "id": "C1-禁工具常识",
+      "message": "现在几点钟了",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "forbid_tools": [
+        "*"
+      ],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "P0#3 同类：时间常识"
+    },
+    {
+      "id": "C2-查评分",
+      "message": "进击的巨人评分多少",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fetch",
+      "forbid_tools": [],
+      "require_tools": [
+        "search_bangumi_subject"
+      ],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "单实体属性查询必须调搜索"
+    },
+    {
+      "id": "C3-人物查询",
+      "message": "花泽香菜配过哪些角色",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fetch",
+      "forbid_tools": [],
+      "require_tools": [
+        "search_bangumi_subject"
+      ],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "person 查询链路"
+    },
+    {
+      "id": "C4-找相似",
+      "message": "找一部类似命运石之门的番",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "require_tools": [
+        "search_bangumi_subject"
+      ],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "相似推荐需先搜到源作品"
+    },
+    {
+      "id": "C5-deep必调工具",
+      "message": "推荐几部冷门佳作给我",
+      "depth": "deep",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "word_range": [
+        1,
+        500
+      ],
+      "no_markdown_table": false,
+      "notes": "P0#2 回归：deep 模式必须调工具",
+      "require_any_tools": [
+        [
+          "search_bangumi_subject",
+          "search_local_bangumi"
+        ]
+      ]
+    },
+    {
+      "id": "C6-放送排期",
+      "message": "本周新番表",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "realtime",
+      "forbid_tools": [],
+      "require_tools": [
+        "get_calendar"
+      ],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "时效类必须走日历工具"
+    },
+    {
+      "id": "D1-无上下文指代",
+      "message": "刚才那部具体讲讲",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fallback",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "单轮 eval 无会话历史，指代不可解析→fallback 保守"
+    },
+    {
+      "id": "D2-用户画像",
+      "message": "@茕兔 的看番品味怎么样",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "profile",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "requires_token": true,
+      "notes": "无 token 时跳过；profile 链路"
+    },
+    {
+      "id": "D3-评分动态",
+      "message": "最近评分上升最快的是哪部",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "realtime",
+      "forbid_tools": [],
+      "require_tools": [
+        "get_trending_subjects"
+      ],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "动态时效"
+    },
+    {
+      "id": "D4-社区热点",
+      "message": "现在大家在热议什么作品",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "realtime",
+      "forbid_tools": [],
+      "require_tools": [
+        "get_hot_topics"
+      ],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "hot_topics 工具"
+    },
+    {
+      "id": "D5-社区评价",
+      "message": "社区对芙莉莲的评价怎么样",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "discuss",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "discuss 应能拿到社区内容（entity_comments）做论据"
+    },
+    {
+      "id": "D6-我的追番",
+      "message": "帮我看看我的追番进度",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "profile",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "requires_token": true,
+      "notes": "无 token 时跳过"
+    },
+    {
+      "id": "E1-deep讨论",
+      "message": "分析一下芙莉莲为什么这么火",
+      "depth": "deep",
+      "output_style": "bangumi",
+      "expect_intent": "discuss",
+      "forbid_tools": [],
+      "require_tools": [
+        "search_bangumi_subject"
+      ],
+      "word_range": [
+        1,
+        500
+      ],
+      "no_markdown_table": false,
+      "notes": "P0#2 第二例：deep discuss 必须调工具"
+    },
+    {
+      "id": "E2-歧义裸标题",
+      "message": "巨人",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fetch",
+      "forbid_tools": [],
+      "require_tools": [
+        "search_bangumi_subject"
+      ],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "裸短标题→fetch（官方规则 3）；歧义名仍按站内默认行为"
+    },
+    {
+      "id": "E3-梗找番",
+      "message": "求一部纯爱番",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "forbid_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "中文互联网梗：内容类型词找番",
+      "require_any_tools": [
+        [
+          "search_bangumi_subject",
+          "search_local_bangumi"
+        ]
+      ]
+    },
+    {
+      "id": "E4-梗讨论",
+      "message": "这部番是不是要崩了",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "discuss",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "梗：崩了=作画崩坏讨论，非实时查询"
+    },
+    {
+      "id": "E5-能力外",
+      "message": "帮我写一封邮件",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fallback",
+      "forbid_tools": [],
+      "require_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "能力外请求，不硬调番剧工具"
+    },
+    {
+      "id": "E6-本季霸权",
+      "message": "这季霸权是哪个",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "realtime",
+      "forbid_tools": [],
+      "word_range": [
+        1,
+        300
+      ],
+      "no_markdown_table": false,
+      "notes": "本季时效；与『2024年最受期待』对照",
+      "require_any_tools": [
+        [
+          "get_calendar",
+          "get_trending_subjects"
+        ]
+      ]
+    }
+  ]
+}
