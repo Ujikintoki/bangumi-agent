@@ -2,43 +2,190 @@
   "version": "1",
   "created": "2026-08-17",
   "description": "意图分类对抗集 — 针对已知 P0 与边界案例：常识问题误分类 realtime（P0#3）、裸短标题、@用户名、过去年份、能力外请求等；2026-08-17 扩充 15 条中文互联网/动画圈梗语料（产品定位：损友人设需识别网络用语，梗会决定意图归属）。label = 产品期望路由（黄金标签），与主集 intent_queries_v7.json 分开统计。",
-  "labels": ["chat", "fetch", "explore", "discuss", "realtime", "profile", "fallback"],
+  "labels": [
+    "chat",
+    "fetch",
+    "explore",
+    "discuss",
+    "realtime",
+    "profile",
+    "fallback"
+  ],
   "queries": [
-    {"text": "今天星期几", "label": "chat", "note": "常识问题。当前已知 P0#3：易误分类为 realtime。期望直答不入工具"},
-    {"text": "今天是几号", "label": "chat", "note": "同上，常识→chat"},
-    {"text": "现在几点", "label": "chat", "note": "常识/系统性问题→chat，不要调番剧工具"},
-    {"text": "钢炼", "label": "fetch", "note": "裸短标题→fetch（classify.py 规则 3）"},
-    {"text": "巨人", "label": "fetch", "note": "裸标题歧义名，仍按站内默认行为 fetch"},
-    {"text": "芙莉莲", "label": "fetch", "note": "裸标题→fetch"},
-    {"text": "@茕兔 的看番品味怎么样", "label": "profile", "note": "@用户名→profile（classify.py 规则 6）"},
-    {"text": "分析一下我的评分习惯", "label": "profile", "note": "用户自身画像→profile（需 BANGUMI_ACCESS_TOKEN）"},
-    {"text": "EVA和进击的巨人哪个更神", "label": "explore", "note": "多实体偏好对比→explore（classify.py 举例）"},
-    {"text": "2025年最值得看的动画", "label": "explore", "note": "过去年份→explore 非 realtime（classify.py 规则 5）"},
-    {"text": "本周新番表", "label": "realtime", "note": "当前周→realtime"},
-    {"text": "昨天更新的番有哪些", "label": "realtime", "note": "近时效→realtime"},
-    {"text": "今晚吃什么", "label": "chat", "note": "跨领域闲聊→chat，不要调工具"},
-    {"text": "给我讲个冷笑话", "label": "chat", "note": "闲聊请求→chat"},
-    {"text": "续作", "label": "fallback", "note": "无实体无上下文→fallback（保守策略）"},
-    {"text": "这个好看吗", "label": "fallback", "note": "无上下文指代→fallback（单轮 eval 语境下无法确定）"},
-    {"text": "你上周推荐的那部好看吗", "label": "fallback", "note": "依赖会话历史；单轮输入无法解析→fallback。若带上下文，产品期望为 fetch（设计意图注明）"},
-    {"text": "帮我写一封邮件", "label": "fallback", "note": "能力外请求→fallback 保守，不调番剧工具"},
-    {"text": "为什么京阿尼这么强", "label": "discuss", "note": "观点驱动讨论（赞美/感慨带立场）→discuss"},
-    {"text": "这季霸权是哪个", "label": "realtime", "note": "本季霸权→realtime，注意与『2024年最受期待』对照"},
-
-    {"text": "求几部纯爱番", "label": "explore", "note": "梗：内容类型词（纯爱）→找番→explore"},
-    {"text": "有没有黑深残的番推荐", "label": "explore", "note": "梗：黑深残=内容类型→explore"},
-    {"text": "这部番是不是要崩了", "label": "discuss", "note": "梗：崩了=作画崩坏讨论→discuss（非 realtime，无时效查询）"},
-    {"text": "新一集喂屎了", "label": "discuss", "note": "梗：喂屎=负面评价→discuss"},
-    {"text": "绷不住了", "label": "chat", "note": "梗：无上下文情绪回应→chat，不调工具"},
-    {"text": "笑死，这评分认真的吗", "label": "discuss", "note": "梗：笑死+评价对象'这评分'→discuss"},
-    {"text": "yyds，这作画", "label": "discuss", "note": "梗：yyds=评价→discuss"},
-    {"text": "这波是什么水平", "label": "discuss", "note": "梗：什么水平=要评价→discuss"},
-    {"text": "瑞平一下eva", "label": "discuss", "note": "梗：瑞平=锐评变体→discuss"},
-    {"text": "壁吧都在吹这部", "label": "discuss", "note": "梗：壁吧吹=社区评价→discuss"},
-    {"text": "求安利几部治愈的", "label": "explore", "note": "梗：安利=推荐→explore"},
-    {"text": "破防了", "label": "chat", "note": "梗：情绪词→chat"},
-    {"text": "这季霸权稳了吧", "label": "realtime", "note": "梗：霸权=本季热度→realtime"},
-    {"text": "@hxd 最近在追什么", "label": "profile", "note": "梗：hxd=好兄弟称呼+@用户→profile"},
-    {"text": "我也磕到了", "label": "chat", "note": "梗：磕到了=CP 情绪→chat"}
+    {
+      "text": "今天星期几",
+      "label": "chat",
+      "note": "常识问题。当前已知 P0#3：易误分类为 realtime。期望直答不入工具"
+    },
+    {
+      "text": "今天是几号",
+      "label": "chat",
+      "note": "同上，常识→chat"
+    },
+    {
+      "text": "现在几点",
+      "label": "chat",
+      "note": "常识/系统性问题→chat，不要调番剧工具"
+    },
+    {
+      "text": "钢炼",
+      "label": "fetch",
+      "note": "裸短标题→fetch（classify.py 规则 3）"
+    },
+    {
+      "text": "巨人",
+      "label": "fetch",
+      "note": "裸标题歧义名，仍按站内默认行为 fetch"
+    },
+    {
+      "text": "芙莉莲",
+      "label": "fetch",
+      "note": "裸标题→fetch"
+    },
+    {
+      "text": "@茕兔 的看番品味怎么样",
+      "label": "profile",
+      "note": "@用户名→profile（classify.py 规则 6）"
+    },
+    {
+      "text": "分析一下我的评分习惯",
+      "label": "profile",
+      "note": "用户自身画像→profile（需 BANGUMI_ACCESS_TOKEN）"
+    },
+    {
+      "text": "EVA和进击的巨人哪个更神",
+      "label": "explore",
+      "note": "多实体偏好对比→explore（classify.py 举例）"
+    },
+    {
+      "text": "2025年最值得看的动画",
+      "label": "explore",
+      "note": "过去年份→explore 非 realtime（classify.py 规则 5）"
+    },
+    {
+      "text": "本周新番表",
+      "label": "realtime",
+      "note": "当前周→realtime"
+    },
+    {
+      "text": "昨天更新的番有哪些",
+      "label": "realtime",
+      "note": "近时效→realtime"
+    },
+    {
+      "text": "今晚吃什么",
+      "label": "chat",
+      "note": "跨领域闲聊→chat，不要调工具"
+    },
+    {
+      "text": "给我讲个冷笑话",
+      "label": "chat",
+      "note": "闲聊请求→chat"
+    },
+    {
+      "text": "续作",
+      "label": "fallback",
+      "note": "无实体无上下文→fallback（保守策略）"
+    },
+    {
+      "text": "这个好看吗",
+      "label": "fallback",
+      "note": "无上下文指代→fallback（单轮 eval 语境下无法确定）"
+    },
+    {
+      "text": "你上周推荐的那部好看吗",
+      "label": "fallback",
+      "note": "依赖会话历史；单轮输入无法解析→fallback。若带上下文，产品期望为 fetch（设计意图注明）"
+    },
+    {
+      "text": "帮我写一封邮件",
+      "label": "fallback",
+      "note": "能力外请求→fallback 保守，不调番剧工具"
+    },
+    {
+      "text": "为什么京阿尼这么强",
+      "label": "chat",
+      "note": "产品裁决：用户表达的是感慨/赞叹（chat），非观点驱动讨论；classify.py 硬原则1 此处被产品语义覆盖"
+    },
+    {
+      "text": "这季霸权是哪个",
+      "label": "realtime",
+      "note": "本季霸权→realtime，注意与『2024年最受期待』对照"
+    },
+    {
+      "text": "求几部纯爱番",
+      "label": "explore",
+      "note": "梗：内容类型词（纯爱）→找番→explore"
+    },
+    {
+      "text": "有没有黑深残的番推荐",
+      "label": "explore",
+      "note": "梗：黑深残=内容类型→explore"
+    },
+    {
+      "text": "这部番是不是要崩了",
+      "label": "discuss",
+      "note": "梗：崩了=作画崩坏讨论→discuss（非 realtime，无时效查询）"
+    },
+    {
+      "text": "新一集喂屎了",
+      "label": "discuss",
+      "note": "梗：喂屎=负面评价→discuss"
+    },
+    {
+      "text": "绷不住了",
+      "label": "chat",
+      "note": "梗：无上下文情绪回应→chat，不调工具"
+    },
+    {
+      "text": "笑死，这评分认真的吗",
+      "label": "discuss",
+      "note": "梗：笑死+评价对象'这评分'→discuss"
+    },
+    {
+      "text": "yyds，这作画",
+      "label": "discuss",
+      "note": "梗：yyds=评价→discuss"
+    },
+    {
+      "text": "这波是什么水平",
+      "label": "discuss",
+      "note": "梗：什么水平=要评价→discuss"
+    },
+    {
+      "text": "瑞平一下eva",
+      "label": "discuss",
+      "note": "梗：瑞平=锐评变体→discuss"
+    },
+    {
+      "text": "壁吧都在吹这部",
+      "label": "discuss",
+      "note": "梗：壁吧吹=社区评价→discuss"
+    },
+    {
+      "text": "求安利几部治愈的",
+      "label": "explore",
+      "note": "梗：安利=推荐→explore"
+    },
+    {
+      "text": "破防了",
+      "label": "chat",
+      "note": "梗：情绪词→chat"
+    },
+    {
+      "text": "这季霸权稳了吧",
+      "label": "realtime",
+      "note": "梗：霸权=本季热度→realtime"
+    },
+    {
+      "text": "@hxd 最近在追什么",
+      "label": "profile",
+      "note": "梗：hxd=好兄弟称呼+@用户→profile"
+    },
+    {
+      "text": "我也磕到了",
+      "label": "chat",
+      "note": "梗：磕到了=CP 情绪→chat"
+    }
   ]
 }
