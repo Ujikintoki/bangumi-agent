@@ -82,20 +82,20 @@ async def reasoning_node(state: AgentState) -> dict:
     else:
         memory_context = state.get("_memory_context", "") or ""
 
-    # ── Step 2: 构建 Aggregator System Prompt（首轮） ──────
-    if new_iterations == 1:
-        output_style = state.get("output_style", "bangumi")
-        character = get_character(output_style)
-        scene_hints = DEEP_SCENE_HINTS if is_deep else COMPANION_SCENE_HINTS
-        system_content = build_aggregator_prompt(
-            character=character,
-            depth="deep" if is_deep else depth,
-            intent=query_intent,
-            scene_hints=scene_hints,
-            memory_context=memory_context,
-        )
-    else:
-        system_content = None
+    # ── Step 2: 构建 Aggregator System Prompt（每轮重建） ────
+    # 人格必须每轮在场。此前仅首轮构建、第 2 轮起 system_content=None，
+    # 导致模型只能在"工具结果 + 历史"上裸推理（P3）。
+    # memory_context 在上文已按轮次取好（首轮召回 / 后续读 state）。
+    output_style = state.get("output_style", "bangumi")
+    character = get_character(output_style)
+    scene_hints = DEEP_SCENE_HINTS if is_deep else COMPANION_SCENE_HINTS
+    system_content = build_aggregator_prompt(
+        character=character,
+        depth="deep" if is_deep else depth,
+        intent=query_intent,
+        scene_hints=scene_hints,
+        memory_context=memory_context,
+    )
 
     # ── Step 3: 构建消息列表 ───────────────────────────────
     messages_for_llm = build_message_list(messages, system_content)

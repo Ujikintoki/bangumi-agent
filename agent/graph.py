@@ -39,6 +39,7 @@ from agent.routing.routes import (
     route_after_classify,
     route_after_reasoning,
     route_after_tool,
+    route_after_tool_react,
 )
 from agent.state import AgentState
 from tools.bgm_tools import get_agent_tools
@@ -214,9 +215,12 @@ def build_graph(tools: list | None = None) -> StateGraph:
         route_after_reasoning,
         {"tool_node": "tool_node", END: END},
     )
+    # 父图用 route_after_tool_react：只回 reasoning_node 或 END。
+    # 不能用 route_after_tool——它会按 intent 返回 pipeline 步骤名
+    # （fetch_detail / synthesize），父图 path_map 里没有这些键 → KeyError（P1）。
     graph.add_conditional_edges(
         "tool_node",
-        route_after_tool,
+        route_after_tool_react,
         {
             "reasoning_node": "reasoning_node",
             END: END,

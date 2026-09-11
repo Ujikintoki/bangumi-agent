@@ -68,6 +68,58 @@ def route_after_classify(
     return "reasoning_node"
 
 
+# ── 熔断守卫（父图与子图共用同一实现）────────────────────────
+
+
+def _hard_breaker(state: AgentState) -> str | None:
+    """硬熔断：迭代轮次达到该 intent 的上限。
+
+    Args:
+        state: 当前 Agent 全局状态。
+
+    Returns:
+        ``END`` 表示应停止；``None`` 表示未触发。
+    """
+    depth = state.get("depth", "fast")
+    intent = state.get("query_intent", "fallback")
+    max_iter = get_max_iterations(depth, intent)
+    current_iter = state.get("iterations", 0)
+
+    if current_iter >= max_iter:
+        logger.warning(
+            "route_after_tool: 硬熔断 intent=%s iter=%d/%d → END",
+            intent, current_iter, max_iter,
+        )
+        return END
+    return None
+
+
+def _soft_breakers(state: AgentState) -> str | None:
+    """软熔断：连续 2 次空搜索 / 重复工具调用。
+
+    Args:
+        state: 当前 Agent 全局状态。
+
+    Returns:
+        ``END`` 表示应停止；``None`` 表示未触发。
+    """
+    messages = state.get("messages", [])
+
+    consecutive_empty = _count_consecutive_empty_searches(messages)
+    if consecutive_empty >= 2:
+        logger.warning(
+            "route_after_tool: 连续 %d 次空搜索 → END", consecutive_empty
+        )
+        return END
+
+    dup = check_duplicate_tool_calls(messages)
+    if dup:
+        logger.warning("route_after_tool: 重复调用 '%s' → END", dup[:60])
+        return END
+
+    return None
+
+
 # ── 条件路由: tool_node → next step / END ────────────────────
 
 
@@ -77,29 +129,25 @@ def route_after_tool(
     "fetch_detail", "synthesize",
     "reasoning_node", "__end__",
 ]:
-    """tool_node 后的条件边——控制中枢（v5: pipeline 步骤路由 + ReAct 路由）。
+    """tool_node 后的条件边——**pipeline 子图专用**（步骤路由 + 熔断）。
 
     1. 硬熔断：iterations >= per-intent max → END
     2. Pipeline 步骤路由（intent + iterations）
     3. 连续 2 次空搜索 → END
     4. 重复工具调用 → END
     5. ReAct → reasoning_node
-    """
-    from langchain_core.messages import AIMessage
 
-    depth = state.get("depth", "fast")
+    ⚠️ 父图（ReAct）不要用这个函数。它会按 intent 返回 pipeline 步骤名
+    （``fetch_detail`` / ``synthesize``），而父图的 path_map 里没有这些键，
+    直接抛 KeyError（P1）。父图请用 ``route_after_tool_react``。
+    """
+    stop = _hard_breaker(state)
+    if stop:
+        return stop
+
     intent = state.get("query_intent", "fallback")
-    max_iter = get_max_iterations(depth, intent)
     current_iter = state.get("iterations", 0)
     messages = state.get("messages", [])
-
-    # 硬熔断
-    if current_iter >= max_iter:
-        logger.warning(
-            "route_after_tool: 硬熔断 intent=%s iter=%d/%d → END",
-            intent, current_iter, max_iter,
-        )
-        return END
 
     # ── Pipeline 步骤路由 ──
     if intent == "fetch":
@@ -121,22 +169,42 @@ def route_after_tool(
             logger.info("route_after_tool: %s step 1 → synthesize", intent)
             return "synthesize"
 
-    # ── 公共熔断 ──
-    # 连续空搜索
-    consecutive_empty = _count_consecutive_empty_searches(messages)
-    if consecutive_empty >= 2:
-        logger.warning(
-            "route_after_tool: 连续 %d 次空搜索 → END", consecutive_empty
-        )
-        return END
-
-    # 重复工具调用
-    dup = check_duplicate_tool_calls(messages)
-    if dup:
-        logger.warning("route_after_tool: 重复调用 '%s' → END", dup[:60])
-        return END
+    stop = _soft_breakers(state)
+    if stop:
+        return stop
 
     # ReAct 继续
+    return "reasoning_node"
+
+
+def route_after_tool_react(
+    state: AgentState,
+) -> Literal["reasoning_node", "__end__"]:
+    """tool_node 后的条件边——**父图 ReAct 专用**。
+
+    与 ``route_after_tool`` 的唯一区别：不做 pipeline 步骤路由，因此返回值
+    恒为 ``reasoning_node`` 或 END——构造上不可能返回父图 path_map 缺失的键。
+
+    父图的 tool_node 只可能从 reasoning_node 到达。即便 state 里的
+    ``query_intent`` 仍是 fetch/realtime（分类置信度落在 [0.5, 0.7) 时被
+    ``route_after_classify`` 降级进 ReAct 的情形），也应当继续 ReAct 循环，
+    而不是跳进某个 pipeline 的下一步。
+
+    三道熔断与子图共用 ``_hard_breaker`` / ``_soft_breakers``，
+    不存在两份逻辑漂移的风险。
+
+    Args:
+        state: 当前 Agent 全局状态。
+
+    Returns:
+        ``reasoning_node`` 继续循环，或 ``END`` 停止。
+    """
+    stop = _hard_breaker(state)
+    if stop:
+        return stop
+    stop = _soft_breakers(state)
+    if stop:
+        return stop
     return "reasoning_node"
 
 
