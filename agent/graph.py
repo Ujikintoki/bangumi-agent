@@ -161,6 +161,58 @@ def _build_profile_pipeline(tools: list) -> StateGraph:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Subgraph 挂载包装
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _pipeline_node(subgraph, name: str):
+    """把编译好的 pipeline 子图包成父图节点：只回传子图「新增」的消息。
+
+    子图被当节点用时，LangGraph 把父图 state 传进去，再把子图的**完整**
+    final state 还回来——其中包含它调用前收到的那些消息。父图 ``messages``
+    是 ``operator.add`` 语义，不区分"新增"与"退还"，于是把输入整体再追加
+    一次（P2）。多轮会话下被复制的是**整个历史**，经 ``main.py`` 写进 L1
+    session 缓存后，实际只留存约一半的不重复消息，表现为"聊几轮就忘事"。
+
+    LangGraph 的 ``input_schema`` / ``output_schema`` 不解决该问题——它们
+    只过滤回传哪些 **key**，而问题出在 ``messages`` 这个 key 的**列表内容**；
+    实测三种 schema 写法（无 / output_schema / 子图独立 schema）均仍重复。
+
+    安全性依赖一条契约：**子图内部只增不减**。``agent/nodes/pipeline.py``
+    的全部节点只返回新产出的那一条（``manage_memory`` 作用在局部变量
+    ``built`` 上，从不改 ``state["messages"]``），因此 ``[n_before:]`` 切出
+    的正是新增部分。该契约由 ``test_graph.py::TestSubgraphMessageBoundary``
+    钉住——若将来有节点就地裁剪 ``state["messages"]``，这些用例会红。
+
+    Args:
+        subgraph: 已编译的 pipeline 子图。
+        name: 子图名，仅用于日志。
+
+    Returns:
+        可直接传给 ``graph.add_node`` 的异步节点函数。
+    """
+
+    async def _node(state: AgentState) -> dict:
+        n_before = len(state.get("messages", []))
+        result = await subgraph.ainvoke(state)
+
+        delta = dict(result)
+        returned = list(result.get("messages", []))
+        delta["messages"] = returned[n_before:]
+        logger.debug(
+            "subgraph %s: 收到 %d 条 → 还回 %d 条，截取增量 %d 条",
+            name, n_before, len(returned), len(delta["messages"]),
+        )
+        return delta
+
+    # 暴露内层子图：test_routes.py 的接线测试要穿透包装断言子图内部路由，
+    # 同时可据此判断"这个节点到底有没有被包装"。
+    _node.subgraph = subgraph
+
+    return _node
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 主图谱构建
 # ═══════════════════════════════════════════════════════════════════
 
@@ -180,9 +232,19 @@ def build_graph(tools: list | None = None) -> StateGraph:
     graph.add_node("classify_node", classify_node)
 
     # Pipeline 子图（每个子图内部自包含步骤 + 工具）
-    graph.add_node("fetch_pipeline", _build_fetch_pipeline(tools))
-    graph.add_node("realtime_pipeline", _build_realtime_pipeline(tools))
-    graph.add_node("profile_pipeline", _build_profile_pipeline(tools))
+    # 经 _pipeline_node 包装：子图会把它收到的消息原样退还，直接挂载会让
+    # 父图 operator.add 把输入整体重复追加一次（P2）。
+    graph.add_node(
+        "fetch_pipeline", _pipeline_node(_build_fetch_pipeline(tools), "fetch")
+    )
+    graph.add_node(
+        "realtime_pipeline",
+        _pipeline_node(_build_realtime_pipeline(tools), "realtime"),
+    )
+    graph.add_node(
+        "profile_pipeline",
+        _pipeline_node(_build_profile_pipeline(tools), "profile"),
+    )
 
     # ReAct 节点
     graph.add_node("reasoning_node", reasoning_node)

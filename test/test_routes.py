@@ -304,8 +304,19 @@ class TestCompiledGraphWiring:
         "subgraph", ["fetch_pipeline", "realtime_pipeline", "profile_pipeline"]
     )
     def test_subgraph_tool_nodes_still_use_pipeline_router(self, subgraph):
-        """三个 pipeline 子图的 tool 节点仍挂 route_after_tool（步骤路由不变）。"""
-        sub = self._build().builder.nodes[subgraph].runnable
+        """三个 pipeline 子图经 ``_pipeline_node`` 包装挂载，内部 tool 仍挂路由不变。
+
+        包装是 P2 的修复（子图会退还输入消息，裸挂会让父图重复追加）。
+        这里顺带锁定"包装没被绕过"——裸挂的子图没有 ``subgraph`` 属性。
+        """
+        # langgraph 把节点函数收在 RunnableCallable 里：async 节点进 afunc，
+        # 同步节点进 func（与 P1 那条 `spec.path.func` 同类内省）。
+        spec = self._build().builder.nodes[subgraph].runnable
+        node = getattr(spec, "afunc", None) or getattr(spec, "func", None)
+        sub = getattr(node, "subgraph", None)
+        assert sub is not None, (
+            f"{subgraph} 未经 _pipeline_node 包装——裸挂子图会让输入消息重复入 state（P2）"
+        )
         branches = sub.builder.branches["tool"]
 
         assert len(branches) == 1, f"{subgraph} 的 tool 应只有一条条件边"
