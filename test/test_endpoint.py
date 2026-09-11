@@ -136,8 +136,19 @@ class TestChatEndpoint:
         response = client.post("/chat", json={})
         assert response.status_code == 422
 
-    def test_default_session_and_user(self):
+    @patch("main.agent_app.ainvoke")
+    def test_default_session_and_user(self, mock_invoke):
         """session_id 和 user_id 有默认值"""
+        mock_invoke.return_value = {
+            "messages": [
+                SystemMessage(content="..."),
+                HumanMessage(content="你好"),
+                AIMessage(content="你好！"),
+            ],
+            "iterations": 1,
+            "query_intent": "chat",
+        }
+
         response = client.post("/chat", json={"message": "你好"})
         assert response.status_code == 200  # 不因缺失而 422
 

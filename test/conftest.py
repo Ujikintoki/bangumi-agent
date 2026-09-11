@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -52,6 +52,33 @@ def _disable_rate_limit_for_tests():
     settings.RATE_LIMIT_PER_MINUTE = 0
     yield
     settings.RATE_LIMIT_PER_MINUTE = original
+
+
+@pytest.fixture(autouse=True)
+def _no_request_side_effects():
+    """请求后处理阶段不得触发真实外部调用（Render + L2 记忆写入）。
+
+    ``/chat`` 在 graph 之外还有两处副作用，只 mock ``agent_app.ainvoke``
+    拦不住：
+
+    1. ``main.render_reply`` —— 一次付费 LLM 调用，且会改写测试断言依赖
+       的字面量，用例随网络红绿翻转（实测：同一份代码连跑 5 次，3 红 2 绿）。
+    2. ``MemoryManager.remember_session`` —— 一次摘要 LLM + 一次 embedding
+       API + 一次 ``session_memories`` 写入。测试既不该花钱，也不该往真实
+       记忆表灌数据。
+
+    两者统一降级为无副作用：render 原样返回（等价于它自身的降级路径），
+    记忆写入整体跳过。直接调用 ``agent.persona.render.render_reply`` 或
+    ``MemoryManager`` 其余方法的单元测试不受影响。
+    """
+    from agent.memory.long_term import MemoryManager
+
+    passthrough = AsyncMock(side_effect=lambda render_input, **kwargs: render_input)
+    with (
+        patch("main.render_reply", passthrough),
+        patch.object(MemoryManager, "remember_session", AsyncMock()),
+    ):
+        yield
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -8,13 +8,32 @@
 本文件测试自行开启并恢复（fixture teardown 会还原）。
 """
 
+from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
+from langchain_core.messages import AIMessage
 
 from core.config import get_settings
 from main import app
 from middleware import _requests, _WINDOW_SECONDS
 
 client = TestClient(app)
+
+# 限流测试只关心中间件，不关心 agent。每次 /chat 若不 mock graph，
+# 就是一次完整的真实调用（classify + reasoning + render 三次付费 LLM）。
+_STUB_STATE = {
+    "messages": [AIMessage(content="（限流测试桩）")],
+    "iterations": 0,
+    "query_intent": "chat",
+}
+
+
+@pytest.fixture(autouse=True)
+def _stub_agent_graph():
+    """把 /chat 背后的 agent 换成固定返回，避免限流测试打真实 LLM。"""
+    with patch("main.agent_app.ainvoke", return_value=_STUB_STATE):
+        yield
 
 
 def _enable_rate_limit(limit: int) -> None:
