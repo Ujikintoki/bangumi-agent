@@ -120,12 +120,18 @@ def _classify_keyword(text: str) -> str:
 
 
 async def _classify_llm(text: str) -> str:
-    """使用 LLM (DeepSeek) 做 7-intent 意图分类。"""
+    """使用 LLM (DeepSeek) 做 7-intent 意图分类。
+
+    ``classify_intent_llm`` 返回 ``(intent, confidence)`` 元组，此处必须解包
+    成字符串再返回——下游用 ``true_label == pred_label`` 比较，若直接透传
+    元组则恒为 False，准确率恒 0（P4）。
+    """
     from agent.nodes.classify import classify_intent_llm
     from agent.llm import create_llm
 
     llm = create_llm(temperature=0, max_tokens=10, request_timeout=10)
-    return await classify_intent_llm(text, llm)
+    intent, _ = await classify_intent_llm(text, llm)
+    return intent
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
