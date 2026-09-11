@@ -6,19 +6,19 @@
 
 | 指标 | 值 |
 |------|----|
-| Accuracy | 51.43% |
-| Macro F1 | 0.5063 |
-| Correct / Total | 18 / 35 |
+| Accuracy | 57.14% |
+| Macro F1 | 0.5473 |
+| Correct / Total | 20 / 35 |
 
 ## Per-class 指标
 
 | 类别 | Precision | Recall | F1 | Support |
 |------|-----------|--------|----|---------|
-| chat | 0.5000 | 0.2500 | 0.3333 | 8 |
-| discuss | 1.0000 | 0.7500 | 0.8571 | 8 |
+| chat | 0.5000 | 0.2222 | 0.3077 | 9 |
+| discuss | 1.0000 | 0.8571 | 0.9231 | 7 |
 | explore | 0.6000 | 0.6000 | 0.6000 | 5 |
 | fallback | 0.0000 | 0.0000 | 0.0000 | 4 |
-| fetch | 0.1000 | 0.3333 | 0.1538 | 3 |
+| fetch | 0.2500 | 1.0000 | 0.4000 | 3 |
 | profile | 1.0000 | 0.6667 | 0.8000 | 3 |
 | realtime | 0.6667 | 1.0000 | 0.8000 | 4 |
 
@@ -26,11 +26,11 @@
 
 | | chat | discuss | explore | fallback | fetch | profile | realtime |
 |---|---|---|---|---|---|---|---|
-| chat | 2 | 0 | 0 | 0 | 4 | 0 | 2 |
-| discuss | 1 | 6 | 0 | 0 | 1 | 0 | 0 |
+| chat | 2 | 0 | 0 | 0 | 5 | 0 | 2 |
+| discuss | 1 | 6 | 0 | 0 | 0 | 0 | 0 |
 | explore | 0 | 0 | 3 | 0 | 2 | 0 | 0 |
 | fallback | 0 | 0 | 2 | 0 | 2 | 0 | 0 |
-| fetch | 0 | 0 | 0 | 2 | 1 | 0 | 0 |
+| fetch | 0 | 0 | 0 | 0 | 3 | 0 | 0 |
 | profile | 1 | 0 | 0 | 0 | 0 | 2 | 0 |
 | realtime | 0 | 0 | 0 | 0 | 0 | 0 | 4 |
 
@@ -42,8 +42,6 @@
 - ✗ `今天星期几` → **true=chat** pred=realtime
 - ✗ `今天是几号` → **true=chat** pred=realtime
 - ✗ `现在几点` → **true=chat** pred=fetch
-- ✗ `钢炼` → **true=fetch** pred=fallback
-- ✗ `巨人` → **true=fetch** pred=fallback
 - ✗ `EVA和进击的巨人哪个更神` → **true=explore** pred=fetch
 - ✗ `2025年最值得看的动画` → **true=explore** pred=fetch
 - ✗ `今晚吃什么` → **true=chat** pred=fetch
@@ -52,7 +50,7 @@
 - ✗ `这个好看吗` → **true=fallback** pred=explore
 - ✗ `你上周推荐的那部好看吗` → **true=fallback** pred=explore
 - ✗ `帮我写一封邮件` → **true=fallback** pred=fetch
-- ✗ `为什么京阿尼这么强` → **true=discuss** pred=fetch
+- ✗ `为什么京阿尼这么强` → **true=chat** pred=fetch
 - ✗ `笑死，这评分认真的吗` → **true=discuss** pred=chat
 - ✗ `@hxd 最近在追什么` → **true=profile** pred=chat
 - ✗ `我也磕到了` → **true=chat** pred=fetch
