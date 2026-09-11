@@ -1,14 +1,14 @@
 # 意图分类器评测报告
 
-**日期**: 2026-08-01 | **Baseline**: llm | **样本数**: 102
+**日期**: 2026-09-12 | **Baseline**: llm | **样本数**: 102
 
 ## 总览
 
 | 指标 | 值 |
 |------|----|
-| Accuracy | 89.22% |
-| Macro F1 | 0.8839 |
-| Correct / Total | 91 / 102 |
+| Accuracy | 90.20% |
+| Macro F1 | 0.8946 |
+| Correct / Total | 92 / 102 |
 
 ## Per-class 指标
 
@@ -16,11 +16,11 @@
 |------|-----------|--------|----|---------|
 | chat | 1.0000 | 0.9722 | 0.9859 | 36 |
 | discuss | 1.0000 | 0.9091 | 0.9524 | 11 |
-| explore | 0.6364 | 1.0000 | 0.7778 | 14 |
+| explore | 0.6667 | 1.0000 | 0.8000 | 14 |
 | fallback | 1.0000 | 0.7500 | 0.8571 | 8 |
 | fetch | 0.7500 | 0.6000 | 0.6667 | 15 |
 | profile | 1.0000 | 1.0000 | 1.0000 | 8 |
-| realtime | 1.0000 | 0.9000 | 0.9474 | 10 |
+| realtime | 1.0000 | 1.0000 | 1.0000 | 10 |
 
 ## 混淆矩阵
 
@@ -32,7 +32,7 @@
 | fallback | 0 | 0 | 0 | 6 | 2 | 0 | 0 |
 | fetch | 0 | 0 | 6 | 0 | 9 | 0 | 0 |
 | profile | 0 | 0 | 0 | 0 | 0 | 8 | 0 |
-| realtime | 0 | 0 | 1 | 0 | 0 | 0 | 9 |
+| realtime | 0 | 0 | 0 | 0 | 0 | 0 | 10 |
 
 ## 冲突清单：预测 ≠ 黄金标签 (Top 25)
 
@@ -46,7 +46,6 @@
 - ✗ `新房昭之是谁` → **true=fetch** pred=explore
 - ✗ `这部作品还有哪些系列` → **true=fetch** pred=explore
 - ✗ `它还出了哪些版本` → **true=fetch** pred=explore
-- ✗ `最近评分上升最快的是哪部` → **true=realtime** pred=explore
 - ✗ `123` → **true=fallback** pred=fetch
 - ✗ `md` → **true=chat** pred=fetch
 - ✗ `0` → **true=fallback** pred=fetch

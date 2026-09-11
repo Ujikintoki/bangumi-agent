@@ -21,6 +21,7 @@ import argparse
 import json
 import logging
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -245,7 +246,10 @@ def save_report(results: dict, output_path: str) -> None:
     """保存 Markdown 评测报告。"""
     lines: list[str] = []
     lines.append(f"# 意图分类器评测报告")
-    lines.append(f"\n**日期**: 2026-08-01 | **Baseline**: {results['baseline']} | **样本数**: {results['total']}")
+    lines.append(
+        f"\n**日期**: {date.today().isoformat()} | "
+        f"**Baseline**: {results['baseline']} | **样本数**: {results['total']}"
+    )
     lines.append(f"\n## 总览\n")
     lines.append(f"| 指标 | 值 |")
     lines.append(f"|------|----|")
