@@ -17,7 +17,12 @@ from sqlalchemy import engine_from_config, pool
 # ── Alembic Config 对象 ──────────────────────────────────────
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False 必须显式传：fileConfig 默认 True，
+    # 会把调用前已存在的 logger 全部置 disabled=True。而 init_db() 在
+    # 应用启动时同步执行 upgrade，于是 bgm-agent.* 这 20 个 logger 在
+    # 启动后集体哑掉——只有 alembic 之前那行「🚀 系统启动」能看到，
+    # 此后包括异常日志在内的全部运行期日志都静默丢失。
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # ── 从项目配置读取数据库 URL ─────────────────────────────────
 from core.config import get_settings
