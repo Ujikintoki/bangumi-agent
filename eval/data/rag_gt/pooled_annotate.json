@@ -1,5 +1,5 @@
 {
-  "description": "池化语义查询 — 需要人工标注 relevance。\n每条 query 下有 ~20 个候选实体（带名称+简介片段）。\n请将每个 candidate 的 relevant 从 null 改为 true（应该出现在搜索结果中）或 false（不应该）。\n标注完成后运行: python -m rag.eval.evaluate --evaluate",
+  "description": "池化语义查询 — 需要人工标注 relevance。\n每条 query 下有 ~20 个候选实体（带名称+简介片段）。\n请将每个 candidate 的 relevant 从 null 改为 true（应该出现在搜索结果中）或 false（不应该）。\n标注完成后运行: python -m eval.rag_eval --evaluate",
   "queries": [
     {
       "id": "p01",

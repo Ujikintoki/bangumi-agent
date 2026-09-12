@@ -421,5 +421,6 @@ VALUES (
 --                    FROM pg_indexes WHERE tablename='rag_entities';
 --  重建全部数据      python -m rag.cli.ingest --clear
 --  数据库迁移        python scripts/migrate_subject_type.py
---  RAG 评测          python -m rag.eval.evaluate --build     → 生成 GT + 标注模板
---                    python -m rag.eval.evaluate --evaluate  → 跑检索 + 算指标
+--  RAG 评测          python -m eval.rag_eval --build        → 生成 GT + 标注模板
+--                    python -m eval.rag_eval --evaluate     → 跑检索 + 算指标
+--                    python -m eval.rag_eval --check        → 回归不变量断言（PASS/FAIL）
