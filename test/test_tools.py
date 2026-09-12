@@ -221,6 +221,77 @@ class TestDropSubstringTags:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 词表兜底路径：query 文本 → 标签（不触 DB）
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestTagVocabularyFallback:
+    """词表兜底的端到端逻辑：子串匹配 → 去冗余 → 排序 → 截断。
+
+    词表用 monkeypatch 固定，**不触 DB** —— 被测的是这套逻辑本身，
+    与词表里恰好有哪些标签无关。固定词表同时让用例可复现。
+
+    词表内容照抄生产里会连带命中的短标签（"CloverWorks" 里的 "love" 等）。
+    """
+
+    @pytest.fixture
+    def vocab(self, monkeypatch) -> frozenset[str]:
+        fake = frozenset({
+            "芳文社", "CloverWorks", "love", "京都动画", "京都", "动画",
+            "TRIGGER", "GE", "IG", "BONES", "ONE", "P.A.WORKS", "P.A.",
+            "MADHouse", "吉卜力", "虚渊玄",
+            "声优", "动画制作",
+        })
+        monkeypatch.setattr("rag._tag_dict.load_tag_vocabulary", lambda: fake)
+        return fake
+
+    # 轴 2 A 组（tag 类）的 query 原文 → 应得的标签。
+    # 这些 query 曾因词表兜底产垃圾标签导致 keyword 通道【静默返回 0 条】。
+    @pytest.mark.parametrize("query,expected", [
+        ("芳文社", ["芳文社"]),
+        ("CloverWorks", ["CloverWorks"]),     # 曾 → ['CloverWorks', 'love'] → 0 条
+        ("京都动画", ["京都动画"]),              # 曾 → ['京都动画', '京都', '动画'] → 0 条
+        ("TRIGGER", ["TRIGGER"]),             # 曾 → ['TRIGGER', 'GE', 'IG'] → 0 条
+        ("BONES", ["BONES"]),                 # 曾 → ['BONES', 'ONE'] → 3 条（GT 24）
+        ("P.A.WORKS", ["P.A.WORKS"]),         # 曾 → ['P.A.WORKS', 'P.A.'] → 1 条（GT 20）
+        ("MADHouse", ["MADHouse"]),
+        ("吉卜力", ["吉卜力"]),
+        ("虚渊玄", ["虚渊玄"]),
+    ])
+    def test_agroup_queries_yield_single_clean_tag(self, vocab, query, expected):
+        assert _extract_keyword_filters(query, entity_type="subject")["required_tags"] == expected
+
+    def test_caps_at_five_longest(self, vocab):
+        """命中超过 5 个时取最长的 5 个（长标签更具体）。"""
+        filters = _extract_keyword_filters(
+            "芳文社 CloverWorks 京都动画 TRIGGER BONES P.A.WORKS 吉卜力",
+            entity_type="subject",
+        )
+        assert len(filters["required_tags"]) == 5
+        assert filters["required_tags"][0] == "CloverWorks"   # 最长
+
+    def test_non_subject_skips_vocab_entirely(self, vocab):
+        """"声优" 在词表里，但 person 查询不应产 tag。
+
+        断言它确实在词表里，才能证明是【豁免生效】而不是【没匹配上】——
+        后者是假通过。
+        """
+        assert "声优" in vocab
+        for et in ("person", "character"):
+            assert "required_tags" not in _extract_keyword_filters("声优", entity_type=et)
+
+    def test_all_entity_type_still_produces_tags(self, vocab):
+        """"all" 不加实体过滤，subject 也在结果里，tags 仍成立。"""
+        assert _extract_keyword_filters("芳文社", entity_type="all")["required_tags"] == ["芳文社"]
+
+    # 已知的规则覆盖不足，**【故意不写断言】** —— 断言现状等于把它固化：
+    #   a13/a14 "2023年的动画" → 除 year=2023 外还多出 tag ['2023年','动画']，
+    #           逐条 AND 后只剩 6/50、7/42（年份短语被当成了标签）
+    #   a15     "高分神作"     → 只认出 tag ['神作']，"高分"解析不出评分下限
+    # 修法未定，等有明确期望值再补。
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Token 门控
 # ═══════════════════════════════════════════════════════════════════
 
