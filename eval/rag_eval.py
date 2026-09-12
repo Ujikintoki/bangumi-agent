@@ -130,14 +130,25 @@ _retriever = None
 def _silence_sqlalchemy() -> None:
     """关掉 SQLAlchemy 的 SQL echo —— 否则 --check / --ablate 的结论被刷屏淹没。
 
-    ⚠ `logging.getLogger("sqlalchemy").setLevel(ERROR)` 【无效】，别再用那种写法：
-    `create_engine(echo=True)`（database/engine.py）会在 `sqlalchemy.engine.Engine`
-    这个【子】logger 上显式设 INFO 并挂一个 StreamHandler。子 logger 的显式 level
-    优先于父级的 ERROR，所以 SQL 照刷（实测：设了 ERROR 之后 INFO 一行不少）。
-    必须逐个 logger 摘掉 handler 并切断 propagate。
+    ⚠ 任何 `setLevel(...)` 写法都【无效】，别再用（2026-09-13 实测定论，连
+    main.py:62 那种设 `sqlalchemy.engine` 的写法也无效）。原因不是"父级被子的
+    显式 level 压过"，而是 echo 的 level 判定【根本不看 logger 的 level】：
 
-    还要【先】导入 database.engine：engine 是模块级创建的，echo handler 挂上去
-    发生在导入那一刻。先静音再导入 = 白静音（handler 又挂回来了）。
+      create_engine(echo=True) 会给 engine 造一个 InstanceLogger(echo=True,
+      name="sqlalchemy.engine.Engine")，它的 level 来自 `_echo_map[True] = INFO`
+      （sqlalchemy/log.py:108 的 InstanceLogger 类文档 + :128 的 _echo_map），
+      是【按实例】算的。
+      实测：Engine logger 自身的 level 是 NOTSET、isEnabledFor(INFO) 返回 False，
+      而 SQL 照刷 —— 因为发日志走的是 InstanceLogger，不是 logging.Logger。
+
+    还必须【两件事一起做】，只做一件都不行（实测）：
+      · 只 `propagate = False`（留着 handler）→ 照样刷：handler 是 InstanceLogger
+        自己挂的（`_add_default_handler`，仅当该 logger 没有 handler 时挂），
+        不经过 root。
+      · 只 `handlers.clear()`（留着 propagate）→ 照样刷：记录传到 root 打出来。
+
+    顺序也不能反：engine 是【模块级】创建的，InstanceLogger 和它挂的 handler 产生
+    于 `import database.engine` 那一刻。先静音再导入 = 白静音（handler 又挂回来）。
     """
     import database.engine  # noqa: F401  —— 见 docstring，顺序不能反
 
