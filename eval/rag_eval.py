@@ -12,6 +12,9 @@ RAG 检索评测管线 v2
     # 3. 我运行：计算全部指标 + 报告
     python -m eval.rag_eval --evaluate
 
+    # 任何时候（改完代码想确认没弄坏东西）
+    python -m eval.rag_eval --check      # 回归不变量，PASS/FAIL + 退出码
+
 指标::
 
     Recall@K      K 个结果中找到了多少个 GT 实体 / GT 实体总数
@@ -39,6 +42,7 @@ import json
 import logging
 import re
 import statistics
+import sys
 import time
 import unicodedata
 from pathlib import Path
@@ -54,6 +58,10 @@ POOLED_FILE = ARTIFACTS_DIR / "pooled_annotate.json"
 MERGED_GT_FILE = ARTIFACTS_DIR / "ground_truth_merged.json"
 
 K_VALUES = [1, 3, 5, 10]
+
+# 检索返回条数上限 —— _run_retrieval 的默认值，也是 --check 里 A 组
+# 「keyword 通道必须填满名额」那条不变量的比较基准。改这里等于改生产行为。
+RETRIEVAL_LIMIT = 10
 
 # 检索通道 —— 报告按通道分层。融合后的单一数字会掩盖「某个通道一条都没找到」，
 # 而那恰恰是最需要看见的架构结论（见下面 SELF_TEST_CATEGORIES）。
@@ -117,6 +125,28 @@ from eval.rag_queries import AUTO_QUERY_DEFS, POOLED_QUERIES  # noqa: E402
 # ═══════════════════════════════════════════════════════════════════════
 
 _retriever = None
+
+
+def _silence_sqlalchemy() -> None:
+    """关掉 SQLAlchemy 的 SQL echo —— 否则 --check / --ablate 的结论被刷屏淹没。
+
+    ⚠ `logging.getLogger("sqlalchemy").setLevel(ERROR)` 【无效】，别再用那种写法：
+    `create_engine(echo=True)`（database/engine.py）会在 `sqlalchemy.engine.Engine`
+    这个【子】logger 上显式设 INFO 并挂一个 StreamHandler。子 logger 的显式 level
+    优先于父级的 ERROR，所以 SQL 照刷（实测：设了 ERROR 之后 INFO 一行不少）。
+    必须逐个 logger 摘掉 handler 并切断 propagate。
+
+    还要【先】导入 database.engine：engine 是模块级创建的，echo handler 挂上去
+    发生在导入那一刻。先静音再导入 = 白静音（handler 又挂回来了）。
+    """
+    import database.engine  # noqa: F401  —— 见 docstring，顺序不能反
+
+    for name in ("sqlalchemy", "sqlalchemy.engine", "sqlalchemy.engine.Engine",
+                 "sqlalchemy.pool"):
+        lg = logging.getLogger(name)
+        lg.setLevel(logging.WARNING)
+        lg.handlers.clear()
+        lg.propagate = False
 
 
 def _get_retriever():
@@ -222,11 +252,18 @@ def _run_keyword_search(
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def build_auto_gt() -> list[dict]:
-    """执行 SQL 生成自动 Ground Truth。"""
+def build_auto_gt(verbose: bool = True) -> list[dict]:
+    """执行 SQL 生成自动 Ground Truth。
+
+    verbose=False 供 --check 用：那条路径要的是 GT 数值，不是 25 行进度。
+    """
+    def _p(*a, **kw):
+        if verbose:
+            print(*a, **kw)
+
     queries = []
     for qid, qtext, etype, stype, cat, sql in AUTO_QUERY_DEFS:
-        print(f"  [{qid}] \"{qtext}\"", end=" ... ")
+        _p(f"  [{qid}] \"{qtext}\"", end=" ... ")
 
         if cat == "exact":
             # 精确名称：GT 就是这一个 id
@@ -254,7 +291,7 @@ def build_auto_gt() -> list[dict]:
             "gt_size": len(gt),
             "keyword_filters": _parse_keyword_filters(sql),
         })
-        print(f"GT={len(gt)}")
+        _p(f"GT={len(gt)}")
 
     return queries
 
@@ -454,7 +491,7 @@ def _run_retrieval(
     query: str,
     entity_type: str,
     subject_type: Optional[int] = None,
-    limit: int = 10,
+    limit: int = RETRIEVAL_LIMIT,
     keyword_filters: Optional[dict] = None,
     **ablation_kwargs: bool,
 ) -> dict:
@@ -470,20 +507,33 @@ def _run_retrieval(
           "name":    [...],
           "vector":  [...],
           "fusion":  {"keyword": n, "name": n, "vector": n},  # 融合结果里各通道占几条
+          "errors":  {"vector": "RuntimeError: 查询 embedding 失败..."},  # 通道级失败
         }
 
     【为什么保留原始输出】原先只返回 merged，导致「某通道贡献 0」在报告里
     完全不可见 —— a01「芳文社」融合后是 10/10 满分，但那 10 条全来自 keyword，
     name 和 vector 一条没找到。只看融合数字，会以为三条通道都在工作。
     各通道都用同一个 limit 截断，所以可以同口径比较。
+
+    【为什么还要 errors】通道失败原来是 `except: pass` 静默的 —— 而"某通道返回 0 条"
+    有两种完全不同的原因：①它真找不到（被测对象的问题）②它根本没跑起来
+    （评测工具/网络的问题）。不区分这两者，报告会把一次 embedding 服务故障
+    读成"向量通道能力差"。实测撞到过：智谱 API 连接失败时 vector 静默归零，
+    融合数字一个字都不变。所以失败必须【显式记下来】，由 --check 的 I6 兜住。
     """
+    errors: dict[str, str] = {}
+
     # 通道 1: 关键词精确匹配
     keyword_ids: list[str] = []
     if keyword_filters:
-        keyword_ids = _run_keyword_search(
-            entity_type=entity_type, subject_type=subject_type,
-            limit=limit, **keyword_filters,
-        )
+        try:
+            keyword_ids = _run_keyword_search(
+                entity_type=entity_type, subject_type=subject_type,
+                limit=limit, **keyword_filters,
+            )
+        except Exception as e:
+            logger.error("keyword 通道失败 %s: %s", query, e)
+            errors["keyword"] = f"{type(e).__name__}: {e}"
     keyword_seen = set(keyword_ids)
 
     retriever = _get_retriever()
@@ -496,8 +546,9 @@ def _run_retrieval(
             subject_type=subject_type, limit=limit,
         )
         name_ids = [r.entity_id for r in name_results]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("name 通道失败 %s: %s", query, e)
+        errors["name"] = f"{type(e).__name__}: {e}"
     name_seen = set(name_ids) | keyword_seen
 
     # 通道 3: 向量语义匹配 —— 用生产阈值，测的就是线上会返回什么
@@ -509,8 +560,9 @@ def _run_retrieval(
         )
         vector_ids = [r.entity_id for r in results]
     except Exception as e:
-        logger.error("检索失败 %s: %s", query, e)
+        logger.error("vector 通道失败 %s: %s", query, e)
         vector_ids = []
+        errors["vector"] = f"{type(e).__name__}: {e}"
 
     # 合并: 关键词 > 名称 > 向量 去重
     merged = list(keyword_ids)
@@ -538,6 +590,7 @@ def _run_retrieval(
         "name": name_ids[:limit],
         "vector": vector_ids[:limit],
         "fusion": fusion,
+        "errors": errors,
     }
 
 
@@ -583,6 +636,26 @@ def _compute_metrics(
         scores[f"NDCG@{k}"] = ndcg_at_k(retrieved_ids, graded_gt, k)
 
     return scores
+
+
+def _eval_one(q: dict, **ablation_kwargs: bool) -> dict:
+    """跑一条查询的检索 + 指标。--evaluate 与 --check 共用，口径不会漂。"""
+    retrieved = _run_retrieval(
+        q["query"], q.get("entity_type", "all"),
+        q.get("subject_type"),
+        keyword_filters=q.get("keyword_filters"),
+        **ablation_kwargs,
+    )
+    gt = set(q.get("ground_truth", []))
+    return {
+        "query": q,
+        "retrieved": retrieved,
+        "metrics": _compute_metrics(retrieved["merged"], gt),
+        # 各通道【单独】再算一遍 —— 纯函数，零额外成本。
+        # 融合数字回答不了"这条通道自己找得到吗"：keyword 一满员，
+        # name/vector 就被挤出 merged，看数字像是它们不存在。
+        "channel_metrics": {ch: _compute_metrics(retrieved[ch], gt) for ch in CHANNELS},
+    }
 
 
 def _split_by_gt(queries: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -666,30 +739,23 @@ def cmd_evaluate():
     for i, q in enumerate(usable_queries):
         qid = q["id"]
         qtext = q["query"]
-        etype = q.get("entity_type", "all")
         gt = set(q.get("ground_truth", []))
 
         print(f"  [{i+1:2d}/{len(usable_queries)}] {qid} \"{qtext}\" GT={len(gt)}", end=" ... ")
-        retrieved = _run_retrieval(
-            qtext, etype, q.get("subject_type"),
-            keyword_filters=q.get("keyword_filters"),
-        )
-        metrics = _compute_metrics(retrieved["merged"], gt)
-        # 各通道【单独】再算一遍 —— 纯函数，零额外成本。
-        # 融合数字回答不了"这条通道自己找得到吗"：keyword 一满员，
-        # name/vector 就被挤出 merged，看数字像是它们不存在。
-        channel_metrics = {
-            ch: _compute_metrics(retrieved[ch], gt) for ch in CHANNELS
-        }
-        print(f"{len(retrieved['merged'])} hits, Recall@5={metrics.get('Recall@5', 0):.3f}")
-
-        results.append({
-            "query": q,
-            "retrieved": retrieved,
-            "metrics": metrics,
-            "channel_metrics": channel_metrics,
-        })
+        r = _eval_one(q)
+        print(f"{len(r['retrieved']['merged'])} hits, "
+              f"Recall@5={r['metrics'].get('Recall@5', 0):.3f}")
+        results.append(r)
         time.sleep(0.05)  # 轻微限流
+
+    # 通道级失败必须喊出来 —— 否则一次 embedding 服务故障会静默写进结果文件，
+    # 之后再被当成"向量通道能力差"读（见 _run_retrieval 的 errors 说明）。
+    n_chan_fail = sum(len(r["retrieved"].get("errors", {})) for r in results)
+    if n_chan_fail:
+        print()
+        print(f"  ⚠⚠ 本次有 {n_chan_fail} 次通道级失败 —— 下面的数字【不可引用】，"
+              f"先排掉网络/服务问题再重跑。")
+        print("     （--check 的 I6 会直接判 FAIL；明细见结果文件的 channel_errors）")
 
     # ── 聚合 ──
     all_metrics: dict[str, list[float]] = {}
@@ -712,7 +778,6 @@ def cmd_evaluate():
         groups[_group_of(r["query"])].append(r)
 
     order = ("Recall@5", "Precision@5", "NDCG@5", "MRR")
-    group_names = {"A": "A 自测", "B": "B 质量", "C": "C 人工"}
 
     print("── 分组指标 ──")
     print("  三组可信度不同，【不要】平均成一个数。")
@@ -842,6 +907,8 @@ def cmd_evaluate():
                 "channel_metrics": r["channel_metrics"],
                 # 融合结果里各通道各占几条（总分是谁挣来的）
                 "fusion": r["retrieved"]["fusion"],
+                # 通道级失败（空 dict = 三条通道都跑起来了）
+                "channel_errors": r["retrieved"].get("errors", {}),
             }
             for r in results
         ],
@@ -853,7 +920,242 @@ def cmd_evaluate():
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Phase 3: --ablate — 消融实验
+# Phase 3: --check — 回归不变量（轴 2 的"基线"）
+# ═══════════════════════════════════════════════════════════════════════
+#
+# 轴 2 【没有质量基线】，而且不该有：
+#
+#   A 组 分数是构造的（GT 与检索共用同一个 WHERE 子句）→ 零信息量
+#   B 组 分数到顶了（R@5 = MRR = 1.0）                  → 只能跌，测不出涨
+#   C 组 池化偏差（候选池由被测系统自己产出）            → 偏高，不可引用
+#
+# 冻结这三个里的任何一个，冻的都是一个解释不了的东西。所以这条轴交付的不是
+# 分数，而是【不变量】：一条可辩护的结构性质 —— 它成立时不说明系统好，
+# 破掉时一定说明系统坏了。这恰好就是"这次改动弄坏了没有"。
+#
+# 三条设计约束（缺任何一条，这批断言就会退化成又一个 A 组）：
+#   1. 【手写】不变量由人写下，不由当前运行结果自动生成。自动生成 = 又一次
+#      考卷与考题同源 —— 正是 A 组的病根。
+#   2. 【对库漂移免疫】A 组的 GT 与检索同源、两者一起动，所以这里【当场重算】
+#      GT（build_auto_gt），不用冻结的 gt_size：灌了新数据，I1 照样成立。
+#   3. 【可归因】每条不变量指向一个具体坏法，不是"分数跌了"。
+#
+# 退出码：0 = 全部成立，1 = 有不变量破掉（可直接挂 CI / pre-push）。
+# 想看数字跑 --evaluate；这里只回答"坏没坏"。
+def cmd_check() -> int:
+    """--check: 跑检索 + 断言回归不变量。返回退出码（0 = PASS，1 = FAIL）。"""
+    _silence_sqlalchemy()
+
+    # ── GT 当场重算（约束 2）──
+    print("  现场重算自动 GT …")
+    live_auto = build_auto_gt(verbose=False)
+    print(f"  自动 GT {len(live_auto)} 条（现场，不用冻结文件）")
+
+    # 冻结文件只用来报「过期」，不参与任何断言
+    stale: list[str] = []
+    if AUTO_GT_FILE.exists():
+        frozen = {
+            q["id"]: q.get("gt_size", 0)
+            for q in json.loads(AUTO_GT_FILE.read_text(encoding="utf-8")).get("queries", [])
+        }
+        stale = [q["id"] for q in live_auto
+                 if q["id"] in frozen and frozen[q["id"]] != q["gt_size"]]
+    else:
+        print(f"  ⚠ {AUTO_GT_FILE.name} 不存在 —— 不影响本次检查，但 --evaluate 需要它")
+
+    human_queries = _load_annotated_pooled()
+    usable_queries, dropped = _split_by_gt(live_auto + human_queries)
+    if stale:
+        print(f"  ⚠ GT 文件已过期：{', '.join(stale)} 的 |GT| 与库不一致（跑 --build 刷新）")
+    print()
+
+    # ── 检索 ──
+    results: list[dict] = []
+    for i, q in enumerate(usable_queries):
+        print(f"  [{i+1:2d}/{len(usable_queries)}] {q['id']:<5s}", end=" ... ", flush=True)
+        r = _eval_one(q)
+        print(f"{len(r['retrieved']['merged']):>2d} hits")
+        results.append(r)
+        time.sleep(0.05)
+
+    by_group: dict[str, list[dict]] = {"A": [], "B": [], "C": []}
+    for r in results:
+        by_group[_group_of(r["query"])].append(r)
+
+    # ═══ 不变量 ═══
+    #
+    # I1  A 组 keyword 通道必须把名额填满
+    #     GT 与检索同源 → 检索要多少有多少，返回条数【必须】= min(|GT|, limit)。
+    #     破掉 = keyword 通道被关掉/改坏（jsonb contains、entity_type/nsfw 过滤、
+    #     融合截断 —— 任一处出错这里立刻归零）。
+    #
+    #     ⚠ 【不覆盖】生产的关键词解析。A 组的 keyword_filters 是 eval 自己从 GT SQL
+    #       里抠出来的 WHERE（_parse_keyword_filters），它绕过了生产真正跑的
+    #       tools/bgm_tools.py:_extract_keyword_filters。所以哪怕生产解析全坏，
+    #       I1 照样满分 —— I1 保的是【检索层】，不保【解析层】。解析层由 I5 保。
+    a_short = [
+        (r["query"]["id"], r["query"]["query"],
+         len(r["retrieved"]["keyword"]),
+         min(len(r["query"].get("ground_truth", [])), RETRIEVAL_LIMIT))
+        for r in by_group["A"]
+        if len(r["retrieved"]["keyword"])
+        != min(len(r["query"].get("ground_truth", [])), RETRIEVAL_LIMIT)
+    ]
+
+    # I2  B 组精确名称必须排在第一位
+    #     GT 是人工指定的单个 id，与检索器完全独立 → 这是轴 2 唯一的真测量。
+    #     MRR < 1.0 = 名字找得到但没排第一（trigram 通道退化）。
+    b_miss = [
+        (r["query"]["id"], r["query"]["query"], r["metrics"].get("MRR", 0.0))
+        for r in by_group["B"]
+        if r["metrics"].get("MRR", 0.0) < 1.0 or r["metrics"].get("Recall@5", 0.0) < 1.0
+    ]
+
+    # I3  不许静默返回空
+    #     "检索没崩、也没报错、就是什么都没给"是所有失败里最难发现的一种 ——
+    #     它在下游表现为"AI 不知道"，而不是"AI 报错"。
+    empty = [(r["query"]["id"], r["query"]["query"])
+             for r in results if not r["retrieved"]["merged"]]
+
+    # I4  GT 为空的清单不变（已知只有 p07）
+    #     GT 被标注改动而变空 → 那条查询会从统计里静默消失（旧版就是 `continue`）。
+    expected_dropped = ["p07"]
+    got_dropped = [d["id"] for d in dropped]
+    dropped_changed = got_dropped != expected_dropped
+
+    # I5  生产【关键词解析】不得产出坏标签
+    #
+    #     单独立一条，因为 I1 看不见这一层（见 I1 的 ⚠）。这里直接调生产函数
+    #     tools/bgm_tools.py:_extract_keyword_filters，只走【规则兜底】分支
+    #     （tags=None → 词表子串匹配），不碰 LLM，所以确定、免费、无漂移。
+    #
+    #     2026-09-12 acd99a4 修的正是这一层：词表是【子串】匹配，'TRIGGER' 会连带
+    #     命中 'GE'/'IG'、'CloverWorks' 连带 'love'，而 keyword_search 对每个标签
+    #     逐条 AND（jsonb contains）→ 结果集被 AND 空，18 条 A 组里 7 条静默返回 0 条。
+    #     第二处：tags 只存在于 subject 实体（person/character 的 meta_info 里没这个键），
+    #     给非 subject 查询加 tag 要求 = AND 一个永不匹配的条件 → 必然 0 条。
+    #
+    #     和单测的分工：test/test_tools.py::TestTagVocabularyFallback 用 17 个【假】标签，
+    #     快、无 DB；这里用 DB 里的【真词表】—— 真词表几千个标签里的碰撞组合，
+    #     假词表测不出来。两者不重复。
+    #
+    #     已知【不覆盖】：a13/a14「2023年的动画」把"动画"当标签、a15「高分神作」的
+    #     "高分"没解析出来。那是规则覆盖缺口，不是子串冗余 —— 兜底本来就该保守。
+    from tools.bgm_tools import _extract_keyword_filters
+
+    tag_defects: list[tuple[str, str, str]] = []
+    for q in live_auto:
+        etype = q.get("entity_type", "subject")
+        tags = _extract_keyword_filters(query=q["query"], entity_type=etype).get(
+            "required_tags", []
+        )
+        if not tags:
+            continue
+        if etype not in ("subject", "all"):     # _TAGS_APPLICABLE
+            tag_defects.append((q["id"], q["query"],
+                                f"非 {etype} 查询却要求 tags {tags} —— 该实体无 tags 字段"))
+            continue
+        redundant = [t for t in tags if any(t != o and t in o for o in tags)]
+        if redundant:
+            tag_defects.append((q["id"], q["query"],
+                                f"子串冗余 {redundant}（全量 {tags}）"))
+
+    # I6  本次运行没有通道级失败
+    #
+    #     "某通道返回 0 条"有两种完全不同的原因：①它真找不到（被测对象的问题）
+    #     ②它根本没跑起来（测量仪器的问题）。不区分这两者，报告会把一次 embedding
+    #     服务故障读成"向量通道能力差"。
+    #     实测撞到过：智谱 API 连接失败 → vector 静默归零，而 A/B 组的融合数字
+    #     【一个字都不变】（keyword/name 把名额填满了），从报告上完全看不出来。
+    #     所以通道失败必须显式记下来 —— 它同时也是"本次数字能不能读"的闸。
+    channel_fail = [
+        (r["query"]["id"], ch, msg)
+        for r in results
+        for ch, msg in r["retrieved"].get("errors", {}).items()
+    ]
+
+    checks = [
+        ("I1", "A 组 keyword 通道填满名额", not a_short,
+         f"{len(by_group['A']) - len(a_short)}/{len(by_group['A'])}"),
+        ("I2", "B 组精确名称排第一 (MRR=1.0)", not b_miss,
+         f"{len(by_group['B']) - len(b_miss)}/{len(by_group['B'])}"),
+        ("I3", "无查询静默返回空", not empty,
+         f"{len(results) - len(empty)}/{len(results)}"),
+        ("I4", "GT 为空清单不变", not dropped_changed,
+         f"{len(got_dropped)} 条"),
+        ("I5", "生产解析无坏标签（规则兜底）", not tag_defects,
+         f"{len(live_auto) - len(tag_defects)}/{len(live_auto)}"),
+        ("I6", "本次运行无通道级失败", not channel_fail,
+         f"{len(channel_fail)} 次"),
+    ]
+
+    print()
+    print("=" * 74)
+    print("  轴 2 回归不变量")
+    print("=" * 74)
+    print("  断的是【结构性质】，不是分数。成立不说明系统好，破掉一定说明系统坏了。")
+    print()
+    for code, desc, ok, detail in checks:
+        print(f"  {code}  {_pad(desc, 34)}{detail:>9s}   {'PASS' if ok else 'FAIL'}")
+
+    # ── 失败细节 ──
+    if a_short:
+        print()
+        print("  ✗ I1 明细（keyword 通道没填满 → 检查兜底标签是否又产出了子串冗余）：")
+        for qid, qtext, got, want in a_short:
+            print(f"      {qid}  {_pad(qtext[:18], 20)} 返回 {got} 条，应为 {want} 条")
+    if b_miss:
+        print()
+        print("  ✗ I2 明细（精确名称未排第一）：")
+        for qid, qtext, mrr in b_miss:
+            print(f"      {qid}  {_pad(qtext[:18], 20)} MRR={mrr:.4f}")
+    if empty:
+        print()
+        print("  ✗ I3 明细（检索返回空）：")
+        for qid, qtext in empty:
+            print(f"      {qid}  {qtext}")
+    if dropped_changed:
+        print()
+        print(f"  ✗ I4 明细：GT 为空清单 {got_dropped}，应为 {expected_dropped}")
+        print("      标注被改动过？空 GT 会让该查询从统计里静默消失。")
+    if tag_defects:
+        print()
+        print("  ✗ I5 明细（生产关键词解析产出了会 AND 死结果集的标签）：")
+        for qid, qtext, why in tag_defects:
+            print(f"      {qid}  {_pad(qtext[:18], 20)} {why}")
+        print("      修法见 tools/bgm_tools.py 的 _drop_substring_tags / _TAGS_APPLICABLE。")
+    if channel_fail:
+        print()
+        print("  ✗ I6 明细（通道级失败 —— 坏的是【测量仪器】，不是被测对象）：")
+        for qid, ch, msg in channel_fail[:10]:
+            print(f"      {qid}  {ch}: {msg}")
+        if len(channel_fail) > 10:
+            print(f"      …另有 {len(channel_fail) - 10} 条")
+        print("      先排掉网络/服务问题，再读本次的任何数字。")
+
+    # ── 分组参考值（不是基线，只用来发现漂移）──
+    print()
+    print("  分组参考值（★ 不是基线 —— 解释见本文件 Phase 3 抬头）：")
+    order = ("Recall@5", "Precision@5", "NDCG@5", "MRR")
+    for g in ("A", "B", "C"):
+        if not by_group[g]:
+            continue
+        vals = _mean_metrics(by_group[g], order)
+        line = "  ".join(f"{m}={vals[m]:.4f}" for m in order if m in vals)
+        print(f"    {g}  {len(by_group[g]):>2d} 条   {line}")
+
+    failed = [c for c, _, ok, _ in checks if not ok]
+    print()
+    if failed:
+        print(f"  结论: FAIL（{'、'.join(failed)} 破掉）")
+    else:
+        print(f"  结论: PASS（{len(checks)}/{len(checks)}）")
+    print()
+    return 1 if failed else 0
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Phase 4: --ablate — 消融实验
 # ═══════════════════════════════════════════════════════════════════════
 
 # 消融以【生产配置】为基准，每行只动一个开关 —— delta 才可解释为
@@ -876,7 +1178,7 @@ BASELINE_NAME = "baseline (生产配置)"
 
 def cmd_ablate():
     """--ablate: 对每个消融配置跑完整 eval，输出对比表。"""
-    logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
+    _silence_sqlalchemy()
 
     # ── 加载 GT ──
     if not AUTO_GT_FILE.exists():
@@ -1008,6 +1310,8 @@ def main():
                        help="生成自动 Ground Truth + 池化人工标注模板")
     group.add_argument("--evaluate", action="store_true",
                        help="检索 + 计算全部指标")
+    group.add_argument("--check", action="store_true",
+                       help="回归不变量断言（轴 2 的基线）：PASS/FAIL + 退出码")
     group.add_argument("--ablate", action="store_true",
                        help="消融实验：对比 threshold/bucketing/MMR 各组件的贡献")
     args = parser.parse_args()
@@ -1016,6 +1320,8 @@ def main():
         cmd_build()
     elif args.evaluate:
         cmd_evaluate()
+    elif args.check:
+        sys.exit(cmd_check())
     elif args.ablate:
         cmd_ablate()
 
