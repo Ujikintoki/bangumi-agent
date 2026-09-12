@@ -262,6 +262,12 @@ async def main():
     client = BangumiClient(access_token=settings.BANGUMI_ACCESS_TOKEN or None)
 
     # 如果指定了 --subjects-only，run_all = False（只跑 subject 部分）
+    #
+    # ⚠️ 未启用的开关，【不是死代码，别删】：`run_all` 算出来之后全文件再没被读过，
+    #    所以 `--subjects-only` / `--characters-only` / `--persons-only` 三个参数
+    #    在 --help 里写着，实际【完全无效】—— 带上它们照样三类实体全灌。
+    #    危险组合：`--subjects-only --clear` 会清库并重灌全部三类，与参数的承诺相反。
+    #    修法不是删这一行（删了 bug 就再也看不见了），是让各 Phase 真的读它。
     run_all = not (args.subjects_only or args.characters_only or args.persons_only)
 
 

@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 from sqlmodel import Session, delete
 
-from database.engine import engine, init_db
-from database.models import RagEntity, SubjectMeta, CharacterMeta, PersonMeta, PersonWork, CharacterCast
+from database.engine import engine
+from database.models import RagEntity
 from rag.enricher import _build_chunk_text
 from rag.ingestion import (
     RagEntityIngestor,

@@ -84,13 +84,6 @@ def cmd_status() -> None:
         # Alembic 版本
         try:
             print("\n══ 迁移版本 ══")
-            from alembic.config import Config
-            from alembic import command
-
-            alembic_ini = (
-                Path(__file__).resolve().parent / "migrations" / "alembic.ini"
-            )
-            alembic_cfg = Config(str(alembic_ini))
             # alembic current 输出到 stderr，我们直接读数据库
             result = conn.execute(
                 text("SELECT version_num FROM alembic_version")

@@ -23,7 +23,6 @@ import logging
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Optional
 
 # 确保项目根目录在 Python path 中（从 eval/ 目录 import 需要）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -170,7 +169,6 @@ async def evaluate(
         y_true.append(true_label)
         y_pred.append(pred_label)
 
-        status = "✓" if true_label == pred_label else "✗"
         if true_label != pred_label:
             errors.append({
                 "text": text,

@@ -5,75 +5,15 @@ Eval 共享指标模块
 所有指标公式注释中注明来源，确保面试时可溯源。
 
 指标来源:
-  - recall_at_k, precision_at_k: IR 经典指标，BEIR/MTEB/TREC 标配
-  - mrr: TREC 评测标准 (Voorhees, 1999)
   - ndcg_at_k: SIGIR 经典 (Järvelin & Kekäläinen, 2002)
   - classification_report: 标准 sklearn-style 多分类指标
+
+⚠️ 这里【只放有人在用的函数】。Recall@K / Precision@K / MRR 不在此列 ——
+   轴 2 的 `_compute_metrics` 一次算出 `found` 再派生这三个数，不需要库版本。
+   （2026-09-12 删掉了三个零消费者的实现，别再把它们加回来。）
 """
 
 from __future__ import annotations
-
-
-def recall_at_k(retrieved_ids: list[str], ground_truth_ids: set[str], k: int) -> float:
-    """召回率: ground truth 中有多少出现在检索结果 top-k 中。
-
-    recall@k = |retrieved_topk ∩ ground_truth| / |ground_truth|
-
-    Args:
-        retrieved_ids: 检索结果 ID 列表（已排序）。
-        ground_truth_ids: 标注的相关条目 ID 集合。
-        k: 截断位置。
-
-    Returns:
-        [0, 1] 浮点数。ground_truth 为空时返回 0.0。
-    """
-    if not ground_truth_ids:
-        return 0.0
-    top_k = set(retrieved_ids[:k])
-    return len(top_k & ground_truth_ids) / len(ground_truth_ids)
-
-
-def precision_at_k(retrieved_ids: list[str], ground_truth_ids: set[str], k: int) -> float:
-    """精确率: top-k 结果中有多少是真正相关的。
-
-    precision@k = |retrieved_topk ∩ ground_truth| / k
-
-    Args:
-        retrieved_ids: 检索结果 ID 列表（已排序）。
-        ground_truth_ids: 标注的相关条目 ID 集合。
-        k: 截断位置。
-
-    Returns:
-        [0, 1] 浮点数。
-    """
-    if k <= 0:
-        return 0.0
-    top_k = set(retrieved_ids[:k])
-    return len(top_k & ground_truth_ids) / k
-
-
-def mrr(retrieved_ids: list[str], ground_truth_ids: set[str]) -> float:
-    """Mean Reciprocal Rank: 第一个正确答案排名的倒数。
-
-    MRR = 1/|Q| × Σ(1/rank_i)
-    其中 rank_i 是第 i 条查询的第一个 ground truth 条目在结果中的排名（1-indexed）。
-    如果 ground truth 中没有任何条目出现在结果中，1/rank_i = 0。
-
-    来源: Voorhees, E.M. (1999). "The TREC-8 Question Answering Track Report"
-
-    Args:
-        retrieved_ids: 检索结果 ID 列表（已排序）。
-        ground_truth_ids: 标注的相关条目 ID 集合。
-
-    Returns:
-        [0, 1] 浮点数。
-    """
-    if not ground_truth_ids:
-        return 0.0
-    for i, rid in enumerate(retrieved_ids, start=1):
-        if rid in ground_truth_ids:
-            return 1.0 / i
-    return 0.0
 
 
 def ndcg_at_k(

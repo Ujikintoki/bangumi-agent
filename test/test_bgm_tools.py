@@ -8,8 +8,6 @@ from __future__ import annotations
 import asyncio
 import inspect
 
-import pytest
-
 from tools.bgm_tools import (
     search_local_bangumi,
 )

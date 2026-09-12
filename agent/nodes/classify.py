@@ -11,7 +11,7 @@ import json
 import logging
 import re
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 
 from agent.state import AgentState

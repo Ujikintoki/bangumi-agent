@@ -18,7 +18,6 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
@@ -40,6 +39,10 @@ logger = logging.getLogger("eval.ingestion_test")
 def validate_subjects(data: list[dict]) -> dict:
     """校验 subject 数据格式是否匹配 ingest_subjects() 期望。"""
     required = {"subject_id", "name", "chunk_text"}
+    # ⚠️ 声明了却从不使用，【不是死数据，别删】：`required` 查缺字段，`optional`
+    #    本该查"多出来的、ingest 不认识的字段"（同一个 warnings 通道已经接好了），
+    #    但这一步从没写。删掉它等于承认"多字段"不是个问题 —— 那是产品决定，
+    #    不是清理。要么补上 warnings.append，要么显式写明为什么不查。
     optional = {"name_cn", "score", "rank", "rating_total", "rating_count",
                 "collection", "date", "year", "platform", "eps", "nsfw", "tags"}
     errors: list[str] = []

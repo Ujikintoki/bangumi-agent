@@ -97,6 +97,10 @@ def main():
                     f"UPDATE rag_entities SET subject_type = {stype} "
                     f"WHERE entity_type = 'subject' AND id IN ({placeholders})"
                 )
+                # ⚠️ `result` 被算出来却没用，【不是死代码，别删】：下面打印的
+                #    total 累加的是 len(batch)（打算改多少），不是 result.rowcount
+                #    （真改了多少）。UPDATE 的 WHERE 少匹配时，脚本照样报满数。
+                #    迁移脚本自报的数字必须可引用 —— 要么用 rowcount，要么别打印 ✓。
                 result = session.exec(text(sql))
                 session.commit()
                 total += len(batch)

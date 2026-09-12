@@ -27,9 +27,7 @@ import re
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
-from sqlalchemy import Engine, type_coerce
-from sqlalchemy import cast as sa_cast
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from database.rag_tables import RagEntity

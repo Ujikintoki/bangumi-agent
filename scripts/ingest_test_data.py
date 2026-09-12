@@ -1,9 +1,11 @@
 """
 RAG 测试数据摄入脚本 — ~100 条热门动漫作品
 
-验证 RAG 链路端到端可用：text → embedding(2000d) → rag_entities → hybrid_search()
+验证 RAG 链路端到端可用：text → embedding → rag_entities → hybrid_search()
+（维度由 settings.EMBEDDING_DIMENSION 决定，不在此写死 —— 原先写的 2000d
+ 与当前配置（embedding-2 / 1024d）对不上，且恰好等于 pgvector 索引上限，
+ 容易被读成"贴着上限建索引"。）
 """
-import asyncio
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

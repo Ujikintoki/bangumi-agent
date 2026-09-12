@@ -438,11 +438,7 @@ class SubjectCollector:
             logger.warning("subject %d 获取失败: %s", subject_id, raw["_error"])
             return {"_error": raw["_error"], "subject_id": subject_id}
 
-        from clients.sanitizers import (
-    _CHARACTER_INFOBOX_DROP_KEYS,
-    _clean_infobox,
-    sanitize_subject_detail,
-)
+        from clients.sanitizers import sanitize_subject_detail
         detail = sanitize_subject_detail(raw)
 
         summary = (detail.get("summary") or "").strip()
