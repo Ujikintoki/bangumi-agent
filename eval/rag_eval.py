@@ -32,7 +32,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import math
 import re
 import statistics
 import time
@@ -54,6 +53,7 @@ K_VALUES = [1, 3, 5, 10]
 # 查询定义（从 queries.py 导入）
 # ═══════════════════════════════════════════════════════════════════════
 
+from eval.metrics import ndcg_at_k  # noqa: E402
 from eval.rag_queries import AUTO_QUERY_DEFS, POOLED_QUERIES  # noqa: E402
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -176,11 +176,16 @@ def build_auto_gt() -> list[dict]:
             # 精确名称：GT 就是这一个 id
             gt = [sql] if sql else []
         else:
-            # 注入 subject_type 过滤：SQL 里只写 entity_type 过滤，
-            # subject_type 由这里自动追加，保证 GT 与检索范围一致
+            # 注入 subject_type + nsfw 过滤：SQL 里只写 entity_type 过滤，
+            # 这两个由这里自动追加，保证 GT 与检索范围 [完全一致]。
+            #
+            # nsfw 不能漏：_run_keyword_search 有 `nsfw == False`，检索器被
+            # 禁止返回 nsfw 条目。若 GT 不排除它们，分母里就含永远拿不到的
+            # 条目，Recall 从理论上就打不满（实测 a18 有 10/58 条是 nsfw）。
             filtered_sql = sql
             if stype is not None:
                 filtered_sql = f"{sql} AND subject_type={stype}"
+            filtered_sql = f"{filtered_sql} AND nsfw = false"
             gt = _query_db(filtered_sql)
 
         queries.append({
@@ -266,6 +271,21 @@ def build_pooled_template(existing_auto_queries: list[dict]) -> list[dict]:
     return pooled
 
 
+def _count_annotated_pooled() -> int:
+    """池化文件里已有多少人工作答（relevant 非 null）。"""
+    if not POOLED_FILE.exists():
+        return 0
+    try:
+        data = json.loads(POOLED_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return 0
+    return sum(
+        1 for q in data.get("queries", [])
+        for c in q.get("candidates", [])
+        if c.get("relevant") is not None
+    )
+
+
 def cmd_build():
     """--build: 生成 auto GT + 池化模板。"""
     print("=" * 60)
@@ -293,21 +313,35 @@ def cmd_build():
     print("=" * 60)
     print("  Phase 2: 池化人工标注模板")
     print("=" * 60)
-    pooled = build_pooled_template(auto_queries)
 
-    with open(POOLED_FILE, "w", encoding="utf-8") as f:
-        json.dump({
-            "description": (
-                "池化语义查询 — 需要人工标注 relevance。\n"
-                "每条 query 下有 ~20 个候选实体（带名称+简介片段）。\n"
-                "请将每个 candidate 的 relevant 从 null 改为 true（应该出现在搜索结果中）或 false（不应该）。\n"
-                "标注完成后运行: python -m eval.rag_eval --evaluate"
-            ),
-            "queries": pooled,
-        }, f, ensure_ascii=False, indent=2)
-    print(f"\n  ✓ {len(pooled)} 条池化查询 → {POOLED_FILE.name}")
-    total_candidates = sum(len(q["candidates"]) for q in pooled)
-    print(f"    共 {total_candidates} 个候选实体待标注")
+    # 防呆：重建会把全部 relevant 重置为 null，人工标注不可恢复。
+    # 想重建就先删/改名该文件 —— 显式动作，不靠"跑个命令顺手"。
+    n_annotated = _count_annotated_pooled()
+    if n_annotated:
+        print(f"  ⚠ 跳过重建 —— {POOLED_FILE.name} 已有 {n_annotated} 个人工作答。")
+        print(f"    重建会把 relevant 全部重置为 null（标注不可恢复）。")
+        print(f"    确实要重建：先删除或重命名 {POOLED_FILE.name} 再跑 --build。")
+        total_candidates = sum(
+            len(q.get("candidates", []))
+            for q in json.loads(POOLED_FILE.read_text(encoding="utf-8")).get("queries", [])
+        )
+        print(f"    现有 {total_candidates} 个候选，保持原样。")
+    else:
+        pooled = build_pooled_template(auto_queries)
+
+        with open(POOLED_FILE, "w", encoding="utf-8") as f:
+            json.dump({
+                "description": (
+                    "池化语义查询 — 需要人工标注 relevance。\n"
+                    "每条 query 下有 ~20 个候选实体（带名称+简介片段）。\n"
+                    "请将每个 candidate 的 relevant 从 null 改为 true（应该出现在搜索结果中）或 false（不应该）。\n"
+                    "标注完成后运行: python -m eval.rag_eval --evaluate"
+                ),
+                "queries": pooled,
+            }, f, ensure_ascii=False, indent=2)
+        print(f"\n  ✓ {len(pooled)} 条池化查询 → {POOLED_FILE.name}")
+        total_candidates = sum(len(q["candidates"]) for q in pooled)
+        print(f"    共 {total_candidates} 个候选实体待标注")
 
     print()
     print("=" * 60)
@@ -418,17 +452,6 @@ def _run_retrieval(
     return merged[:limit]
 
 
-def _dcg(relevances: list[int]) -> float:
-    return sum((2**rel - 1) / math.log2(i + 2) for i, rel in enumerate(relevances))
-
-
-def _ndcg(relevances: list[int]) -> float:
-    dcg = _dcg(relevances)
-    ideal = sorted(relevances, reverse=True)
-    idcg = _dcg(ideal)
-    return dcg / idcg if idcg > 0 else 1.0
-
-
 def _compute_metrics(
     retrieved_ids: list[str],
     gt_ids: set[str],
@@ -461,12 +484,36 @@ def _compute_metrics(
     else:
         scores["MRR"] = 0.0
 
-    # NDCG@K
+    # NDCG@K —— 二值相关度 {id: 1}，IDCG 由 eval.metrics 从【全集 GT】推导，
+    # 而不是本次返回结果的降序重排；零命中返回 0.0 而非 1.0。
+    #
+    # 注意：二值相关度 + |GT| > k 时，NDCG@k 与 Precision@k 单调相关，
+    # 信息量有限。它现在的作用是"不再算错"，不是"变敏锐了"。
+    graded_gt = {eid: 1 for eid in gt_set}
     for k in K_VALUES:
-        relevances = [1 if eid in gt_set else 0 for eid in retrieved_ids[:k]]
-        scores[f"NDCG@{k}"] = _ndcg(relevances)
+        scores[f"NDCG@{k}"] = ndcg_at_k(retrieved_ids, graded_gt, k)
 
     return scores
+
+
+def _split_by_gt(queries: list[dict]) -> tuple[list[dict], list[dict]]:
+    """按 GT 是否为空分离查询：可参与指标计算的 vs 必须报告的。
+
+    GT 为空的查询不能算指标（分母为 0），但 [不能静默丢弃] —— 它本身
+    就是"检索完全跑偏"的证据。典型：p07 的 20 个候选全部被判为不相关，
+    旧版 `continue` 让这条从报告里彻底消失，35 条查询只出了 34 条结果。
+    """
+    usable, dropped = [], []
+    for q in queries:
+        if q.get("ground_truth"):
+            usable.append(q)
+        else:
+            dropped.append({
+                "id": q.get("id"),
+                "query": q.get("query"),
+                "reason": "GT 为空（候选无一被判为相关）",
+            })
+    return usable, dropped
 
 
 def cmd_evaluate():
@@ -485,20 +532,18 @@ def cmd_evaluate():
     print(f"池化标注: {len(human_queries)} 条")
 
     all_queries = auto_queries + human_queries
-    print(f"合计: {len(all_queries)} 条\n")
+    usable_queries, dropped = _split_by_gt(all_queries)
+    print(f"合计: {len(all_queries)} 条（其中 {len(dropped)} 条 GT 为空，见报告末尾）\n")
 
     # ── 检索 + 算指标 ──
     results: list[dict] = []
-    for i, q in enumerate(all_queries):
+    for i, q in enumerate(usable_queries):
         qid = q["id"]
         qtext = q["query"]
         etype = q.get("entity_type", "all")
         gt = set(q.get("ground_truth", []))
 
-        if not gt:
-            continue
-
-        print(f"  [{i+1:2d}/{len(all_queries)}] {qid} \"{qtext}\" GT={len(gt)}", end=" ... ")
+        print(f"  [{i+1:2d}/{len(usable_queries)}] {qid} \"{qtext}\" GT={len(gt)}", end=" ... ")
         retrieved = _run_retrieval(
             qtext, etype, q.get("subject_type"),
             keyword_filters=q.get("keyword_filters"),
@@ -610,11 +655,20 @@ def cmd_evaluate():
         print()
         print("  ℹ Recall: auto 组基于 DB 完整 GT（精确），human 组基于池化标注（近似下界）")
 
+    # ── 未参与统计的查询 ──
+    if dropped:
+        print()
+        print("── 未参与统计的查询 ──")
+        for d in dropped:
+            print(f"  {d['id']} \"{d['query']}\" — {d['reason']}")
+        print(f"  （共 {len(dropped)} 条；GT 为空无法算指标，但检索跑偏本身就是结果）")
+
     print()
 
     # ── 保存详细结果 ──
     merged = {
         "description": "合并后的 Ground Truth + 检索结果",
+        "dropped_queries": dropped,
         "queries": [
             {
                 "id": r["query"]["id"],
@@ -662,8 +716,10 @@ def cmd_ablate():
     auto_queries = auto_data.get("queries", [])
     human_queries = _load_annotated_pooled()
     all_queries = auto_queries + human_queries
+    usable_queries, dropped = _split_by_gt(all_queries)
 
-    print(f"消融实验: {len(all_queries)} 题 × {len(ABLATION_CONFIGS)} 配置")
+    print(f"消融实验: {len(usable_queries)} 题 × {len(ABLATION_CONFIGS)} 配置"
+          + (f"（另有 {len(dropped)} 条 GT 为空，未参与）" if dropped else ""))
     print()
 
     # ── 对每个配置跑完整 eval ──
@@ -673,10 +729,8 @@ def cmd_ablate():
         print(f"  [{config_name}]", end=" ", flush=True)
         all_metrics: dict[str, list[float]] = {}
 
-        for i, q in enumerate(all_queries):
+        for i, q in enumerate(usable_queries):
             gt = set(q.get("ground_truth", []))
-            if not gt:
-                continue
 
             retrieved = _run_retrieval(
                 q["query"], q.get("entity_type", "all"),
