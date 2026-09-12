@@ -103,20 +103,32 @@ python -m eval.eval_classifier --baseline keyword    # 基线
 ## 轴 2 · RAG 检索
 
 ```
-数据  data/rag_gt/  —— 两类查询、两类 GT 生成方式（本轴最难的地方）
-  AUTO    25 条   GT 由 SQL 从数据库元数据直接算出（tag/year/exact/career/score）
-                  精确、零人工，但只适用于结构化查询
-  POOLED  10 条   池化标注：多配置检索结果取并集 → 人工标 relevant: true/false
+数据  data/rag_gt/  —— 三类查询、三种可信度（本轴最难的地方）
+  AUTO    25 条   GT 由 SQL 从数据库元数据直接算出（tag/year/score/career/exact）
+                  ⚠ 其中 18 条（tag/year/score/career）的 GT 与检索用【同一个
+                    WHERE 子句】→ 见下面 A 组
+  POOLED  10 条   池化标注：多路检索结果取并集 → 人工标 relevant: true/false
                   语义查询唯一可行的办法（IR 界标准做法，TREC 同款）
-方法  IR 检索评测 + 消融（--ablate 对比 vanilla / +阈值 / +分桶 / +MMR）
-指标  Recall@5（唯一主指标）
+方法  IR 检索评测 + 消融（--ablate 以【生产配置】为基准，每行只动一个开关：
+        -threshold / +bucketing / -mmr / vanilla。`+bucketing` 行 = 候选改动，
+        其余行 = 关掉生产开着的东西）
+指标  报告按【可信度分组】呈现，不报全局均值（全局那个数会掩盖全部差异）：
+        A 自测  18 条  GT 与检索同源 → 返回的每条必然在 GT 里，
+                       P/NDCG/MRR 恒 1.0；R@5 低是 |GT|≫K 压的。
+                       四个数【都无信息量】。正确用途是【回归断言】：
+                       它跌了 = keyword 通道被关掉或坏了
+        B 质量   7 条  精确名称：GT 是人工指定的 id，检索器须靠名字独立找到
+                       → 唯一有信息量的自动组 ★
+        C 人工   9 条  池化偏差 → 偏高，仅定性
+      另按【检索通道】分层：keyword / name / vector 各自【单独】找得到多少。
+      融合数字答不了这个问题 —— keyword 一占满名额，其他通道就被挤出去。
 ```
 
 ```bash
 python -m eval.rag_eval --build      # 生成 GT + 标注模板
                                      # → 人工标注 data/rag_gt/pooled_annotate.json
-python -m eval.rag_eval --evaluate   # 算指标
-python -m eval.rag_eval --ablate     # 消融实验
+python -m eval.rag_eval --evaluate   # 算指标（分组 + 通道分层报告）
+python -m eval.rag_eval --ablate     # 消融实验（同样分组）
 ```
 
 > ⚠️ **使用前提：每条查询的 GT 必须封顶 ≤ 10**（当前不满足，见[已知限制](#已知限制)）。
@@ -125,6 +137,9 @@ python -m eval.rag_eval --ablate     # 消融实验
 > 修法：topic 类查询（tag）的 GT 取"前 10 个用户会接受的结果"（如按收藏数）。
 > known-item 查询（GT=1）不受影响 —— 封顶后 Recall@5 对两类查询都成立，
 > 这是它能当唯一指标的前提。
+>
+> 分组报告把这个天花板**显式暴露出来**（A 组 R@5 = 0.2258 就是这么来的），
+> 但**没有消除它** —— B 组（GT=1）不受影响，C 组（GT 4–16）仍受影响。
 
 **标注是人在环的**：`--build` 产出模板 → 人工逐条标 → `--evaluate`，中间可隔任意时长。
 这也是本轴没有统一批处理入口的原因（见[目录结构](#目录结构)）。
@@ -352,20 +367,22 @@ eval/                          ← 只放"测量"
 | 数字 | 为什么不可引用 |
 |---|---|
 | ~~NDCG@1-10 全系列（0.92-1.0）~~ | **已于 2026-09-12 修复**（原 bug：IDCG 用了"自己检索结果的降序"而非"全集相关文档的理想排序"，且 IDCG=0 时返回 1.0 → 零命中得满分）。修复后重跑，`NDCG@5` 由 0.9243 → 0.8582。详见 [DATA_PROVENANCE §9](DATA_PROVENANCE.md) |
-| **auto 组（25 条）的 `P@5 / MRR / NDCG`** | 标准答案与检索用**同一个 SQL WHERE 子句** → 数值是构造出来的，不是测出来的（`P@5` 恒 1.0）。**排列在报告里但无信息量** |
+| **auto 组中 A 自测组（18 条）的四个数** | 标准答案与检索用**同一个 SQL WHERE 子句** → 数值是构造出来的，不是测出来的（`P/NDCG/MRR` 恒 1.0）。**已于 2026-09-12 在报告里显式分组标出**（A 组），不再与真数字混在一个均值里。它现在的用途是**回归断言**，详见 [DATA_PROVENANCE §10](DATA_PROVENANCE.md) |
 | Hit@3/@5/@10（恒 1.0） | 34/34 查询全部命中 = 天花板，零鉴别力 |
-| human 组数字 | 候选池由**被测检索器自己产生**（池化偏差），分数天生偏乐观；只能定性引用 |
+| human 组数字（报告里的 C 组） | 候选池由**被测检索器自己产生**（池化偏差），分数天生偏乐观；只能定性引用 |
 | e2e 通过率 0.533 / 0.633 | ① 不密闭 ② 真实 API 抖动（0.533 那次 30 条里 4 条是超时兜底） |
 | 早期 keyword 报告 | 早于数据集冻结，不可与 v7 对比 |
 
 ### 未修的问题（按影响排序）
 
-1. **轴 2 的 auto 组在测自己** —— 25 条里 18 条（tag/year/score/career）的 GT 与检索共用同一个
-   `WHERE` 子句，且融合顺序让 keyword 通道占满全部名额，向量通道贡献恒为 0。
-   **即使向量检索彻底坏掉这 18 条数字也不会变。** 改法（通道分层报告）见
-   [DATA_PROVENANCE §7-B](DATA_PROVENANCE.md)，未实施。
+1. ~~**轴 2 的 auto 组在测自己**~~ —— **2026-09-12 已在报告层修掉**：18 条改为
+   A 自测组、与 B/C 组分开呈现，并新增**通道分层**。修复后实测：这 18 条的融合结果
+   180 条里 keyword 179 + vector 1 + name 0，**向量通道贡献 ≈ 0 首次可见**。
+   同源问题本身仍在（无法消除，除非改 GT 定义），但它**不再伪装成质量指标**。
+   见 [DATA_PROVENANCE §10](DATA_PROVENANCE.md)。
 2. **GT 无上限** —— topic 类 GT 中位 24 / 最大 58，而检索只返回 10，
-   使 `Recall@5` 测的是 GT 定义而非检索质量。轴 2 因此还出不了可信数字。
+   使 `Recall@5` 测的是 GT 定义而非检索质量。**这条没修** —— 分组只把天花板
+   暴露出来，没有消除它。轴 2 因此还出不了可信数字。
 3. **门禁不密闭** —— `graph_smoke.py` 硬编码 `user_id="eval"`，而
    `agent/memory/long_term.py` 只有 `user_id == "anonymous"` 一道闸（无 run / 时间隔离），
    上一轮跑的记忆会被下一轮召回。库里已有 29 行历史污染。

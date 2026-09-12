@@ -1,5 +1,10 @@
 {
   "description": "合并后的 Ground Truth + 检索结果",
+  "group_legend": {
+    "A": "自测组 — GT 与检索同源：返回的每一条必然在 GT 里 → P/NDCG/MRR 恒 1.0；R@5 偏低是 |GT|≫K 的天花板压的。四个数【都没有信息量】",
+    "B": "质量组 — GT 是人工指定的实体 id，检索器须靠名字独立找到 → 有信息量 ★",
+    "C": "人工组 — 池化偏差（候选池由被测系统产出，漏掉的不会被算作 miss）→ 偏高，仅定性"
+  },
   "dropped_queries": [
     {
       "id": "p07",
@@ -14,6 +19,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 31,
       "retrieved_count": 10,
       "metrics": {
@@ -34,6 +40,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.03225806451612903,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.0967741935483871,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.16129032258064516,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.3225806451612903,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -42,6 +112,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 24,
       "retrieved_count": 10,
       "metrics": {
@@ -62,6 +133,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.041666666666666664,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.125,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.20833333333333334,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.4166666666666667,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -70,6 +205,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 49,
       "retrieved_count": 10,
       "metrics": {
@@ -90,6 +226,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.02040816326530612,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.061224489795918366,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.10204081632653061,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.20408163265306123,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.02040816326530612,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.02040816326530612,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 0.04081632653061224,
+          "Precision@5": 0.4,
+          "Hit@5": 1.0,
+          "Recall@10": 0.061224489795918366,
+          "Precision@10": 0.3,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 0.46927872602275644,
+          "NDCG@5": 0.48522855511632257,
+          "NDCG@10": 0.38113435412202
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -98,6 +298,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 24,
       "retrieved_count": 10,
       "metrics": {
@@ -118,6 +319,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.041666666666666664,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.125,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.20833333333333334,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.4166666666666667,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -126,6 +391,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 29,
       "retrieved_count": 10,
       "metrics": {
@@ -146,6 +412,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.034482758620689655,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.10344827586206896,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.1724137931034483,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.3448275862068966,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -154,6 +484,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 14,
       "retrieved_count": 10,
       "metrics": {
@@ -174,6 +505,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.07142857142857142,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.21428571428571427,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.35714285714285715,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.7142857142857143,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -182,6 +577,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 25,
       "retrieved_count": 10,
       "metrics": {
@@ -202,6 +598,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.04,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.12,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.2,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.4,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.04,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 0.08,
+          "Precision@10": 0.2,
+          "Hit@10": 1.0,
+          "MRR": 0.25,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.14606834984270645,
+          "NDCG@10": 0.16421958630632802
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -210,6 +670,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 9,
       "retrieved_count": 10,
       "metrics": {
@@ -230,6 +691,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.1111111111111111,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.3333333333333333,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.5555555555555556,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.9,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 9,
+        "name": 0,
+        "vector": 1
       }
     },
     {
@@ -238,6 +763,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 32,
       "retrieved_count": 10,
       "metrics": {
@@ -258,6 +784,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.03125,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.09375,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.15625,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.3125,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -266,6 +856,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 24,
       "retrieved_count": 10,
       "metrics": {
@@ -286,6 +877,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.041666666666666664,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.125,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.20833333333333334,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.4166666666666667,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.041666666666666664,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.08333333333333333,
+          "Precision@3": 0.6666666666666666,
+          "Hit@3": 1.0,
+          "Recall@5": 0.08333333333333333,
+          "Precision@5": 0.4,
+          "Hit@5": 1.0,
+          "Recall@10": 0.08333333333333333,
+          "Precision@10": 0.2,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 0.7653606369886217,
+          "NDCG@5": 0.5531464700081437,
+          "NDCG@10": 0.3589542101716347
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -294,6 +949,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 20,
       "retrieved_count": 10,
       "metrics": {
@@ -314,6 +970,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.05,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.15,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.25,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.5,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -322,6 +1042,7 @@
       "entity_type": "subject",
       "category": "tag",
       "source": "auto",
+      "group": "A",
       "gt_size": 11,
       "retrieved_count": 10,
       "metrics": {
@@ -342,6 +1063,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.09090909090909091,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.2727272727272727,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.45454545454545453,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.9090909090909091,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -350,6 +1135,7 @@
       "entity_type": "subject",
       "category": "year",
       "source": "auto",
+      "group": "A",
       "gt_size": 50,
       "retrieved_count": 10,
       "metrics": {
@@ -370,6 +1156,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.02,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.06,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.1,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.2,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.02,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.04,
+          "Precision@3": 0.6666666666666666,
+          "Hit@3": 1.0,
+          "Recall@5": 0.06,
+          "Precision@5": 0.6,
+          "Hit@5": 1.0,
+          "Recall@10": 0.06,
+          "Precision@10": 0.3,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 0.7653606369886217,
+          "NDCG@5": 0.6992148198508501,
+          "NDCG@10": 0.4537425745411855
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -378,6 +1228,7 @@
       "entity_type": "subject",
       "category": "year",
       "source": "auto",
+      "group": "A",
       "gt_size": 42,
       "retrieved_count": 10,
       "metrics": {
@@ -398,6 +1249,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.023809523809523808,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.07142857142857142,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.11904761904761904,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.23809523809523808,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.023809523809523808,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.023809523809523808,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 0.023809523809523808,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 0.047619047619047616,
+          "Precision@10": 0.2,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 0.46927872602275644,
+          "NDCG@5": 0.3391602052736161,
+          "NDCG@10": 0.2984900352767555
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -406,6 +1321,7 @@
       "entity_type": "subject",
       "category": "score",
       "source": "auto",
+      "group": "A",
       "gt_size": 10,
       "retrieved_count": 10,
       "metrics": {
@@ -426,6 +1342,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.1,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.3,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.5,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -434,6 +1414,7 @@
       "entity_type": "person",
       "category": "career",
       "source": "auto",
+      "group": "A",
       "gt_size": 55,
       "retrieved_count": 10,
       "metrics": {
@@ -454,6 +1435,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.01818181818181818,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.05454545454545454,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.09090909090909091,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.18181818181818182,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.01818181818181818,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.05454545454545454,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.09090909090909091,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.18181818181818182,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -462,6 +1507,7 @@
       "entity_type": "person",
       "category": "career",
       "source": "auto",
+      "group": "A",
       "gt_size": 43,
       "retrieved_count": 10,
       "metrics": {
@@ -482,6 +1528,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.023255813953488372,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.06976744186046512,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.11627906976744186,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.23255813953488372,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.023255813953488372,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.06976744186046512,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.06976744186046512,
+          "Precision@5": 0.6,
+          "Hit@5": 1.0,
+          "Recall@10": 0.13953488372093023,
+          "Precision@10": 0.6,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 0.7227265726449519,
+          "NDCG@10": 0.6683063269107928
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -490,6 +1600,7 @@
       "entity_type": "person",
       "category": "career",
       "source": "auto",
+      "group": "A",
       "gt_size": 48,
       "retrieved_count": 10,
       "metrics": {
@@ -510,6 +1621,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.020833333333333332,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.0625,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.10416666666666667,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.20833333333333334,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.020833333333333332,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.0625,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.10416666666666667,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.1875,
+          "Precision@10": 0.9,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 0.933745776545611
+        }
+      },
+      "fusion": {
+        "keyword": 10,
+        "name": 0,
+        "vector": 0
       }
     },
     {
@@ -518,6 +1693,7 @@
       "entity_type": "subject",
       "category": "exact",
       "source": "auto",
+      "group": "B",
       "gt_size": 1,
       "retrieved_count": 10,
       "metrics": {
@@ -538,6 +1714,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "vector": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 1,
+        "vector": 9
       }
     },
     {
@@ -546,6 +1786,7 @@
       "entity_type": "subject",
       "category": "exact",
       "source": "auto",
+      "group": "B",
       "gt_size": 1,
       "retrieved_count": 10,
       "metrics": {
@@ -566,6 +1807,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "vector": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 7,
+        "vector": 3
       }
     },
     {
@@ -574,6 +1879,7 @@
       "entity_type": "subject",
       "category": "exact",
       "source": "auto",
+      "group": "B",
       "gt_size": 1,
       "retrieved_count": 10,
       "metrics": {
@@ -594,6 +1900,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 0.5,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.6309297535714575,
+          "NDCG@5": 0.6309297535714575,
+          "NDCG@10": 0.6309297535714575
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 3,
+        "vector": 7
       }
     },
     {
@@ -602,6 +1972,7 @@
       "entity_type": "subject",
       "category": "exact",
       "source": "auto",
+      "group": "B",
       "gt_size": 1,
       "retrieved_count": 10,
       "metrics": {
@@ -622,6 +1993,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "vector": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 1,
+        "vector": 9
       }
     },
     {
@@ -630,8 +2065,9 @@
       "entity_type": "subject",
       "category": "exact",
       "source": "auto",
+      "group": "B",
       "gt_size": 1,
-      "retrieved_count": 10,
+      "retrieved_count": 5,
       "metrics": {
         "Recall@1": 1.0,
         "Precision@1": 1.0,
@@ -650,6 +2086,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "vector": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 4,
+        "vector": 1
       }
     },
     {
@@ -658,6 +2158,7 @@
       "entity_type": "character",
       "category": "exact",
       "source": "auto",
+      "group": "B",
       "gt_size": 1,
       "retrieved_count": 10,
       "metrics": {
@@ -678,6 +2179,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 1,
+        "vector": 9
       }
     },
     {
@@ -686,8 +2251,9 @@
       "entity_type": "person",
       "category": "exact",
       "source": "auto",
+      "group": "B",
       "gt_size": 1,
-      "retrieved_count": 10,
+      "retrieved_count": 3,
       "metrics": {
         "Recall@1": 1.0,
         "Precision@1": 1.0,
@@ -706,6 +2272,70 @@
         "NDCG@3": 1.0,
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        },
+        "vector": {
+          "Recall@1": 1.0,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 1.0,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 1.0,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 1.0,
+          "Precision@10": 0.1,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 1,
+        "vector": 2
       }
     },
     {
@@ -714,6 +2344,7 @@
       "entity_type": "subject",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 6,
       "retrieved_count": 10,
       "metrics": {
@@ -734,6 +2365,70 @@
         "NDCG@3": 0.23463936301137822,
         "NDCG@5": 0.3156484524795145,
         "NDCG@10": 0.47795287691551586
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.16666666666666666,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 0.3333333333333333,
+          "Precision@5": 0.4,
+          "Hit@5": 1.0,
+          "Recall@10": 0.6666666666666666,
+          "Precision@10": 0.4,
+          "Hit@10": 1.0,
+          "MRR": 0.3333333333333333,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.23463936301137822,
+          "NDCG@5": 0.3156484524795145,
+          "NDCG@10": 0.47795287691551586
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 0,
+        "vector": 10
       }
     },
     {
@@ -742,6 +2437,7 @@
       "entity_type": "subject",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 16,
       "retrieved_count": 10,
       "metrics": {
@@ -762,6 +2458,70 @@
         "NDCG@3": 0.23463936301137822,
         "NDCG@5": 0.4468535299918563,
         "NDCG@10": 0.6410457898283652
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0625,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.1875,
+          "Precision@3": 1.0,
+          "Hit@3": 1.0,
+          "Recall@5": 0.3125,
+          "Precision@5": 1.0,
+          "Hit@5": 1.0,
+          "Recall@10": 0.625,
+          "Precision@10": 1.0,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 1.0,
+          "NDCG@5": 1.0,
+          "NDCG@10": 1.0
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 2,
+        "vector": 8
       }
     },
     {
@@ -770,6 +2530,7 @@
       "entity_type": "subject",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 7,
       "retrieved_count": 10,
       "metrics": {
@@ -790,6 +2551,70 @@
         "NDCG@3": 0.46927872602275644,
         "NDCG@5": 0.6164336326286644,
         "NDCG@10": 0.6802547535551714
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.14285714285714285,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.14285714285714285,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 0.42857142857142855,
+          "Precision@5": 0.6,
+          "Hit@5": 1.0,
+          "Recall@10": 0.7142857142857143,
+          "Precision@10": 0.5,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 0.46927872602275644,
+          "NDCG@5": 0.6164336326286644,
+          "NDCG@10": 0.6802547535551714
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 0,
+        "vector": 10
       }
     },
     {
@@ -798,6 +2623,7 @@
       "entity_type": "subject",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 9,
       "retrieved_count": 10,
       "metrics": {
@@ -818,6 +2644,70 @@
         "NDCG@3": 0.23463936301137822,
         "NDCG@5": 0.30078518014914984,
         "NDCG@10": 0.36094793708279116
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.1111111111111111,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 0.2222222222222222,
+          "Precision@5": 0.4,
+          "Hit@5": 1.0,
+          "Recall@10": 0.4444444444444444,
+          "Precision@10": 0.4,
+          "Hit@10": 1.0,
+          "MRR": 0.3333333333333333,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.23463936301137822,
+          "NDCG@5": 0.30078518014914984,
+          "NDCG@10": 0.36094793708279116
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 0,
+        "vector": 10
       }
     },
     {
@@ -826,8 +2716,9 @@
       "entity_type": "subject",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 10,
-      "retrieved_count": 10,
+      "retrieved_count": 9,
       "metrics": {
         "Recall@1": 0.0,
         "Precision@1": 0.0,
@@ -838,14 +2729,78 @@
         "Recall@5": 0.2,
         "Precision@5": 0.4,
         "Hit@5": 1.0,
-        "Recall@10": 0.6,
-        "Precision@10": 0.6,
+        "Recall@10": 0.5,
+        "Precision@10": 0.5,
         "Hit@10": 1.0,
         "MRR": 0.3333333333333333,
         "NDCG@1": 0.0,
         "NDCG@3": 0.23463936301137822,
         "NDCG@5": 0.30078518014914984,
-        "NDCG@10": 0.4800032020044255
+        "NDCG@10": 0.4163824138054737
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.1,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 0.2,
+          "Precision@5": 0.4,
+          "Hit@5": 1.0,
+          "Recall@10": 0.5,
+          "Precision@10": 0.5,
+          "Hit@10": 1.0,
+          "MRR": 0.3333333333333333,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.23463936301137822,
+          "NDCG@5": 0.30078518014914984,
+          "NDCG@10": 0.4163824138054737
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 0,
+        "vector": 9
       }
     },
     {
@@ -854,6 +2809,7 @@
       "entity_type": "subject",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 4,
       "retrieved_count": 10,
       "metrics": {
@@ -874,6 +2830,70 @@
         "NDCG@3": 0.23463936301137822,
         "NDCG@5": 0.19519002499605084,
         "NDCG@10": 0.32531670832675136
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.25,
+          "Precision@3": 0.3333333333333333,
+          "Hit@3": 1.0,
+          "Recall@5": 0.25,
+          "Precision@5": 0.2,
+          "Hit@5": 1.0,
+          "Recall@10": 0.5,
+          "Precision@10": 0.2,
+          "Hit@10": 1.0,
+          "MRR": 0.3333333333333333,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.23463936301137822,
+          "NDCG@5": 0.19519002499605084,
+          "NDCG@10": 0.32531670832675136
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 0,
+        "vector": 10
       }
     },
     {
@@ -882,6 +2902,7 @@
       "entity_type": "character",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 4,
       "retrieved_count": 10,
       "metrics": {
@@ -902,6 +2923,70 @@
         "NDCG@3": 0.7039180890341347,
         "NDCG@5": 0.5855700749881525,
         "NDCG@10": 0.6984152163370878
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.25,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.5,
+          "Precision@3": 0.6666666666666666,
+          "Hit@3": 1.0,
+          "Recall@5": 0.5,
+          "Precision@5": 0.4,
+          "Hit@5": 1.0,
+          "Recall@10": 0.75,
+          "Precision@10": 0.3,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 0.7039180890341347,
+          "NDCG@5": 0.5855700749881525,
+          "NDCG@10": 0.6984152163370878
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 0,
+        "vector": 10
       }
     },
     {
@@ -910,6 +2995,7 @@
       "entity_type": "person",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 8,
       "retrieved_count": 10,
       "metrics": {
@@ -930,6 +3016,70 @@
         "NDCG@3": 0.7653606369886217,
         "NDCG@5": 0.830419897363192,
         "NDCG@10": 0.7036341014013555
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.125,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.25,
+          "Precision@3": 0.6666666666666666,
+          "Hit@3": 1.0,
+          "Recall@5": 0.5,
+          "Precision@5": 0.8,
+          "Hit@5": 1.0,
+          "Recall@10": 0.625,
+          "Precision@10": 0.5,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 0.7653606369886217,
+          "NDCG@5": 0.830419897363192,
+          "NDCG@10": 0.7036341014013555
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 0,
+        "vector": 10
       }
     },
     {
@@ -938,6 +3088,7 @@
       "entity_type": "person",
       "category": "semantic",
       "source": "human",
+      "group": "C",
       "gt_size": 4,
       "retrieved_count": 10,
       "metrics": {
@@ -958,6 +3109,70 @@
         "NDCG@3": 0.7039180890341347,
         "NDCG@5": 0.5855700749881525,
         "NDCG@10": 0.7246262544989281
+      },
+      "channel_metrics": {
+        "keyword": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "name": {
+          "Recall@1": 0.0,
+          "Precision@1": 0.0,
+          "Hit@1": 0.0,
+          "Recall@3": 0.0,
+          "Precision@3": 0.0,
+          "Hit@3": 0.0,
+          "Recall@5": 0.0,
+          "Precision@5": 0.0,
+          "Hit@5": 0.0,
+          "Recall@10": 0.0,
+          "Precision@10": 0.0,
+          "Hit@10": 0.0,
+          "MRR": 0.0,
+          "NDCG@1": 0.0,
+          "NDCG@3": 0.0,
+          "NDCG@5": 0.0,
+          "NDCG@10": 0.0
+        },
+        "vector": {
+          "Recall@1": 0.25,
+          "Precision@1": 1.0,
+          "Hit@1": 1.0,
+          "Recall@3": 0.5,
+          "Precision@3": 0.6666666666666666,
+          "Hit@3": 1.0,
+          "Recall@5": 0.5,
+          "Precision@5": 0.4,
+          "Hit@5": 1.0,
+          "Recall@10": 0.75,
+          "Precision@10": 0.3,
+          "Hit@10": 1.0,
+          "MRR": 1.0,
+          "NDCG@1": 1.0,
+          "NDCG@3": 0.7039180890341347,
+          "NDCG@5": 0.5855700749881525,
+          "NDCG@10": 0.7246262544989281
+        }
+      },
+      "fusion": {
+        "keyword": 0,
+        "name": 0,
+        "vector": 10
       }
     }
   ]
