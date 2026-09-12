@@ -466,6 +466,8 @@ NamuWiki 和行业标准强调的 SHA1 稳定 ID 用于：
 | `database/rag_tables.py` | `RagEntity` ORM 定义 + Pydantic v2 Meta 契约模型 + 索引 DDL | **活跃** |
 | `rag/cli/ingest.py` | 批量语料灌入脚本（ID 发现 → 富化 → 灌入） | **活跃** |
 | `rag/cli/discover.py` | 语料 ID 发现脚本（p1 API + HTML 解析） | **活跃** |
-| `rag/eval/` | RAG 评测管线（--build / --evaluate） | **活跃** |
+| `rag/cli/collect.py` | 离线语料抓取（→ `rag/corpus/`） | **活跃** |
+| `rag/cli/verify.py` | 语料灌库自检 + round-trip 验证 | **活跃** |
+| `rag/corpus/` | 离线语料（raw + processed） | **活跃** |
 | `rag/_utils.py` | 内部共享工具（_clean_text, _first_sentence） | **活跃** |
 | `test/test_rag.py` | 集成测试（retriever 正确性 + ingest→search roundtrip） | **活跃** |

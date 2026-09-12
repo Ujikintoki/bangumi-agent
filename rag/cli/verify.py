@@ -6,9 +6,9 @@ Phase 1.4 Ingestion 管线测试 + Round-trip 验证
 
 用法::
 
-    python eval/test_ingestion.py                    # 全部类型
-    python eval/test_ingestion.py --type character   # 仅角色
-    python eval/test_ingestion.py --dry-run           # 仅验证数据格式，不实际写入
+    python -m rag.cli.verify                    # 全部类型
+    python -m rag.cli.verify --type character   # 仅角色
+    python -m rag.cli.verify --dry-run          # 仅验证数据格式，不实际写入
 """
 
 from __future__ import annotations
@@ -20,7 +20,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+# 语料目录从模块位置推导，不写字面相对路径 —— 字面路径在目录调整时会静默失效
+_CORPUS_PROCESSED_DIR = Path(__file__).resolve().parent.parent / "corpus" / "processed"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -178,7 +181,7 @@ def verify_round_trip(entity_type: str, expected_ids: list[str]) -> dict:
 
 
 def run_ingestion_test(
-    data_dir: str = "eval/data/processed",
+    data_dir: str | None = None,
     entity_types: list[str] | None = None,
     dry_run: bool = False,
     limit: int | None = None,
@@ -186,12 +189,12 @@ def run_ingestion_test(
     """运行 ingestion 管线测试。
 
     Args:
-        data_dir: 处理后数据的目录。
+        data_dir: 处理后数据的目录。None = 默认 rag/corpus/processed。
         entity_types: 要测试的类型列表。None = 全部。
         dry_run: True = 只校验格式，不实际写入。
         limit: 每种类型最多写入几条。None = 全部。
     """
-    base = Path(data_dir)
+    base = Path(data_dir) if data_dir else _CORPUS_PROCESSED_DIR
     all_results: dict[str, dict] = {}
 
     entity_types = entity_types or ["character", "person"]
@@ -318,7 +321,7 @@ def main():
     }[args.type]
 
     results = run_ingestion_test(
-        data_dir="eval/data/processed",
+        data_dir=str(_CORPUS_PROCESSED_DIR),
         entity_types=entity_types,
         dry_run=args.dry_run,
         limit=args.limit,

@@ -6,13 +6,13 @@ Phase 1 数据收集脚本
 
 用法::
 
-    python eval/collect_data.py                    # 全部 3 种类型
-    python eval/collect_data.py --type character   # 仅角色
-    python eval/collect_data.py --limit 10         # 每种各 10 个（默认 20）
+    python -m rag.cli.collect                    # 全部 3 种类型
+    python -m rag.cli.collect --type character   # 仅角色
+    python -m rag.cli.collect --limit 10         # 每种各 10 个（默认 20）
 
 产出:
-    eval/data/raw/          — 原始 API 响应 JSON (仅 subject)
-    eval/data/processed/    — enricher 输出的 ingestion-ready 数据
+    rag/corpus/raw/          — 原始 API 响应 JSON (仅 subject)
+    rag/corpus/processed/    — enricher 输出的 ingestion-ready 数据
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -253,7 +253,7 @@ async def main():
     settings = get_settings()
     client = BangumiClient(access_token=settings.BANGUMI_ACCESS_TOKEN or None)
 
-    base_dir = Path(__file__).resolve().parent / "data"
+    base_dir = Path(__file__).resolve().parent.parent / "corpus"
     raw_dir = base_dir / "raw"
     processed_dir = base_dir / "processed"
     raw_dir.mkdir(parents=True, exist_ok=True)

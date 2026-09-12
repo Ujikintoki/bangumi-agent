@@ -2,9 +2,9 @@
 端到端场景评测 runner v0
 
 用法::
-    python -m eval.run_e2e                       # 默认跑 eval/data/e2e_scenarios.json
-    python -m eval.run_e2e --data <path>         # 指定场景集
-    python -m eval.run_e2e --smoke 3             # 只跑前 N 条（冒烟/联调用）
+    python -m eval.graph_smoke                   # 默认跑 eval/data/e2e_scenarios.json
+    python -m eval.graph_smoke --data <path>     # 指定场景集
+    python -m eval.graph_smoke --smoke 3         # 只跑前 N 条（冒烟/联调用）
 
 确定性断言（无 LLM-judge，全部可复现）：
   1. query_intent == expect_intent                  —— 意图命中
@@ -13,7 +13,7 @@
   4. word_range[0] <= len(reply) <= word_range[1]   —— 字数合规（P0#1）
   5. no_markdown_table → reply 不含 "|" 表格行       —— 格式泄漏（_degrade_render_input 存在的原因）
 
-产出：eval/results/e2e-<date>-<githash>.json + .md
+产出：eval/results/graph_smoke-<date>-<githash>.json + .md
   包含：A-E 维度分组通过率 / by-intent 分组通过率 / 延迟 p50 p95 / token 汇总与成本估算（粗估常量，见 _PRICE）。
 
 v0 已知限制（写进报告头）：
@@ -33,7 +33,7 @@ import sys
 import time
 from pathlib import Path
 
-# 确保项目根目录在 Python path 中（python -m eval.run_e2e 时已满足，防御性保留）
+# 确保项目根目录在 Python path 中（python -m eval.graph_smoke 时已满足，防御性保留）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -223,13 +223,13 @@ def _print_summary(agg: dict) -> None:
 
 def _save(agg: dict, data_path: Path) -> tuple[Path, Path]:
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    name = f"e2e-{stamp}-{_git_hash()}"
+    name = f"graph_smoke-{stamp}-{_git_hash()}"
     json_path = RESULTS_DIR / f"{name}.json"
     md_path = RESULTS_DIR / f"{name}.md"
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(agg, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    lines = [f"# E2E 场景评测报告", f"\n**时间**: {stamp} | **git**: {_git_hash()} | **数据**: {data_path.name}",
+    lines = [f"# 图接线冒烟报告", f"\n**时间**: {stamp} | **git**: {_git_hash()} | **数据**: {data_path.name}",
              f"\n> v0 限制：Bangumi API 真实调用、LLM 非确定（看趋势）、requires_token 场景可能跳过",
              f"\n## 总览\n", f"| 指标 | 值 |", f"|---|---|",
              f"| 通过率 | {agg['pass_rate']} ({agg['passed']}/{agg['total']}) |",

@@ -57,7 +57,7 @@
 | 6 | **人格层** Persona | 本项目特有：决定 agent 怎么思考（Card）与怎么表达（Render） | `agent/persona/` 两层管线 | ✅ |
 | 7 | **护栏** Guardrails | 在 harness 代码里而非只靠 prompt：预算封顶、输入校验、错误格式化 | `agent/guardrails.py` + 路由熔断 | 🟡 |
 | 8 | **可观测性** Observability | 全量 trace、checkpoint 持久执行、失败可续跑 | `agent/devtools.py`（DEV_MODE telemetry） | 🟡 |
-| 9 | **评估** Evaluation | 官方定位为"number one thing"：golden set + CI 回归 + judge | `eval/` + `rag/eval/` + `docs/Eval/` 方法论 | 🟡 |
+| 9 | **评估** Evaluation | 官方定位为"number one thing"：golden set + CI 回归 + judge | `eval/`（现状见 `eval/README.md`）+ `docs/eval/` 方法论 | 🟡 |
 
 🟡 = 存在但未到生产级；§5 逐板块给出方向。
 
@@ -213,7 +213,7 @@
 
 官方定位：Google 白皮书称 eval 为 **"number one thing"且不可协商**；Anthropic："You cannot ship an agent without evals"。标准做法：golden set 30–100 条、**断言行为而非精确输出**、每次 prompt 变更跑 CI、LLM-as-judge 多准则打分、人工评测不可替代（Anthropic 发现人工评测能捕捉 LLM-judge 抓不到的偏差）。
 
-现状：三套评估资产（根 `eval/` 分类器与 RAG 离线评测、`rag/eval/` 检索指标、`docs/Eval/` 方法论），但**不在开发闭环里**——人格/提示词改动不强制跑评测。
+现状：评测资产已归拢到根 `eval/` 一处（分类器 / RAG 检索 / 回复质量 / 记忆四条轴 + 一道图接线门禁，详见 `eval/README.md`），`docs/eval/` 是计划书，但评测**不在开发闭环里**——人格/提示词改动不强制跑评测。
 
 方向（下一步就该做）：把人格/端到端场景评测常驻化——20-30 条场景 golden set（`docs/Eval/e2e-scenario-testing.md` 已有设计），snark 风格 / 字数 / 意图分类三类行为断言，prompt 变更后一键回归。**评测常驻之前，人格层改动都应该视为高风险操作。**
 

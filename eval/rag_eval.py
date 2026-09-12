@@ -4,13 +4,13 @@ RAG 检索评测管线 v2
 三步工作流::
 
     # 1. 我运行：生成自动 Ground Truth + 池化人工标注模板
-    python -m rag.eval.evaluate --build
+    python -m eval.rag_eval --build
 
-    # 2. 你标注：打开 artifacts/pooled_annotate.json，标记每个候选实体是否相关
+    # 2. 你标注：打开 eval/data/rag_gt/pooled_annotate.json，标记每个候选实体是否相关
     #    格式：将 "relevant": null 改为 true 或 false
 
     # 3. 我运行：计算全部指标 + 报告
-    python -m rag.eval.evaluate --evaluate
+    python -m eval.rag_eval --evaluate
 
 指标::
 
@@ -43,7 +43,7 @@ logging.basicConfig(level=logging.WARNING, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("eval")
 
 EVAL_DIR = Path(__file__).resolve().parent
-ARTIFACTS_DIR = EVAL_DIR / "artifacts"
+ARTIFACTS_DIR = EVAL_DIR / "data" / "rag_gt"
 AUTO_GT_FILE = ARTIFACTS_DIR / "ground_truth_auto.json"
 POOLED_FILE = ARTIFACTS_DIR / "pooled_annotate.json"
 MERGED_GT_FILE = ARTIFACTS_DIR / "ground_truth_merged.json"
@@ -54,7 +54,7 @@ K_VALUES = [1, 3, 5, 10]
 # 查询定义（从 queries.py 导入）
 # ═══════════════════════════════════════════════════════════════════════
 
-from .queries import AUTO_QUERY_DEFS, POOLED_QUERIES  # noqa: E402
+from eval.rag_queries import AUTO_QUERY_DEFS, POOLED_QUERIES  # noqa: E402
 
 # ═══════════════════════════════════════════════════════════════════════
 # 基础设施
@@ -68,7 +68,7 @@ def _get_retriever():
     if _retriever is None:
         from core.config import get_settings
         from database.engine import engine
-        from ..retriever import RagEntityRetriever
+        from rag.retriever import RagEntityRetriever
 
         s = get_settings()
         _retriever = RagEntityRetriever(
@@ -301,7 +301,7 @@ def cmd_build():
                 "池化语义查询 — 需要人工标注 relevance。\n"
                 "每条 query 下有 ~20 个候选实体（带名称+简介片段）。\n"
                 "请将每个 candidate 的 relevant 从 null 改为 true（应该出现在搜索结果中）或 false（不应该）。\n"
-                "标注完成后运行: python -m rag.eval.evaluate --evaluate"
+                "标注完成后运行: python -m eval.rag_eval --evaluate"
             ),
             "queries": pooled,
         }, f, ensure_ascii=False, indent=2)
@@ -313,9 +313,9 @@ def cmd_build():
     print("=" * 60)
     print("  下一步")
     print("=" * 60)
-    print(f"  1. 打开 rag/eval/artifacts/{POOLED_FILE.name}")
+    print(f"  1. 打开 {POOLED_FILE.relative_to(Path.cwd()) if POOLED_FILE.is_relative_to(Path.cwd()) else POOLED_FILE}")
     print(f"  2. 对每个 query 的 candidates，改 relevant: null → true/false")
-    print(f"  3. 运行 python -m rag.eval.evaluate --evaluate")
+    print(f"  3. 运行 python -m eval.rag_eval --evaluate")
     print()
 
 
@@ -632,7 +632,7 @@ def cmd_evaluate():
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(MERGED_GT_FILE, "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
-    print(f"  详细结果已保存到 rag/eval/artifacts/{MERGED_GT_FILE.name}")
+    print(f"  详细结果已保存到 {MERGED_GT_FILE}")
 
 
 # ═══════════════════════════════════════════════════════════════════════

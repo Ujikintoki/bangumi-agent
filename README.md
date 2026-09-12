@@ -188,9 +188,13 @@ ruff check .
 python -m rag.cli.discover
 python -m rag.cli.ingest --clear
 
+# 离线语料准备 + 灌库自检（不产出指标）
+python -m rag.cli.collect
+python -m rag.cli.verify --dry-run
+
 # 评测（--build 生成 GT + 标注模板，--evaluate 检索 + 计算指标）
-python -m rag.eval.evaluate --build
-python -m rag.eval.evaluate --evaluate
+python -m eval.rag_eval --build
+python -m eval.rag_eval --evaluate
 ```
 
 检索三通道（`hybrid_search` 向量语义 / `name_search` 名称精确 / `keyword_search` 关键词硬过滤）由生产工具 `search_local_bangumi` 统一接入。概览见 [`docs/Rag/rag_overview.md`](docs/Rag/rag_overview.md)。

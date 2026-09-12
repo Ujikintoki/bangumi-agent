@@ -47,9 +47,13 @@ docker run -d --name bangumi-pg \
 python -m rag.cli.discover
 python -m rag.cli.ingest --clear
 
+# RAG 离线语料准备 + 灌库自检（不产出指标，故不属于 eval/）
+python -m rag.cli.collect          # 抓语料 → rag/corpus/{raw,processed}/
+python -m rag.cli.verify --dry-run # 校验语料格式
+
 # RAG 评测管线（--build 生成 GT + 标注模板，--evaluate 检索 + 计算指标）
-python -m rag.eval.evaluate --build
-python -m rag.eval.evaluate --evaluate
+python -m eval.rag_eval --build
+python -m eval.rag_eval --evaluate
 
 # RAG 数据库迁移
 python scripts/migrate_subject_type.py
@@ -207,13 +211,13 @@ rag/                               # RAG 检索管线
 │   ├── enricher.py                  # API 数据富化（SubjectCollector/Character/Person）
 │   ├── ingestion.py                 # 向量化 + pgvector 灌入（RagEntityIngestor）
 │   ├── retriever.py                 # 三通道检索（hybrid / name / keyword）
-│   ├── cli/                         # python -m rag.cli.discover / ingest
-│   └── eval/                        # python -m rag.eval.evaluate（--build / --evaluate）
+│   ├── cli/                         # python -m rag.cli.{discover,ingest,collect,verify}
+│   └── corpus/                      # 离线语料（collect 产出 / verify 消费），非评测资产
 database/                           # SQLModel ORM + pgvector
 schemas/tools_input.py              # Pydantic v2 工具输入 schema
 core/config.py                      # pydantic-settings 全局配置（.env）
 main.py                             # FastAPI 入口（/health, /chat, /chat/stream）
-eval/                               # 分类器/RAG 离线评测脚本（独立于 rag/eval）
+eval/                               # 全部离线评测（只放"测量"；现状见 eval/README.md）
 scripts/                            # migrate_subject_type 等数据库迁移
 test/                               # 539 测试 / 20 文件
 docs/                               # design/（设计决策与愿景）、eval/、memory/、Rag/、Tools/
