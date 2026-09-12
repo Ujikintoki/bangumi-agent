@@ -132,7 +132,7 @@ Render Node (独立 LLM 调用)    → 决定输出怎么表达（HOW to say it�
 
 ### 记忆系统
 
-- **L1**（`memory/short_term.py`）：按 depth 两级 Token 预算（fast 10000 / deep 16000 tok，tiktoken 精确计数）。SystemMessage 永不截断。`manage_memory()` 流程：压缩历史工具结果 → 截断超大消息（单条上限 1500 tok）→ 滑动窗口 → 清理孤儿 ToolMessage
+- **L1**（`memory/short_term.py`）：按 depth 两级 Token 预算（fast 10000 / deep 16000 tok，tiktoken 精确计数）。SystemMessage 永不截断。`manage_memory()` 流程：压缩历史工具结果 → 截断超大消息（单条上限 2000 tok）→ 滑动窗口 → 清理孤儿 ToolMessage
 - **L2**（`memory/long_term.py`）：pgvector 语义召回（cosine_distance）+ 时间衰减（半衰期 14 天）。阈值：deep 0.5 / 非 deep 0.35；注入预算：deep 500 / 非 deep 300 tok
 - **Cache**（`memory/cache.py`）：跨 HTTP 请求 session 缓存（fast 20 / deep 30 条消息）
 

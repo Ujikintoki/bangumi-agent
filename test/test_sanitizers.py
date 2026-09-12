@@ -6,8 +6,13 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
+from agent.memory.short_term import _MAX_SINGLE_MESSAGE_TOKENS, count_tokens
 from clients.sanitizers import (
+    _ORG_KEYS,
+    _SUBJECT_INFOBOX_KEEP,
     _cn_name,
     _is_noise,
     _strip_bbcode,
@@ -433,12 +438,12 @@ class TestSanitizeSubjectDetail:
         raw = {
             "id": 1,
             "infobox": [
-                {"key": "中文名", "values": [{"v": "测试"}]},       # duplicate → drop
+                {"key": "中文名", "values": [{"v": "测试"}]},       # 不在白名单 → drop
                 {"key": "导演", "values": [{"v": "庵野秀明"}]},     # keep
-                {"key": "官方网站", "values": [{"v": "http://x"}]}, # URL → drop
-                {"key": "售价", "values": [{"v": "6,800円"}]},     # price → drop
-                {"key": "", "values": [{"v": ""}]},                 # empty → drop
-                {"key": "播放电视台", "values": [{"v": "MBS"}]},    # drop key
+                {"key": "官方网站", "values": [{"v": "http://x"}]}, # 不在白名单 → drop
+                {"key": "售价", "values": [{"v": "6,800円"}]},     # 不在白名单 → drop
+                {"key": "", "values": [{"v": ""}]},                 # 不在白名单 → drop
+                {"key": "播放电视台", "values": [{"v": "MBS"}]},    # 不在白名单 → drop
             ],
         }
         result = sanitize_subject_detail(raw)
@@ -449,6 +454,185 @@ class TestSanitizeSubjectDetail:
         assert "售价" not in result["infobox"]
         assert "播放电视台" not in result["infobox"]
         assert len(result["infobox"]) == 1
+
+    def test_infobox_keeps_work_level_crew(self):
+        """作品级主创保留 —— 这是产品要回答的「这部作品谁做的」。"""
+        raw = {
+            "id": 1,
+            "infobox": [
+                {"key": "导演", "values": [{"v": "斎藤圭一郎"}]},
+                {"key": "系列构成", "values": [{"v": "鈴木智尋"}]},
+                {"key": "动画制作", "values": [{"v": "MADHOUSE"}]},
+            ],
+        }
+        assert sanitize_subject_detail(raw)["infobox"] == {
+            "导演": "斎藤圭一郎",
+            "系列构成": "鈴木智尋",
+            "动画制作": "MADHOUSE",
+        }
+
+    def test_infobox_drops_episode_level_keys(self):
+        """集级数据整个丢弃 —— 我们不回答「第 7 集的原画师是谁」。"""
+        raw = {
+            "id": 1,
+            "infobox": [
+                {"key": "导演", "values": [{"v": "新房昭之"}]},
+                {"key": "演出", "values": [{"v": "宮本幸裕(1,4,7)、板村智幸(2,3,5)"}]},
+                {"key": "分镜", "values": [{"v": "新房昭之(1)、板村智幸(2-8)"}]},
+                {"key": "作画监督", "values": [{"v": "杉山延寛、村山公輔"}]},
+                {"key": "原画", "values": [{"v": "宮崎駿、庵野秀明"}]},
+                {"key": "补间动画", "values": [{"v": "田中太郎"}]},
+            ],
+        }
+        infobox = sanitize_subject_detail(raw)["infobox"]
+        assert infobox == {"导演": "新房昭之"}
+        for key in ("演出", "分镜", "作画监督", "原画", "补间动画"):
+            assert key not in infobox
+
+    def test_infobox_episode_marker_stripped_but_names_kept(self):
+        """钉死《命运石之门》陷阱：值带集数标注 ≠ 集级数据，人名必须留。
+
+        `导演 = 佐藤卓哉・浜崎博嗣 (第1-24话) / 小林智樹 (第25话)` 是作品级
+        信息。若按「含集数编号的段就丢」处理，整条会变空，直接答不出「导演是谁」。
+        """
+        raw = {
+            "id": 1,
+            "infobox": [
+                {"key": "导演", "values": [{"v": "佐藤卓哉・浜崎博嗣 (第1-24话) / 小林智樹 (第25话)"}]},
+                {"key": "脚本", "values": [{"v": "横谷昌宏(1,3,5)、花田十輝(2,4)"}]},
+            ],
+        }
+        infobox = sanitize_subject_detail(raw)["infobox"]
+        assert infobox["导演"] == "佐藤卓哉・浜崎博嗣 / 小林智樹"
+        assert "横谷昌宏" in infobox["脚本"]
+        assert "花田十輝" in infobox["脚本"]
+        assert "第1-24话" not in infobox["导演"]
+        assert "1,3,5" not in infobox["脚本"]
+
+    def test_infobox_org_name_strips_member_list(self):
+        """製作/企画只取主体名，剥掉委员会成员名单。
+
+        注意键写成 `企画`（日文汉字，网站实际写法）—— 这条测试原先用的是
+        简体的 `企划`，于是它一直在验证一个永不命中的键，把错字验成了「通过」。
+        """
+        raw = {
+            "id": 1,
+            "infobox": [
+                {"key": "製作", "values": [
+                    {"v": "「葬送のフリーレン」製作委員会【東宝（藤田雅規、齋藤雅哉）、小学館、Aniplex】"}
+                ]},
+                # 无「委員会」，退化为「第一个括号前」
+                {"key": "制作", "values": [
+                    {"v": "未来ガジェット研究所（角川書店、ムービック）、安田猛、野村美加"}
+                ]},
+                {"key": "企画", "values": [
+                    # 无成员名单 → 原样保留
+                    {"v": "Aniplex、芳文社"},
+                    # 括号是「所属」不是名单（括号前已有顿号）→ 不切，否则丢人名
+                    {"v": "濵田健二、押田裕一 (テレビ東京) 、丸山裕之、弓矢政法、阿相道広"},
+                ]},
+            ],
+        }
+        infobox = sanitize_subject_detail(raw)["infobox"]
+        assert infobox["製作"] == "「葬送のフリーレン」製作委員会"
+        assert infobox["制作"] == "未来ガジェット研究所"
+        assert infobox["企画"] == (
+            "Aniplex、芳文社 / 濵田健二、押田裕一 (テレビ東京) 、丸山裕之、弓矢政法、阿相道広"
+        )
+
+    def test_infobox_scope_boundary(self):
+        """钉死口径边界 —— 改白名单时这条会红，提醒你「这是有意的吗」。
+
+        留：导演系全部（含副导演/系列监督/总作画监督）+ 美术设计
+            —— 2026-09-12 实测发现它们在漏，用户拍板补回
+        留：作者/插图/作画
+            —— 动画 0/43、书籍 30/30，两套 key 不重叠；问「这部漫画谁画的」
+               与问「这部动画谁导的」同判据
+        丢：制片人系、设计类长尾
+            —— 这些也是作品级信息（不是集级数据），丢掉是产品取舍
+        """
+        raw = {
+            "id": 1,
+            "infobox": [
+                # 留 —— 动画
+                {"key": "导演", "values": [{"v": "水島努"}]},
+                {"key": "副导演", "values": [{"v": "山本ゆうすけ"}]},
+                {"key": "系列监督", "values": [{"v": "尾石達也"}]},
+                {"key": "总作画监督", "values": [{"v": "坂井久太"}]},
+                {"key": "美术设计", "values": [{"v": "杉山晋史"}]},
+                # 留 —— 书籍/漫画
+                {"key": "作者", "values": [{"v": "花咲まにお"}]},
+                {"key": "插图", "values": [{"v": "山本ケイジ"}]},
+                {"key": "作画", "values": [{"v": "鶴田謙二"}]},
+                # 丢
+                {"key": "道具设计", "values": [{"v": "井上裕紀"}]},
+                {"key": "CG 导演", "values": [{"v": "小林広和"}]},
+                {"key": "制片人", "values": [{"v": "武藤誉之"}]},
+                {"key": "总制片人", "values": [{"v": "大田圭二"}]},
+                {"key": "音乐制作人", "values": [{"v": "山田公平"}]},
+                {"key": "出版社", "values": [{"v": "一迅社"}]},
+            ],
+        }
+        assert sanitize_subject_detail(raw)["infobox"] == {
+            "导演": "水島努",
+            "副导演": "山本ゆうすけ",
+            "系列监督": "尾石達也",
+            "总作画监督": "坂井久太",
+            "美术设计": "杉山晋史",
+            "作者": "花咲まにお",
+            "插图": "山本ケイジ",
+            "作画": "鶴田謙二",
+        }
+
+    def test_infobox_keys_use_site_spelling_not_simplified(self):
+        """白名单键必须写成网站实际用的字形，不是简体。
+
+        2026-09-12 实测：`企划`(U+5212, 简体) 写进了白名单，而 Bangumi 用的是
+        `企画`(U+753B, 日文汉字)。精确匹配不报错 —— 40 部样本里 31 部的企画
+        信息被整键静默丢弃，直到跑 scripts/survey_infobox_keys.py 才发现。
+        连带 `_ORG_KEYS` 里的同一个错字也从未生效（成员名单剥离没跑过）。
+
+        新增键之前先跑巡检脚本，别凭记忆写简体。
+        """
+        assert "企画" in _SUBJECT_INFOBOX_KEEP
+        assert "企划" not in _SUBJECT_INFOBOX_KEEP
+        assert _ORG_KEYS == frozenset({"製作", "制作", "企画"})
+
+    def test_infobox_unknown_keys_dropped(self):
+        """白名单之外的一切都丢（含长尾 key 与 wiki 元数据）。"""
+        raw = {
+            "id": 1,
+            "infobox": [
+                {"key": "导演", "values": [{"v": "A"}]},
+                {"key": "IMDb_id", "values": [{"v": "tt1234567"}]},
+                {"key": "旁白", "values": [{"v": "B"}]},
+                {"key": "上映年度", "values": [{"v": "2011"}]},
+            ],
+        }
+        assert sanitize_subject_detail(raw)["infobox"] == {"导演": "A"}
+
+    def test_record_fits_l1_single_message_limit(self):
+        """整条记录必须装进 L1 单条上限。
+
+        超出上限的记录会被 `_truncate_message_content` 按 token 切纯文本，
+        对 JSON 就是切出语法破损的 JSON（fetch 路径 21/24 曾如此）。
+        这里用病理输入（白名单键全部塞满）验证白名单 + 单值封顶 + 总预算**有界**。
+        """
+        raw = {
+            "id": 1,
+            "summary": "x" * 600,
+            "tags": [{"name": f"tag{i}", "count": i} for i in range(30)],
+            "rating": {"score": 8.0, "rank": 1, "total": 100, "count": list(range(10))},
+            "collection": {str(i): i for i in range(1, 6)},
+            "infobox": [
+                {"key": key, "values": [{"v": "あ" * 400}]} for key in sorted(_SUBJECT_INFOBOX_KEEP)
+            ],
+        }
+        result = sanitize_subject_detail(raw)
+        result["_next"] = "(HATEOAS)"
+        payload = json.dumps(result, ensure_ascii=False)
+        assert count_tokens(payload) <= _MAX_SINGLE_MESSAGE_TOKENS
+        json.loads(payload)  # 完整可解析，未被拦腰截断
 
 
 # ═══════════════════════════════════════════════════════════════════

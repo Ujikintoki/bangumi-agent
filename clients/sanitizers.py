@@ -201,8 +201,128 @@ def _clean_infobox(raw: list[dict], drop_keys: set[str] | None = None) -> dict[s
     return result
 
 
+# 条目 infobox 白名单：作品级核心主创。判据 —— 我们回答「这部作品谁做的」，
+# 不回答「第 7 集的原画师是谁」。白名单之外一律丢弃：集级数据（演出/分镜/
+# 作画监督/原画/补间动画）、制片人系（制片人/总制片人/音乐制作人）。
+#
+# 动画与书籍的 key 集完全不重叠（40 部动画 × 30 部书籍实测），故两套并列：
+# 动画用 导演/脚本/人物设定…，书籍用 作者/插图/作画（对动画路径零命中）。
+#
+# 注意：精确字符串匹配 —— 网站换个写法就会静默丢失（不报错，只是 LLM 看不到）。
+# **键必须写成网站实际用的字形，不是简体**：`企画`(U+753B) 一度被写成
+# `企划`(U+5212)，40 部里 31 部命中却被整键丢弃，且没有任何报错。
+# 增减键之前先跑 `scripts/survey_infobox_keys.py`（会报死键 + 形近键）。
+_SUBJECT_INFOBOX_KEEP = frozenset({
+    # 核心主创（动画）
+    "导演", "副导演", "监督", "系列监督", "总导演", "系列构成", "脚本", "编剧",
+    "人物设定", "角色设计", "人物原案", "原作", "企画",
+    # 核心主创（书籍/漫画）
+    "作者", "插图", "作画",
+    # 音乐
+    "音乐", "音乐制作",
+    # 制作
+    "动画制作", "制作", "製作",
+    # 视觉
+    "美术监督", "美术设计", "色彩设计", "摄影监督", "剪辑", "音响监督",
+    "总作画监督",
+})
+
+# 集数标注：(1) (2,8,25) (第1-24话) (1-12) —— 半/全角括号 + 区间/顿号
+_EPISODE_MARKER_RE = re.compile(
+    r"[（(]\s*(?:第\s*)?\d+\s*(?:[-–~〜,、]\s*(?:第\s*)?\d+\s*)*(?:话|話|集)?\s*[)）]"
+)
+
+# 製作/企划类值里的成员名单起始符
+_ORG_LIST_START_RE = re.compile(r"[（(【\[]")
+
+# 人名列表分隔符（顿号/中点）—— 判断括号是人名所属而非成员名单
+_NAME_SEP_RE = re.compile(r"[、・]")
+
+# 製作/企划类的「主体名」标志词
+_ORG_MARKER = "委員会"
+
+# 白名单键里需要剥成员名单的（其余键的值本身就是人名/工作室名）
+# 注意 `企画` 是日文汉字 —— 写成简体的「企划」永不命中
+_ORG_KEYS = frozenset({"製作", "制作", "企画"})
+
+# infobox 总字符预算。单值封顶只管单个键、管不住 28 个键一起膨胀
+# （病理输入 28×120 字 = 3529 字符，整条实测 10401 tok —— 单靠单值封顶
+# 兜不住，必须整块砍）。真实数据过滤后中位 143 / 最大 347 字符，
+# 故 600 只在异常输入时生效，是「整条记录装得进 L1 单条上限」的最后一道保证。
+_INFOBOX_CHAR_BUDGET = 600
+
+
+def _subject_org_name(value: str) -> str:
+    """製作/企画类：剥掉成员名单，只留主体名。
+
+    `「葬送のフリーレン」製作委員会【東宝（藤田雅規…）、小学館…】` → `「葬送のフリーレン」製作委員会`
+    `未来ガジェット研究所（角川書店、…）、安田猛、…`              → `未来ガジェット研究所`
+    `山崎立士、植田益朗、白石誠（テレビ東京）、内山晴人`          → 原样保留（括号是所属，不是名单）
+    `Aniplex、芳文社`（本就无名单）                              → 原样保留
+
+    锚定「委員会」往右找第一个括号：这样 `【推しの子】製作委員会（…）` 里的
+    标题不会被误当成员名单切掉。没有「委員会」（如制作组合名）则从头找 ——
+    但**仅当括号前没有顿号/中点**：`企画` 的值多是「人名、人名（所属）、人名」，
+    按「第一个括号前」切会把括号后面的人名一起切掉（实测 7 个名字切剩 2 个）。
+    """
+    anchor = value.find(_ORG_MARKER)
+    start = anchor + len(_ORG_MARKER) if anchor >= 0 else 0
+    match = _ORG_LIST_START_RE.search(value, start)
+    if match is None:
+        return value
+    if anchor < 0 and _NAME_SEP_RE.search(value[: match.start()]):
+        return value
+    return value[: match.start()].rstrip(" 　、；,;")
+
+
+def _clean_subject_infobox(raw: list[dict]) -> dict[str, str]:
+    """条目 infobox：[{key, values:[{v}]}] → {key: value}，白名单 + 集级剥离。
+
+    与 `_clean_infobox`（黑名单）不同：条目 infobox 的 key 是开放集合
+    （24 部样本实测 134 个不同 key），黑名单追不上，只能白名单。
+
+    判据（产品定位）：回答「这部作品」的问题，不回答「第 7 集」的问题。
+      1. 白名单之外一律丢弃
+      2. 白名单键只剥集数标注、**不丢人名** —— 《命运石之门》的
+         `导演 = 佐藤卓哉・浜崎博嗣 (第1-24话) / 小林智樹 (第25话)`
+         是作品级信息，按段过滤会整条清空，直接答不出「导演是谁」
+      3. 製作/企划类只取主体名（见 `_subject_org_name`）
+      4. 单值 120 字封顶 + 整块 600 字符预算（兜底，保证有界）
+    """
+    result: dict[str, str] = {}
+    for item in raw:
+        key = (item.get("key") or "").strip()
+        if key not in _SUBJECT_INFOBOX_KEEP:
+            continue
+
+        vals = [v.get("v", "").strip() for v in (item.get("values") or [])]
+        vals = [_EPISODE_MARKER_RE.sub("", v) for v in vals if v]
+        if key in _ORG_KEYS:
+            vals = [_subject_org_name(v) for v in vals]
+        # 集数标注剥掉后可能留下连续空格
+        vals = [re.sub(r"\s{2,}", " ", v).strip() for v in vals]
+        vals = [v for v in vals if v]
+        if not vals:
+            continue
+
+        result[key] = _truncate(" / ".join(vals), 120)
+
+    if sum(len(k) + len(v) for k, v in result.items()) > _INFOBOX_CHAR_BUDGET:
+        # 值短的先留（信息密度高、噪音低），放不下的整键丢弃而非拦腰截断
+        trimmed: dict[str, str] = {}
+        used = 0
+        for key, value in sorted(result.items(), key=lambda kv: len(kv[1])):
+            cost = len(key) + len(value)
+            if used + cost > _INFOBOX_CHAR_BUDGET:
+                continue
+            trimmed[key] = value
+            used += cost
+        result = trimmed
+    return result
+
+
 def sanitize_subject_detail(raw: dict) -> dict:
-    """条目详情 → L2 详情级（~525 tokens），1 次 API 调用。
+    """条目详情 → L2 详情级（~1200 tokens，24 部实测均值 1180 / 最大 1465），1 次 API 调用。
 
     意图：输入 subject ID → 输出该条目完整画像。LLM 用它回答评分口碑、
     制作人员、类型标签、故事简介、收藏热度等核心问题，无需再调其他工具
@@ -214,7 +334,7 @@ def sanitize_subject_detail(raw: dict) -> dict:
          rating_count[10]（LLM 自行分析口碑集中度，替代硬编码 _compute_subject_signals）
       B. 扁平化 — rating.{score,rank,total}→顶层、collection key 数字→中文、
          airtime.date→date 字符串
-      C. 压缩 — summary 截断 300 字、infobox 黑名单过滤（去空值/重复/URL/事实查询）
+      C. 压缩 — summary 截断 300 字、infobox 走作品级白名单（见 _clean_subject_infobox）
       D. 丢弃 — images 全部 5 尺寸（LLM 零价值）、platform（wiki 元数据）、
          metaTags（与 type+tags 重复）、locked/redirect（管理字段）
     """
@@ -251,8 +371,8 @@ def sanitize_subject_detail(raw: dict) -> dict:
             {"name": t.get("name", ""), "count": t.get("count", 0)}
             for t in (raw.get("tags", []) or [])
         ],
-        # ── Infobox（黑名单过滤 + 扁平化）──
-        "infobox": _clean_infobox(raw.get("infobox", []) or []),
+        # ── Infobox（作品级白名单 + 扁平化）──
+        "infobox": _clean_subject_infobox(raw.get("infobox", []) or []),
     }
 
 

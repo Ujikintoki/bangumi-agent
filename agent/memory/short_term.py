@@ -61,7 +61,10 @@ L2_MEMORY_BUDGET_TOKENS = 500
 """L2 记忆注入预留 Token 数上限。Phase 8 收紧至 500（原 700）。"""
 
 # 单条消息最大 Token 数（超出则截断内容，主要针对 ToolMessage 返回的海量 JSON）
-_MAX_SINGLE_MESSAGE_TOKENS = 1500
+# 2000 的依据：条目详情是最大的单条记录，infobox 白名单过滤后 24 部实测
+# 均值 1180 / 最大 1465（走真实 API 的最坏一条 1503），取 2000 留余量。
+# fast 预算 10000，单条最多占 20%。
+_MAX_SINGLE_MESSAGE_TOKENS = 2000
 
 # 截断标记
 _TRUNCATION_MARKER = "\n\n...[内容已截断]"
