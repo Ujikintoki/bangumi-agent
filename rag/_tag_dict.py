@@ -5,6 +5,8 @@
   - 词表从 DB 实时加载（lazy + cache），不手工维护
   - 仅在 LLM 未提取到结构化参数时作为兜底
   - 子串匹配 + 长度 ≥2 + 上限 5 个防误触发
+  - 调用方需去掉子串冗余（"TRIGGER" 会连带命中 "GE"/"IG"），见
+    tools/bgm_tools.py 的 _drop_substring_tags
 
 用法::
 

@@ -929,6 +929,14 @@ import re as _re
 
 _YEAR_RE = _re.compile(r"(?<!\d)(19|20)\d{2}(?!\d)")
 _MIN_SCORE_RE = _re.compile(r"(\d+(?:\.\d+)?)\s*分(?:\s*以上)?")
+# tags 只存在于 subject 实体上：实测 subject 1030/1030 有 tags 字段，
+# person 0/120、character 0/350（meta_info 里根本没有这个键）。
+# 给非 subject 查询一个 tag 要求 = 逐条 AND 一个永不匹配的条件 → 必然返回 0 条
+# （实测 "声优" 查 person：带 tags 返回 0 条，去掉后 career 过滤返回 55 条 = GT）。
+# 工具 schema 亦已声明 tags「仅 entity_type=subject 时可用」，此处与之对齐。
+# "all" 不在豁免之列：不加实体过滤，subject 也在结果里，tags 仍然成立。
+_TAGS_APPLICABLE = frozenset({"subject", "all"})
+
 _CAREER_MAP = {
     "声优": "seiyu",
     "歌手": "artist",
@@ -941,16 +949,36 @@ _CAREER_MAP = {
 }
 
 
+def _drop_substring_tags(matched: list[str]) -> list[str]:
+    """丢弃被同一批更长命中标签包含的短标签。
+
+    词表匹配是【子串】匹配，所以 query="TRIGGER" 会连带命中 "GE"、"IG"，
+    "CloverWorks" 会连带命中 "love"。而 keyword_search 对每个标签是逐条
+    AND（jsonb contains），每多一个冗余标签就收紧一次结果集 —— 实测：
+
+        ['TRIGGER', 'GE', 'IG']            → 0 条
+        ['TRIGGER']                        → 14 条
+        ['CloverWorks', 'love']            → 0 条（GT 24 条）
+        ['CloverWorks']                    → 24 条
+
+    短标签是长标签的子串时，它没有携带额外信息，只把结果集 AND 空。
+    """
+    return [t for t in matched if not any(t != o and t in o for o in matched)]
+
+
 def _extract_keyword_filters(
     query: str,
     tags: Optional[list[str]] = None,
     year: Optional[int] = None,
     min_score: Optional[float] = None,
+    entity_type: str = "subject",
 ) -> dict:
     """从 query 文本中提取结构化关键词参数，LLM 传参优先，规则兜底。
 
     提取策略（每种字段独立补缺，LLM 已传的值不被覆盖）：
-      - tags: LLM 传参优先 → 规则：load_tag_vocabulary() 子串匹配（长度≥2, 上限5）
+      - tags: LLM 传参优先 → 规则：load_tag_vocabulary() 子串匹配
+              （长度≥2, 去子串冗余, 上限5）
+              **仅 entity_type ∈ _TAGS_APPLICABLE 时产出**，见该常量
       - year: LLM 传参优先 → 规则：正则 \\b(19|20)\\d{2}\\b
       - min_score: LLM 传参优先 → 规则：正则 "X.X 分"
       - career: 硬编码 _CAREER_MAP 子串扫描
@@ -960,27 +988,31 @@ def _extract_keyword_filters(
         tags: LLM 传入的标签列表。
         year: LLM 传入的年份。
         min_score: LLM 传入的评分下限。
+        entity_type: 本次搜索的实体类型，决定 tags 是否适用。
 
     Returns:
         仅包含非空字段的过滤参数 dict。
     """
     filters: dict = {}
 
-    # ── tags: LLM 优先 → 标签词表子串兜底 ──
-    final_tags = list(tags) if tags else []
-    if not final_tags:
-        try:
-            from rag._tag_dict import load_tag_vocabulary
+    # ── tags: LLM 优先 → 标签词表子串兜底（仅 subject 适用） ──
+    if entity_type in _TAGS_APPLICABLE:
+        final_tags = list(tags) if tags else []
+        if not final_tags:
+            try:
+                from rag._tag_dict import load_tag_vocabulary
 
-            vocab = load_tag_vocabulary()
-            matched = [t for t in vocab if len(t) >= 2 and t in query]
-            # 确定性排序：长度降序（长标签更具体）→ 名称升序。
-            # frozenset 迭代顺序受哈希随机化影响，直接切片会取到不确定的 5 个。
-            final_tags = sorted(matched, key=lambda t: (-len(t), t))[:5]
-        except Exception:
-            pass
-    if final_tags:
-        filters["required_tags"] = final_tags
+                vocab = load_tag_vocabulary()
+                matched = [t for t in vocab if len(t) >= 2 and t in query]
+                # 去冗余：子串匹配会连带命中短标签，而逐条 AND 会把结果集收紧到空
+                matched = _drop_substring_tags(matched)
+                # 确定性排序：长度降序（长标签更具体）→ 名称升序。
+                # frozenset 迭代顺序受哈希随机化影响，直接切片会取到不确定的 5 个。
+                final_tags = sorted(matched, key=lambda t: (-len(t), t))[:5]
+            except Exception:
+                pass
+        if final_tags:
+            filters["required_tags"] = final_tags
 
     # ── year: LLM 优先 → 正则兜底 ──
     final_year = year
@@ -1174,6 +1206,7 @@ def _search_local_bangumi_sync(
     # ── 关键词提取：LLM 参数优先 + 规则兜底 ──
     keyword_filters = _extract_keyword_filters(
         query=query, tags=tags, year=year, min_score=min_score,
+        entity_type=entity_type,
     )
 
     # ── 三通道合并检索 ──

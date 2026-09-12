@@ -17,6 +17,7 @@ import pytest
 from tools.bgm_tools import (
     _ROLE_MAP,
     _TYPE_ICONS,
+    _drop_substring_tags,
     _extract_keyword_filters,
     get_agent_tools,
     get_blog,
@@ -165,6 +166,58 @@ class TestExtractKeywordFilters:
         """无年份/评分/职业词时，仅保留 LLM 传入的 tags。"""
         filters = _extract_keyword_filters("随便聊聊天", tags=["治愈"])
         assert filters == {"required_tags": ["治愈"]}
+
+    def test_tags_dropped_for_non_subject(self):
+        """person/character 的 meta_info 无 tags 字段，tag 要求必然 AND 到 0 条。
+
+        实测 "声优" 查 person：带 tags 返回 0 条，去掉后 career 过滤返回 55 条。
+        工具 schema 亦已声明 tags「仅 entity_type=subject 时可用」。
+        """
+        for et in ("person", "character"):
+            filters = _extract_keyword_filters("找声优", tags=["声优"], entity_type=et)
+            assert "required_tags" not in filters
+
+    def test_tags_kept_for_subject_and_all(self):
+        """"all" 不加实体过滤，subject 也在结果里，tags 仍然成立。"""
+        for et in ("subject", "all"):
+            filters = _extract_keyword_filters("芳文社", tags=["芳文社"], entity_type=et)
+            assert filters["required_tags"] == ["芳文社"]
+
+    def test_non_subject_still_extracts_career(self):
+        """豁免 tags 不影响同一次调用里的其他字段。"""
+        filters = _extract_keyword_filters("找声优", tags=["声优"], entity_type="person")
+        assert filters == {"career": "seiyu"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 标签去子串冗余（纯函数，不触 DB）
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestDropSubstringTags:
+    """词表是【子串】匹配，短标签会被长标签连带命中。
+
+    keyword_search 对每个标签逐条 AND，冗余标签会把结果集收紧到空 ——
+    实测 "TRIGGER" 命中 ['TRIGGER','GE','IG'] 返回 0 条，去掉冗余后 14 条。
+    """
+
+    def test_drops_shorter_substring(self):
+        assert _drop_substring_tags(["TRIGGER", "GE", "IG"]) == ["TRIGGER"]
+
+    def test_drops_ascii_fragment(self):
+        """CloverWorks 里的 love、BONES 里的 ONE 都是词表里的真标签。"""
+        assert _drop_substring_tags(["CloverWorks", "love"]) == ["CloverWorks"]
+        assert _drop_substring_tags(["BONES", "ONE"]) == ["BONES"]
+
+    def test_keeps_unrelated_tags(self):
+        """互为子串才丢弃；并列的多个标签都要保留（用户可能同时指定）。"""
+        assert _drop_substring_tags(["芳文社", "治愈"]) == ["芳文社", "治愈"]
+
+    def test_keeps_longer_of_two_related(self):
+        assert _drop_substring_tags(["京都动画", "京都", "动画"]) == ["京都动画"]
+
+    def test_empty(self):
+        assert _drop_substring_tags([]) == []
 
 
 # ═══════════════════════════════════════════════════════════════════
