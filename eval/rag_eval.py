@@ -1821,7 +1821,10 @@ def cmd_check(freeze: bool = False, probe: bool = True, reason: str = "") -> int
         print(f"    {_pad(g, 3)}{len(by_group[g]):>2d} 条   {line}")
 
     failed = [c for c, _, ok, _ in checks if not ok]
-    failed += [c for c, _, ok, _, _ in ratchets if not ok]
+    # 棘轮是 7 元组 (code, desc, ok, cur, msgs, n_add, n_rem)，比 checks 多 3 项 ——
+    # 按 checks 的形状解包会 ValueError，而它在所有断言跑完之后才抛，
+    # 于是"全绿"也会崩成退出码 1（--check 再也回不了 0）。
+    failed += [c for c, _, ok, _, _, _, _ in ratchets if not ok]
     print()
     if failed:
         print(f"  结论: FAIL（{'、'.join(failed)} 破掉）")
