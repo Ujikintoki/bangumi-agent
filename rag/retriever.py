@@ -401,9 +401,12 @@ class RagEntityRetriever:
                     )
                 stmt = stmt.where(or_(*conditions))
 
+                # 决胜键同 keyword_search：trigram 相似度并列很常见（尤其短查询），
+                # 没有它 limit*2 截断处的成员会随运行变化。
                 stmt = stmt.order_by(
                     max_sim.desc(),
                     RagEntity.popularity.desc(),
+                    RagEntity.id,
                 ).limit(limit * 2)
 
                 rows = session.execute(stmt).fetchall()
@@ -553,7 +556,11 @@ class RagEntityRetriever:
                 stmt = _apply_domain(select(RagEntity))
                 for cond in conditions:
                     stmt = stmt.where(cond)
-                stmt = stmt.order_by(desc(RagEntity.popularity)).limit(limit)
+                # RagEntity.id 是决胜键：1030 个 subject 只有 995 个不同 popularity
+                # 值（35 组并列），没有决胜键时并列行的顺序由 PG 自由决定，
+                # 同一查询两次运行可能给出不同的 top-N。阶段2 的填充项直接构成
+                # 结果集时（如"4 个标签逐个有支持、AND 为空"），整张表都是并列行。
+                stmt = stmt.order_by(desc(RagEntity.popularity), RagEntity.id).limit(limit)
                 stage1_entities = [row[0] for row in session.execute(stmt).fetchall()]
 
                 for entity in stage1_entities:
@@ -575,7 +582,7 @@ class RagEntityRetriever:
                             RagEntity.id.not_in([e.id for e in stage1_entities])
                         )
                     stmt2 = stmt2.order_by(
-                        match_expr.desc(), desc(RagEntity.popularity)
+                        match_expr.desc(), desc(RagEntity.popularity), RagEntity.id
                     ).limit(need)
                     for row in session.execute(stmt2).fetchall():
                         results.append(_to_result(row[0], final_score=1.0))
