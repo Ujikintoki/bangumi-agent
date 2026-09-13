@@ -25,6 +25,19 @@ logger = logging.getLogger("bgm-agent.llm")
 _DEFAULT_TEMPERATURE = 0.3
 _DEFAULT_MAX_TOKENS = 4096
 
+# 全模型强制关闭推理 —— 项目决定（2026-09-13，用户拍板）。
+#
+# 实测依据：`LLM_MODEL`（deepseek-v4-flash）**不传该参数时默认是思考的**。同一道平凡题：
+#   不传参数      → 输出 54 tok，思考 84 字符
+#   显式 disabled → 输出  1 tok，思考  0 字符
+# 难任务上思考能烧到上万字符，并把 max_tokens 一起烧穿；而 JSON mode 下的截断表现为
+# **空串**（finish_reason=length），不报错、只是静默丢光整批结果。
+#
+# 注入点选在工厂而不是各调用点：调用点有 7 个且会继续增加，逐个补迟早漏 ——
+# 2026-09-13 核查时就漏了 5 处（render / 分类器 ×2 / L2 记忆摘要 / eval 分类器）。
+# 用 setdefault 而非硬赋值，保留调用点显式覆盖的能力。
+_DISABLE_THINKING: dict[str, Any] = {"thinking": {"type": "disabled"}}
+
 
 def create_llm(
     *,
@@ -54,7 +67,8 @@ def create_llm(
         request_timeout: HTTP 请求超时（秒）。None 时使用 Settings.LLM_REQUEST_TIMEOUT。
             轻量场景（如意图分类）可传入更短的超时（如 10s）。
         settings: Settings 实例。None 时调用 get_settings()。
-        **kwargs: 透传给 ChatOpenAI 的额外参数。
+        **kwargs: 透传给 ChatOpenAI 的额外参数。`extra_body` 已被工厂预设为
+            「关闭思考」，显式传入可覆盖（见 _DISABLE_THINKING）。
 
     Returns:
         配置好的 ChatOpenAI 实例。
@@ -64,6 +78,11 @@ def create_llm(
     """
     if settings is None:
         settings = get_settings()
+
+    # ── 全模型关思考（项目决定，见 _DISABLE_THINKING）──────
+    # setdefault：调用点若显式传了 extra_body 就用它的。dict() 浅拷贝是为了不把
+    # 同一个实例透传给多个 LLM（SDK 侧可能写入）。
+    kwargs.setdefault("extra_body", dict(_DISABLE_THINKING))
 
     # ── 解析 API Key ───────────────────────────────────────
     api_key = _resolve_api_key(settings)
