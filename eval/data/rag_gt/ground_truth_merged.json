@@ -1,7 +1,10 @@
 {
-  "description": "合并后的 Ground Truth + 检索结果",
+  "description": "合并后的 Ground Truth + 检索结果（生产路径）",
+  "retrieval": "production (_extract_keyword_filters → _unified_search，含短路)",
+  "retrieval_limit": 10,
   "group_legend": {
     "A": "自测组 — GT 与检索同源：返回的每一条必然在 GT 里 → P/NDCG/MRR 恒 1.0；R@5 偏低是 |GT|≫K 的天花板压的。四个数【都没有信息量】",
+    "A'": "解析缺口组 — GT 按理想查询定义，生产规则解析器产不出该条件 → 数字是【解析器的差距】，不是检索器的能力",
     "B": "质量组 — GT 是人工指定的实体 id，检索器须靠名字独立找到 → 有信息量 ★",
     "C": "人工组 — 池化偏差（候选池由被测系统产出，漏掉的不会被算作 miss）→ 偏高，仅定性"
   },
@@ -41,7 +44,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "芳文社"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.03225806451612903,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.0967741935483871,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.16129032258064516,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.3225806451612903,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.03225806451612903,
           "Precision@1": 1.0,
@@ -100,7 +137,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -134,7 +171,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "CloverWorks"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.041666666666666664,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.125,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.20833333333333334,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.4166666666666667,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.041666666666666664,
           "Precision@1": 1.0,
@@ -193,7 +264,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -227,7 +298,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "京都动画"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.02040816326530612,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.061224489795918366,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.10204081632653061,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.20408163265306123,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.02040816326530612,
           "Precision@1": 1.0,
@@ -286,7 +391,7 @@
           "NDCG@10": 0.38113435412202
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -320,7 +425,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "ufotable"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.041666666666666664,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.125,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.20833333333333334,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.4166666666666667,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.041666666666666664,
           "Precision@1": 1.0,
@@ -379,7 +518,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -413,7 +552,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "Production.I.G"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.034482758620689655,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.10344827586206896,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.1724137931034483,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.3448275862068966,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.034482758620689655,
           "Precision@1": 1.0,
@@ -472,7 +645,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -506,7 +679,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "TRIGGER"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.07142857142857142,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.21428571428571427,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.35714285714285715,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.7142857142857143,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.07142857142857142,
           "Precision@1": 1.0,
@@ -565,7 +772,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -599,7 +806,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "动画工房"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.04,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.12,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.2,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.4,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.04,
           "Precision@1": 1.0,
@@ -658,7 +899,7 @@
           "NDCG@10": 0.16421958630632802
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -692,7 +933,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "虚渊玄"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 9,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.1111111111111111,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.3333333333333333,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.5555555555555556,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 1.0,
+        "Precision@10": 0.9,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.1111111111111111,
           "Precision@1": 1.0,
@@ -751,7 +1026,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 9,
         "name": 0,
         "vector": 1
@@ -785,7 +1060,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "MADHouse"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.03125,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.09375,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.15625,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.3125,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.03125,
           "Precision@1": 1.0,
@@ -844,7 +1153,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -878,7 +1187,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "BONES"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.041666666666666664,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.125,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.20833333333333334,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.4166666666666667,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.041666666666666664,
           "Precision@1": 1.0,
@@ -937,7 +1280,7 @@
           "NDCG@10": 0.3589542101716347
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -971,7 +1314,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "P.A.WORKS"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.05,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.15,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.25,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.5,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.05,
           "Precision@1": 1.0,
@@ -1030,7 +1407,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -1064,7 +1441,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "吉卜力"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.09090909090909091,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.2727272727272727,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.45454545454545453,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.9090909090909091,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.09090909090909091,
           "Precision@1": 1.0,
@@ -1123,7 +1534,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -1135,7 +1546,7 @@
       "entity_type": "subject",
       "category": "year",
       "source": "auto",
-      "group": "A",
+      "group": "A'",
       "gt_size": 50,
       "retrieved_count": 10,
       "metrics": {
@@ -1157,7 +1568,43 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "2023年",
+          "动画"
+        ],
+        "year": 2023
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 6,
+        "stage2": 4
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.02,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.06,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.1,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.2,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.02,
           "Precision@1": 1.0,
@@ -1216,7 +1663,7 @@
           "NDCG@10": 0.4537425745411855
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -1228,7 +1675,7 @@
       "entity_type": "subject",
       "category": "year",
       "source": "auto",
-      "group": "A",
+      "group": "A'",
       "gt_size": 42,
       "retrieved_count": 10,
       "metrics": {
@@ -1250,7 +1697,43 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "2022年",
+          "动画"
+        ],
+        "year": 2022
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 7,
+        "stage2": 3
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.023809523809523808,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.07142857142857142,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.11904761904761904,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.23809523809523808,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.023809523809523808,
           "Precision@1": 1.0,
@@ -1309,7 +1792,7 @@
           "NDCG@10": 0.2984900352767555
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -1321,10 +1804,44 @@
       "entity_type": "subject",
       "category": "score",
       "source": "auto",
-      "group": "A",
+      "group": "A'",
       "gt_size": 10,
       "retrieved_count": 10,
       "metrics": {
+        "Recall@1": 0.0,
+        "Precision@1": 0.0,
+        "Hit@1": 0.0,
+        "Recall@3": 0.1,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 0.1,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 0.2,
+        "Precision@10": 0.2,
+        "Hit@10": 1.0,
+        "MRR": 0.5,
+        "NDCG@1": 0.0,
+        "NDCG@3": 0.2960819109658652,
+        "NDCG@5": 0.21398626473452756,
+        "NDCG@10": 0.2051166673279436
+      },
+      "keyword_filters": {
+        "required_tags": [
+          "神作"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
         "Recall@1": 0.1,
         "Precision@1": 1.0,
         "Hit@1": 1.0,
@@ -1343,7 +1860,7 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.1,
           "Precision@1": 1.0,
@@ -1402,7 +1919,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -1436,7 +1953,39 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "career": "seiyu"
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.01818181818181818,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.05454545454545454,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.09090909090909091,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.18181818181818182,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.01818181818181818,
           "Precision@1": 1.0,
@@ -1495,7 +2044,7 @@
           "NDCG@10": 1.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -1529,7 +2078,39 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "career": "artist"
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.023255813953488372,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.06976744186046512,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.11627906976744186,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.23255813953488372,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.023255813953488372,
           "Precision@1": 1.0,
@@ -1588,7 +2169,7 @@
           "NDCG@10": 0.6683063269107928
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -1622,7 +2203,39 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "career": "producer"
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.020833333333333332,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.0625,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.10416666666666667,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.20833333333333334,
+        "Precision@10": 1.0,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.020833333333333332,
           "Precision@1": 1.0,
@@ -1681,7 +2294,7 @@
           "NDCG@10": 0.933745776545611
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 10,
         "name": 0,
         "vector": 0
@@ -1715,7 +2328,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "孤独摇滚"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 1,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 1.0,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 1.0,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 1.0,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 1.0,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -1774,7 +2421,7 @@
           "NDCG@10": 1.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 1,
         "vector": 9
@@ -1808,7 +2455,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "進撃の巨人"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 1.0,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 1.0,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 1.0,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 1.0,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -1867,7 +2548,7 @@
           "NDCG@10": 1.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 7,
         "vector": 3
@@ -1901,7 +2582,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "命运石之门"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 3,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 1.0,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 1.0,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 1.0,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 1.0,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -1960,7 +2675,7 @@
           "NDCG@10": 0.6309297535714575
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 3,
         "vector": 7
@@ -1994,7 +2709,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "化物語"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 1.0,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 1.0,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 1.0,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 1.0,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2053,7 +2802,7 @@
           "NDCG@10": 1.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 1,
         "vector": 9
@@ -2087,7 +2836,41 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "NN"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 1.0,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 1.0,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 1.0,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 1.0,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2146,7 +2929,7 @@
           "NDCG@10": 1.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 4,
         "vector": 1
@@ -2180,7 +2963,37 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {},
+      "invoked": {
+        "keyword": false,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 1.0,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 1.0,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 1.0,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 1.0,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2239,7 +3052,7 @@
           "NDCG@10": 0.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 1,
         "vector": 9
@@ -2273,7 +3086,37 @@
         "NDCG@5": 1.0,
         "NDCG@10": 1.0
       },
-      "channel_metrics": {
+      "keyword_filters": {},
+      "invoked": {
+        "keyword": false,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 1.0,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 1.0,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 1.0,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 1.0,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 1.0
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2332,7 +3175,7 @@
           "NDCG@10": 1.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 1,
         "vector": 2
@@ -2360,13 +3203,50 @@
         "Recall@10": 0.6666666666666666,
         "Precision@10": 0.4,
         "Hit@10": 1.0,
+        "MRR": 0.5,
+        "NDCG@1": 0.0,
+        "NDCG@3": 0.2960819109658652,
+        "NDCG@5": 0.34519134224686937,
+        "NDCG@10": 0.5166400850076802
+      },
+      "keyword_filters": {
+        "required_tags": [
+          "乐队",
+          "动画",
+          "百合",
+          "音乐"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 10
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.0,
+        "Precision@1": 0.0,
+        "Hit@1": 0.0,
+        "Recall@3": 0.16666666666666666,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 0.3333333333333333,
+        "Precision@5": 0.4,
+        "Hit@5": 1.0,
+        "Recall@10": 0.6666666666666666,
+        "Precision@10": 0.4,
+        "Hit@10": 1.0,
         "MRR": 0.3333333333333333,
         "NDCG@1": 0.0,
         "NDCG@3": 0.23463936301137822,
         "NDCG@5": 0.3156484524795145,
         "NDCG@10": 0.47795287691551586
       },
-      "channel_metrics": {
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2425,7 +3305,7 @@
           "NDCG@10": 0.47795287691551586
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 0,
         "vector": 10
@@ -2441,6 +3321,42 @@
       "gt_size": 16,
       "retrieved_count": 10,
       "metrics": {
+        "Recall@1": 0.0625,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.1875,
+        "Precision@3": 1.0,
+        "Hit@3": 1.0,
+        "Recall@5": 0.3125,
+        "Precision@5": 1.0,
+        "Hit@5": 1.0,
+        "Recall@10": 0.4375,
+        "Precision@10": 0.7,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 1.0,
+        "NDCG@5": 1.0,
+        "NDCG@10": 0.7967610662472993
+      },
+      "keyword_filters": {
+        "required_tags": [
+          "异世界",
+          "冒险",
+          "转生"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
         "Recall@1": 0.0,
         "Precision@1": 0.0,
         "Hit@1": 0.0,
@@ -2459,7 +3375,7 @@
         "NDCG@5": 0.4468535299918563,
         "NDCG@10": 0.6410457898283652
       },
-      "channel_metrics": {
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2518,7 +3434,7 @@
           "NDCG@10": 1.0
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 2,
         "vector": 8
@@ -2540,6 +3456,42 @@
         "Recall@3": 0.14285714285714285,
         "Precision@3": 0.3333333333333333,
         "Hit@3": 1.0,
+        "Recall@5": 0.14285714285714285,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 0.14285714285714285,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 0.46927872602275644,
+        "NDCG@5": 0.3391602052736161,
+        "NDCG@10": 0.27487633291429087
+      },
+      "keyword_filters": {
+        "required_tags": [
+          "战斗",
+          "机甲",
+          "科幻"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 8,
+        "stage2": 2
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.14285714285714285,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.14285714285714285,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
         "Recall@5": 0.42857142857142855,
         "Precision@5": 0.6,
         "Hit@5": 1.0,
@@ -2552,7 +3504,7 @@
         "NDCG@5": 0.6164336326286644,
         "NDCG@10": 0.6802547535551714
       },
-      "channel_metrics": {
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2611,7 +3563,7 @@
           "NDCG@10": 0.6802547535551714
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 0,
         "vector": 10
@@ -2636,16 +3588,52 @@
         "Recall@5": 0.2222222222222222,
         "Precision@5": 0.4,
         "Hit@5": 1.0,
-        "Recall@10": 0.4444444444444444,
-        "Precision@10": 0.4,
+        "Recall@10": 0.3333333333333333,
+        "Precision@10": 0.3,
+        "Hit@10": 1.0,
+        "MRR": 0.5,
+        "NDCG@1": 0.0,
+        "NDCG@3": 0.2960819109658652,
+        "NDCG@5": 0.34519134224686937,
+        "NDCG@10": 0.31337387647420245
+      },
+      "keyword_filters": {
+        "required_tags": [
+          "悬疑",
+          "惊悚",
+          "推理"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 3,
+        "stage2": 7
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.0,
+        "Precision@1": 0.0,
+        "Hit@1": 0.0,
+        "Recall@3": 0.1111111111111111,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 0.2222222222222222,
+        "Precision@5": 0.4,
+        "Hit@5": 1.0,
+        "Recall@10": 0.3333333333333333,
+        "Precision@10": 0.3,
         "Hit@10": 1.0,
         "MRR": 0.3333333333333333,
         "NDCG@1": 0.0,
         "NDCG@3": 0.23463936301137822,
         "NDCG@5": 0.30078518014914984,
-        "NDCG@10": 0.36094793708279116
+        "NDCG@10": 0.2867993217977166
       },
-      "channel_metrics": {
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2694,17 +3682,17 @@
           "Recall@5": 0.2222222222222222,
           "Precision@5": 0.4,
           "Hit@5": 1.0,
-          "Recall@10": 0.4444444444444444,
-          "Precision@10": 0.4,
+          "Recall@10": 0.3333333333333333,
+          "Precision@10": 0.3,
           "Hit@10": 1.0,
           "MRR": 0.3333333333333333,
           "NDCG@1": 0.0,
           "NDCG@3": 0.23463936301137822,
           "NDCG@5": 0.30078518014914984,
-          "NDCG@10": 0.36094793708279116
+          "NDCG@10": 0.2867993217977166
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 0,
         "vector": 10
@@ -2718,27 +3706,63 @@
       "source": "human",
       "group": "C",
       "gt_size": 10,
-      "retrieved_count": 9,
+      "retrieved_count": 10,
       "metrics": {
         "Recall@1": 0.0,
         "Precision@1": 0.0,
         "Hit@1": 0.0,
-        "Recall@3": 0.1,
-        "Precision@3": 0.3333333333333333,
-        "Hit@3": 1.0,
-        "Recall@5": 0.2,
-        "Precision@5": 0.4,
-        "Hit@5": 1.0,
-        "Recall@10": 0.5,
-        "Precision@10": 0.5,
-        "Hit@10": 1.0,
-        "MRR": 0.3333333333333333,
+        "Recall@3": 0.0,
+        "Precision@3": 0.0,
+        "Hit@3": 0.0,
+        "Recall@5": 0.0,
+        "Precision@5": 0.0,
+        "Hit@5": 0.0,
+        "Recall@10": 0.0,
+        "Precision@10": 0.0,
+        "Hit@10": 0.0,
+        "MRR": 0.0,
         "NDCG@1": 0.0,
-        "NDCG@3": 0.23463936301137822,
-        "NDCG@5": 0.30078518014914984,
-        "NDCG@10": 0.4163824138054737
+        "NDCG@3": 0.0,
+        "NDCG@5": 0.0,
+        "NDCG@10": 0.0
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "required_tags": [
+          "日常",
+          "温馨",
+          "轻松"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 10
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.0,
+        "Precision@1": 0.0,
+        "Hit@1": 0.0,
+        "Recall@3": 0.2,
+        "Precision@3": 0.6666666666666666,
+        "Hit@3": 1.0,
+        "Recall@5": 0.4,
+        "Precision@5": 0.8,
+        "Hit@5": 1.0,
+        "Recall@10": 0.4,
+        "Precision@10": 0.4,
+        "Hit@10": 1.0,
+        "MRR": 0.5,
+        "NDCG@1": 0.0,
+        "NDCG@3": 0.5307212739772434,
+        "NDCG@5": 0.6608397947263839,
+        "NDCG@10": 0.4288398090337664
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2781,26 +3805,26 @@
           "Recall@1": 0.0,
           "Precision@1": 0.0,
           "Hit@1": 0.0,
-          "Recall@3": 0.1,
-          "Precision@3": 0.3333333333333333,
+          "Recall@3": 0.2,
+          "Precision@3": 0.6666666666666666,
           "Hit@3": 1.0,
-          "Recall@5": 0.2,
-          "Precision@5": 0.4,
+          "Recall@5": 0.4,
+          "Precision@5": 0.8,
           "Hit@5": 1.0,
-          "Recall@10": 0.5,
-          "Precision@10": 0.5,
+          "Recall@10": 0.4,
+          "Precision@10": 0.4,
           "Hit@10": 1.0,
-          "MRR": 0.3333333333333333,
+          "MRR": 0.5,
           "NDCG@1": 0.0,
-          "NDCG@3": 0.23463936301137822,
-          "NDCG@5": 0.30078518014914984,
-          "NDCG@10": 0.4163824138054737
+          "NDCG@3": 0.5307212739772434,
+          "NDCG@5": 0.6608397947263839,
+          "NDCG@10": 0.4288398090337664
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 0,
-        "vector": 9
+        "vector": 6
       }
     },
     {
@@ -2813,6 +3837,41 @@
       "gt_size": 4,
       "retrieved_count": 10,
       "metrics": {
+        "Recall@1": 0.25,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.25,
+        "Precision@3": 0.3333333333333333,
+        "Hit@3": 1.0,
+        "Recall@5": 0.25,
+        "Precision@5": 0.2,
+        "Hit@5": 1.0,
+        "Recall@10": 0.25,
+        "Precision@10": 0.1,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 0.46927872602275644,
+        "NDCG@5": 0.3903800499921017,
+        "NDCG@10": 0.3903800499921017
+      },
+      "keyword_filters": {
+        "required_tags": [
+          "动画电影",
+          "剧场版"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 10,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
         "Recall@1": 0.0,
         "Precision@1": 0.0,
         "Hit@1": 0.0,
@@ -2831,7 +3890,7 @@
         "NDCG@5": 0.19519002499605084,
         "NDCG@10": 0.32531670832675136
       },
-      "channel_metrics": {
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2890,7 +3949,7 @@
           "NDCG@10": 0.32531670832675136
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 0,
         "vector": 10
@@ -2924,7 +3983,37 @@
         "NDCG@5": 0.5855700749881525,
         "NDCG@10": 0.6984152163370878
       },
-      "channel_metrics": {
+      "keyword_filters": {},
+      "invoked": {
+        "keyword": false,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.25,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.5,
+        "Precision@3": 0.6666666666666666,
+        "Hit@3": 1.0,
+        "Recall@5": 0.5,
+        "Precision@5": 0.4,
+        "Hit@5": 1.0,
+        "Recall@10": 0.75,
+        "Precision@10": 0.3,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 0.7039180890341347,
+        "NDCG@5": 0.5855700749881525,
+        "NDCG@10": 0.6984152163370878
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -2983,7 +4072,7 @@
           "NDCG@10": 0.6984152163370878
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 0,
         "vector": 10
@@ -3017,7 +4106,39 @@
         "NDCG@5": 0.830419897363192,
         "NDCG@10": 0.7036341014013555
       },
-      "channel_metrics": {
+      "keyword_filters": {
+        "career": "director"
+      },
+      "invoked": {
+        "keyword": true,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.125,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.25,
+        "Precision@3": 0.6666666666666666,
+        "Hit@3": 1.0,
+        "Recall@5": 0.5,
+        "Precision@5": 0.8,
+        "Hit@5": 1.0,
+        "Recall@10": 0.625,
+        "Precision@10": 0.5,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 0.7653606369886217,
+        "NDCG@5": 0.830419897363192,
+        "NDCG@10": 0.7036341014013555
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -3076,7 +4197,7 @@
           "NDCG@10": 0.7036341014013555
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 0,
         "vector": 10
@@ -3110,7 +4231,37 @@
         "NDCG@5": 0.5855700749881525,
         "NDCG@10": 0.7246262544989281
       },
-      "channel_metrics": {
+      "keyword_filters": {},
+      "invoked": {
+        "keyword": false,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 0
+      },
+      "channel_errors": {},
+      "probe_metrics": {
+        "Recall@1": 0.25,
+        "Precision@1": 1.0,
+        "Hit@1": 1.0,
+        "Recall@3": 0.5,
+        "Precision@3": 0.6666666666666666,
+        "Hit@3": 1.0,
+        "Recall@5": 0.5,
+        "Precision@5": 0.4,
+        "Hit@5": 1.0,
+        "Recall@10": 0.75,
+        "Precision@10": 0.3,
+        "Hit@10": 1.0,
+        "MRR": 1.0,
+        "NDCG@1": 1.0,
+        "NDCG@3": 0.7039180890341347,
+        "NDCG@5": 0.5855700749881525,
+        "NDCG@10": 0.7246262544989281
+      },
+      "probe_channel_metrics": {
         "keyword": {
           "Recall@1": 0.0,
           "Precision@1": 0.0,
@@ -3169,7 +4320,7 @@
           "NDCG@10": 0.7246262544989281
         }
       },
-      "fusion": {
+      "probe_fusion": {
         "keyword": 0,
         "name": 0,
         "vector": 10

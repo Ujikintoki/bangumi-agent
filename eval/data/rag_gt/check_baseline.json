@@ -1,0 +1,209 @@
+{
+  "schema": 2,
+  "frozen_at": "2026-09-13",
+  "note": "手写冻结。【只允许收紧】：--freeze 只能删除条目，不能新增。新增缺陷必须去修代码。",
+  "parse_domain_support": {
+    "a20": {
+      "why": "tag ['進撃の巨人'] 在域内 0 条匹配（全部 ['進撃の巨人']）",
+      "at": "2026-09-13"
+    },
+    "a22": {
+      "why": "tag ['化物語'] 在域内 0 条匹配（全部 ['化物語']）",
+      "at": "2026-09-13"
+    },
+    "a23": {
+      "why": "tag ['NN'] 在域内 0 条匹配（全部 ['NN']）",
+      "at": "2026-09-13"
+    }
+  },
+  "keyword_stage1_nonempty": {
+    "a20": {
+      "why": "解析出 tags⊇[進撃の巨人] 但阶段1 命中 0 条，返回的 0 条全是软兜底",
+      "at": "2026-09-13"
+    },
+    "a22": {
+      "why": "解析出 tags⊇[化物語] 但阶段1 命中 0 条，返回的 0 条全是软兜底",
+      "at": "2026-09-13"
+    },
+    "a23": {
+      "why": "解析出 tags⊇[NN] 但阶段1 命中 0 条，返回的 0 条全是软兜底",
+      "at": "2026-09-13"
+    },
+    "p01": {
+      "why": "解析出 tags⊇[乐队,动画,百合,音乐] 但阶段1 命中 0 条，返回的 10 条全是软兜底",
+      "at": "2026-09-13"
+    },
+    "p05": {
+      "why": "解析出 tags⊇[日常,温馨,轻松] 但阶段1 命中 0 条，返回的 10 条全是软兜底",
+      "at": "2026-09-13"
+    },
+    "p09": {
+      "why": "解析出 career=director 但阶段1 命中 0 条，返回的 0 条全是软兜底",
+      "at": "2026-09-13"
+    }
+  },
+  "extraction_fingerprint": {
+    "a01": {
+      "required_tags": [
+        "芳文社"
+      ]
+    },
+    "a02": {
+      "required_tags": [
+        "CloverWorks"
+      ]
+    },
+    "a03": {
+      "required_tags": [
+        "京都动画"
+      ]
+    },
+    "a04": {
+      "required_tags": [
+        "ufotable"
+      ]
+    },
+    "a05": {
+      "required_tags": [
+        "Production.I.G"
+      ]
+    },
+    "a06": {
+      "required_tags": [
+        "TRIGGER"
+      ]
+    },
+    "a07": {
+      "required_tags": [
+        "动画工房"
+      ]
+    },
+    "a08": {
+      "required_tags": [
+        "虚渊玄"
+      ]
+    },
+    "a09": {
+      "required_tags": [
+        "MADHouse"
+      ]
+    },
+    "a10": {
+      "required_tags": [
+        "BONES"
+      ]
+    },
+    "a11": {
+      "required_tags": [
+        "P.A.WORKS"
+      ]
+    },
+    "a12": {
+      "required_tags": [
+        "吉卜力"
+      ]
+    },
+    "a13": {
+      "required_tags": [
+        "2023年",
+        "动画"
+      ],
+      "year": 2023
+    },
+    "a14": {
+      "required_tags": [
+        "2022年",
+        "动画"
+      ],
+      "year": 2022
+    },
+    "a15": {
+      "required_tags": [
+        "神作"
+      ]
+    },
+    "a16": {
+      "career": "seiyu"
+    },
+    "a17": {
+      "career": "artist"
+    },
+    "a18": {
+      "career": "producer"
+    },
+    "a19": {
+      "required_tags": [
+        "孤独摇滚"
+      ]
+    },
+    "a20": {
+      "required_tags": [
+        "進撃の巨人"
+      ]
+    },
+    "a21": {
+      "required_tags": [
+        "命运石之门"
+      ]
+    },
+    "a22": {
+      "required_tags": [
+        "化物語"
+      ]
+    },
+    "a23": {
+      "required_tags": [
+        "NN"
+      ]
+    },
+    "a24": {},
+    "a25": {},
+    "p01": {
+      "required_tags": [
+        "乐队",
+        "动画",
+        "百合",
+        "音乐"
+      ]
+    },
+    "p02": {
+      "required_tags": [
+        "冒险",
+        "异世界",
+        "转生"
+      ]
+    },
+    "p03": {
+      "required_tags": [
+        "战斗",
+        "机甲",
+        "科幻"
+      ]
+    },
+    "p04": {
+      "required_tags": [
+        "悬疑",
+        "惊悚",
+        "推理"
+      ]
+    },
+    "p05": {
+      "required_tags": [
+        "日常",
+        "温馨",
+        "轻松"
+      ]
+    },
+    "p06": {
+      "required_tags": [
+        "剧场版",
+        "动画电影"
+      ]
+    },
+    "p08": {},
+    "p09": {
+      "career": "director"
+    },
+    "p10": {}
+  }
+}
