@@ -120,6 +120,16 @@ def _scenario_needs_remote_tools(scen: dict) -> bool:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+# render 失败后调用方的两条出口日志（main.py:_render_final_reply）。
+# 两条都算 degraded —— 含义是"用户看到的这段字不是 render LLM 写的"，
+# 而不是"走了某一条特定分支"。只认其中一条会漏计另一半降级。
+# 改 main.py 那两句日志文案时同步改这里。
+_DEGRADE_MARKERS = (
+    "降级为清理后的原始文本",  # 非 chat：有可示人的原文，清理后降级
+    "chat 分支回落通用话术",  # chat：没有可示人的原文，用写死的兜底
+)
+
+
 class _RenderSignalHandler(logging.Handler):
     """抓 render 层的两条 WARNING —— 它们是回复质量的直接证据。
 
@@ -144,7 +154,7 @@ class _RenderSignalHandler(logging.Handler):
             return
         if "硬截断" in msg:
             self.hard_cutoff = True
-        if "降级为清理后的原始文本" in msg:
+        if any(marker in msg for marker in _DEGRADE_MARKERS):
             self.degraded = True
 
 
@@ -267,12 +277,18 @@ _LEAK_PATTERNS = {
     "代码围栏": re.compile(r"^\s*```", re.MULTILINE),
     # <function_calls> / <invoke> 这类工具调用 XML 泄漏（agent/guardrails.py 同款）
     "XML工具调用": re.compile(r"<\s*(?:function_calls|invoke|parameter|xml)[\s>]", re.IGNORECASE),
+    # ★ 回归哨兵，别删。2026-09-13 首跑轴 3 时抓到过一次真实泄漏（样本 B6-闲聊回应）：
     # render 失败 → 降级返回 _degrade_render_input(render_input)，而 chat 分支的
     # render_input 里写着【给模型看的指令】（main.py:_render_final_reply）：
     #   用户对你说：<用户原话>\n\n这是一段闲聊。自然地用你的角色性格回复。不要列数据、
     #   不要提搜索、就像朋友聊天一样。
     # _degrade_render_input 只清 emoji/markdown，不清这些脚手架 —— 于是内部提示词
-    # 会被原样吐给用户。这比 emoji 泄漏严重得多，单独成一类。
+    # 被原样吐给用户。这比 emoji 泄漏严重得多，单独成一类。
+    #
+    # 已修（main.py 把可示人文本 fallback 与喂模型的 render_input 拆开，chat 分支
+    # 没有可降级的原文 → 回落 render.py 的兜底话术）。模式保留：修好了才更要留哨兵，
+    # 它是唯一能证明"没复发"的东西。旧冻结样本里那条泄漏原文原封不动留着，
+    # 重录前报告里的 any_leak=1 是历史事实，不是当前状态。
     "prompt脚手架": re.compile(
         r"用户对你说：|这是一段闲聊|不要列数据|不要提搜索|就像朋友聊天一样"
     ),

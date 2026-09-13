@@ -46,6 +46,35 @@ RENDER_TEMPERATURE = 0.4
 _SKIP_RENDER_MAX_CHARS = 60
 
 
+# ── render 完全失败时的兜底话术 ──────────────────────────────────
+# 唯一一条不经 LLM 的人格可见输出。触发条件见 main.py:_render_final_reply：
+# render 返回 None，且该分支【没有本来就能给用户看的原文】可降级
+# （chat 分支的 render_input 是给模型看的指令，原样吐出去就是泄漏内部提示词）。
+#
+# 不要用"系统开小差了"这类中性 IT 话术：它和三个角色都对不上，且会把
+# "AI 没答上来"说成"系统故障"。写成角色自己走神/卡壳，既诚实又不跳出人设。
+# 改这里等于改人格表达 —— 与 profiles.py 的 Character Card 一起看（CLAUDE.md 规则 3）。
+_RENDER_FALLBACK_LINES: dict[str, str] = {
+    "bangumi": "……啧，刚才那句我没接住。你再说一遍？",
+    "bangumi_kawaii": "诶，我刚刚卡了一下——你再说一次好不好？",
+    "neutral": "抱歉，我这边出了点问题，请再说一遍。",
+}
+
+
+def render_fallback_line(character) -> str:
+    """render 失败且无原文可降级时的兜底话术（不经 LLM）。
+
+    Args:
+        character: CharacterProfile 对象，按其 key 选话术。
+
+    Returns:
+        该角色的兜底话术；未知 key 回落到 neutral 的那句。
+    """
+    return _RENDER_FALLBACK_LINES.get(
+        getattr(character, "key", ""), _RENDER_FALLBACK_LINES["neutral"]
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Render Prompt Builder — v2: 完整 Character Card + 代码生成的 render_input
 # ═══════════════════════════════════════════════════════════════════════════

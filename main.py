@@ -25,7 +25,7 @@ from agent.persona.profiles import get_agent_profile, get_character
 from agent.persona.render import (
     _extract_user_query as _extract_user_query_from_messages,
 )
-from agent.persona.render import render_reply
+from agent.persona.render import render_fallback_line, render_reply
 from agent.state import AgentState
 from core.config import get_settings
 from database.engine import init_db
@@ -209,6 +209,10 @@ def _degrade_render_input(text: str) -> str:
 
     用于隐式终止路径：当 render_reply 返回 None 时，
     对 Aggregator 原始文本做基础清理，避免 emoji/markdown table 泄漏到用户端。
+
+    ⚠ 只接受【本来就能给用户看】的文本（Aggregator 的输出）。
+    不要把 chat 分支的 render_input 传进来 —— 那是给模型看的指令，
+    清 emoji/markdown 不会让它变成可以示人的正文（曾经就是这样泄漏内部提示词的）。
 
     Args:
         text: Aggregator 输出的原始文本。
@@ -585,7 +589,11 @@ async def _render_final_reply(
 
     - chat 意图：纯闲聊，无工具数据，直接用人格回复。
     - 其余：隐式终止——取 Aggregator 文本摘要交给 render。
-    - render 失败时降级为清理后的原始文本，避免 emoji/markdown 泄漏。
+    - render 失败时：有可示人的原文就清理后降级，没有（chat）就回落兜底话术。
+
+    render_input 与 fallback 是两件事，**不要合并**：
+      render_input = 喂给模型的输入（chat 分支里全是脚手架，不可示人）
+      fallback     = 本来就能给用户看的原文（只有非 chat 分支的 Aggregator 摘要有）
 
     Returns:
         (更新后的 messages, 最终回复文本；无数据时回复为 None)
@@ -597,11 +605,13 @@ async def _render_final_reply(
             "不要列数据、不要提搜索、就像朋友聊天一样。"
         )
         force_render = True
+        fallback = None
     else:
         # 隐式终止：直接使用 Aggregator 文本摘要
         last_ai = _get_last_ai_message(messages)
         if last_ai and last_ai.content:
             render_input = last_ai.content
+            fallback = render_input
             force_render = True
             logger.info(
                 "render: 隐式终止 — 使用 Aggregator 文本摘要 (%d chars)",
@@ -609,6 +619,7 @@ async def _render_final_reply(
             )
         else:
             render_input = "（无数据）"
+            fallback = None
             force_render = False
 
     character = get_character(output_style)
@@ -621,15 +632,24 @@ async def _render_final_reply(
     )
     if rendered:
         return _replace_last_ai_content(messages, rendered), rendered
-    if force_render and render_input != "（无数据）":
-        # 降级：render 失败时清理原始文本，避免 emoji/markdown 泄漏
-        cleaned = _degrade_render_input(render_input)
+    if fallback is not None:
+        # 降级：render 失败时清理原始文本，避免 emoji/markdown 泄漏。
+        # 判断条件是"有没有可示人的原文"，不是"有没有数据"——后者放过 chat 分支。
+        cleaned = _degrade_render_input(fallback)
         logger.warning(
             "Render 失败，降级为清理后的原始文本 (%d → %d chars)",
-            len(render_input),
+            len(fallback),
             len(cleaned),
         )
         return _replace_last_ai_content(messages, cleaned), cleaned
+    if query_intent == "chat":
+        # chat 分支：render_input 是给模型看的指令，一个字都不能吐给用户；
+        # 也不能返回 None —— messages 里还躺着 L1 缓存中上一轮的 AIMessage
+        # （chat 直通 END，本轮不产生新 AIMessage），端点的 _extract_final_reply
+        # 会往上翻把它当成这一轮的回答，用户看到的是复读。
+        line = render_fallback_line(character)
+        logger.warning("Render 失败，chat 分支回落通用话术 (%d chars)", len(line))
+        return _replace_last_ai_content(messages, line), line
     return messages, None
 
 
