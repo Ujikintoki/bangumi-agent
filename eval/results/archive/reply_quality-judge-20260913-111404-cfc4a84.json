@@ -1,0 +1,126 @@
+{
+  "meta": {
+    "axis": "轴 3 · 回复质量（生成侧冻结样本）",
+    "recorded_at": "2026-09-13T11:13:42+0800",
+    "run_id": "20260913-111212",
+    "git_hash": "cfc4a84",
+    "scenario_file": "eval/data/e2e_scenarios.json",
+    "n_recorded": 3,
+    "skipped": [],
+    "offline_mode": true,
+    "isolation": "user_id=eval-20260913-111212-<scenario_id> —— L2 召回按 user_id 检索（session_id 不参与查询），故每个场景开局都是零记忆",
+    "settings_snapshot": {
+      "MEMORY_ENABLED": true,
+      "MEMORY_RECALL_TOP_K": 5,
+      "MEMORY_RECALL_THRESHOLD": 0.5,
+      "MEMORY_RECENCY_FALLBACK_THRESHOLD": 0.6,
+      "MEMORY_TIME_DECAY_HALF_LIFE_DAYS": 14,
+      "LLM_MODEL": "deepseek-v4-flash",
+      "LLM_TEMPERATURE": 0.3,
+      "EMBEDDING_MODEL": "embedding-2"
+    },
+    "known_limits": [
+      "LLM 非确定（RENDER_TEMPERATURE=0.4, LLM_TEMPERATURE 见快照）→ 看分布与 delta，不看单条",
+      "场景真实调用 Bangumi API（离线环境下工具的 _error 会进回复）",
+      "Tier 2（LLM-judge rubric）未建，本样本只够跑 Tier 1"
+    ]
+  },
+  "judged_at": "2026-09-13T11:14:04+0800",
+  "overall": {
+    "n": 3,
+    "empty": 0,
+    "error_reply": 0,
+    "hard_cutoff": 0,
+    "render_degraded": 1,
+    "over_soft_limit": 0,
+    "over_hard_limit": 0,
+    "any_leak": 1,
+    "leak_kinds": {
+      "prompt脚手架": 1
+    },
+    "chars_p50": 55,
+    "chars_p95": 111,
+    "chars_max": 111
+  },
+  "by_depth": {
+    "fast": {
+      "n": 3,
+      "empty": 0,
+      "error_reply": 0,
+      "hard_cutoff": 0,
+      "render_degraded": 1,
+      "over_soft_limit": 0,
+      "over_hard_limit": 0,
+      "any_leak": 1,
+      "leak_kinds": {
+        "prompt脚手架": 1
+      },
+      "chars_p50": 55,
+      "chars_p95": 111,
+      "chars_max": 111
+    }
+  },
+  "limits": {
+    "soft_prompt_suggested": {
+      "fast": 200,
+      "deep": 350
+    },
+    "hard_cutoff": {
+      "fast": 280,
+      "deep": 480
+    }
+  },
+  "verdicts": [
+    {
+      "scenario_id": "A1-常识日期",
+      "depth": "fast",
+      "chars": 45,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 41493.9,
+      "tools_used": [
+        "get_calendar"
+      ],
+      "query_intent": "realtime"
+    },
+    {
+      "scenario_id": "A2-常识概念",
+      "depth": "fast",
+      "chars": 55,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": true,
+      "leaks": [
+        "prompt脚手架"
+      ],
+      "latency_ms": 5618.8,
+      "tools_used": [],
+      "query_intent": "chat"
+    },
+    {
+      "scenario_id": "A3-一句话推荐",
+      "depth": "fast",
+      "chars": 111,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 42408.3,
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "query_intent": "explore"
+    }
+  ]
+}

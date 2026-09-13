@@ -1,0 +1,132 @@
+{
+  "total": 3,
+  "passed": 2,
+  "failed": 1,
+  "skipped": [],
+  "pass_rate": 0.667,
+  "by_dimension": {
+    "A": {
+      "n": 3,
+      "passed": 2,
+      "rate": 0.667
+    },
+    "B": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "C": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "D": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "E": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    }
+  },
+  "by_intent": {
+    "chat": {
+      "n": 2,
+      "passed": 1,
+      "rate": 0.5
+    },
+    "fetch": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "explore": {
+      "n": 1,
+      "passed": 1,
+      "rate": 1.0
+    },
+    "discuss": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "realtime": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "profile": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    },
+    "fallback": {
+      "n": 0,
+      "passed": 0,
+      "rate": null
+    }
+  },
+  "latency": {
+    "p50_ms": 38909.9,
+    "p95_ms": null
+  },
+  "tokens": {
+    "prompt": 18812,
+    "completion": 985
+  },
+  "cost_yuan_estimate": 0.0208,
+  "failures": [
+    {
+      "status_code": 200,
+      "reply": "今天星期几我还真答不上来——日历没查成，我这边看不到当前日期。\n\n你要是把今天的日期告诉我，我帮你推。或者你直接翻下手机，比我快。",
+      "iterations": 2,
+      "tools_used": [
+        "get_calendar"
+      ],
+      "query_intent": "realtime",
+      "error_flag": false,
+      "latency_ms": 38909.92425000013,
+      "telemetry": {
+        "elapsed_ms": 38898,
+        "llm_calls": [
+          {
+            "label": "pipeline#1",
+            "elapsed_ms": 959,
+            "prompt_tokens": 1534,
+            "completion_tokens": 35
+          },
+          {
+            "label": "pipeline#2",
+            "elapsed_ms": 1138,
+            "prompt_tokens": 148,
+            "completion_tokens": 78
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 1432,
+            "prompt_tokens": 887,
+            "completion_tokens": 109
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1880
+          },
+          {
+            "node": "realtime_pipeline",
+            "elapsed_ms": 35582
+          }
+        ]
+      },
+      "failures": [
+        "意图: expect=chat got=realtime",
+        "禁调全部工具但调用了: ['get_calendar']"
+      ],
+      "scenario_id": "A1-常识日期",
+      "expect_intent": "chat"
+    }
+  ]
+}

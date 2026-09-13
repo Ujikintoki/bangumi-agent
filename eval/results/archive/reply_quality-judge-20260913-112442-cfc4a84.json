@@ -1,0 +1,480 @@
+{
+  "meta": {
+    "axis": "轴 3 · 回复质量（生成侧冻结样本）",
+    "recorded_at": "2026-09-13T11:24:42+0800",
+    "run_id": "20260913-111412",
+    "git_hash": "cfc4a84",
+    "scenario_file": "eval/data/e2e_scenarios.json",
+    "n_recorded": 21,
+    "skipped": [
+      {
+        "id": "C2-查评分",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "C3-人物查询",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "C4-找相似",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "C6-放送排期",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "D3-评分动态",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "D4-社区热点",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "E1-deep讨论",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "E2-歧义裸标题",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "E6-本季霸权",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      }
+    ],
+    "offline_mode": true,
+    "isolation": "user_id=eval-20260913-111412-<scenario_id> —— L2 召回按 user_id 检索（session_id 不参与查询），故每个场景开局都是零记忆",
+    "settings_snapshot": {
+      "MEMORY_ENABLED": true,
+      "MEMORY_RECALL_TOP_K": 5,
+      "MEMORY_RECALL_THRESHOLD": 0.5,
+      "MEMORY_RECENCY_FALLBACK_THRESHOLD": 0.6,
+      "MEMORY_TIME_DECAY_HALF_LIFE_DAYS": 14,
+      "LLM_MODEL": "deepseek-v4-flash",
+      "LLM_TEMPERATURE": 0.3,
+      "EMBEDDING_MODEL": "embedding-2"
+    },
+    "known_limits": [
+      "LLM 非确定（RENDER_TEMPERATURE=0.4, LLM_TEMPERATURE 见快照）→ 看分布与 delta，不看单条",
+      "场景真实调用 Bangumi API（离线环境下工具的 _error 会进回复）",
+      "Tier 2（LLM-judge rubric）未建，本样本只够跑 Tier 1"
+    ]
+  },
+  "judged_at": "2026-09-13T11:24:42+0800",
+  "overall": {
+    "n": 21,
+    "empty": 0,
+    "error_reply": 1,
+    "hard_cutoff": 0,
+    "render_degraded": 2,
+    "over_soft_limit": 2,
+    "over_hard_limit": 0,
+    "any_leak": 1,
+    "leak_kinds": {
+      "prompt脚手架": 1
+    },
+    "chars_p50": 98,
+    "chars_p95": 222,
+    "chars_max": 305
+  },
+  "by_depth": {
+    "deep": {
+      "n": 2,
+      "empty": 0,
+      "error_reply": 0,
+      "hard_cutoff": 0,
+      "render_degraded": 0,
+      "over_soft_limit": 0,
+      "over_hard_limit": 0,
+      "any_leak": 0,
+      "leak_kinds": {},
+      "chars_p50": 166.0,
+      "chars_p95": 305,
+      "chars_max": 305
+    },
+    "fast": {
+      "n": 19,
+      "empty": 0,
+      "error_reply": 1,
+      "hard_cutoff": 0,
+      "render_degraded": 2,
+      "over_soft_limit": 2,
+      "over_hard_limit": 0,
+      "any_leak": 1,
+      "leak_kinds": {
+        "prompt脚手架": 1
+      },
+      "chars_p50": 98,
+      "chars_p95": 222,
+      "chars_max": 222
+    }
+  },
+  "limits": {
+    "soft_prompt_suggested": {
+      "fast": 200,
+      "deep": 350
+    },
+    "hard_cutoff": {
+      "fast": 280,
+      "deep": 480
+    }
+  },
+  "verdicts": [
+    {
+      "scenario_id": "A1-常识日期",
+      "depth": "fast",
+      "chars": 72,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 38509.9,
+      "tools_used": [
+        "get_calendar"
+      ],
+      "query_intent": "realtime"
+    },
+    {
+      "scenario_id": "A2-常识概念",
+      "depth": "fast",
+      "chars": 204,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": true,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 3416.2,
+      "tools_used": [],
+      "query_intent": "chat"
+    },
+    {
+      "scenario_id": "A3-一句话推荐",
+      "depth": "fast",
+      "chars": 75,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 38554.3,
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "A4-列表格式",
+      "depth": "fast",
+      "chars": 176,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 41328.2,
+      "tools_used": [
+        "search_local_bangumi",
+        "get_trending_subjects"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "A5-deep深入",
+      "depth": "deep",
+      "chars": 27,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 36980.2,
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "A6-无意义输入",
+      "depth": "fast",
+      "chars": 88,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 38924.5,
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "query_intent": "fallback"
+    },
+    {
+      "scenario_id": "B1-bangumi人格",
+      "depth": "fast",
+      "chars": 139,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 7232.7,
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "B2-kawaii人格",
+      "depth": "fast",
+      "chars": 222,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": true,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 7579.1,
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "B3-neutral人格",
+      "depth": "fast",
+      "chars": 92,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 39171.1,
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "B4-立场评价",
+      "depth": "fast",
+      "chars": 19,
+      "empty": false,
+      "error_reply": true,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 45009.3,
+      "tools_used": [],
+      "query_intent": "unknown"
+    },
+    {
+      "scenario_id": "B5-反馈修正",
+      "depth": "fast",
+      "chars": 98,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 3646.6,
+      "tools_used": [],
+      "query_intent": "chat"
+    },
+    {
+      "scenario_id": "B6-闲聊回应",
+      "depth": "fast",
+      "chars": 60,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": true,
+      "leaks": [
+        "prompt脚手架"
+      ],
+      "latency_ms": 2432.4,
+      "tools_used": [],
+      "query_intent": "chat"
+    },
+    {
+      "scenario_id": "C1-禁工具常识",
+      "depth": "fast",
+      "chars": 79,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 40518.8,
+      "tools_used": [
+        "get_calendar"
+      ],
+      "query_intent": "realtime"
+    },
+    {
+      "scenario_id": "C5-deep必调工具",
+      "depth": "deep",
+      "chars": 305,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 43615.5,
+      "tools_used": [
+        "search_local_bangumi",
+        "get_trending_subjects"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "D1-无上下文指代",
+      "depth": "fast",
+      "chars": 112,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 38245.9,
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "D2-用户画像",
+      "depth": "fast",
+      "chars": 149,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 39784.5,
+      "tools_used": [
+        "get_user_profile",
+        "get_user_timeline"
+      ],
+      "query_intent": "profile"
+    },
+    {
+      "scenario_id": "D5-社区评价",
+      "depth": "fast",
+      "chars": 39,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": true,
+      "leaks": [],
+      "latency_ms": 39500.9,
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "D6-我的追番",
+      "depth": "fast",
+      "chars": 139,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 38791.9,
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "query_intent": "fallback"
+    },
+    {
+      "scenario_id": "E3-梗找番",
+      "depth": "fast",
+      "chars": 157,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 8112.9,
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "E4-梗讨论",
+      "depth": "fast",
+      "chars": 188,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 39238.5,
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "query_intent": "explore"
+    },
+    {
+      "scenario_id": "E5-能力外",
+      "depth": "fast",
+      "chars": 78,
+      "empty": false,
+      "error_reply": false,
+      "over_soft_limit": false,
+      "over_hard_limit": false,
+      "hard_cutoff": false,
+      "render_degraded": false,
+      "leaks": [],
+      "latency_ms": 39109.8,
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "query_intent": "fallback"
+    }
+  ]
+}

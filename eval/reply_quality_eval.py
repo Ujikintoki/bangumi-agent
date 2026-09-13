@@ -29,7 +29,10 @@
                                   那条路径【不过硬截断】，是唯一能真超上界的情况
             「报错」认的是 main.py 的 canned 兜底文案，不只是"抱歉"开头 ——
             否则像"工具执行完成但未能生成文本回复"这种彻底失败的轮次会全勾通过。
-    Tier 2  LLM-as-judge rubric —— 待建。约束见 eval/README.md「LLM-as-judge 的工程约束」。
+    Tier 2  LLM-as-judge rubric —— 忠实性（建在 eval/reply_quality_judge.py）。
+            判据是「回复里的断言能不能在 Agent 当时看到的东西里找到依据」，所以录制
+            侧必须顺手把【工具返回原文】冻结进样本 —— 见下方「证据捕获」。
+            约束见 eval/README.md「LLM-as-judge 的工程约束」。
 
 用法::
 
@@ -60,6 +63,40 @@ FROZEN_DIR = RESULTS_DIR / "frozen"
 
 # 本地检索工具 —— 只有它不依赖 Bangumi API（走 pgvector + embedding）
 _LOCAL_TOOLS = {"search_local_bangumi"}
+
+# 证据捕获的两个上限。工具返回原文是 Tier 2 忠实性核对的【唯一】依据，但原文可能很大
+# （检索类工具一次能吐回好几 KB）。截断/丢弃都【显式标记】，判官见了必须按 unknown 处理
+# 而不是 unsupported —— 证据没看到 ≠ 模型在编。两个数写进样本 meta，且要进判官缓存键：
+# 改了上限就是换了证据，旧判定一律作废。
+#
+# 2026-09-14 实测：本地检索（search_local_bangumi）一次 limit=10 能吐 30–37k 字符，
+# 占满单场景预算 —— 首跑 30 条就有 10 次调用被截断/整条丢弃。所以检索类工具改走
+# 【卡片化】（见 _card_result），这两个上限降级为兜底。
+_EVIDENCE_CALL_CHARS = 20000
+# 单场景上限。实测分布：29/30 个场景 ≤ 23510 字，唯一的离群点是 C5-deep必调工具
+# （"冷门番"太难，Agent 换了 6 次说法重试检索）59771 字。理论上限 = deep 迭代 6 轮 ×
+# 单次卡片约 12k ≈ 72k，所以取 80000 —— 让截断在正常配置下【归零】，而不是天天触发。
+# 卡片化后的最坏判官 prompt 约 70k 字 ≈ 11k token，判官吃得下。
+_EVIDENCE_TOTAL_CHARS = 80000
+
+# 证据卡片版本。改卡片规则（留哪些字段、封多大）必须改它 —— 它进样本 meta，也是
+# Step 3 判官缓存键的一部分：换了卡片就是换了证据，旧判定一律作废。
+_EVIDENCE_POLICY = "card-v1"
+
+# 哪些工具走卡片化。只列检索类：它们的返回是"记录列表"，体积随 limit 线性膨胀。
+# 其余工具（detail/person/episodes/comments…）实测都 < 4000 字符，原样留全文更诚实。
+_CARDED_TOOLS = {"search_local_bangumi"}
+
+# 卡片保留的标量字段。判官核断言时靠它们定位"这句话说的是哪条记录"。
+_CARD_KEEP = ("id", "name", "name_cn", "type", "info", "date", "eps",
+              "score", "rank", "rating_total", "_source", "_next")
+_CARD_SUMMARY_CHARS = 300        # 与 D 组 JUDGE_SUMMARY_CHARS 取齐
+_CARD_INFOBOX_KEYS = 12          # 作品级 infobox 每条约 30 键；前 12 键是导演/原作/音乐这类
+_CARD_INFOBOX_VALUE_CHARS = 80   # 实测只有 8% 的 infobox 值超过 80 字，封顶几乎不丢信息
+# 卡片丢掉了什么。进样本 meta（不逐条塞进证据里），判官据此把"依赖未列字段的断言"判 unknown。
+_CARD_OMITTED = ("infobox 第 13 键及其后", "infobox 值超 80 字的部分",
+                 "rating_count", "collection", "tags[].count",
+                 "series / series_entry / nsfw / volumes / subject_type")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -92,6 +129,9 @@ def _settings_snapshot() -> dict:
             "MEMORY_RECALL_THRESHOLD": s.MEMORY_RECALL_THRESHOLD,
             "MEMORY_RECENCY_FALLBACK_THRESHOLD": s.MEMORY_RECENCY_FALLBACK_THRESHOLD,
             "MEMORY_TIME_DECAY_HALF_LIFE_DAYS": s.MEMORY_TIME_DECAY_HALF_LIFE_DAYS,
+            # 录制时被置 0（见 record()）。留在这里是为了让报告显形：0 = 这一轮录制
+            # 没走限流，样本里不会出现"被自家中间件拒掉的空回复"。
+            "RATE_LIMIT_PER_MINUTE": s.RATE_LIMIT_PER_MINUTE,
             "LLM_MODEL": s.LLM_MODEL,
             "LLM_TEMPERATURE": s.LLM_TEMPERATURE,
             "EMBEDDING_MODEL": s.EMBEDDING_MODEL,
@@ -100,12 +140,51 @@ def _settings_snapshot() -> dict:
         return {"_error": f"{type(exc).__name__}: {exc}"}
 
 
+# 只有这些顶层键不算"拿到了数据" —— get_user_profile 无论成败都带着 username 回来
+_EVIDENCE_META_KEYS = {"username"}
+
+
+def _is_error_result(result) -> bool:
+    """这次工具调用有没有【拿到数据】。忠实性判官靠它区分「模型在编」和「工具本来
+    就没给数据」——两者的 unsupported 含义完全不同。
+
+    两种失败形状都要认：
+      · 顶层 ``{"_error": ...}`` —— 绝大多数工具（CLAUDE.md 的约定）
+      · **只**剩 ``*_error`` 子键、没有任何实质字段 —— ``get_user_profile`` 这种并行
+        取多段的工具，全段失败时就是这样。它看起来像个正常 dict（有 username、
+        有若干字段），2026-09-14 首跑就骗过了一次：D2/D6 两轮全 404，却被计成"成功"。
+
+    部分失败（既有数据又有 ``*_error``）**不算失败**：Agent 手上确实有东西可用。
+    这种记进 soft_errors，让报告能说清"证据是残缺的"。
+    """
+    if not isinstance(result, dict):
+        return False
+    if "_error" in result:
+        return True
+    if not any(k.endswith("_error") for k in result):
+        return False
+    return not [k for k in result
+                if not k.endswith("_error") and k not in _EVIDENCE_META_KEYS]
+
+
+def _has_soft_error(result) -> bool:
+    """拿到了数据、但有一段挂了（``get_user_profile`` 取 4 段挂了 1 段那种）。"""
+    return (isinstance(result, dict) and not _is_error_result(result)
+            and any(k.endswith("_error") for k in result))
+
+
 def _scenario_needs_remote_tools(scen: dict) -> bool:
     """场景是否必须有【Bangumi API 工具】才能跑。
 
     require_tools 是硬需求；require_any_tools 是"每组任一"，只要组里有本地工具
     就算能跑。forbid_tools 里的 '*' 表示禁调全部工具 —— 那种场景反而最干净。
+
+    ``requires_token`` 单独判：D2/D6 的 require_tools 是空表（它们要的
+    get_user_profile / get_user_timeline 是**条件注册**的），只看 require_tools
+    会漏判 —— 断网时它们照样跑，然后拿一整轮 _error 回复冒充正常样本。
     """
+    if scen.get("requires_token"):
+        return True
     require = set(scen.get("require_tools") or [])
     if require - _LOCAL_TOOLS:
         return True
@@ -120,13 +199,20 @@ def _scenario_needs_remote_tools(scen: dict) -> bool:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-# render 失败后调用方的两条出口日志（main.py:_render_final_reply）。
-# 两条都算 degraded —— 含义是"用户看到的这段字不是 render LLM 写的"，
-# 而不是"走了某一条特定分支"。只认其中一条会漏计另一半降级。
-# 改 main.py 那两句日志文案时同步改这里。
+# 调用方的降级出口日志（`main.py:_render_final_reply` / `_render_no_text_followup`）。
+# 含义是"用户看到的这段字走的是兜底路径，不是针对这一问的回答"—— 而不是"走了某一条
+# 特定分支"。只认其中一条就会漏计另一半。
+# 改 main.py 那几句日志文案时同步改这里。
+#
+# 2026-09-14 口径放宽一格：后两条是"模型一个字都没吐"的收尾，其中「交给人格层交代」
+# 那条**是 render 写的**（写的是交代，不是答案）。把它排除在外就等于：修好一个缺陷，
+# 指标上反而少了两条失败 —— 失败从"看得见"变成"看不见"。宁可口径宽一点，也不能让
+# 失败消失。代价是这张表和旧冻结样本不再严格可比，见 eval/README.md 的同日说明。
 _DEGRADE_MARKERS = (
     "降级为清理后的原始文本",  # 非 chat：有可示人的原文，清理后降级
     "chat 分支回落通用话术",  # chat：没有可示人的原文，用写死的兜底
+    "模型未收尾",             # 模型没吐文本 → 结局交代（人格层交代 / 走神话术）
+    "结局交代渲染失败",        # 上一条的 render 也挂了 → 回落写死的结局话术
 )
 
 
@@ -158,8 +244,194 @@ class _RenderSignalHandler(logging.Handler):
             self.degraded = True
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# 证据捕获 —— Tier 2（忠实性）的输入
+# ═══════════════════════════════════════════════════════════════════════
+#
+# 忠实性判的是「回复里的断言能不能在【Agent 当时看到的东西】里找到依据」。所以证据
+# 必须在【录制时】落盘：事后重放同样的工具调用，拿回来的是今天的 DB 和 API，不是
+# 当时那一轮看到的 —— 两者的差异会被记成模型的幻觉，那是测量事故，不是缺陷。
+#
+# 做法是给工具套一层同名替身。图里装配的仍是 16 个工具，name / description /
+# args_schema 一字不差（连给 LLM 看的工具清单都不变），只是每次调用顺手抄一份
+# (参数, 返回)。生产代码一行不动 —— agent/graph.py 是模块级单例 build_graph()，
+# 只要在 import main 之前把 tools.bgm_tools.get_agent_tools 换成返回替身的版本，
+# 图里装的、以及各 pipeline 子图里装的（同一批对象）就都是替身。
+#
+# 没捕获的东西（写在这里免得将来自作聪明）：L2 记忆召回、L1 压缩后的上下文、
+# system prompt。轴 3 的录制给每个场景一个 run-scoped user_id（见下方 isolation），
+# 每局开局都是零记忆，所以"凭记忆说的话"这类断言在当前样本里不存在。
+
+
+def _card_record(rec: dict) -> dict:
+    """把一条检索结果投影成判官卡片。
+
+    判官要核的是「回复里的断言」，不是「条目数据库长什么样」，所以只留能支撑断言的
+    字段。infobox【不整块丢】—— 它是"导演: 新房昭之 / 音乐: 梶浦由記"这种角色→人名
+    的映射，而损友人设最容易点评的正是这些；整块丢掉会让真话判成 unsupported。
+    封顶到 12 键 / 单值 80 字：实测因此丢掉的只有 8% 的值。
+    """
+    card = {k: rec[k] for k in _CARD_KEEP if k in rec}
+    if isinstance(rec.get("summary"), str):
+        card["summary"] = rec["summary"][:_CARD_SUMMARY_CHARS]
+    tags = rec.get("tags")
+    if isinstance(tags, list):
+        names = [t.get("name") for t in tags if isinstance(t, dict) and t.get("name")]
+        if names:
+            card["tags"] = names
+    infobox = rec.get("infobox")
+    if isinstance(infobox, dict):
+        capped: dict = {}
+        for i, (k, v) in enumerate(infobox.items()):
+            if i >= _CARD_INFOBOX_KEYS:
+                break
+            capped[k] = v[:_CARD_INFOBOX_VALUE_CHARS] if isinstance(v, str) else v
+        if capped:
+            card["infobox"] = capped
+    return card
+
+
+def _card_result(result):
+    """检索类返回 → 卡片。返回 (投影后的结果, 有没有真的卡片化)。
+
+    只认 ``{"results": [...]}`` 这个形状（CLAUDE.md 工具返回约定）；错误返回、
+    别的形状一律原样放行，交给体积上限兜底。
+    """
+    if not isinstance(result, dict) or not isinstance(result.get("results"), list):
+        return result, False
+    out = dict(result)
+    out["results"] = [r if not isinstance(r, dict) else _card_record(r)
+                      for r in result["results"]]
+    # 空结果（"results": []）没投影任何东西，不能记成"已卡片化"—— 报告里那个计数
+    # 是给判官看的"证据是投影过的"，记虚了就等于骗判官。
+    return out, any(isinstance(r, dict) for r in result["results"])
+
+
+class _EvidenceSink:
+    """一轮场景的工具调用流水。
+
+    录制是【逐条串行】的（``record()`` 里 for + await），所以模块级单例够用；
+    真要并行录制，这里得换成 contextvars。
+    """
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        self.records: list[dict] = []
+        self.total_chars = 0
+
+    def add(self, tool: str, args: dict, result, raised: str | None,
+            duration_ms: float) -> None:
+        rec: dict = {
+            "i": len(self.records),
+            "tool": tool,
+            "args": args,
+            "duration_ms": round(duration_ms, 1),
+        }
+        if raised:
+            # 工具本该不抛异常（约定是返回 _error dict）。真抛了也记一笔，然后【原样
+            # 上抛】—— 生产路径的 ToolNode(handle_tool_errors=...) 怎么处理，这一轮
+            # 就还是怎么处理，替身不改变行为。
+            rec["result"], rec["raised"] = None, raised
+        else:
+            if tool in _CARDED_TOOLS:
+                result, carded = _card_result(result)
+                if carded:
+                    rec["carded"] = True
+            text = self._as_text(result)
+            if self.total_chars + len(text) > _EVIDENCE_TOTAL_CHARS:
+                rec["result"] = {"_dropped": True,
+                                 "reason": "场景证据总量超上限，这条只留工具名与参数"}
+                rec["dropped"] = True
+            elif len(text) <= _EVIDENCE_CALL_CHARS:
+                rec["result"] = result
+                self.total_chars += len(text)
+            else:
+                rec["result"] = {"_truncated": True, "_chars": len(text),
+                                 "text": text[:_EVIDENCE_CALL_CHARS]}
+                rec["truncated"] = True
+                self.total_chars += _EVIDENCE_CALL_CHARS
+        self.records.append(rec)
+
+    @staticmethod
+    def _as_text(result) -> str:
+        try:
+            return json.dumps(result, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            return str(result)
+
+
+_EVIDENCE = _EvidenceSink()
+
+
+def _evidence_stats(records: list[dict]) -> dict:
+    return {
+        "calls": len(records),
+        "errors": sum(1 for r in records
+                      if r.get("raised") or _is_error_result(r.get("result"))),
+        "soft_errors": sum(1 for r in records if _has_soft_error(r.get("result"))),
+        "carded": sum(1 for r in records if r.get("carded")),
+        "truncated": sum(1 for r in records if r.get("truncated")),
+        "dropped": sum(1 for r in records if r.get("dropped")),
+    }
+
+
+def _wrap_tool(tool):
+    """造一个同名同 schema 的替身工具，调用时抄一份 (参数, 返回)。"""
+    from langchain_core.tools import StructuredTool
+
+    if tool.coroutine is None:
+        # 本仓库 16 个工具全是 async。真冒出同步工具，宁可当场炸掉 ——
+        # 静默漏掉它的返回，等于让判官拿"证据里没有"去判一句其实有据的话。
+        raise RuntimeError(f"工具 {tool.name} 没有 async coroutine，证据捕获挂不上")
+
+    async def _recorded(**kwargs):
+        t0 = time.monotonic()
+        try:
+            result = await tool.coroutine(**kwargs)
+        except BaseException as exc:  # noqa: BLE001 —— 记录后原样抛，不吞
+            _EVIDENCE.add(tool.name, kwargs, None, f"{type(exc).__name__}: {exc}",
+                          (time.monotonic() - t0) * 1000)
+            raise
+        _EVIDENCE.add(tool.name, kwargs, result, None, (time.monotonic() - t0) * 1000)
+        return result
+
+    return StructuredTool.from_function(
+        coroutine=_recorded,
+        name=tool.name,
+        description=tool.description,
+        args_schema=tool.args_schema,
+    )
+
+
+def _install_evidence_capture() -> int:
+    """把 ``get_agent_tools`` 换成"返回替身"的版本，返回包装了几个工具。
+
+    ⚠ 必须在 ``from main import app`` 之前调用：``agent/graph.py`` 在模块导入时
+    就把 ``get_agent_tools()`` 的结果装进图里了（``agent_app = build_graph()``
+    模块级单例）。已经导入过就救不回来 —— 那时图里装的是原工具，静默漏证据比报错
+    危险得多，所以这里直接抛。
+    """
+    if "agent.graph" in sys.modules:
+        raise RuntimeError(
+            "agent.graph 已导入（图里装的是原工具），证据捕获挂不上："
+            "_install_evidence_capture() 必须早于 from main import app。"
+        )
+    import tools.bgm_tools as bgm_tools
+
+    original = bgm_tools.get_agent_tools
+
+    def _patched() -> list:
+        return [_wrap_tool(t) for t in original()]
+
+    bgm_tools.get_agent_tools = _patched
+    return len(original())
+
+
 async def _record_scenario(client, scen: dict, run_id: str, handler: _RenderSignalHandler) -> dict:
     handler.reset()
+    _EVIDENCE.reset()
     payload = {
         "message": scen["message"],
         "depth": scen.get("depth", "fast"),
@@ -175,7 +447,7 @@ async def _record_scenario(client, scen: dict, run_id: str, handler: _RenderSign
         body = resp.json()
         status_code = resp.status_code
     except Exception as exc:
-        return {
+        out = {
             "scenario_id": scen["id"], "message": scen["message"],
             "depth": payload["depth"], "output_style": payload["output_style"],
             "expect_intent": scen.get("expect_intent"), "status_code": 0,
@@ -183,29 +455,45 @@ async def _record_scenario(client, scen: dict, run_id: str, handler: _RenderSign
             "latency_ms": 0.0, "render": {"hard_cutoff": False, "degraded": False},
             "error": f"{type(exc).__name__}: {exc}", "telemetry": None,
         }
-    latency_ms = (time.monotonic() - t0) * 1000
+    else:
+        latency_ms = (time.monotonic() - t0) * 1000
+        out = {
+            "scenario_id": scen["id"],
+            "message": scen["message"],
+            "depth": payload["depth"],
+            "output_style": payload["output_style"],
+            "expect_intent": scen.get("expect_intent"),
+            "status_code": status_code,
+            "reply": body.get("reply", "") or "",
+            "query_intent": body.get("query_intent", "unknown"),
+            "tools_used": body.get("tools_used", []) or [],
+            "iterations": body.get("iterations", 0),
+            "latency_ms": round(latency_ms, 1),
+            "render": {"hard_cutoff": handler.hard_cutoff, "degraded": handler.degraded},
+            "telemetry": body.get("telemetry"),
+        }
 
-    return {
-        "scenario_id": scen["id"],
-        "message": scen["message"],
-        "depth": payload["depth"],
-        "output_style": payload["output_style"],
-        "expect_intent": scen.get("expect_intent"),
-        "status_code": status_code,
-        "reply": body.get("reply", "") or "",
-        "query_intent": body.get("query_intent", "unknown"),
-        "tools_used": body.get("tools_used", []) or [],
-        "iterations": body.get("iterations", 0),
-        "latency_ms": round(latency_ms, 1),
-        "render": {"hard_cutoff": handler.hard_cutoff, "degraded": handler.degraded},
-        "telemetry": body.get("telemetry"),
-    }
+    # 证据在请求返回后收口 —— 此刻这一轮的工具调用已全部结束（render 在 graph 之后，
+    # 且 render 不调工具）。请求本身炸了也照样带上：那半轮调过的工具是有信息量的。
+    out["evidence"] = list(_EVIDENCE.records)
+    out["evidence_meta"] = _evidence_stats(out["evidence"])
+    return out
 
 
 async def record(scenarios: list[dict], smoke: int, offline: bool, scenario_file: Path) -> dict:
     from core.config import get_settings
     settings = get_settings()
     settings.DEV_MODE = True  # 拿 telemetry
+    # ★ 关掉应用自己的 IP 限流（middleware.rate_limit_middleware，默认 10 次/分钟）。
+    # 录制是一条接一条打 /chat，跑得比 10 次/分钟快就会被自家中间件拒；被拒的那条
+    # 会【当成正常样本冻结下来】（status 429 + 空回复），事后和有效样本长得一模一样。
+    # 2026-09-14 实测栽了两次：00:35 和 00:40 两轮各只有 10/30 条成功，第 11 条起全 429。
+    # 关掉它是诚实的：ASGITransport 是进程内调用，限流防的是外部刷 LLM 成本，防不到自己。
+    # 这个偏离会进 settings_snapshot（见 _settings_snapshot），报告里看得见。
+    settings.RATE_LIMIT_PER_MINUTE = 0
+
+    # ★ 必须在 import main 之前 —— agent/graph.py 在模块导入时就 build_graph() 了
+    n_tools = _install_evidence_capture()
 
     from main import app  # 必须在 DEV_MODE 置位之后
     from httpx import ASGITransport, AsyncClient
@@ -230,8 +518,25 @@ async def record(scenarios: list[dict], smoke: int, offline: bool, scenario_file
     samples: list[dict] = []
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://eval") as client:
         for i, scen in enumerate(to_run):
-            samples.append(await _record_scenario(client, scen, run_id, handler))
-            print(f"  录制 {i + 1}/{len(to_run)}: {scen['id']}")
+            sample = await _record_scenario(client, scen, run_id, handler)
+            samples.append(sample)
+            ev = sample.get("evidence_meta") or {}
+            print(f"  录制 {i + 1}/{len(to_run)}: {scen['id']}"
+                  f"  (证据 {ev.get('calls', 0)} 次，失败 {ev.get('errors', 0)}，"
+                  f"卡片 {ev.get('carded', 0)}，截断/丢弃 "
+                  f"{ev.get('truncated', 0) + ev.get('dropped', 0)})")
+            # ★ 失败即中止，绝不把废样本写进 frozen/。
+            # 被限流/出错的样本长得和有效样本【一模一样】：status_code 换成 429、
+            # reply 空、evidence 空，除此之外全是正常字段。留着它，将来有人直接拿去跑
+            # Tier 2，测的就是一堆积压的拒绝。宁可这轮白跑，不可留废样本。
+            status = sample.get("status_code")
+            if status != 200:
+                raise RuntimeError(
+                    f"录制中止：场景 {scen['id']} 返回 HTTP {status}（已成功 {i} 条）。"
+                    f"冻结样本【未写出】—— 废样本与有效样本外形一致，留着比没有更危险。"
+                    f"若 status=429 请查 middleware.RATE_LIMIT_PER_MINUTE；"
+                    f"其它状态码看服务端日志。"
+                )
 
     for name in ("bgm-agent.render", "bgm-agent"):
         logging.getLogger(name).removeHandler(handler)
@@ -251,10 +556,31 @@ async def record(scenarios: list[dict], smoke: int, offline: bool, scenario_file
                 "（session_id 不参与查询），故每个场景开局都是零记忆"
             ),
             "settings_snapshot": _settings_snapshot(),
+            "evidence_capture": {
+                "enabled": True,
+                "n_tools_wrapped": n_tools,
+                "policy": _EVIDENCE_POLICY,
+                "carded_tools": sorted(_CARDED_TOOLS),
+                "card": {
+                    "keep": list(_CARD_KEEP),
+                    "summary_chars": _CARD_SUMMARY_CHARS,
+                    "infobox_keys": _CARD_INFOBOX_KEYS,
+                    "infobox_value_chars": _CARD_INFOBOX_VALUE_CHARS,
+                    "tags": "只留 name，丢掉 count",
+                    "omitted": list(_CARD_OMITTED),
+                },
+                "per_call_chars": _EVIDENCE_CALL_CHARS,
+                "per_scenario_chars": _EVIDENCE_TOTAL_CHARS,
+                "what": "工具返回（失败的 _error 返回与抛出的异常也在内），逐条样本冻结在 evidence 里；"
+                        "检索类工具按上方 card 规则投影成卡片（每条标 carded=True）",
+                "not_captured": "L2 记忆召回 / L1 压缩后的上下文 / system prompt",
+                "cache_note": "policy + card 规则 + 两个上限都要进 Tier 2 判官的缓存键："
+                              "改任何一项＝换证据，旧判定作废",
+            },
             "known_limits": [
                 "LLM 非确定（RENDER_TEMPERATURE=0.4, LLM_TEMPERATURE 见快照）→ 看分布与 delta，不看单条",
                 "场景真实调用 Bangumi API（离线环境下工具的 _error 会进回复）",
-                "Tier 2（LLM-judge rubric）未建，本样本只够跑 Tier 1",
+                "Tier 1 只判格式；内容质量（忠实性）由 eval/reply_quality_judge.py 读本样本的 evidence 判",
             ],
         },
         "samples": samples,
@@ -295,11 +621,15 @@ _LEAK_PATTERNS = {
 }
 
 # 报错回复的特征（graph_smoke.py 同款判定）
-# main.py 里那几条 canned 兜底回复（`:690`/`:694`/`:696` 的字面量）。它们既不是
+# main.py `_extract_final_reply` 里那几条 canned 兜底回复的字面量。它们既不是
 # 空串、也不以"抱歉"开头，所以不列在这里就会当成正常回复通过全部六个勾 ——
 # A5-deep深入 的 27 字 "工具执行完成但未能生成文本回复" 就是这么漏掉的：
 # 勾全绿，而那一轮其实是彻底的失败。改 main.py 的兜底文案时同步改这里。
 # （不 import main：那会把 FastAPI app 整个拽进来，判定侧要的是纯函数。）
+#
+# 2026-09-14 起三句都成了哨兵：那条"有工具结果却没有 AI 文本"的路已不再返回 canned
+# 文案，改由 `_render_no_text_followup` 给回复（降级口径见 `_DEGRADE_MARKERS`）。
+# 一条都不删 —— 修好了才更要留，它们是"罐头话没回来"的唯一证据。
 _ERROR_MARKERS = (
     "查询处理超时",
     "查询达到最大处理轮次",
@@ -348,6 +678,17 @@ def judge_sample(sample: dict, soft: dict, hard: dict) -> dict:
     leaks = sorted(k for k, pat in _LEAK_PATTERNS.items() if pat.search(reply))
     render = sample.get("render") or {}
 
+    # 证据统计只做搬运，不在 Tier 1 里下结论 —— 它的用处是 Tier 2 的闸门与分层
+    # （"无可用证据"的回复，忠实性判出来的 unsupported 含义完全不同）。
+    # 旧样本（2026-09-13 之前录的）没有 evidence 字段，evidence_present=False，
+    # 报告里那一整块不显示，免得把"没捕获"显示成"没有证据"。
+    ev = sample.get("evidence")
+    ev_present = isinstance(ev, list)
+    ev = ev or []
+    ev_errors = sum(1 for r in ev
+                    if r.get("raised") or _is_error_result(r.get("result")))
+    ev_soft = sum(1 for r in ev if _has_soft_error(r.get("result")))
+
     return {
         "scenario_id": sample.get("scenario_id"),
         "depth": depth,
@@ -363,11 +704,21 @@ def judge_sample(sample: dict, soft: dict, hard: dict) -> dict:
         # 走降级路径的回复不过硬截断，真的会超。
         "over_hard_limit": bool(hard_limit and len(reply) > hard_limit),
         "hard_cutoff": bool(render.get("hard_cutoff")),
+        # 键名是历史遗留（原名只数 render 挂掉那两种）；口径见 `_DEGRADE_MARKERS`，
+        # 报出去的一律叫「降级回复」。
         "render_degraded": bool(render.get("degraded")),
         "leaks": leaks,
         "latency_ms": sample.get("latency_ms"),
         "tools_used": sample.get("tools_used") or [],
         "query_intent": sample.get("query_intent"),
+        "evidence_present": ev_present,
+        "evidence_calls": len(ev),
+        "evidence_errors": ev_errors,
+        "evidence_soft_errors": ev_soft,
+        # 卡片化【不是】残缺：它是按预注册规则做的投影，判官据此把"依赖未列字段的断言"
+        # 判 unknown 而不是 unsupported。截断/丢弃才是真的残缺。
+        "evidence_carded": sum(1 for r in ev if r.get("carded")),
+        "evidence_partial": sum(1 for r in ev if r.get("truncated") or r.get("dropped")),
     }
 
 
@@ -403,6 +754,21 @@ def judge(frozen: dict) -> dict:
             "chars_p50": round(statistics.median(chars), 1),
             "chars_p95": round(sorted(chars)[min(n - 1, int(n * 0.95))], 1),
             "chars_max": max(chars),
+            "evidence_present": any(r["evidence_present"] for r in rows),
+            # 「没调工具」和「调了但全失败」是两回事，混在一起报等于把 chat 场景
+            # 判成故障。前者是设计（禁工具/闲聊），后者才是警报。
+            "no_tool_calls": sum(1 for r in rows
+                                 if r["evidence_present"] and not r["evidence_calls"]),
+            "all_calls_failed": sum(
+                1 for r in rows
+                if r["evidence_present"] and r["evidence_calls"]
+                and r["evidence_calls"] == r["evidence_errors"]
+            ),
+            "evidence_calls": sum(r["evidence_calls"] for r in rows),
+            "evidence_errors": sum(r["evidence_errors"] for r in rows),
+            "evidence_soft_errors": sum(r["evidence_soft_errors"] for r in rows),
+            "evidence_carded": sum(r["evidence_carded"] for r in rows),
+            "evidence_partial": sum(r["evidence_partial"] for r in rows),
         }
 
     by_depth = {d: agg([r for r in verdicts if r["depth"] == d])
@@ -451,16 +817,23 @@ def _print_judge(rep: dict) -> None:
     row("空回复", "empty")
     row("报错回复", "error_reply")
     row("硬截断触发", "hard_cutoff")
-    row("render 降级", "render_degraded")
+    row("降级回复", "render_degraded")
     row("超软上限", "over_soft_limit")
     row("超硬截断上界", "over_hard_limit")
     row("有任何格式泄漏", "any_leak")
+    if o.get("evidence_present"):
+        row("未调工具", "no_tool_calls")
+        row("调了但全失败", "all_calls_failed")
 
     print()
     print(f"  字数 p50/p95/max: {o['chars_p50']} / {o['chars_p95']} / {o['chars_max']}")
     print(f"  软上限(prompt建议)={lim['soft_prompt_suggested']}  硬截断上界={lim['hard_cutoff']}")
     if o["leak_kinds"]:
         print(f"  泄漏明细: " + "、".join(f"{k}×{v}" for k, v in o["leak_kinds"].items()))
+    if o.get("evidence_present"):
+        print(f"  证据: 工具调用 {o['evidence_calls']} 次（失败 {o['evidence_errors']}，"
+              f"部分失败 {o['evidence_soft_errors']}），卡片化 {o['evidence_carded']} 条，"
+              f"截断/丢弃 {o['evidence_partial']} 条  ← Tier 2 忠实性核对的输入")
 
     print()
     print("  读法:")
@@ -469,6 +842,11 @@ def _print_judge(rep: dict) -> None:
     print("    · 「硬截断触发」≠ 违规：prompt 建议字数低于截断线（fast 200<280），")
     print("      中间这段是缓冲。但它意味着回复被砍过，可能不完整。")
     print("    · 字数对硬截断的【合规率】恒 100%，所以这里不报合规率 —— 报了也没信息量。")
+    print("    · 「未调工具」与「调了但全失败」分开报，别混：前者是设计（禁工具/闲聊场景），")
+    print("      后者才是故障。两者都是 Tier 2 的分层轴 —— 那批上判出的 unsupported")
+    print("      含义与「有据不用」完全不同。")
+    print("    · 「卡片化」不是残缺，是预注册的证据投影（元数据 evidence_capture.card）；")
+    print("      判官对依赖未列字段的断言必须判 unknown。截断/丢弃才是真的残缺。")
 
 
 def _save_judge(rep: dict, frozen_path: Path) -> tuple[Path, Path]:
@@ -505,10 +883,13 @@ def _save_judge(rep: dict, frozen_path: Path) -> tuple[Path, Path]:
         return f"| {label} | {_pct(o[key], n)} | {cells} |"
 
     for label, key in [("空回复", "empty"), ("报错回复", "error_reply"),
-                       ("硬截断触发", "hard_cutoff"), ("render 降级", "render_degraded"),
+                       ("硬截断触发", "hard_cutoff"), ("降级回复", "render_degraded"),
                        ("超软上限", "over_soft_limit"), ("超硬截断上界", "over_hard_limit"),
                        ("有任何格式泄漏", "any_leak")]:
         lines.append(mrow(label, key))
+    if o.get("evidence_present"):
+        lines.append(mrow("未调工具", "no_tool_calls"))
+        lines.append(mrow("调了但全失败", "all_calls_failed"))
 
     lines += [
         f"\n**字数** p50={o['chars_p50']} p95={o['chars_p95']} max={o['chars_max']}"
@@ -516,23 +897,48 @@ def _save_judge(rep: dict, frozen_path: Path) -> tuple[Path, Path]:
     ]
     if o["leak_kinds"]:
         lines.append("\n**泄漏明细**：" + "、".join(f"{k}×{v}" for k, v in o["leak_kinds"].items()))
+    if o.get("evidence_present"):
+        cap = (m.get("evidence_capture") or {})
+        lines.append(
+            f"\n**证据**（Tier 2 忠实性核对的输入）：工具调用 {o['evidence_calls']} 次"
+            f"（失败 {o['evidence_errors']}、部分失败 {o['evidence_soft_errors']}），"
+            f"卡片化 {o['evidence_carded']} 条，截断/丢弃 {o['evidence_partial']} 条。"
+            f"「未调工具」是设计（禁工具/闲聊场景），「调了但全失败」才是故障 —— "
+            f"两者上判出的 unsupported 含义都与「有据不用」不同。"
+        )
+        if cap:
+            card = cap.get("card") or {}
+            lines.append(
+                f"\n**证据策略** `{cap.get('policy')}`：检索类工具（"
+                f"{'、'.join('`' + t + '`' for t in cap.get('carded_tools', []))}）"
+                f"按预注册卡片投影 —— 保留 {', '.join('`' + k + '`' for k in card.get('keep', []))}，"
+                f"简介封顶 {card.get('summary_chars')} 字，infobox 前 {card.get('infobox_keys')} 键"
+                f"（单值 ≤{card.get('infobox_value_chars')} 字），标签只留 name。"
+                f"未列出的内容（{'；'.join(card.get('omitted', []))}）判官【看不到】，"
+                f"依赖它们的断言必须判 unknown，不得判 unsupported。"
+                f"单次上限 {cap.get('per_call_chars')} 字、单场景 {cap.get('per_scenario_chars')} 字。"
+            )
 
     if m.get("skipped"):
         lines += [f"\n## 未录制（{len(m['skipped'])} 条）\n"]
         for s in m["skipped"]:
             lines.append(f"- `{s['id']}` — {s['reason']}")
 
+    has_ev = bool(o.get("evidence_present"))
+    ev_head = " 证据(调用/失败/部分) |" if has_ev else ""
     lines += ["\n## 逐条\n",
-              "| 场景 | 人格 | depth | 字数 | 软上限 | 报错 | 超软 | 硬截断 | 降级 | 泄漏 |",
-              "|---|---|---|---|---|---|---|---|---|---|"]
+              f"| 场景 | 人格 | depth | 字数 | 软上限 | 报错 | 超软 | 硬截断 | 降级 | 泄漏 |{ev_head}",
+              "|---|---|---|---|---|---|---|---|---|---|" + ("---|" if has_ev else "")]
     for v in rep["verdicts"]:
+        ev_cell = (f" {v.get('evidence_calls', 0)}/{v.get('evidence_errors', 0)}"
+                   f"/{v.get('evidence_soft_errors', 0)} |" if has_ev else "")
         lines.append(
             f"| `{v['scenario_id']}` | {v.get('persona', '')} | {v['depth']} | {v['chars']} |"
             f" {v.get('soft_limit', '')} |"
             f" {'✓' if v['error_reply'] else ''} |"
             f" {'✓' if v['over_soft_limit'] else ''} |"
             f" {'✓' if v['hard_cutoff'] else ''} | {'✓' if v['render_degraded'] else ''} |"
-            f" {'、'.join(v['leaks']) or ''} |"
+            f" {'、'.join(v['leaks']) or ''} |{ev_cell}"
         )
 
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
