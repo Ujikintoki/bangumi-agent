@@ -84,6 +84,44 @@ class TestErrorHandling:
             assert isinstance(result, dict)
             assert "_error" in result
 
+    # ---- 传输层兜底（2026-09-14）------------------------------------------
+    # Bangumi 走 VPN，拒连是常态。`_request` 原先只兜 TimeoutException 与
+    # HTTPStatusError，ConnectError 这类【传输层没打通】直接穿透 16 个工具抛进
+    # LangGraph —— 用户看到的是罐头回复「工具执行完成但未能生成文本回复」，
+    # 而不是本该出现的"查不到"。实测 30 条场景里 3 次拒连制造了 2 条坏回复。
+    # CLAUDE.md 编码规则 #1 要求所有失败出口都是 _error dict，这几条就是哨兵。
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            httpx.ConnectError("connection refused"),      # 代理/VPN 没起来
+            httpx.ReadError("connection reset"),           # 读到一半被重置
+            httpx.RemoteProtocolError("server disconnected"),
+            httpx.ProxyError("proxy failure"),
+            httpx.ConnectTimeout("connect timed out"),     # TimeoutException 子类，走另一条分支
+        ],
+    )
+    async def test_transport_error_returns_error_dict(self, exc):
+        client = BangumiClient()
+        with patch.object(client._client, "request", AsyncMock(side_effect=exc)):
+            result = await client.get_subject_detail(8)
+        assert isinstance(result, dict), f"{type(exc).__name__} 穿透了（应返回 _error dict）"
+        assert "_error" in result
+
+    @pytest.mark.asyncio
+    async def test_non_json_body_returns_error_dict(self):
+        """状态码 200 但 body 不是 JSON —— VPN/代理返回 HTML 错误页就是这样。"""
+        client = BangumiClient()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b"<html>Proxy Error</html>"
+        mock_resp.json.side_effect = ValueError("Expecting value: line 1 column 1")
+        with patch.object(client._client, "request", AsyncMock(return_value=mock_resp)):
+            result = await client.get_subject_detail(8)
+        assert isinstance(result, dict), "非 JSON body 穿透了（应返回 _error dict）"
+        assert "_error" in result
+
 
 # ═══════════════════════════════════════════════════════════════════
 # 业务方法 — 端点和参数验证

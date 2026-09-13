@@ -54,9 +54,15 @@ class BaseClient:
     async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         """带重试的通用 HTTP 请求。
 
-        重试条件: 状态码 429、502、503 或 TimeoutException
+        重试条件: 状态码 429、502、503、TimeoutException、TransportError、响应非 JSON
         最大重试: 3 次
         退避策略: sleep(1 * 2^attempt) 递增，429 时优先取 Retry-After 头
+
+        ⚠ 本函数【必须】穷尽所有失败出口为 ``{"_error": ...}``（CLAUDE.md 编码规则
+        #1「不抛异常」）。漏掉任何一类异常，它都会穿透 16 个工具抛进 LangGraph，
+        用户拿到的是「工具执行完成但未能生成文本回复」这种罐头回复 —— 而不是本该
+        出现的"查不到"。2026-09-14 实测：Bangumi 走 VPN，ConnectError 是常态，
+        30 条场景里 3 次拒连就制造了 2 条用户可见的坏回复。
         """
         max_retries = 3
         last_error: dict[str, Any] = {"_error": f"请求失败 (path={path})"}
@@ -90,7 +96,26 @@ class BaseClient:
                 # 204 No Content 等无 body 响应返回空字典
                 if response.status_code == 204 or not response.content:
                     return {}
-                return response.json()
+                # 状态码 200 但 body 不是 JSON —— VPN/代理把请求拦下来返回 HTML
+                # 错误页时就是这样。原先没人接，JSONDecodeError 直接穿透。
+                # 接 ValueError（而非只接 JSONDecodeError）：httpx 的 json() 就是
+                # json.loads(self.content)，body 是非法字节时抛的是 UnicodeDecodeError。
+                # 两者都是"这不是 JSON"，而这个 try 里只有这一个库调用，不会误吞别的。
+                try:
+                    return response.json()
+                except ValueError as exc:
+                    if attempt < max_retries - 1:
+                        wait = 1 * (2**attempt)
+                        logger.warning(
+                            "响应不是 JSON（%s，%d 字节），%d 秒后重试 (attempt=%d)",
+                            type(exc).__name__,
+                            len(response.content),
+                            wait,
+                            attempt + 1,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    last_error = {"_error": f"响应不是 JSON（{type(exc).__name__}）(path={path})"}
 
             except httpx.TimeoutException:
                 if attempt < max_retries - 1:
@@ -101,6 +126,27 @@ class BaseClient:
                     await asyncio.sleep(wait)
                     continue
                 last_error = {"_error": f"请求超时 (path={path})"}
+
+            except httpx.TransportError as exc:
+                # 传输层根本没打通：连接被拒/被重置、读到一半断开、代理故障等。
+                # 必须放在 TimeoutException 【之后】—— 后者是 TransportError 的子类，
+                # 顺序反了超时就走不到自己那条日志。
+                #
+                # 边界故意取 TransportError 而不是更宽的 httpx.HTTPError：实测
+                # （httpx 0.28.1）TransportError 恰好等于"传输层没打通"；而 InvalidURL、
+                # TooManyRedirects、DecodingError 都不在其中 —— 那些是"我们地址写错了"
+                # 或"服务端返回格式坏了"，吞成 _error 只会掩盖 bug。
+                if attempt < max_retries - 1:
+                    wait = 1 * (2**attempt)
+                    logger.warning(
+                        "连接失败（%s），%d 秒后重试 (attempt=%d)",
+                        type(exc).__name__,
+                        wait,
+                        attempt + 1,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                last_error = {"_error": f"连接失败（{type(exc).__name__}）(path={path})"}
 
             except httpx.HTTPStatusError as exc:
                 status = exc.response.status_code
