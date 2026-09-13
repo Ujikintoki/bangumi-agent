@@ -779,15 +779,22 @@ def _probe_search(
 def _compute_metrics(
     retrieved_ids: list[str],
     gt_ids: set[str],
+    k_values: Optional[list[int]] = None,
 ) -> dict[str, float]:
-    """对单条 query 的检索结果计算全部指标。"""
+    """对单条 query 的检索结果计算全部指标。
+
+    k_values: 覆盖模块级 K_VALUES（默认 None = 用 K_VALUES）。D 组（generate_rag_gt）
+    需要 Recall@20 —— 它的检索 limit 是 20，而本模块的 K 网格止于 10。给个入口比
+    在那边复制一份指标实现强（复制品会和生产漂，这是本仓库踩过的坑）。
+    """
     scores: dict[str, float] = {}
     gt_set = set(gt_ids)
+    ks = K_VALUES if k_values is None else k_values
 
     if not gt_set:
         return scores
 
-    for k in K_VALUES:
+    for k in ks:
         top_k = retrieved_ids[:k]
 
         # Recall@K
@@ -814,7 +821,7 @@ def _compute_metrics(
     # 注意：二值相关度 + |GT| > k 时，NDCG@k 与 Precision@k 单调相关，
     # 信息量有限。它现在的作用是"不再算错"，不是"变敏锐了"。
     graded_gt = {eid: 1 for eid in gt_set}
-    for k in K_VALUES:
+    for k in ks:
         scores[f"NDCG@{k}"] = ndcg_at_k(retrieved_ids, graded_gt, k)
 
     return scores

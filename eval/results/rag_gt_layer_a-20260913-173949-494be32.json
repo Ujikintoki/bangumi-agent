@@ -1,0 +1,473 @@
+{
+  "name": "rag_gt_layer_a",
+  "created": "2026-09-13 17:39",
+  "git": "494be32",
+  "gt_file": "ground_truth_v2_draft.json",
+  "gt_status": "draft_unfiltered",
+  "retrieval_limit": 20,
+  "k_values": [
+    5,
+    10,
+    20
+  ],
+  "settings": {
+    "LLM_MODEL": "deepseek-v4-flash",
+    "LLM_TEMPERATURE": 0.3,
+    "EMBEDDING_MODEL": "embedding-2"
+  },
+  "elapsed_s": 20.2,
+  "n_queries": 60,
+  "table": {
+    "character·plot": {
+      "n": 2,
+      "Recall@5": 1.0,
+      "Hit@5": 1.0,
+      "Recall@10": 1.0,
+      "Hit@10": 1.0,
+      "Recall@20": 1.0,
+      "Hit@20": 1.0,
+      "MRR": 0.75
+    },
+    "character·title": {
+      "n": 2,
+      "Recall@5": 1.0,
+      "Hit@5": 1.0,
+      "Recall@10": 1.0,
+      "Hit@10": 1.0,
+      "Recall@20": 1.0,
+      "Hit@20": 1.0,
+      "MRR": 1.0
+    },
+    "character·work": {
+      "n": 2,
+      "Recall@5": 1.0,
+      "Hit@5": 1.0,
+      "Recall@10": 1.0,
+      "Hit@10": 1.0,
+      "Recall@20": 1.0,
+      "Hit@20": 1.0,
+      "MRR": 0.75
+    },
+    "person·plot": {
+      "n": 2,
+      "Recall@5": 0.5,
+      "Hit@5": 0.5,
+      "Recall@10": 1.0,
+      "Hit@10": 1.0,
+      "Recall@20": 1.0,
+      "Hit@20": 1.0,
+      "MRR": 0.3333
+    },
+    "person·title": {
+      "n": 2,
+      "Recall@5": 0.5,
+      "Hit@5": 0.5,
+      "Recall@10": 0.5,
+      "Hit@10": 0.5,
+      "Recall@20": 0.5,
+      "Hit@20": 0.5,
+      "MRR": 0.5
+    },
+    "person·work": {
+      "n": 2,
+      "Recall@5": 1.0,
+      "Hit@5": 1.0,
+      "Recall@10": 1.0,
+      "Hit@10": 1.0,
+      "Recall@20": 1.0,
+      "Hit@20": 1.0,
+      "MRR": 1.0
+    },
+    "subject·plot": {
+      "n": 16,
+      "Recall@5": 0.25,
+      "Hit@5": 0.25,
+      "Recall@10": 0.3125,
+      "Hit@10": 0.3125,
+      "Recall@20": 0.375,
+      "Hit@20": 0.375,
+      "MRR": 0.1833
+    },
+    "subject·tag": {
+      "n": 16,
+      "Recall@5": 0.875,
+      "Hit@5": 0.875,
+      "Recall@10": 0.875,
+      "Hit@10": 0.875,
+      "Recall@20": 0.9375,
+      "Hit@20": 0.9375,
+      "MRR": 0.7649
+    },
+    "subject·title": {
+      "n": 16,
+      "Recall@5": 0.625,
+      "Hit@5": 0.625,
+      "Recall@10": 0.6875,
+      "Hit@10": 0.6875,
+      "Recall@20": 0.75,
+      "Hit@20": 0.75,
+      "MRR": 0.599
+    }
+  },
+  "title_split": {
+    "标题恰好是标签": {
+      "n": 9,
+      "Recall@5": 0.6667,
+      "Hit@5": 0.6667,
+      "Recall@10": 0.7778,
+      "Hit@10": 0.7778,
+      "Recall@20": 0.7778,
+      "Hit@20": 0.7778,
+      "MRR": 0.6852
+    },
+    "标题不是标签": {
+      "n": 7,
+      "Recall@5": 0.5714,
+      "Hit@5": 0.5714,
+      "Recall@10": 0.5714,
+      "Hit@10": 0.5714,
+      "Recall@20": 0.7143,
+      "Hit@20": 0.7143,
+      "MRR": 0.4881
+    }
+  },
+  "channel_profile": {
+    "keyword": 37,
+    "keyword+name+vector": 12,
+    "name+vector": 11
+  },
+  "n_error": 0,
+  "n_miss": 16,
+  "miss_examples": [
+    {
+      "id": "d003",
+      "style": "plot",
+      "query": "想找一部一枚面具能让人永生、家族几代命运纠缠的动画",
+      "gt": "JOJO的奇妙冒险",
+      "keyword_filters": {
+        "required_tags": [
+          "动画"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 20,
+        "stage2": 0
+      }
+    },
+    {
+      "id": "d006",
+      "style": "plot",
+      "query": "想找一部讲少年和变成吸血鬼的养父反目成仇的动画电影",
+      "gt": "JOJO的奇妙冒险 幻影血脉",
+      "keyword_filters": {
+        "required_tags": [
+          "动画电影",
+          "吸血鬼",
+          "少年"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    },
+    {
+      "id": "d009",
+      "style": "plot",
+      "query": "穷少年当恶魔猎人，被献祭后和恶魔合体复活",
+      "gt": "链锯人",
+      "keyword_filters": {
+        "required_tags": [
+          "少年",
+          "恶魔",
+          "猎人"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": true,
+        "vector": true
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 6
+      }
+    },
+    {
+      "id": "d010",
+      "style": "title",
+      "query": "精灵幻想记第二季啥时候出啊",
+      "gt": "精灵幻想记",
+      "keyword_filters": {
+        "required_tags": [
+          "精灵幻想记",
+          "第二季"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    },
+    {
+      "id": "d011",
+      "style": "tag",
+      "query": "异世界后宫轻小说改的穿越番",
+      "gt": "精灵幻想记",
+      "keyword_filters": {
+        "required_tags": [
+          "轻小说改",
+          "异世界",
+          "后宫",
+          "穿越"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 20,
+        "stage2": 0
+      }
+    },
+    {
+      "id": "d015",
+      "style": "plot",
+      "query": "高一男生暗恋每天晨练见到的高二学姐的青春恋爱番",
+      "gt": "青之箱",
+      "keyword_filters": {
+        "required_tags": [
+          "学姐",
+          "恋爱",
+          "青春"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    },
+    {
+      "id": "d018",
+      "style": "plot",
+      "query": "想找一部男主在垃圾堆捡到人型电脑、开机后展开故事的动画",
+      "gt": "人形电脑天使心",
+      "keyword_filters": {
+        "required_tags": [
+          "动画"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 20,
+        "stage2": 0
+      }
+    },
+    {
+      "id": "d024",
+      "style": "plot",
+      "query": "想找一部主角能变成刺激它的东西、死后还能复活的奇幻片",
+      "gt": "致不灭的你",
+      "keyword_filters": {
+        "required_tags": [
+          "奇幻"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 20,
+        "stage2": 0
+      }
+    },
+    {
+      "id": "d030",
+      "style": "plot",
+      "query": "五个女生在一所新学校组建学园偶像，从零开始的故事",
+      "gt": "Love Live! Superstar!!",
+      "keyword_filters": {
+        "required_tags": [
+          "偶像",
+          "学园"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    },
+    {
+      "id": "d031",
+      "style": "title",
+      "query": "迷糊餐厅里那个吐槽超快的打工日常",
+      "gt": "迷糊餐厅",
+      "keyword_filters": {
+        "required_tags": [
+          "迷糊餐厅",
+          "吐槽",
+          "打工",
+          "日常"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    },
+    {
+      "id": "d033",
+      "style": "plot",
+      "query": "想找一部讲家庭餐厅里一群怪人店员互相吐槽的动画",
+      "gt": "迷糊餐厅",
+      "keyword_filters": {
+        "required_tags": [
+          "动画",
+          "吐槽",
+          "家庭",
+          "餐厅"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    },
+    {
+      "id": "d034",
+      "style": "title",
+      "query": "听爸爸的话这番后面还有没有第二季啊",
+      "gt": "听爸爸的话！",
+      "keyword_filters": {
+        "required_tags": [
+          "听爸爸的话",
+          "第二季"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    },
+    {
+      "id": "d036",
+      "style": "plot",
+      "query": "想找一部大学生突然要养三个小女孩的同居搞笑番",
+      "gt": "听爸爸的话！",
+      "keyword_filters": {
+        "required_tags": [
+          "小女孩",
+          "大学",
+          "搞笑"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    },
+    {
+      "id": "d037",
+      "style": "title",
+      "query": "装甲重拳第二季有人看完了吗",
+      "gt": "NOMAD MEGALO BOX 2",
+      "keyword_filters": {
+        "required_tags": [
+          "第二季"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 20,
+        "stage2": 0
+      }
+    },
+    {
+      "id": "d048",
+      "style": "plot",
+      "query": "想找一部外星人占领江户、废刀令后武士丢了刀的时代搞笑剧",
+      "gt": "银魂",
+      "keyword_filters": {
+        "required_tags": [
+          "外星人",
+          "搞笑",
+          "武士"
+        ]
+      },
+      "invoked": {
+        "keyword": true,
+        "name": false,
+        "vector": false
+      },
+      "stages": {
+        "stage1": 0,
+        "stage2": 20
+      }
+    }
+  ],
+  "known_limits": [
+    "⚠ 未经层 B 过滤的初稿数字，不可引用。",
+    "单答案 GT：一条查询若有多个合法答案，只有出题实体算命中，其余合法结果被记成没找到 —— 由层 B 的相关率补上。",
+    "查询是【倒着编的】（看着条目资料反推），可能不像真人会问。",
+    "答案闭世界：只在本地 1500 条实体库内，库里没有的作品一律算没找到。",
+    "非 subject 的抽样池受限（作品式要求 works 含本库内作品）：character 220/349、person 24/110，代表性有限。",
+    "judge 与被评模型同源（单 provider，LLM_MODEL 单值），层 B 的自偏好偏差只能声明不能消除。"
+  ]
+}
