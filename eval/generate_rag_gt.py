@@ -22,10 +22,11 @@
 
 ⚠ 层 A 的固有弱点（必须写进报告，不是 bug）
     单答案 GT：一条查询若有多个合法答案，只有出题实体算命中，其余合法结果被记成
-    "没找到"。剧情式尤其容易这样。这一半由【层 B】的相关率补上 —— 层 B 的候选池
-    含随机补池，能把"系统没返回"和"系统返回了但不相关"分开。
-
-⚠ 报告头必须写：未经层 B 过滤的初稿数字，不可引用。
+    "没找到"。剧情式尤其容易这样。
+    **注意：层 B 补不了这一半**（2026-09-13 修正 —— 早先说"由层 B 的相关率补上"，
+    那个指标已退役，见下）。层 B 现在补的是**诊断**：拆开"找回的是那一部还是它的
+    兄弟"、看判官认不认得出正确答案、看标签 AND 落空的分布。要回答"这条查询到底有
+    几个合法答案"，得另想办法，这条弱点就挂在报告里。
 
 用法::
 
@@ -37,16 +38,34 @@
 
 层 B（正着判）
     层 A 的 GT 是【单答案】的：一条查询若有多个合法答案，只有出题实体算命中，
-    其余合法结果被记成"没找到"。层 B 把 GT 从"单答案"扩成"相关集" —— 让 LLM
-    判官盲判候选池里每一条是否也算合理答案。候选池三部分，互斥：
-      top-20     生产检索返回的（主指标：系统排序质量）
-      随机 15    域内随机抽，【排除 top-20 与出题实体】（基线：闭眼乱抓的期望相关率）
+    其余合法结果被记成"没找到"。层 B 让 LLM 判官盲判候选池里每一条是否也算合理答案，
+    并用人工标注校准它。候选池三部分，互斥：
+      top-20     生产检索返回的（用来拆「找回的是那一部，还是它的兄弟」）
+      随机 15    域内随机抽，【排除 top-20 与出题实体】
       探针        出题实体，若不在上两者中则补进来（只用于层 A×层 B 互验）
-    「top-20 相关率 − 随机相关率」= 这个系统相对瞎猜到底强多少，这是轴 2 第一个
-    真正意义上的质量数字。判定结果按 (查询, 候选卡片) 落盘缓存 —— 相关性是这两者
-    的纯函数，与"候选从哪条通道来"无关，所以将来修完融合只需重判新增的候选。
 
-⚠ 层 B 的数字同样【不可引用】，直到人工标注算出 κ（eval/README.md:483）。
+⚠ **层 B 不出指标，只出诊断**（2026-09-13 修正）。它原本要报「top-20 相关率 − 随机
+    相关率」，但单答案 GT 下这条路是死的：相关 = 「就是点名的那一部」，一条查询只有
+    一个答案 → Precision@K 退化成命中率的复述；而随机池按构造排除了出题实体 → 增益
+    全组 0.000，是结构性的 0。轴 2 的质量数字归层 A（标准 IR 指标）。
+    **这个坑本仓库踩过两次**（`eval/README.md` 的 B 组 `Precision@5 = 0.2`）。
+    判定结果仍按 (查询, 候选卡片) 落盘缓存 —— 相关性是这两者的纯函数，与"候选从哪条
+    通道来"无关，所以将来修完融合只需重判新增的候选。
+
+⚠ 判官数字必须在有 κ 的前提下才可解释（`eval/README.md` 的「LLM-as-judge 的工程约束」
+    第 1 条）。报告头会自动带上 κ；算不出来就显式标「未校准」。
+
+判官校准（2026-09-13，50 条人工标注，rubric b4）：κ = 0.831（po 0.940 / pe 0.644）。
+    按查询风格分层：title 1.000 / plot 0.767 / tag 0.696。
+    ⚠ 两点必须连这个数一起报，否则会把它读成"判官 83% 对"：
+      1. **它是保守下界**。标注轮次的表头（rubric `6cc0e9d5`）写着「同一系列也算相关」，
+         与 b4 相反；人工照旧表头判，判官照 b4 判。3 条分歧（#7/#23/#30）里
+         **判官全对、人工全错**。判官被扣的分不是它的错。
+      2. **但它同时高估了判官**。κ 测的是一致性、不是正确性：#24 与 #45 判官判 true，
+         而 b4 明写同系列判 false —— 判官错，人工也错（旧表头），**κ 把这两条记成一致**。
+     ⇒ 判官在「同系列」这条规则上自己不稳定（中二病Lite 判 false、中二病恋判 true）。
+       影响面仅限层 B 的「同系列拆分」诊断表，不影响层 A 任何指标。
+     ⇒ 别再写「分歧是单答案 GT 的适用边界」—— 那是 09-13 早先的结论，已被上面推翻。
 
 思考：全项目强制关闭（2026-09-13 用户决策，注入点在 `agent/llm.py::_DISABLE_THINKING`）
     `LLM_MODEL` 是推理模型，回包里有独立的 `reasoning_content`，而 `max_tokens`
@@ -63,10 +82,14 @@
     **低估** top-20 相关率，方向上保守而非虚高），随后用户拍板全项目常关、
     开关删除（`--judge-thinking` 已不存在）。
 
-    ⚠ 关思考有**已知代价**，别当它无偏：d177（查「剧场版 魔法少女小圆 [后篇]」→
-    候选「魔法少女小圆」）被判成 false，违反 rubric 里"同一系列算相关"这一条。
-    这是判官自身的偏差，不靠改 rubric 修（对着单个样本调措辞＝过拟合，这个坑
-    在 JUDGE_PACK_THINKING_ON 上已经踩过一次），交给阶段 5 的人工标注 κ 去量。
+    ⚠ d177 那件事最后**翻了案**，值得记：d177（查「剧场版 魔法少女小圆 [后篇]」→
+    候选「魔法少女小圆」）被判成 false，当时按 b3 的 rubric（写着"同一系列算相关"）
+    记成判官偏差。2026-09-13 的 50 条人工标注把它翻了过来 —— **判官是对的，那句
+    rubric 是错的**：用户拍板"同系列不是同作品"，b4 据此收紧。
+    教训：**判官与 rubric 打架时先怀疑 rubric**。当时不敢改措辞是对的（对着单个
+    样本调 prompt＝过拟合，这个坑在 JUDGE_PACK_THINKING_ON 上踩过），但"不敢改"
+    的正确替代不是"记成判官偏差交给人去量"，而是**尽快把人工标注做了** ——
+    量出来才发现整条口径都写宽了，而 50 条标注的成本只有半小时。
 
 边界的教训（上一轮踩过）
     `_run_keyword_search` 曾是一份【影子实现】，它和生产漂了才被删（提交 490a3f5）。
@@ -90,6 +113,7 @@ import hashlib
 import json
 import logging
 import random
+import re
 import statistics
 import subprocess
 import sys
@@ -479,7 +503,9 @@ def cmd_generate(args) -> int:
             "status": status,
             "description": (
                 "D 组 GT（倒着出题）：从库里抽实体 → LLM 看着资料反编用户查询 → "
-                "答案即出题实体。层 A 数字为未经层 B 过滤的初稿，不可引用。"
+                "答案即出题实体。单答案 GT：只有出题实体算命中。"
+                "层 A 报标准 IR 指标（Recall@K ≡ HitRate@K / NDCG@K / MRR），是本轴的质量数字；"
+                "层 B 不出指标、只出判官诊断 + κ 校准。"
             ),
             "seed": args.seed,
             "retrieval_limit": RETRIEVAL_LIMIT_D,
@@ -830,7 +856,11 @@ ROOT_CAUSE_NOTES = [
 
 def _agg(rows: list[dict]) -> dict:
     """一组的均值。Recall@K 是单答案 GT，所以它等价于 Hit@K —— 两者都留，
-    因为 Hit@K 是更常用的读法，而 Recall 是本仓库其余组的既有口径。"""
+    因为 Hit@K 是更常用的读法，而 Recall 是本仓库其余组的既有口径。
+
+    NDCG@K 也在这里：单答案 GT 下它等于 1/log2(rank+1)，是 **Recall@K 的加细版** ——
+    Recall 只问「进没进前 K」，NDCG 还管「排得靠不靠前」。两者一起读才有信息量。
+    """
     ok = [r for r in rows if not r.get("error")]
     if not ok:
         return {"n": 0}
@@ -843,6 +873,7 @@ def _agg(rows: list[dict]) -> dict:
     for k in K_VALUES_D:
         out[f"Recall@{k}"] = mean(f"Recall@{k}")
         out[f"Hit@{k}"] = mean(f"Hit@{k}")
+        out[f"NDCG@{k}"] = mean(f"NDCG@{k}")
     out["MRR"] = mean("MRR")
     return out
 
@@ -943,16 +974,17 @@ def _print_report(rep: dict) -> None:
     print(f"  查询 {rep['n_queries']} 条 | 耗时 {rep['elapsed_s']}s | "
           f"检索 limit={rep['retrieval_limit']} | 出错 {rep['n_error']}")
     print()
-    print("  ⚠ 未经层 B 过滤的初稿数字，不可引用")
+    print("  指标：标准 IR（单答案 GT 下 Recall@K ≡ HitRate@K，Precision@K 是假象）")
     print()
-    head = f"  {'组':22} {'n':>4} {'R@5':>7} {'R@10':>7} {'R@20':>7} {'MRR':>7}"
+    head = (f"  {'组':22} {'n':>4} {'R@5':>7} {'R@10':>7} {'R@20':>7} "
+            f"{'nDCG@20':>8} {'MRR':>7}")
     print(head)
     print("  " + "-" * (len(head) - 2))
     for name, v in rep["table"].items():
         if not v.get("n"):
             continue
         print(f"  {name:22} {v['n']:>4} {v['Recall@5']:>7.3f} {v['Recall@10']:>7.3f} "
-              f"{v['Recall@20']:>7.3f} {v['MRR']:>7.3f}")
+              f"{v['Recall@20']:>7.3f} {v['NDCG@20']:>8.3f} {v['MRR']:>7.3f}")
     print()
     print("  分层诊断 · 口头指代（标题是否恰好是该条目的标签）:")
     for name, v in rep["title_split"].items():
@@ -1009,25 +1041,28 @@ def _save(rep: dict) -> tuple[Path, Path]:
     json_path.write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
 
     lines = [
-        "# 轴 2 · D 组 GT（倒着出题）— 层 A 初稿数字",
+        "# 轴 2 · D 组 GT（倒着出题）— 层 A：命中率与排序质量",
         "",
         f"**时间**: {rep['created']} | **git**: {rep['git']} | "
         f"**GT**: {rep['gt_file']} ({rep['gt_status']})",
         "",
-        "> ## ⚠ 不可引用",
-        "> 这是**未经层 B 过滤的初稿数字**。单答案 GT 会把「合法地匹配了别的作品」"
-        "记成没找到，真实质量由层 B 的相关率（含随机基线对照）给出。",
+        "> ## 指标口径",
+        "> 这里报的是标准 IR 指标（Recall@K / NDCG@K / MRR，见 `eval/metrics.py`）。",
+        "> **单答案 GT 下 Recall@K ≡ HitRate@K**，且 **Precision@K 是假象** —— "
+        "GT 只有 1 条而 K=20，命中即 0.05，不命中即 0，它只是在复述命中率。",
+        "> （同一条坑 2026-09-12 已在 B 组踩过一次，见 `eval/README.md`。）",
+        "> NDCG@K 是 Recall@K 的加细：单答案 GT 下 = 1/log2(rank+1)，罚「排得靠后」。",
         "",
         "## 总览",
         "",
-        "| 组（entity_type·style） | n | Recall@5 | Recall@10 | Recall@20 | MRR |",
-        "|---|---|---|---|---|---|",
+        "| 组（entity_type·style） | n | Recall@5 | Recall@10 | Recall@20 | NDCG@20 | MRR |",
+        "|---|---|---|---|---|---|---|",
     ]
     for gname, v in rep["table"].items():
         if not v.get("n"):
             continue
         lines.append(f"| {gname} | {v['n']} | {v['Recall@5']} | {v['Recall@10']} "
-                     f"| {v['Recall@20']} | {v['MRR']} |")
+                     f"| {v['Recall@20']} | {v['NDCG@20']} | {v['MRR']} |")
 
     lines += ["", "## 分层诊断 · 口头指代", "",
               "标题恰好是该条目自己的标签时，命中率顶在 1.0（与 B 组同源，无信息量）；"
@@ -1110,7 +1145,7 @@ def _save(rep: dict) -> tuple[Path, Path]:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 层 B：正着判（相关率 + 相对随机基线的增益）
+# 层 B：正着判（判官诊断 —— 不是指标，理由见 _save_layer_b 的报告头）
 # ═══════════════════════════════════════════════════════════════════════
 
 # 判定口径的版本号。改动下列任一项都必须改它，否则旧判定会被【静默复用】：
@@ -1118,7 +1153,29 @@ def _save(rep: dict) -> tuple[Path, Path]:
 #   / 判定值取值集合 / 卡片字段构成
 # b2：_type_label 的 person 措辞修正（原措辞与"找公司"式查询冲突，致整批空判）
 # b3：person 卡片补上「作品」列表（缺失致作品式查询把真身判成 false）
-JUDGE_VERSION = "b3"
+# b4：rubric 收紧 —— 【同一系列不再算相关】（2026-09-13 用户拍板）。
+#     依据是 50 条人工标注。b3 的 rubric 把「同一系列（不同季度、剧场版、OVA、原作
+#     与改编）」写进了 true，与单答案 GT 打架 —— GT 的答案只有出题那一部。
+#     收紧后全样本 κ 0.690 → 0.831；b3→b4 翻转的 10 条 true→false 里 7 条正是人工
+#     也判 false 的。
+#
+# ⚠ 那 3 条分歧（#7 中二病Lite / #23 我独自升级第二季 / #30 LoveLive第二季）**不是
+#   "GT 适用边界"，是【标注表头与 b4 口径不是同一版】** —— 这一点 2026-09-13 复核时
+#   已推翻先前结论。标注表（`annotation_sheet_b.md`，rubric 6cc0e9d5）的表头写着
+#   「同一系列的另一季 → true」，人工是照那句判的；判官按 b4 判 false。3 条里
+#   **判官全对、人工全错**。所以 κ=0.831 是**保守下界**，不是判官的上限。
+#
+#   同一批复核还翻出**反向**的 2 条：#24（Love Live! 虹咲学园 ← Superstar!!）与
+#   #45（中二病也要谈恋爱！恋 ← 中二病也要谈恋爱！）判官判 true，而 b4 明写
+#   「同一系列但不是点名的那一部 → false」—— **判官错，人工也错（照旧表头），
+#   κ 把这两条白记成"一致"**。κ 只测一致性，测不出"双方一起错"。
+#   ⇒ 判官在「同系列」这条规则上自己不稳定（Lite 判 false、恋判 true）。
+#   影响面仅限层 B 的「同系列拆分」诊断表，**不影响层 A 任何指标**（判官不参与层 A）。
+#
+#   按查询风格分层（分层是看到结果之后才做的，别当预注册结论读）：
+#     title 式 κ=1.000（同系列候选 14/14 判 false，与人工全一致）/ tag 式 0.696 / plot 式 0.767
+JUDGE_VERSION = "b4"
+JUDGE_VERDICTS = ("true", "false", "unknown")   # 判定值取值集合，改它要连同版本号一起改
 JUDGE_SUMMARY_CHARS = 300      # 判官看到的简介长度（比出题用的 220 长：判定要更多依据）
 JUDGE_TAG_LIMIT = 8
 # 卡片里列多少个"参与作品"。person 必须给：作品式查询问的就是它，而公司/声优的
@@ -1153,23 +1210,26 @@ SUBJECT_TYPE_NAMES = {1: "书籍（漫画/小说）", 2: "动画"}
 JUDGE_RUBRIC = """你是 Bangumi（动画收藏与评分社区）的检索质量评审员。
 你会看到一条用户查询，和若干条候选条目。逐条判断：
 
-【这条候选算不算这条查询的合理答案之一？】
+【这条候选是不是这条查询点名要的那一部？】
 判据只有一条：用户看到这条结果，会不会觉得答非所问？
 
 · 相关（true）
-  - 这条就是查询所描述的那部作品 / 那个角色 / 那个人物
-  - 或者是它的同一系列（不同季度、剧场版、OVA、原作与改编）——
-    用户能顺着它找到自己要的东西
+  - 这条就是查询所描述的那部作品 / 那个角色 / 那个人物【本身】
 · 不相关（false）
   - 只是题材或标签沾边，但不是查询所描述的那一部
   - 只有名字字面重合，作品本身无关
   - 类型不符（查询要的是动画，候选是无关的漫画/小说）
+  - 【同一系列或同一 IP，但不是查询点名的那一部】—— 查询问「第三部」候选是
+    「第四部」、查询问「终章」候选是「第五章」、查询问某角色候选是同一作品里的
+    另一个角色，全部判 false。用户点的是哪一个，给的就必须是那一个；
+    「能找到同系列」是搜索体验的事，不是「这条结果对不对」的事。
 · 信息不足（unknown）
   - 简介太短或与查询描述的特征对不上号，你判断不了它到底讲什么
   - 你对它没有可靠了解，且给定信息不足以判断
   ⚠ 不要因为"我不认识"就判 false —— 那是两回事。
 
-拿不准时的自问：搜索结果里只有这一条，用户会觉得"这也太敷衍了"吗？
+拿不准时的自问：**用户点名要的是这一条吗？** 查询里点了具体的部/章/角色，
+候选却是同一系列里的另一个 —— 判 false。
 
 输出必须是 JSON 对象：{"judgments": [{"i": 0, "v": "true"}, {"i": 1, "v": "false"}]}
 v 只能取 true / false / unknown，且必须覆盖给出的每一条候选。不要输出任何解释。"""
@@ -1679,12 +1739,15 @@ def _build_layer_b_report(gt: dict, rows: list[dict], elapsed: float,
             "temperature": JUDGE_TEMPERATURE,
             "summary_chars": JUDGE_SUMMARY_CHARS,
             "tag_limit": JUDGE_TAG_LIMIT,
-            "verdicts": ["true", "false", "unknown"],
+            "verdicts": list(JUDGE_VERDICTS),
             # 冻结事实而非可调口径：思考已全项目强制关闭（2026-09-13 用户决策）。
             # 留着它是为了让本报告与 A/B 时期的报告结构可比。
             "thinking": False,
             "pack": JUDGE_PACK,
         },
+        # 判官的人工校准（κ）。没标过 / 缓存里对不上就是 None —— 报告会据此
+        # 显式标「未校准」，而不是默默印一个没校准的数字。
+        "judge_kappa": judge_human_kappa(),
         "random_pool_size": RANDOM_POOL_SIZE,
         "seed": gt.get("seed"),
         "elapsed_s": round(elapsed, 1),
@@ -1698,14 +1761,16 @@ def _build_layer_b_report(gt: dict, rows: list[dict], elapsed: float,
         "n_judge_failed": sum(
             b["failed"] for r in rows for b in r["buckets"].values()),
         "known_limits": [
-            "⚠ 判官尚无 κ（人工校准在阶段 4/5），本报告的数字按 eval/README.md:483 不可引用。",
-            "三值 rubric：unknown 从相关率的分母里剔除，并单独报比率（>20% 说明判官看到的简介不够判）。",
-            "探针（出题实体）的判定与查询词面高度重合，几乎必然判 true —— 互验只能发现【极端坏题】，没发现不等于题目都合格。",
-            "随机基线是 15 条/查询的抽样估计，组内合并后仍带抽样噪声（配对 CI 见主表）。",
-            "答案密度按域（entity_type+subject_type）分层合并后使用；单查询密度不作数 —— 15 个样本估不出百分之几的密度。",
-            "粗估召回率 = top-20 相关数 / (合并密度 × 域大小)，依赖随机样本代表性，只作量级参考。",
-            "标签集域（多标签 AND 的结果集）只作诊断，不充当基线：120 条标签式查询里 30 条为空、非空中位数 2 条。",
-            "全域随机基线对标签式查询偏严：它把「标签过滤」的功劳也算进了系统的增益里。",
+            "★ 本报告是【诊断】，不是轴 2 的指标 —— 指标在层 A（Recall@K / NDCG@K / MRR）。"
+            "理由：单答案 GT 下「相关」= 「就是点名的那一部」，于是 Precision@K 退化成命中率的"
+            "复述（2026-09-13 结论；同类坑 eval/README.md 在 B 组已经踩过一次）。",
+            "随机补池的相关率全组 0，这是【结构性的】不是测量结果：随机池按构造排除了出题实体，"
+            "而相关又只认那一条 —— 所以「相对随机基线的增益」在单答案 GT 下不成立，已从报告撤下。"
+            "原始数字仍在 JSON 的 table[*].gain / estimated_recall 里，留作记录，别当指标引用。",
+            "三值 rubric：unknown 从分母里剔除并单独报比率（>20% 说明判官看到的简介不够判）。",
+            "探针（出题实体）的判定与查询词面高度重合，几乎必然判 true —— 互验只能发现"
+            "【极端坏题】，没发现不等于题目都合格。",
+            "标签集域（多标签 AND 的结果集）只作诊断：120 条标签式查询里 30 条为空、非空中位数 2 条。",
             "judge 与被评模型同源（单 provider，LLM_MODEL 单值），自偏好偏差只能声明不能消除。",
             "答案闭世界：只在本地 1500 条实体库内。",
             "非 subject 组各只有 15 条查询，只作方向性读数。",
@@ -1722,20 +1787,33 @@ def _print_layer_b_report(rep: dict) -> None:
         print(f"  token 实测：HTTP {u['http_calls']} 次 | 输入 {u['prompt_tokens']:,}"
               f" | 输出 {u['completion_tokens']:,}")
     print()
-    print("  ⚠ 判官尚无 κ，本报告数字不可引用（见 eval/README.md:483）")
+    k = rep.get("judge_kappa")
+    if k and k["kappa"] is not None:
+        print(f"  判官校准 · Cohen's κ = {k['kappa']:.3f}（{k['band']}，n={k['n']}，"
+              f"po={k['po']:.3f}，pe={k['pe']:.3f}）")
+        a = k["annotation"]
+        if not a["matches_current_rubric"]:
+            print(f"    ⚠ 标注轮次 {a['round']}（rubric {a['rubric_sha1_8']}）与当前口径"
+                  f"（{rep['judge']['rubric_sha1_8']}）不是同一版 → 这个 κ 是保守下界")
+        for s, v in k["by_style"].items():
+            ks = "n/a" if v["kappa"] is None else f"{v['kappa']:.3f}"
+            print(f"    {s:<8} κ={ks:<7} n={v['n']:>3} po={v['po']:.3f}")
+    else:
+        print("  ⚠ 判官【未校准】（没有人工标注表）—— 本报告数字不可引用"
+              "（eval/README.md 的「LLM-as-judge 的工程约束」）")
     print()
-    head = (f"  {'组':16} {'n':>3} {'top20':>7} {'随机':>7} {'增益':>8} "
-            f"{'95%CI(pp)':>14} {'unknown':>8}")
+    print("  ★ 本报告是诊断，不是指标 —— 轴 2 的指标在层 A（Recall@K / NDCG@K / MRR）")
+    print()
+    print("  诊断 · 系统找回的是那一部，还是它的兄弟:")
+    head = f"  {'组':16} {'n':>3} {'top20':>6} {'本人':>5} {'同系列/其它':>11} {'unknown':>8}"
     print(head)
     print("  " + "-" * (len(head) - 2))
     for name, v in rep["table"].items():
-        g = v.get("gain") or {}
-        ci = g.get("ci95_pp")
-        ci_s = f"[{ci[0]}, {ci[1]}]" if ci else "-"
-        print(f"  {name:16} {v['n_queries']:>3} "
-              f"{(g.get('top20_rate') or 0):>7.3f} {(g.get('random_rate') or 0):>7.3f} "
-              f"{(g.get('gain_pp') or 0):>+7.1f}pp {ci_s:>14} "
+        print(f"  {name:16} {v['n_queries']:>3} {v['top20']['judged']:>6} "
+              f"{v['top20_self']:>5} {v['top20_sibling']:>11} "
               f"{(v['top20'].get('unknown_rate') or 0):>8.1%}")
+    print("  （「同系列/其它」是按 eid 判的代理，里面混着三种东西：真·同系列另一部 /"
+          " 同一作品的不同库内条目 / 无关但标签沾边。要分开得看具体条目。）")
     print()
     print("  互验 · 探针（出题实体被判成什么；false/unknown 说明这条查询写坏了）:")
     for name, v in rep["table"].items():
@@ -1744,11 +1822,6 @@ def _print_layer_b_report(rep: dict) -> None:
             print(f"    {name:16} true={p['true']:>3} false={p['false']:>3} "
                   f"unknown={p['unknown']:>3} 判定失败={p['failed']:>2} 不在池内={p['missing']:>3}")
     print()
-    print("  top-20 里被判相关的条目：本人 vs 同系列（系统找回的是那一部，还是它的兄弟）:")
-    for name, v in rep["table"].items():
-        if v["top20_self"] or v["top20_sibling"]:
-            print(f"    {name:16} 本人={v['top20_self']:>4} 同系列/其它={v['top20_sibling']:>4}")
-    print()
     print("  标签集域诊断（多标签 AND 落空 = 短路缺陷的机制）:")
     for name, v in rep["table"].items():
         td = v["tag_domain"]
@@ -1756,12 +1829,8 @@ def _print_layer_b_report(rep: dict) -> None:
             print(f"    {name:16} 抽出条件的 {td['n_with_filters']:>3} 条里 "
                   f"{td['n_empty']:>3} 条 AND 集为空，中位域大小 {td['median']}")
     print()
-    print("  粗估召回率（top-20 相关数 ÷ 估计的相关条目总数）:")
-    for name, v in rep["table"].items():
-        er = v["estimated_recall"]
-        er_s = f"{er['value']:.2f}（n={er['n_used']}）" if er["value"] is not None else "-"
-        dens = " ".join(f"{d['domain_size']}条域:{d['density']:.3f}" for d in er["densities"])
-        print(f"    {name:16} 召回≈{er_s}  答案密度 {dens}")
+    print("  （「相对随机基线的增益」与「粗估召回率」已撤下：单答案 GT 下随机池里"
+          "不可能有相关条目，那两个数是结构性的 0。原始值仍在 JSON 里。）")
     if rep["n_judge_failed"]:
         print(f"\n  ⚠ 有 {rep['n_judge_failed']} 条判定失败（已从分母剔除，不是当成不相关）")
 
@@ -1778,7 +1847,7 @@ def _save_layer_b(rep: dict) -> tuple[Path, Path]:
 
     jd = rep["judge"]
     lines = [
-        "# 轴 2 · D 组 GT — 层 B：相关率 + 相对随机基线的增益",
+        "# 轴 2 · D 组 GT — 层 B：判官诊断（不是指标）",
         "",
         f"**时间**: {rep['created']} | **git**: {rep['git']} | "
         f"**GT**: {rep['gt_file']} ({rep['gt_status']})",
@@ -1791,29 +1860,40 @@ def _save_layer_b(rep: dict) -> tuple[Path, Path]:
         f"{rep['usage']['completion_tokens']:,} tok | 耗时 {rep['elapsed_s']}s"
         f" | 查询 {rep['n_queries']} 条",
         "",
-        "> ## ⚠ 不可引用（判官尚无 κ）",
-        "> `eval/README.md:483`：无校准数字的 judge 数字不可解释。人工标注（阶段 4）"
-        "算出 κ 之前，本报告只能当**结构完整的初稿**读。",
+    ]
+    lines += _kappa_md(rep)
+    lines += [
         "",
-        "## 主表（分风格）",
+        "## 为什么这份报告不是指标",
         "",
-        "增益 = 生产 top-20 相关率 − 全域随机相关率。**只有同一行内两个数可以相减** —— "
-        "标签式的随机域是标签集合、标题/剧情式是全库，跨风格不可比。",
+        "层 B 原本想报的是 **Precision@K**（top-20 里有几条算答案），配一个「相对全域"
+        "随机的增益」。单答案 GT 下这条路走不通：",
         "",
-        "| 组 | n | top-20 相关率 | 全域随机 | 增益 | 95% CI (pp) | top-20 unknown | 随机 unknown |",
-        "|---|---|---|---|---|---|---|---|",
+        "1. 相关 = 「就是点名的那一部」，一条查询只有一个答案 → **Precision@K 退化成"
+        "命中率的复述**（2026-09-13 结论；`eval/README.md` 在 B 组已经踩过同一个坑）。",
+        "2. 随机补池按构造**排除了出题实体**，池里不可能有相关条目 → 实测**全组 0.000**。"
+        "那不是测量结果，是结构性的 0，所以「增益」不成立。",
+        "",
+        "轴 2 的指标由**层 A** 承担：`Recall@K / NDCG@K / MRR`，都是标准 IR 指标。"
+        "层 B 留下来做三件层 A 做不了的事，就是下面三节。",
+        "",
+        "## 诊断一 · 系统找回的是那一部，还是它的兄弟",
+        "",
+        "层 A 只回答「那部作品在不在候选池里」，回答不了「池子里其余 19 条是什么」。"
+        "这张表是层 B 花钱买到的、层 A 给不出的东西。",
+        "",
+        "⚠ 「同系列/其它」是按 `eid` 判的代理，里面混着三种东西 —— 真·同系列的另一部 / "
+        "同一作品的不同库内条目（完全版、剧场版）/ 无关但标签沾边。判 true 的未必对，"
+        "要分开得看具体条目。",
+        "",
+        "| 组 | top-20 已判 | 就是出题实体 | 同系列/其它 | unknown |",
+        "|---|---|---|---|---|",
     ]
     for gname, v in rep["table"].items():
-        g = v.get("gain") or {}
-        ci = g.get("ci95_pp")
-        ci_s = f"[{ci[0]}, {ci[1]}]" if ci else "—"
-        lines.append(
-            f"| {gname} | {v['n_queries']} | {_fmt(g.get('top20_rate'))} "
-            f"| {_fmt(g.get('random_rate'))} | {_fmt_pp(g.get('gain_pp'))} | {ci_s} "
-            f"| {_fmt_pct(v['top20'].get('unknown_rate'))} "
-            f"| {_fmt_pct(v['random_full'].get('unknown_rate'))} |")
+        lines.append(f"| {gname} | {v['top20']['judged']} | {v['top20_self']} "
+                     f"| {v['top20_sibling']} | {_fmt_pct(v['top20'].get('unknown_rate'))} |")
 
-    lines += ["", "## 标签集域诊断（不是基线）", "",
+    lines += ["", "## 诊断二 · 标签集域 AND 落空（融合短路的机制证据）", "",
               "查询抽出的多个标签是**逐条 AND** 的：AND 一落空，keyword 阶段 1 就是空的，"
               "阶段 2 的软兜底随即补满 limit —— 融合层读成「找够了」，语义通道被跳过。"
               "所以「AND 集为空」的占比越高，短路越普遍。", "",
@@ -1829,7 +1909,7 @@ def _save_layer_b(rep: dict) -> tuple[Path, Path]:
         lines.append(f"| {gname} | {td['n_with_filters']} | {td['n_empty']} | {med} "
                      f"| {td['n_no_filters']} |")
 
-    lines += ["", "## 互验 · 探针（出题实体）", "",
+    lines += ["", "## 诊断三 · 探针互验（这条查询能不能答）", "",
               "层 A 说答案是它，层 B 说它不相关 → 这条查询写坏了。**注意**：查询是从它的"
               "简介反编的，词面高度重合，判 true 几乎是必然 —— 所以这里**只能发现极端坏题**，"
               "没发现不等于题目都合格。", "",
@@ -1840,30 +1920,19 @@ def _save_layer_b(rep: dict) -> tuple[Path, Path]:
         lines.append(f"| {gname} | {p['n']} | {p['true']} | {p['false']} | {p['unknown']} "
                      f"| {p['failed']} | {p['missing']} |")
 
-    lines += ["", "## 系统找回的是那一部，还是它的兄弟", "",
-              "| 组 | 就是出题实体 | 同系列/其它也算相关 |", "|---|---|---|"]
-    for gname, v in rep["table"].items():
-        if v["top20_self"] or v["top20_sibling"]:
-            lines.append(f"| {gname} | {v['top20_self']} | {v['top20_sibling']} |")
-
-    lines += ["", "## 漏检证据与粗估召回率", "",
-              "随机池按构造**排除了 top-20**，所以随机池里每一条被判相关的 = 系统没返回、"
-              "但它确实算答案的条目。答案密度（随机池相关率）按域分层合并后乘域大小 ≈ "
-              "相关条目总数，据此粗估召回率。", "",
-              "| 组 | 随机池判相关（=漏检证据） | 粗估召回率 | 域大小 → 答案密度 |",
-              "|---|---|---|---|"]
-    for gname, v in rep["table"].items():
-        er = v["estimated_recall"]
-        er_s = "—" if er["value"] is None else f"{er['value']:.2f}"
-        dens = "；".join(f"{d['domain_size']} 条域 → {d['density']:.3f}" for d in er["densities"])
-        lines.append(f"| {gname} | {v['random_full_relevant']} | {er_s} | {dens or '—'} |")
-
     lines += ["", "## 判定健康度", "",
               f"- LLM 调用 **{rep['n_calls']}** 次，缓存命中 **{rep['n_cache_hit']}** 条判定",
               f"- 判定失败（两次都没吐出来）**{rep['n_judge_failed']}** 条 —— "
               "已从分母剔除，不是当成不相关",
-              "- unknown 从相关率的分母剔除；某组 unknown 超过 20% 说明判官看到的简介不够判，"
-              "该修输入而不是继续跑",
+              "- unknown 从分母里剔除并单独报比率；某组 unknown 超过 20% 说明判官看到的"
+              "简介不够判，该修输入而不是继续跑",
+              "",
+              "### 已撤下的表",
+              "",
+              "「相对随机基线的增益」（原主表）与「漏检证据 / 粗估召回率」两张表已从本报告"
+              "删除：单答案 GT 下随机池里不可能有相关条目，它们的数**结构性为 0**，印出来"
+              "只会被当成测量结果。原始值仍在同名 JSON 的 `table[*].gain` 与 "
+              "`table[*].estimated_recall` 里，留作记录，**别当指标引用**。",
               "",
               "## 已知限制", ""]
     lines += [f"- {x}" for x in rep["known_limits"]]
@@ -1884,6 +1953,59 @@ def _fmt_pct(x: Optional[float]) -> str:
     return "—" if x is None else f"{x:.1%}"
 
 
+def _kappa_md(rep: dict) -> list[str]:
+    """报告头的判官校准块。
+
+    没标过就明说没标过 —— 按 eval/README.md 的「LLM-as-judge 的工程约束」，未校准的 judge 数字不许引用。
+    标过也要连【标注轮次的口径指纹】一起报：κ 是人对判官在某一份表头上的同意度，
+    表头换了它就不再是同一个数。
+    """
+    k = rep.get("judge_kappa")
+    if not k or k.get("kappa") is None:
+        return [
+            "> ## ⚠ 不可引用（判官未校准）",
+            "> `eval/README.md` 的「LLM-as-judge 的工程约束」第 1 条：无校准数字的 judge 数字不可解释。"
+            "没有人工标注表（或缓存里对不上），本报告的判定数字不能引用。",
+        ]
+
+    a = k["annotation"]
+    out = [
+        f"> ## 判官校准 · Cohen's κ = {k['kappa']:.3f}（{k['band']}）",
+        "",
+        f"> n={k['n']} ｜ po={k['po']:.3f} ｜ pe={k['pe']:.3f} ｜ 标注轮次 `{a['round']}`"
+        f"（{a['created']}，{a['n_scored']}/{a['n_sheet']} 条进了 κ）",
+        "",
+        "> **按查询风格分层** —— 分歧集中在哪里，比 κ 本身有用：",
+        "",
+        "> | 查询风格 | n | po | κ |",
+        "> |---|---|---|---|",
+    ]
+    for s, v in k["by_style"].items():
+        ks = "n/a" if v["kappa"] is None else f"{v['kappa']:.3f}"
+        out.append(f"> | {s} | {v['n']} | {v['po']:.3f} | {ks} |")
+    out.append("")
+    if not a["matches_current_rubric"]:
+        out += [
+            f"> ⚠ **标注轮次读到的表头与当前口径不是同一版**（标注时 rubric "
+            f"`{a['rubric_sha1_8']}`，当前 `{rep['judge']['rubric_sha1_8']}`）。"
+            "该轮表头写着「同一系列也算相关」，与现在相反 —— 表头把人工往 true 上推，"
+            "而当前口径要 false，**所以这个 κ 是保守下界**。"
+            "（2026-09-13 复核：那一格的分歧**判官是对的、人工是照旧表头判的**。）",
+            "",
+            "> ⚠ **保守下界不等于判官没问题** —— κ 测的是**一致性，不是正确性**："
+            "判官与人工【一起】违反当前口径的条目，会被记成一致而不是分歧。"
+            "这一批已复核出这样的条目（见 `eval/DATA_PROVENANCE.md` §13.3）。"
+            "所以本报告的分层表与下面三张诊断表，要连着「κ 抓不到共同错误」这一条读。",
+            "",
+        ]
+    out += [
+        f"> 注：{a['note']}",
+        "> ",
+        "> 分层是**看到结果之后**才做的，别当预注册结论读。",
+    ]
+    return out
+
+
 def cmd_judge(args) -> int:
     from core.config import get_settings
 
@@ -1894,7 +2016,7 @@ def cmd_judge(args) -> int:
     _silence_sqlalchemy()
 
     print("=" * 64)
-    print("  D 组 · 层 B（正着判）—— 相关率 + 相对随机基线的增益")
+    print("  D 组 · 层 B（正着判）—— 判官诊断（指标在层 A）")
     print(f"  判定口径：思考强制关闭（项目决定）"
           f"（批次起于 {JUDGE_PACK}、判不动自动砍半，JUDGE_VERSION={JUDGE_VERSION}）")
     print("=" * 64)
@@ -2006,6 +2128,375 @@ def cmd_judge(args) -> int:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+# ── 人工标注（判官的 κ 校准集）──────────────────────────────────────
+#
+# 为什么要人工标：`eval/README.md` 的硬规矩 —— 没有 judge-human 一致率的 judge
+# 数字不许引用。判官是一台测量仪器，仪器必须校准，否则它测的是自己。
+#
+# 抽样为什么【按判定分层】而不是均匀随机：实测判定分布 false 1021 / true 88 /
+# unknown 0（约 12:1）。均匀抽 50 条的话 true 那一格只剩 4 条，κ 的置信区间宽到
+# 没有意义 —— 而"判官会不会把相关的判成不相关"恰恰是最要紧的那一格。
+# 代价：**这是分层样本上的 κ，不是总体加权值**，报告里必须写出来。
+#
+# 抽完为什么必须【洗牌】：（第一版差点犯的错）按层分组排版的话，你一眼就知道
+# 哪几条是判官说"相关"的；锚定一起，标出来的是"你附和判官的比率"，κ 就假了。
+#
+# ⚠ 判官判定只进 `annotation_key_b.json`，标注表里【故意不显示】。标完再看。
+ANNOTATE_N = 50        # 主样本默认条数
+ANNOTATE_PROBE_N = 10  # 定向探针条数，见 _sample_for_annotation
+
+ANNOTATION_SHEET = ARTIFACTS_DIR / "annotation_sheet_b.md"
+ANNOTATION_KEY = ARTIFACTS_DIR / "annotation_key_b.json"
+
+# ⚠ 必须带 re.M：少了它 `^` 只认整串开头，`_count_answered()` 恒返回 0
+# —— 防呆失效，下次跑 --annotate 会静默覆盖已填的标注表。
+_ANSWER_RE = re.compile(r"^\*\*你的判定\*\*[：:][ \t]*(\S*)", re.M)
+
+
+def _shares_ngram(a: str, b: str, n: int = 3) -> bool:
+    """两个名字有没有 ≥n 个字符的连续重合 —— 「同系列 / 名字沾边」的可操作代理。
+
+    定向探针靠它捞出最可能被判错的那一类：判官判了 false，但候选名字和查询或出题
+    实体咬得上。d177（查「剧场版 魔法少女小圆 [后篇]」→ 候选「魔法少女小圆」）正是
+    这一类，rubric 说该判 true、判官判了 false。
+    """
+    def _norm(s: str) -> str:
+        return re.sub(r"[\W_]+", "", (s or "").lower())
+
+    a, b = _norm(a), _norm(b)
+    if not a or not b:
+        return False
+    if len(a) < n or len(b) < n:
+        return a in b or b in a
+    grams = {a[i:i + n] for i in range(len(a) - n + 1)}
+    return any(b[i:i + n] in grams for i in range(len(b) - n + 1))
+
+
+def _alive_judgments() -> list[dict]:
+    """缓存里【当前口径下仍有效】的判定，还原成「查询 + 候选 + 判官判定」。
+
+    卡片文本没进缓存（只进哈希），所以只能用【当前】的卡片函数反推：卡片格式变过的
+    旧条目哈希对不上，会被丢掉 —— 丢掉是对的，那些判定对应的卡片和现在的判官看到的
+    根本不是一回事。
+    """
+    gt = _load_gt()
+    by_id = {q["id"]: q for q in gt["queries"]}
+
+    from eval.rag_eval import _silence_sqlalchemy
+    _silence_sqlalchemy()
+
+    from sqlmodel import Session, select
+
+    from database.engine import engine
+    from database.rag_tables import RagEntity
+
+    with Session(engine) as session:
+        rows = session.exec(
+            select(RagEntity).where(RagEntity.nsfw == False)  # noqa: E712
+        ).all()
+    recs = {e.id: _entity_record(e) for e in rows}
+
+    out: list[dict] = []
+    if not JUDGE_CACHE_FILE.exists():
+        return out
+    for line in JUDGE_CACHE_FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue                      # 半行（断电）跳过
+        q, rec = by_id.get(entry.get("qid")), recs.get(entry.get("eid"))
+        if q is None or rec is None or not entry.get("v"):
+            continue
+        card = _candidate_card(rec)
+        if _judge_cache_key(q["query"], card) != entry.get("k"):
+            continue                      # 旧卡片格式的死条目
+        out.append({
+            "qid": q["id"], "eid": rec["id"], "judge": entry["v"],
+            "query": q["query"], "gt_name": q.get("gt_name_cn") or q.get("gt_name") or "",
+            "name": rec["name_cn"] or rec["name"], "name_alt": rec["name"], "card": card,
+        })
+    return out
+
+
+def _sample_for_annotation(items: list[dict], n: int, probe_n: int, seed: int) -> list[dict]:
+    """分层抽样：主样本按判官判定对半 + 一层「名字咬得上却判 false」的探针。
+
+    探针单独成层，是因为它落在**已知判官会错**的区域（d177 那一类）。把它混进
+    "判不相关"里平均掉，就看不出判官在这一类上的错判率了。
+
+    某一层不够时把余量让给另一层 —— 宁可样本偏，也不拿重复条目凑数。
+    """
+    rng = random.Random(seed)
+    trues = [x for x in items if x["judge"] == "true"]
+    falses = [x for x in items if x["judge"] == "false"]
+
+    def _probe_ish(x: dict) -> bool:
+        return any(_shares_ngram(a, b)
+                   for a in (x["query"], x["gt_name"])
+                   for b in (x["name"], x["name_alt"]))
+
+    probe_pool = [x for x in falses if _probe_ish(x)]
+    probe = rng.sample(probe_pool, min(probe_n, len(probe_pool)))
+    used = {(x["qid"], x["eid"]) for x in probe}
+    rest_false = [x for x in falses if (x["qid"], x["eid"]) not in used]
+
+    n_main = max(0, n - len(probe))
+    n_true = min(n_main // 2, len(trues))
+    n_false = min(n_main - n_true, len(rest_false))
+    n_true = min(n_main - n_false, len(trues))     # 层不够时把余量让给另一层
+
+    picked = ([dict(x, stratum="judge_true") for x in rng.sample(trues, n_true)]
+              + [dict(x, stratum="judge_false") for x in rng.sample(rest_false, n_false)]
+              + [dict(x, stratum="probe_false_name_overlap") for x in probe])
+    rng.shuffle(picked)      # ⚠ 必须洗牌：按层分组排版＝把判官的答案写在脸上
+    return picked
+
+
+def _count_answered() -> int:
+    """标注表里已经填了多少条 —— 重建前的防呆用。"""
+    if not ANNOTATION_SHEET.exists():
+        return 0
+    return sum(1 for m in _ANSWER_RE.finditer(
+        ANNOTATION_SHEET.read_text(encoding="utf-8")) if m.group(1))
+
+
+_SHEET_HEAD = """# 层 B 判官 · 人工标注表
+
+你在标的是**判官的校准集**：判官对「这条候选算不算这条查询的合理答案」逐条做了
+判断，现在由你**独立**判一遍，两边一比算出 Cohen's κ。
+**κ 没出来之前，层 B 的所有数字都不许引用**（`eval/README.md` 的硬规矩）。
+
+## 怎么标
+
+每条候选下面有一行 `**你的判定**：`，在冒号后面填三个词之一：
+
+| 填什么 | 什么意思 |
+|---|---|
+| `true` | 相关 —— 就是查询**点名的那一部 / 那一个**本身 |
+| `false` | 不相关 —— 题材标签沾边、只有名字字面重合、**或是同一系列里的另一部** |
+| `unknown` | 信息不足，你判断不了它到底讲什么（简介太短、你对它没把握） |
+
+⚠ **不要因为「我没看过这部番」就填 `false`** —— 那是两回事，看不懂就填 `unknown`。
+判据只有一条：**用户点名要的是这一条吗？** 查询里点了具体的部/章/角色，候选却是
+同一系列里的另一个 —— 判 `false`。
+
+> 口径勘误（2026-09-13 拍板）：**同一系列不算同一部作品**。此前本表的表头写着
+> 「同一系列也算 true」，那是错的 —— 用户点了「终章」，返回「第五章」就是答非所问，
+> 不能因为「顺着它能找到同系列」就放行。
+
+## 判定口径（判官被问的是同一段，原文照抄）
+
+```
+{RUBRIC}
+```
+
+## 三条示范（不用你标，看个手感）
+
+> **查询**：进击的巨人 ｜ **候选**：`[动画] 進撃の巨人（标签：热血、致郁、谏山创）`
+> **你的判定**：`true` —— 这就是查询点名的那部作品本身。
+>
+> **查询**：空之境界 终章 ｜ **候选**：`[动画] 空之境界 第五章 矛盾螺旋`
+> **你的判定**：`false` —— **同一系列，但不是点名的那一部**。用户点名了「终章」，
+> 给「第五章」就是答非所问；「同系列里能找到」是搜索体验的事，不是这条结果对不对的事。
+>
+> **查询**：进击的巨人 ｜ **候选**：`[动画] 巨人族的新娘（标签：BL、奇幻）`
+> **你的判定**：`false` —— 只有名字里都有「巨人」两个字，作品本身毫无关系。
+
+## 关于这份样本
+
+本次 {N} 条，全部从**已判定的缓存**里抽 —— 不重跑检索、不花钱。
+抽法是**按判官判定分层**再洗牌，所以上下两条之间没有任何顺序含义。
+
+> ⚠ 判官判定**故意不出现在本表里**，它只写在 `annotation_key_b.json`。
+> 先看到判官的答案再标，标出来的是"你附和判官的比率"而不是 κ。**标完再看那份 key。**
+
+---
+
+"""
+
+
+def _render_sheet(picked: list[dict]) -> str:
+    lines = [_SHEET_HEAD.replace("{RUBRIC}", JUDGE_RUBRIC).replace("{N}", str(len(picked)))]
+    for i, x in enumerate(picked, 1):
+        head, _, rest = x["card"].partition("\n")
+        summary = rest.strip().removeprefix("简介：")
+        lines += [
+            f"### {i}", "",
+            f"**查询**：{x['query']}", "",
+            f"**候选**：`{head}`", "",
+            f"**简介**：{summary}", "",
+            "**你的判定**：", "",
+            "---", "",
+        ]
+    return "\n".join(lines)
+
+
+def _save_annotation_key(picked: list[dict], seed: int) -> None:
+    """判官判定单独落一份 —— 标注表里看不见它，这一份是事后算 κ 的答案纸。"""
+    strata: dict[str, int] = {}
+    for x in picked:
+        strata[x["stratum"]] = strata.get(x["stratum"], 0) + 1
+    key = {
+        "version": "b-anno-1",
+        "created": time.strftime("%Y-%m-%d %H:%M"),
+        "purpose": "层 B 判官的人工校准集。判官判定【故意不写进标注表】，避免锚定。",
+        "judge": {
+            "version": JUDGE_VERSION,
+            "rubric_sha1_8": hashlib.sha1(JUDGE_RUBRIC.encode("utf-8")).hexdigest()[:8],
+            "thinking": False,
+            "pack": JUDGE_PACK,
+        },
+        "sample": {"n": len(picked), "seed": seed, "strata": strata,
+                   "warning": "分层样本，不是总体加权 —— κ 要连这句一起报。"},
+        "items": [{"i": i, "qid": x["qid"], "eid": x["eid"], "judge": x["judge"],
+                   "stratum": x["stratum"]} for i, x in enumerate(picked, 1)],
+    }
+    ANNOTATION_KEY.write_text(json.dumps(key, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _parse_annotation_answers() -> dict[int, str]:
+    """读回标注表里的人工判定 → {序号: 判定词}。没填的不进字典。
+
+    行错位容错：#14 那次的答案写在了 `**你的判定**：` 的【上一行】。只在冒号后为空时
+    才回看上一行，且要求整行就是一个合法判定词 —— 否则会把上一题的答案串过来。
+    """
+    if not ANNOTATION_SHEET.exists():
+        return {}
+    text = ANNOTATION_SHEET.read_text(encoding="utf-8")
+    parts = re.split(r"^### (\d+)\s*$", text, flags=re.M)
+    bodies = {int(parts[i]): parts[i + 1] for i in range(1, len(parts), 2)}
+    out: dict[int, str] = {}
+    for i, body in bodies.items():
+        m = _ANSWER_RE.search(body)
+        if not m:
+            continue
+        v = m.group(1).strip().lower()
+        if not v:
+            before = [ln.strip() for ln in body[:m.start()].splitlines() if ln.strip()]
+            if before and before[-1].lower() in JUDGE_VERDICTS:
+                v = before[-1].lower()
+        if v in JUDGE_VERDICTS:
+            out[i] = v
+    return out
+
+
+def judge_human_kappa() -> Optional[dict]:
+    """判官 vs 人工的 Cohen's κ —— 当前口径下的校准数字。
+
+    只在【缓存里还有这些条目的判定】时才算得出来：缓存按 rubric 指纹分代，改了
+    rubric 之后旧判定会失效，那时这 50 条里能对上的就只剩一部分（n 会变小）。
+    n 太小就别报 —— 返回的 n 写进报告，读的人自己看。
+
+    ⚠ 不检查标注轮次和当前 rubric 是不是同一版，只把指纹一起返回。判断和话术留给
+    报告 —— 这个函数只负责算数。
+    """
+    if not ANNOTATION_KEY.exists():
+        return None
+    try:
+        key = json.loads(ANNOTATION_KEY.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+
+    from eval.metrics import cohen_kappa
+
+    answers = _parse_annotation_answers()
+    if not answers:
+        return None
+
+    alive = {(x["qid"], x["eid"]): x["judge"] for x in _alive_judgments()}
+    gt = {q["id"]: q for q in _load_gt()["queries"]}
+
+    rows: list[dict] = []
+    for it in key.get("items", []):
+        i = it["i"]
+        if i not in answers:
+            continue
+        verdict = alive.get((it["qid"], it["eid"]))
+        if verdict not in ("true", "false"):
+            continue                      # 判官 unknown / 缓存里没有 → 不进 κ
+        q = gt.get(it["qid"]) or {}
+        rows.append({
+            "i": i, "judge": verdict, "human": answers[i],
+            "style": q.get("style") or "?",
+            "self": it["eid"] == q.get("gt_entity_id"),
+        })
+
+    if not rows:
+        return None
+
+    cur_sha = hashlib.sha1(JUDGE_RUBRIC.encode("utf-8")).hexdigest()[:8]
+    anno_sha = (key.get("judge") or {}).get("rubric_sha1_8")
+
+    out = dict(cohen_kappa([r["judge"] for r in rows], [r["human"] for r in rows]))
+    out["by_style"] = {
+        s: cohen_kappa([r["judge"] for r in sub], [r["human"] for r in sub])
+        for s, sub in _by(rows, "style").items() if len(sub) >= 2
+    }
+    out["by_relation"] = {
+        ("本人" if k else "同系列/其它"): cohen_kappa(
+            [r["judge"] for r in sub], [r["human"] for r in sub])
+        for k, sub in _by(rows, "self").items() if len(sub) >= 2
+    }
+    out["annotation"] = {
+        "round": key.get("version"),
+        "created": key.get("created"),
+        "rubric_sha1_8": anno_sha,
+        "matches_current_rubric": anno_sha == cur_sha,
+        "n_sheet": sum(1 for it in key.get("items", []) if it["i"] in answers),
+        "n_scored": len(rows),
+        "note": key.get("sample", {}).get("warning"),
+    }
+    return out
+
+
+def _by(rows: list[dict], field: str) -> dict:
+    """按字段分组，保持出现的先后顺序（dict 有序，报告里的组序才稳定）。"""
+    out: dict = {}
+    for r in rows:
+        out.setdefault(r[field], []).append(r)
+    return out
+
+
+def cmd_annotate(args) -> int:
+    n = args.sample or ANNOTATE_N
+    print("=" * 64)
+    print("  层 B · 人工标注表 —— 给判官做 κ 校准")
+    print("=" * 64)
+
+    n_ans = _count_answered()
+    if n_ans and not args.force:
+        print(f"  ⚠ 跳过重建 —— {ANNOTATION_SHEET.name} 已有 {n_ans} 条人工判定。")
+        print("    重建会把它们全部抹掉（不可恢复）。确实要重建：先备份，再加 --force。")
+        return 0
+
+    items = _alive_judgments()
+    if not items:
+        print("  ✗ 判定缓存里没有当前口径下的有效条目 —— 先跑 --judge。")
+        return 1
+    dist: dict[str, int] = {}
+    for x in items:
+        dist[x["judge"]] = dist.get(x["judge"], 0) + 1
+    print(f"  缓存里有效判定 {len(items)} 条：" + "、".join(f"{k}={dist[k]}" for k in sorted(dist)))
+
+    picked = _sample_for_annotation(items, n, ANNOTATE_PROBE_N, args.seed)
+    strata: dict[str, int] = {}
+    for x in picked:
+        strata[x["stratum"]] = strata.get(x["stratum"], 0) + 1
+    print(f"  抽出 {len(picked)} 条：" + "、".join(f"{k}={strata[k]}" for k in sorted(strata)))
+
+    ANNOTATION_SHEET.write_text(_render_sheet(picked), encoding="utf-8")
+    _save_annotation_key(picked, args.seed)
+
+    print()
+    print(f"  → 标注表：{ANNOTATION_SHEET}")
+    print(f"  → 答案纸：{ANNOTATION_KEY}（⚠ 标完之前别看）")
+    print("  填完告诉我，我算 κ。")
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="D 组 GT：倒着出题（层 A）+ 层 B 判定 —— 轴 2 的质量数字")
@@ -2015,14 +2506,18 @@ def main() -> None:
     group.add_argument("--evaluate", action="store_true",
                        help="层 A：跑生产检索算 Recall@K / MRR（只花 embedding）")
     group.add_argument("--judge", action="store_true",
-                       help="层 B：候选池正着判 → 相关率 + 随机基线（要钱；先 --sample 试点）")
+                       help="层 B：候选池正着判 → 判官诊断 + κ 校准（要钱；先 --sample 试点）")
+    group.add_argument("--annotate", action="store_true",
+                       help="出人工标注表 —— 从判定缓存分层抽 50 条，给判官做 κ 校准（免费）")
     parser.add_argument("--sample", type=int, default=0,
                         help="--generate：抽多少个实体（0=默认 150）；"
-                             "--judge：抽多少条查询（0=全量 450；按分组配额，每组至少 1）")
+                             "--judge：抽多少条查询（0=全量 450；按分组配额，每组至少 1）；"
+                             "--annotate：标多少条（0=默认 50）")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED,
                         help="抽样随机种子（--judge 也用它定候选池，池子因此可复现）")
     parser.add_argument("--force", action="store_true",
-                        help="--generate：覆盖已完成的草稿（默认拒绝，防抹掉产出）")
+                        help="--generate：覆盖已完成的草稿（默认拒绝，防抹掉产出）；"
+                             "--annotate：覆盖已有标注的表（默认拒绝，防抹掉你的判定）")
     parser.add_argument("--allow-partial", action="store_true",
                         help="--evaluate / --judge：允许对未完成的草稿出数")
     parser.add_argument("--no-save", action="store_true",
@@ -2032,8 +2527,8 @@ def main() -> None:
                              "（因果证据，约多花 76 次 embedding）")
     args = parser.parse_args()
 
-    if args.sample and not (args.generate or args.judge):
-        parser.error("--sample 只与 --generate / --judge 同用")
+    if args.sample and not (args.generate or args.judge or args.annotate):
+        parser.error("--sample 只与 --generate / --judge / --annotate 同用")
     if args.rescue and not args.evaluate:
         parser.error("--rescue 只与 --evaluate 同用")
 
@@ -2041,6 +2536,8 @@ def main() -> None:
         sys.exit(cmd_generate(args))
     if args.evaluate:
         sys.exit(cmd_evaluate(args))
+    if args.annotate:
+        sys.exit(cmd_annotate(args))
     sys.exit(cmd_judge(args))
 
 

@@ -17,7 +17,7 @@ BGM Agent 的离线评测：**什么在测、怎么跑、哪些数字能信。**
 | # | 轴 | 要抓的失败 | 主指标 | 现在什么数 | 一条命令 |
 |---|---|---|---|---|---|
 | 1 | **意图路由** | 话被送进错的管线 → 调错工具、慢、答非所问 | **Macro F1** | 主集 **0.8946** · 对抗集 **0.7355** | `python -m eval.eval_classifier --baseline llm` |
-| 2 | **RAG 检索** | 该召回的**从没进过候选** | **回归不变量**（I1–I8 + 棘轮 R1–R3） | **PASS**；**不出质量分数**（设计如此，见该节） | `python -m eval.rag_eval --check` |
+| 2 | **RAG 检索** | 该召回的**从没进过候选** | A–C 组：**回归不变量**（I1–I8 + 棘轮 R1–R3）<br>D 组：**标准 IR 指标** | A–C 组 **PASS**；D 组 **待跑全量**（试点已通） | `python -m eval.rag_eval --check`<br>`python -m eval.generate_rag_gt --evaluate` |
 | 3 | **回复质量** | 空回复 / 报错兜底 / 硬截断 / render 降级 / 格式泄漏 | **Tier 1 确定性信号**（5 个） | 见该节（n=21，离线） | `python -m eval.reply_quality_eval --judge <frozen.json>` |
 | 4 | **记忆** | 说过的事忘了 | 事实保持率 | ⬜ 未建 | — |
 | — | **图接线门禁** | **接线断了** —— 零件之间的 bug，单测抓不到 | **PASS / FAIL** | ⚠️ 能跑，30 条待瘦身到 5–8 | `python -m eval.graph_smoke` |
@@ -250,6 +250,58 @@ A′ 量的是解析差、C 组有池化偏差 —— 冻结这四个里的任�
 
 ---
 
+### D 组 · 倒着出题（2026-09-13 建，本轴唯一的质量数字来源）
+
+A–C 组都在回答「检索器能不能找到**我给它的**答案」。D 组把方向反过来：**从库内实体
+反编一条查询**，答案因此唯一确定 —— 这才有资格算标准 IR 指标，也才不用管 GT 封顶。
+
+| 层 | 做什么 | 产出 |
+|---|---|---|
+| **层 A** | 生产检索跑一遍 | **Recall@K / NDCG@K / MRR** —— 标准 IR 指标，指标在层 A |
+| **层 B** | LLM 判官逐条判候选 | **诊断**（不是指标）+ judge 的 **κ 校准** |
+
+```bash
+python -m eval.generate_rag_gt --generate            # 抽实体 + 出题（要钱）
+python -m eval.generate_rag_gt --evaluate            # 层 A：标准 IR 指标（只花 embedding）
+python -m eval.generate_rag_gt --judge --sample 20   # 层 B。先试点，别一上来全量
+python -m eval.generate_rag_gt --annotate            # 产出人工标注表（算 κ 用）
+```
+
+**判官校准 · Cohen's κ = 0.831**（n=50，po 0.940 / pe 0.644，`almost perfect`）
+
+| 查询风格 | n | po | κ |
+|---|---|---|---|
+| title —— 点名了具体作品 | 18 | 1.000 | **1.000** |
+| plot —— 描述剧情 | 17 | 0.941 | 0.767 |
+| tag —— 描述品类 | 14 | 0.857 | 0.696 |
+
+> 分歧**全部**集中在「tag/plot 式查询 × 同系列候选」这一格。原因是**标注表头与当前
+> rubric 不是同一版**：表头写「同一系列的另一季 → true」，人工照它判；判官按现在
+> 的口径判 false。**那 3 条判官全对、人工全错** —— 不是「判官判错」，也不是「单答案
+> GT 的适用边界」（那是 09-13 早先的结论，已推翻）。分层是**看到结果之后**才做的。
+>
+> ⚠ **κ 的两个方向都要报，否则会被读成「判官 83% 对」**：
+> ① 它是**保守下界** —— 表头把人工往 true 上推，扣判官的分不是判官的错；
+> ② 它同时**高估**判官 —— κ 只测一致性，测不出「双方一起错」：#24（Love Live! 虹咲
+> 学园）与 #45（中二病也要谈恋爱！恋）判官判 `true`，而现口径明写同系列判 `false`，
+> 人工也判 `true`，**这两条被 κ 白记成一致**。⇒ 判官在「同系列」这条规则上自己不稳定。
+> 影响面仅限层 B 的「同系列拆分」诊断表，**不影响层 A 任何指标**。
+
+**层 B 为什么不出指标**：它原本要报 Precision@K（top-20 里有几条算答案）配一个相对
+随机基线的增益。单答案 GT 下这条路走不通 —— 相关 = 「就是点名的那一部」，一条查询只有
+一个答案，于是 **Precision@K 退化成命中率的复述**；而随机补池按构造排除了出题实体，
+「增益」**全组 0.000**，那是结构性的 0，不是测量结果。层 B 只留三张诊断表：
+同系列拆分、AND 落空、探针互验。
+
+> ⚠ **这个坑本仓库踩过两次**：`rag_eval` 的 B 组 `Precision@5 = 0.2`（GT=1 而 K=5，
+> 命中即 1/5）是同一个错误。**单答案 GT 不许报 Precision@K。** 取证见
+> `DATA_PROVENANCE.md` §13。
+
+**状态**：层 A 全量 **450 条已跑**（`results/rag_gt_layer_a-20260913-234241-7268059.md`，
+含 NDCG@20）。层 B 只跑过 21 条试点（判定全命中缓存、0 次调用）。
+
+---
+
 ## 轴 3 · 回复质量
 
 **生成 / 判定分离**：生成（跑一次 `/chat`）贵、有抖动、要联网；判定（读一段现成回复
@@ -430,6 +482,8 @@ python -m eval.graph_smoke --smoke 3  # 只跑前 N 条（联调用）
 | `data/intent_adversarial.json` | 35 条 | v1 (2026-08-17) | 轴 1 对抗集（含 `note` 字段说明陷阱） |
 | `data/e2e_scenarios.json` | 30 条 | v1 (2026-08-17) | 门禁场景 |
 | `data/rag_gt/` | 25 auto + 10 pooled → **34 条进入统计** | — | 轴 2 的 GT 与标注工作簿 |
+| `data/rag_gt/ground_truth_v2_draft.json` | **450 条**（subject 3 组 × 120 + character/person 6 组 × 15） | v2 draft | 轴 2 D 组的 GT（倒着出题，单答案） |
+| `data/rag_gt/annotation_sheet_b.md` | 50 条 | b-anno-1 | D 组判官的人工校准集（已标完） |
 
 **主集的类别分布**（Macro F1 的直接依据）：
 
@@ -500,8 +554,9 @@ eval/                          ← 只放"测量"
 ├── metrics.py                 ← 共享指标库（纯函数，无外部依赖）
 │
 ├── eval_classifier.py         ← 轴 1  路由
-├── rag_eval.py                ← 轴 2  检索
+├── rag_eval.py                ← 轴 2  检索（A–C 组：不变量 + 棘轮）
 ├── rag_queries.py             ←        轴 2 的查询定义
+├── generate_rag_gt.py         ← 轴 2  D 组：倒着出题（层 A 指标 + 层 B 判官 + κ）
 ├── reply_quality_eval.py      ← 轴 3  回复质量（Tier 1 已跑，Tier 2 待建）
 ├── graph_smoke.py             ← 门禁（待缩减到 5-8 条 / PASS-FAIL）
 │                               （轴 4 memory_eval.py 待建）
@@ -514,20 +569,28 @@ eval/                          ← 只放"测量"
 │   │   ├── ground_truth_auto.json    自动 GT（A / A′ / B 三组的来源）
 │   │   ├── pooled_annotate.json      人工标注工作簿（池化候选）
 │   │   ├── ground_truth_merged.json  --evaluate 产出（检索明细 + 指标，机读）
-│   │   └── check_baseline.json       --check 的棘轮冻结基线
+│   │   ├── check_baseline.json       --check 的棘轮冻结基线
+│   │   ├── ground_truth_v2_draft.json  D 组 GT（450 条，倒着出题，draft）
+│   │   ├── annotation_sheet_b.md       D 组判官的人工标注表（50 条，已标）
+│   │   ├── annotation_key_b.json       标注表的答案纸（算 κ 用，标完才看）
+│   │   └── judge_cache.jsonl           判定缓存（按 rubric 指纹分代，改口径即失效）
 │   ├── review_sheet_v7.md         人工复核表（表格已提交；本地批注未提交）
 │   └── drafts/                    草稿（未提交）
 └── results/                   ← 跑出来的报告
     ├── classifier_*.md            轴 1 的四份
+    ├── rag_gt_layer_a-*.md        轴 2 D 组：标准 IR 指标
+    ├── rag_gt_layer_b-*.md        轴 2 D 组：判官诊断 + κ 校准
     ├── frozen/                    轴 3 的冻结样本（生成产物，判定阶段的输入）
     ├── reply_quality-judge-*.md   轴 3 的判定报告
     └── archive/                   不可引用的历史数字
 ```
 
-> **轴 2 为什么不写 `.md` 报告**：它的产物分两头 —— 机读的检索明细留在
+> **A–C 组为什么不写 `.md` 报告**：它们的产物分两头 —— 机读的检索明细留在
 > `data/rag_gt/ground_truth_merged.json`，**人读的数字写在本文件**（见轴 2 的「当前数字」）。
-> 这是有意的：轴 2 的数字都是分组 / 分层的表格，落到报告文件里反而没人看，
+> 这是有意的：那些数字都是分组 / 分层的表格，落到报告文件里反而没人看，
 > 而 README 是这条轴的唯一事实来源。
+> **D 组相反，它写报告**（`results/rag_gt_layer_*.md`）：它的表多、诊断脚注长，
+> README 塞不下；而且它的数字要连 κ 一起读，报告头是最好的位置。
 
 **两条设计约定**：
 
@@ -563,6 +626,8 @@ eval/                          ← 只放"测量"
 | 轴 3 Tier 1（判定侧） | ✅ 判定是死文件上的纯函数，不随 LLM 抖动 |
 | 轴 2 `--check` 的 PASS / FAIL | ✅ 结构断言，每条可归因 |
 | 轴 2 的分组指标 | ⚠️ 只能按组引用；A / A′ / C 三组各有各的不可用理由（见该节） |
+| 轴 2 D 组的 κ（0.831） | ✅ 人工标注 + 二值 rubric，且连「保守下界」的理由一起报 |
+| 轴 2 D 组的 IR 指标 | ⚠️ 单答案 GT 下是**命中率**（Recall@K ≡ Hit@K），别读成有序性指标；全量待跑 |
 | `results/archive/` 里的历史数字 | ❌ 保留作反例 |
 
 ### 未修的问题（按影响排序）

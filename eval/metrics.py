@@ -6,6 +6,7 @@ Eval 共享指标模块
 
 指标来源:
   - ndcg_at_k: SIGIR 经典 (Järvelin & Kekäläinen, 2002)
+  - cohen_kappa: Cohen (1960) + Landis & Koch (1977) 分档
   - classification_report: 标准 sklearn-style 多分类指标
 
 ⚠️ 这里【只放有人在用的函数】。Recall@K / Precision@K / MRR 不在此列 ——
@@ -14,6 +15,79 @@ Eval 共享指标模块
 """
 
 from __future__ import annotations
+
+
+# Landis & Koch (1977) 的 κ 分档。别把它当判据用 —— 0.61 和 0.60 没有实质差别，
+# 它只是给数字一个说法。真正的判据是「分歧落在哪一类样本上」，见 generate_rag_gt
+# 的报告里按查询风格分层的 κ。
+_KAPPA_BANDS = (
+    (0.81, "almost perfect"),
+    (0.61, "substantial"),
+    (0.41, "moderate"),
+    (0.21, "fair"),
+    (0.00, "slight"),
+)
+
+
+def cohen_kappa(y_a: list[str], y_b: list[str]) -> dict:
+    """两个评判者对同一批样本的 Cohen's κ —— 一致性，扣除「碰巧一致」。
+
+    po = 观察一致率 = 一致条数 / 总条数
+    pe = 按两人各自的边际分布独立时，期望的一致率
+    κ  = (po − pe) / (1 − pe)
+
+    为什么要 κ 而不是简单一致率：判官判「不相关」占九成时，一个永远判「不相关」的
+    废物判官也能拿 90% 一致率。κ 把这份白送的一致扣掉。
+
+    来源: Cohen, J. (1960). "A coefficient of agreement for nominal scales",
+          Educational and Psychological Measurement, 20(1), 37-46.
+
+    Args:
+        y_a: 评判者 A（本项目里是 LLM 判官）的标签列表。
+        y_b: 评判者 B（本项目里是人工）的标签列表，与 y_a 逐条对齐。
+
+    Returns:
+        `{"n", "po", "pe", "kappa", "band", "matrix"}`。
+        kappa 在 pe == 1（两人各自都只用一个标签）时是 `None` —— 此时 κ 无定义，
+        不是 0 也不是 1。band 为 "undefined"。
+
+    Raises:
+        ValueError: 两个列表长度不等。**不静默截断** —— 错位的 κ 是个看起来完全
+            正常的数字，比报错危险得多。
+    """
+    if len(y_a) != len(y_b):
+        raise ValueError(f"长度不等：{len(y_a)} vs {len(y_b)} —— 逐条对齐是前提")
+
+    n = len(y_a)
+    if n == 0:
+        return {"n": 0, "po": None, "pe": None, "kappa": None,
+                "band": "undefined", "matrix": {}}
+
+    labels = sorted(set(y_a) | set(y_b))
+    matrix = {a: {b: 0 for b in labels} for a in labels}
+    for a, b in zip(y_a, y_b):
+        matrix[a][b] += 1
+
+    po = sum(matrix[l][l] for l in labels) / n
+    pe = sum((sum(matrix[l].values()) / n) * (sum(matrix[a][l] for a in labels) / n)
+             for l in labels)
+
+    if pe >= 1.0:
+        kappa, band = None, "undefined"
+    else:
+        kappa = (po - pe) / (1 - pe)
+        band = next((name for lo, name in _KAPPA_BANDS if kappa >= lo), "poor")
+
+    # ⚠ 只留 6 位、不做 4 位那种"好看"的舍入：报告层还会再格式化一次，
+    # 两次舍入会叠出假精度（0.83146 → round4 → 0.8315 → "%.3f" → 0.832）。
+    return {
+        "n": n,
+        "po": round(po, 6),
+        "pe": round(pe, 6),
+        "kappa": None if kappa is None else round(kappa, 6),
+        "band": band,
+        "matrix": matrix,
+    }
 
 
 def ndcg_at_k(

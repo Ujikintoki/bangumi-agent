@@ -1,0 +1,1789 @@
+{
+  "name": "rag_gt_layer_b",
+  "created": "2026-09-13 23:39",
+  "git": "7268059",
+  "gt_file": "ground_truth_v2_draft.json",
+  "gt_status": "draft_unfiltered",
+  "settings": {
+    "LLM_MODEL": "deepseek-v4-flash",
+    "LLM_TEMPERATURE": 0.3,
+    "EMBEDDING_MODEL": "embedding-2"
+  },
+  "judge": {
+    "version": "b4",
+    "rubric_sha1_8": "ee09812c",
+    "model": "deepseek-v4-flash",
+    "temperature": 0.0,
+    "summary_chars": 300,
+    "tag_limit": 8,
+    "verdicts": [
+      "true",
+      "false",
+      "unknown"
+    ],
+    "thinking": false,
+    "pack": 20
+  },
+  "judge_kappa": {
+    "n": 50,
+    "po": 0.94,
+    "pe": 0.644,
+    "kappa": 0.831461,
+    "band": "almost perfect",
+    "matrix": {
+      "false": {
+        "false": 37,
+        "true": 3
+      },
+      "true": {
+        "false": 0,
+        "true": 10
+      }
+    },
+    "by_style": {
+      "plot": {
+        "n": 17,
+        "po": 0.941176,
+        "pe": 0.747405,
+        "kappa": 0.767123,
+        "band": "substantial",
+        "matrix": {
+          "false": {
+            "false": 14,
+            "true": 1
+          },
+          "true": {
+            "false": 0,
+            "true": 2
+          }
+        }
+      },
+      "tag": {
+        "n": 14,
+        "po": 0.857143,
+        "pe": 0.530612,
+        "kappa": 0.695652,
+        "band": "substantial",
+        "matrix": {
+          "false": {
+            "false": 8,
+            "true": 2
+          },
+          "true": {
+            "false": 0,
+            "true": 4
+          }
+        }
+      },
+      "title": {
+        "n": 18,
+        "po": 1.0,
+        "pe": 0.654321,
+        "kappa": 1.0,
+        "band": "almost perfect",
+        "matrix": {
+          "false": {
+            "false": 14,
+            "true": 0
+          },
+          "true": {
+            "false": 0,
+            "true": 4
+          }
+        }
+      }
+    },
+    "by_relation": {
+      "同系列/其它": {
+        "n": 44,
+        "po": 0.931818,
+        "pe": 0.778926,
+        "kappa": 0.691589,
+        "band": "substantial",
+        "matrix": {
+          "false": {
+            "false": 37,
+            "true": 3
+          },
+          "true": {
+            "false": 0,
+            "true": 4
+          }
+        }
+      },
+      "本人": {
+        "n": 6,
+        "po": 1.0,
+        "pe": 1.0,
+        "kappa": null,
+        "band": "undefined",
+        "matrix": {
+          "true": {
+            "true": 6
+          }
+        }
+      }
+    },
+    "annotation": {
+      "round": "b-anno-1",
+      "created": "2026-09-13 22:25",
+      "rubric_sha1_8": "6cc0e9d5",
+      "matches_current_rubric": false,
+      "n_sheet": 50,
+      "n_scored": 50,
+      "note": "分层样本，不是总体加权 —— κ 要连这句一起报。"
+    }
+  },
+  "random_pool_size": 15,
+  "seed": 13,
+  "elapsed_s": 9.6,
+  "usage": {
+    "http_calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0
+  },
+  "n_queries": 21,
+  "n_calls": 0,
+  "n_cache_hit": 713,
+  "table": {
+    "character·plot": {
+      "n_queries": 1,
+      "top20": {
+        "n": 20,
+        "judged": 20,
+        "relevant": 1,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.05,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 15,
+        "judged": 15,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 1,
+        "top20_rate": 0.05,
+        "random_rate": 0.0,
+        "gain_pp": 5.0,
+        "ci95_pp": null
+      },
+      "probe": {
+        "n": 1,
+        "true": 1,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 1,
+      "top20_sibling": 0,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 0,
+        "n_no_filters": 1,
+        "n_empty": 0,
+        "median": null,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 0
+          },
+          {
+            "range": "1–5",
+            "n": 0
+          },
+          {
+            "range": "6–15",
+            "n": 0
+          },
+          {
+            "range": "≥16",
+            "n": 0
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 1,
+        "densities": [
+          {
+            "domain_size": 350,
+            "density": 0.0,
+            "n_queries": 1
+          }
+        ]
+      }
+    },
+    "character·title": {
+      "n_queries": 1,
+      "top20": {
+        "n": 12,
+        "judged": 12,
+        "relevant": 1,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0833,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 15,
+        "judged": 15,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 1,
+        "top20_rate": 0.0833,
+        "random_rate": 0.0,
+        "gain_pp": 8.3,
+        "ci95_pp": null
+      },
+      "probe": {
+        "n": 1,
+        "true": 1,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 1,
+      "top20_sibling": 0,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 0,
+        "n_no_filters": 1,
+        "n_empty": 0,
+        "median": null,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 0
+          },
+          {
+            "range": "1–5",
+            "n": 0
+          },
+          {
+            "range": "6–15",
+            "n": 0
+          },
+          {
+            "range": "≥16",
+            "n": 0
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 1,
+        "densities": [
+          {
+            "domain_size": 350,
+            "density": 0.0,
+            "n_queries": 1
+          }
+        ]
+      }
+    },
+    "character·work": {
+      "n_queries": 1,
+      "top20": {
+        "n": 20,
+        "judged": 20,
+        "relevant": 1,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.05,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 15,
+        "judged": 15,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 1,
+        "top20_rate": 0.05,
+        "random_rate": 0.0,
+        "gain_pp": 5.0,
+        "ci95_pp": null
+      },
+      "probe": {
+        "n": 1,
+        "true": 1,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 1,
+      "top20_sibling": 0,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 0,
+        "n_no_filters": 1,
+        "n_empty": 0,
+        "median": null,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 0
+          },
+          {
+            "range": "1–5",
+            "n": 0
+          },
+          {
+            "range": "6–15",
+            "n": 0
+          },
+          {
+            "range": "≥16",
+            "n": 0
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 1,
+        "densities": [
+          {
+            "domain_size": 350,
+            "density": 0.0,
+            "n_queries": 1
+          }
+        ]
+      }
+    },
+    "person·plot": {
+      "n_queries": 1,
+      "top20": {
+        "n": 20,
+        "judged": 20,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 15,
+        "judged": 15,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 1,
+        "top20_rate": 0.0,
+        "random_rate": 0.0,
+        "gain_pp": 0.0,
+        "ci95_pp": null
+      },
+      "probe": {
+        "n": 1,
+        "true": 1,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 0,
+      "top20_sibling": 0,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 0,
+        "n_no_filters": 1,
+        "n_empty": 0,
+        "median": null,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 0
+          },
+          {
+            "range": "1–5",
+            "n": 0
+          },
+          {
+            "range": "6–15",
+            "n": 0
+          },
+          {
+            "range": "≥16",
+            "n": 0
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 1,
+        "densities": [
+          {
+            "domain_size": 110,
+            "density": 0.0,
+            "n_queries": 1
+          }
+        ]
+      }
+    },
+    "person·title": {
+      "n_queries": 1,
+      "top20": {
+        "n": 10,
+        "judged": 10,
+        "relevant": 1,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.1,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 15,
+        "judged": 15,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 1,
+        "top20_rate": 0.1,
+        "random_rate": 0.0,
+        "gain_pp": 10.0,
+        "ci95_pp": null
+      },
+      "probe": {
+        "n": 1,
+        "true": 1,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 1,
+      "top20_sibling": 0,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 0,
+        "n_no_filters": 1,
+        "n_empty": 0,
+        "median": null,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 0
+          },
+          {
+            "range": "1–5",
+            "n": 0
+          },
+          {
+            "range": "6–15",
+            "n": 0
+          },
+          {
+            "range": "≥16",
+            "n": 0
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 1,
+        "densities": [
+          {
+            "domain_size": 110,
+            "density": 0.0,
+            "n_queries": 1
+          }
+        ]
+      }
+    },
+    "person·work": {
+      "n_queries": 1,
+      "top20": {
+        "n": 13,
+        "judged": 13,
+        "relevant": 1,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0769,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 15,
+        "judged": 15,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 1,
+        "top20_rate": 0.0769,
+        "random_rate": 0.0,
+        "gain_pp": 7.7,
+        "ci95_pp": null
+      },
+      "probe": {
+        "n": 1,
+        "true": 1,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 1,
+      "top20_sibling": 0,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 0,
+        "n_no_filters": 1,
+        "n_empty": 0,
+        "median": null,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 0
+          },
+          {
+            "range": "1–5",
+            "n": 0
+          },
+          {
+            "range": "6–15",
+            "n": 0
+          },
+          {
+            "range": "≥16",
+            "n": 0
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 1,
+        "densities": [
+          {
+            "domain_size": 110,
+            "density": 0.0,
+            "n_queries": 1
+          }
+        ]
+      }
+    },
+    "subject·plot": {
+      "n_queries": 5,
+      "top20": {
+        "n": 100,
+        "judged": 100,
+        "relevant": 3,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.03,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 75,
+        "judged": 75,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 5,
+        "top20_rate": 0.03,
+        "random_rate": 0.0,
+        "gain_pp": 3.0,
+        "ci95_pp": [
+          1.0,
+          5.0
+        ]
+      },
+      "probe": {
+        "n": 5,
+        "true": 5,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 3,
+      "top20_sibling": 0,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 5,
+        "n_no_filters": 0,
+        "n_empty": 2,
+        "median": 2,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 2
+          },
+          {
+            "range": "1–5",
+            "n": 2
+          },
+          {
+            "range": "6–15",
+            "n": 0
+          },
+          {
+            "range": "≥16",
+            "n": 1
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 5,
+        "densities": [
+          {
+            "domain_size": 900,
+            "density": 0.0,
+            "n_queries": 5
+          }
+        ]
+      }
+    },
+    "subject·tag": {
+      "n_queries": 5,
+      "top20": {
+        "n": 100,
+        "judged": 100,
+        "relevant": 11,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.11,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 75,
+        "judged": 75,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 5,
+        "top20_rate": 0.11,
+        "random_rate": 0.0,
+        "gain_pp": 11.0,
+        "ci95_pp": [
+          8.0,
+          14.0
+        ]
+      },
+      "probe": {
+        "n": 5,
+        "true": 5,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 5,
+      "top20_sibling": 6,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 5,
+        "n_no_filters": 0,
+        "n_empty": 2,
+        "median": 1,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 2
+          },
+          {
+            "range": "1–5",
+            "n": 3
+          },
+          {
+            "range": "6–15",
+            "n": 0
+          },
+          {
+            "range": "≥16",
+            "n": 0
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 5,
+        "densities": [
+          {
+            "domain_size": 130,
+            "density": 0.0,
+            "n_queries": 1
+          },
+          {
+            "domain_size": 900,
+            "density": 0.0,
+            "n_queries": 4
+          }
+        ]
+      }
+    },
+    "subject·title": {
+      "n_queries": 5,
+      "top20": {
+        "n": 100,
+        "judged": 100,
+        "relevant": 6,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.06,
+        "unknown_rate": 0.0
+      },
+      "random_full": {
+        "n": 75,
+        "judged": 75,
+        "relevant": 0,
+        "unknown": 0,
+        "failed": 0,
+        "rate": 0.0,
+        "unknown_rate": 0.0
+      },
+      "gain": {
+        "n_pairs": 5,
+        "top20_rate": 0.06,
+        "random_rate": 0.0,
+        "gain_pp": 6.0,
+        "ci95_pp": [
+          5.0,
+          8.0
+        ]
+      },
+      "probe": {
+        "n": 5,
+        "true": 5,
+        "false": 0,
+        "unknown": 0,
+        "failed": 0,
+        "missing": 0
+      },
+      "top20_self": 5,
+      "top20_sibling": 1,
+      "random_full_relevant": 0,
+      "tag_domain": {
+        "n_with_filters": 5,
+        "n_no_filters": 0,
+        "n_empty": 0,
+        "median": 1,
+        "bins": [
+          {
+            "range": "0–0",
+            "n": 0
+          },
+          {
+            "range": "1–5",
+            "n": 3
+          },
+          {
+            "range": "6–15",
+            "n": 2
+          },
+          {
+            "range": "≥16",
+            "n": 0
+          }
+        ]
+      },
+      "estimated_recall": {
+        "value": null,
+        "n_used": 5,
+        "densities": [
+          {
+            "domain_size": 900,
+            "density": 0.0,
+            "n_queries": 5
+          }
+        ]
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "d022",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "title",
+      "query": "致不灭的你",
+      "gt_entity_id": "subject_297954",
+      "gt_name": "不滅のあなたへ",
+      "gt_name_cn": "致不灭的你",
+      "gt_popularity": 5683,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 1,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d029",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "tag",
+      "query": "SUNRISE的校园偶像原创动画",
+      "gt_entity_id": "subject_306742",
+      "gt_name": "ラブライブ！スーパースター!!",
+      "gt_name_cn": "Love Live! Superstar!!",
+      "gt_popularity": 6182,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 0,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 3,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.15
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 2,
+      "judge_calls": 0
+    },
+    {
+      "id": "d043",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "title",
+      "query": "空之境界 终章",
+      "gt_entity_id": "subject_11629",
+      "gt_name": "劇場版 空の境界 終章 空の境界",
+      "gt_name_cn": "剧场版 空之境界 终章 空之境界",
+      "gt_popularity": 6603,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 10,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d050",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "tag",
+      "query": "MADHouse的暴力美学枪战番",
+      "gt_entity_id": "subject_979",
+      "gt_name": "BLACK LAGOON",
+      "gt_name_cn": "黑礁",
+      "gt_popularity": 6041,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 1,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 2,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.1
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 1,
+      "judge_calls": 0
+    },
+    {
+      "id": "d067",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "title",
+      "query": "宇宙巡警露露子",
+      "gt_entity_id": "subject_168204",
+      "gt_name": "宇宙パトロールルル子",
+      "gt_name_cn": "宇宙巡警露露子",
+      "gt_popularity": 5279,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 1,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d104",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "tag",
+      "query": "2017年1月的校园恋爱搞笑番",
+      "gt_entity_id": "subject_185762",
+      "gt_name": "政宗くんのリベンジ",
+      "gt_name_cn": "政宗君的复仇",
+      "gt_popularity": 7288,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 1,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d132",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "plot",
+      "query": "最弱猎人临死前获得升级能力独自变强",
+      "gt_entity_id": "subject_390353",
+      "gt_name": "俺だけレベルアップな件",
+      "gt_name_cn": "我独自升级",
+      "gt_popularity": 10383,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 2,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d162",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "plot",
+      "query": "天上掉下个万能天使认主人，能实现一切愿望的后宫动画",
+      "gt_entity_id": "subject_2617",
+      "gt_name": "そらのおとしもの",
+      "gt_name_cn": "天降之物",
+      "gt_popularity": 8918,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 0,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 1,
+          "judged": 1,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 1.0
+        }
+      },
+      "top20_relevant_is_self": 0,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d177",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "plot",
+      "query": "想找一部主角牺牲自己拯救所有魔法少女、留下同伴独自战斗的剧场版",
+      "gt_entity_id": "subject_44693",
+      "gt_name": "劇場版 魔法少女まどか☆マギカ [新編] 叛逆の物語",
+      "gt_name_cn": "剧场版 魔法少女小圆 [新篇] 叛逆的物语",
+      "gt_popularity": 17780,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 5,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d195",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "plot",
+      "query": "按成绩分班、用召唤兽打架的校园恋爱喜剧",
+      "gt_entity_id": "subject_3326",
+      "gt_name": "バカとテストと召喚獣",
+      "gt_name_cn": "笨蛋，测验，召唤兽",
+      "gt_popularity": 13906,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 0,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d232",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "title",
+      "query": "JOJO第三部 埃及篇",
+      "gt_entity_id": "subject_113292",
+      "gt_name": "ジョジョの奇妙な冒険 スターダストクルセイダース エジプト編",
+      "gt_name_cn": "JOJO的奇妙冒险 星尘斗士 埃及篇",
+      "gt_popularity": 17997,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 11,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 2,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.1
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 1,
+      "judge_calls": 0
+    },
+    {
+      "id": "d256",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "title",
+      "query": "干物妹小埋 第二季",
+      "gt_entity_id": "subject_212775",
+      "gt_name": "干物妹! うまるちゃんR",
+      "gt_name_cn": "干物妹！小埋R",
+      "gt_popularity": 10160,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 1,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d263",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "tag",
+      "query": "京阿尼校园恋爱搞笑动画",
+      "gt_entity_id": "subject_29648",
+      "gt_name": "中二病でも恋がしたい！",
+      "gt_name_cn": "中二病也要谈恋爱！",
+      "gt_popularity": 26298,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 0,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 3,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.15
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 2,
+      "judge_calls": 0
+    },
+    {
+      "id": "d309",
+      "entity_type": "subject",
+      "subject_type": 2,
+      "style": "plot",
+      "query": "我想找一部讲猫妖家园被毁后流浪、在妖精和人类之间纠结归属的动画",
+      "gt_entity_id": "subject_159725",
+      "gt_name": "罗小黑战记",
+      "gt_name_cn": "",
+      "gt_popularity": 5580,
+      "n_returned": 20,
+      "domain_size": 900,
+      "tagged_domain_size": 136,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 1,
+          "judged": 1,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 1.0
+        }
+      },
+      "top20_relevant_is_self": 0,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d338",
+      "entity_type": "subject",
+      "subject_type": 1,
+      "style": "tag",
+      "query": "井上雄彦的篮球热血漫画",
+      "gt_entity_id": "subject_18462",
+      "gt_name": "SLAM DUNK 完全版",
+      "gt_name_cn": "灌篮高手 完全版",
+      "gt_popularity": 1887,
+      "n_returned": 20,
+      "domain_size": 130,
+      "tagged_domain_size": 2,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 2,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.1
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 1,
+      "judge_calls": 0
+    },
+    {
+      "id": "d372",
+      "entity_type": "character",
+      "subject_type": null,
+      "style": "plot",
+      "query": "靠头上缎带颜色切换纯真妹妹和毒舌司令两种性格，还天天逼哥哥学交际",
+      "gt_entity_id": "character_19527",
+      "gt_name": "五河琴里",
+      "gt_name_cn": "五河琴里",
+      "gt_popularity": 585,
+      "n_returned": 20,
+      "domain_size": 350,
+      "tagged_domain_size": null,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d377",
+      "entity_type": "character",
+      "subject_type": null,
+      "style": "work",
+      "query": "《散华礼弥》里那个僵尸女主",
+      "gt_entity_id": "character_15499",
+      "gt_name": "散華礼弥",
+      "gt_name_cn": "散华礼弥",
+      "gt_popularity": 485,
+      "n_returned": 20,
+      "domain_size": 350,
+      "tagged_domain_size": null,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.05
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d388",
+      "entity_type": "character",
+      "subject_type": null,
+      "style": "title",
+      "query": "就是那个紫阳花",
+      "gt_entity_id": "character_101794",
+      "gt_name": "瀬名紫陽花",
+      "gt_name_cn": "濑名紫阳花",
+      "gt_popularity": 553,
+      "n_returned": 12,
+      "domain_size": 350,
+      "tagged_domain_size": null,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 12,
+          "judged": 12,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.08333333333333333
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d428",
+      "entity_type": "person",
+      "subject_type": null,
+      "style": "work",
+      "query": "做过《欺诈游戏》和《钻石王牌》的公司",
+      "gt_entity_id": "person_603",
+      "gt_name": "MADHOUSE",
+      "gt_name_cn": "MADHOUSE",
+      "gt_popularity": 1525,
+      "n_returned": 13,
+      "domain_size": 110,
+      "tagged_domain_size": null,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 13,
+          "judged": 13,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.07692307692307693
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d430",
+      "entity_type": "person",
+      "subject_type": null,
+      "style": "title",
+      "query": "花田十辉",
+      "gt_entity_id": "person_262",
+      "gt_name": "花田十輝",
+      "gt_name_cn": "花田十辉",
+      "gt_popularity": 1390,
+      "n_returned": 10,
+      "domain_size": 110,
+      "tagged_domain_size": null,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 10,
+          "judged": 10,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.1
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 0,
+          "judged": 0,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": null
+        }
+      },
+      "top20_relevant_is_self": 1,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    },
+    {
+      "id": "d432",
+      "entity_type": "person",
+      "subject_type": null,
+      "style": "plot",
+      "query": "爷爷是文艺评论家、自己写动画剧本的人",
+      "gt_entity_id": "person_262",
+      "gt_name": "花田十輝",
+      "gt_name_cn": "花田十辉",
+      "gt_popularity": 1390,
+      "n_returned": 20,
+      "domain_size": 110,
+      "tagged_domain_size": null,
+      "probe_in_pool": true,
+      "probe_verdict": "true",
+      "buckets": {
+        "top20": {
+          "n": 20,
+          "judged": 20,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "random_full": {
+          "n": 15,
+          "judged": 15,
+          "relevant": 0,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 0.0
+        },
+        "probe": {
+          "n": 1,
+          "judged": 1,
+          "relevant": 1,
+          "unknown": 0,
+          "failed": 0,
+          "_rate": 1.0
+        }
+      },
+      "top20_relevant_is_self": 0,
+      "top20_relevant_sibling": 0,
+      "judge_calls": 0
+    }
+  ],
+  "n_error": 0,
+  "n_judge_failed": 0,
+  "known_limits": [
+    "★ 本报告是【诊断】，不是轴 2 的指标 —— 指标在层 A（Recall@K / NDCG@K / MRR）。理由：单答案 GT 下「相关」= 「就是点名的那一部」，于是 Precision@K 退化成命中率的复述（2026-09-13 结论；同类坑 eval/README.md 在 B 组已经踩过一次）。",
+    "随机补池的相关率全组 0，这是【结构性的】不是测量结果：随机池按构造排除了出题实体，而相关又只认那一条 —— 所以「相对随机基线的增益」在单答案 GT 下不成立，已从报告撤下。原始数字仍在 JSON 的 table[*].gain / estimated_recall 里，留作记录，别当指标引用。",
+    "三值 rubric：unknown 从分母里剔除并单独报比率（>20% 说明判官看到的简介不够判）。",
+    "探针（出题实体）的判定与查询词面高度重合，几乎必然判 true —— 互验只能发现【极端坏题】，没发现不等于题目都合格。",
+    "标签集域（多标签 AND 的结果集）只作诊断：120 条标签式查询里 30 条为空、非空中位数 2 条。",
+    "judge 与被评模型同源（单 provider，LLM_MODEL 单值），自偏好偏差只能声明不能消除。",
+    "答案闭世界：只在本地 1500 条实体库内。",
+    "非 subject 组各只有 15 条查询，只作方向性读数。"
+  ]
+}

@@ -1,0 +1,373 @@
+{
+ "version": "b-anno-1",
+ "created": "2026-09-13 22:25",
+ "purpose": "层 B 判官的人工校准集。判官判定【故意不写进标注表】，避免锚定。",
+ "judge": {
+  "version": "b3",
+  "rubric_sha1_8": "6cc0e9d5",
+  "thinking": false,
+  "pack": 20
+ },
+ "sample": {
+  "n": 50,
+  "seed": 13,
+  "strata": {
+   "judge_false": 20,
+   "judge_true": 20,
+   "probe_false_name_overlap": 10
+  },
+  "warning": "分层样本，不是总体加权 —— κ 要连这句一起报。"
+ },
+ "items": [
+  {
+   "i": 1,
+   "qid": "d162",
+   "eid": "subject_565802",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 2,
+   "qid": "d263",
+   "eid": "subject_51",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 3,
+   "qid": "d338",
+   "eid": "subject_36752",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 4,
+   "qid": "d309",
+   "eid": "subject_376137",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 5,
+   "qid": "d263",
+   "eid": "subject_152092",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 6,
+   "qid": "d177",
+   "eid": "subject_424663",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 7,
+   "qid": "d263",
+   "eid": "subject_50331",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 8,
+   "qid": "d067",
+   "eid": "subject_217249",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 9,
+   "qid": "d263",
+   "eid": "subject_339326",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 10,
+   "qid": "d263",
+   "eid": "subject_293049",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 11,
+   "qid": "d050",
+   "eid": "subject_79227",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 12,
+   "qid": "d177",
+   "eid": "subject_6049",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 13,
+   "qid": "d338",
+   "eid": "subject_6931",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 14,
+   "qid": "d132",
+   "eid": "subject_148099",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 15,
+   "qid": "d232",
+   "eid": "subject_113292",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 16,
+   "qid": "d043",
+   "eid": "subject_1333",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 17,
+   "qid": "d162",
+   "eid": "subject_373266",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 18,
+   "qid": "d043",
+   "eid": "subject_11629",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 19,
+   "qid": "d232",
+   "eid": "subject_235128",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 20,
+   "qid": "d043",
+   "eid": "subject_43581",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 21,
+   "qid": "d067",
+   "eid": "subject_536",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 22,
+   "qid": "d388",
+   "eid": "character_29511",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 23,
+   "qid": "d132",
+   "eid": "subject_487630",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 24,
+   "qid": "d029",
+   "eid": "subject_296659",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 25,
+   "qid": "d043",
+   "eid": "subject_2225",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 26,
+   "qid": "d177",
+   "eid": "subject_193373",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 27,
+   "qid": "d177",
+   "eid": "subject_75521",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 28,
+   "qid": "d132",
+   "eid": "subject_390353",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 29,
+   "qid": "d177",
+   "eid": "subject_1333",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 30,
+   "qid": "d029",
+   "eid": "subject_75989",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 31,
+   "qid": "d232",
+   "eid": "subject_375913",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 32,
+   "qid": "d043",
+   "eid": "subject_3423",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 33,
+   "qid": "d432",
+   "eid": "person_1313",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 34,
+   "qid": "d432",
+   "eid": "person_262",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 35,
+   "qid": "d263",
+   "eid": "subject_105075",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 36,
+   "qid": "d067",
+   "eid": "subject_168204",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 37,
+   "qid": "d162",
+   "eid": "subject_44693",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 38,
+   "qid": "d430",
+   "eid": "person_2064",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 39,
+   "qid": "d232",
+   "eid": "subject_37873",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 40,
+   "qid": "d050",
+   "eid": "subject_493",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 41,
+   "qid": "d377",
+   "eid": "character_3187",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 42,
+   "qid": "d338",
+   "eid": "subject_37565",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 43,
+   "qid": "d132",
+   "eid": "subject_21032",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 44,
+   "qid": "d022",
+   "eid": "subject_297954",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 45,
+   "qid": "d263",
+   "eid": "subject_72942",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 46,
+   "qid": "d232",
+   "eid": "subject_289138",
+   "judge": "true",
+   "stratum": "judge_true"
+  },
+  {
+   "i": 47,
+   "qid": "d388",
+   "eid": "character_11922",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 48,
+   "qid": "d162",
+   "eid": "subject_15910",
+   "judge": "false",
+   "stratum": "judge_false"
+  },
+  {
+   "i": 49,
+   "qid": "d256",
+   "eid": "subject_278826",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  },
+  {
+   "i": 50,
+   "qid": "d177",
+   "eid": "subject_2225",
+   "judge": "false",
+   "stratum": "probe_false_name_overlap"
+  }
+ ]
+}
