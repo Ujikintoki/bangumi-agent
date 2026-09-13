@@ -25,7 +25,7 @@ from agent.persona.profiles import get_agent_profile, get_character
 from agent.persona.render import (
     _extract_user_query as _extract_user_query_from_messages,
 )
-from agent.persona.render import render_fallback_line, render_reply
+from agent.persona.render import render_fallback_line, render_reply, tool_outcome_line
 from agent.state import AgentState
 from core.config import get_settings
 from database.engine import init_db
@@ -589,6 +589,7 @@ async def _render_final_reply(
 
     - chat 意图：纯闲聊，无工具数据，直接用人格回复。
     - 其余：隐式终止——取 Aggregator 文本摘要交给 render。
+    - 模型没吐文本（熔断掐断）：转 ``_render_no_text_followup``，那里必定给出回复。
     - render 失败时：有可示人的原文就清理后降级，没有（chat）就回落兜底话术。
 
     render_input 与 fallback 是两件事，**不要合并**：
@@ -596,7 +597,8 @@ async def _render_final_reply(
       fallback     = 本来就能给用户看的原文（只有非 chat 分支的 Aggregator 摘要有）
 
     Returns:
-        (更新后的 messages, 最终回复文本；无数据时回复为 None)
+        (更新后的 messages, 最终回复文本)。末行的 None 是防御性兜底，
+        正常路径不会再走到（非 chat 分支要么有摘要、要么已由上面那条转走）。
     """
     if query_intent == "chat":
         render_input = (
@@ -618,9 +620,12 @@ async def _render_final_reply(
                 len(render_input),
             )
         else:
-            render_input = "（无数据）"
-            fallback = None
-            force_render = False
+            # 模型一句话都没说。见 _render_no_text_followup —— 这里不能塞个
+            # "（无数据）"就撒手：render 会因输入过短跳过它，用户拿到的是
+            # 「工具执行完成但未能生成文本回复」。
+            return await _render_no_text_followup(
+                messages, user_query, output_style, depth
+            )
 
     character = get_character(output_style)
     rendered = await render_reply(
@@ -651,6 +656,141 @@ async def _render_final_reply(
         logger.warning("Render 失败，chat 分支回落通用话术 (%d chars)", len(line))
         return _replace_last_ai_content(messages, line), line
     return messages, None
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 模型未收尾时的降级（方案 C：人格层交代 + 兜底话术）
+# ═══════════════════════════════════════════════════════════════════
+
+# 喂给 render 的"事实"——把实际发生的结局摊开讲，让角色自己组织语言。
+# render prompt 会把它塞进 <system_retrieved_facts> 当作数据看待。
+#
+# ⚠ 那三行"不许"是被实测逼出来的，不是以防万一：
+#   1. 不禁"印象里很高"这类软话，模型就会用"几季都在前列"填答案——它没说数字，
+#      但仍然是没有任何证据支撑的断言，正是本项目的忠实性判官要判 unsupported 的形态。
+#   2. 不禁"接口/系统"，render 会照着能力自述里的"API 查询"说"接口挂了"——
+#      住在站里的角色不该知道"接口"是什么。
+# 改这段等于改降级时的人格表达，改完要重跑 probe_degrade_wording 看有没有回潮。
+_NO_DATA_RENDER_INPUT: dict[str, str] = {
+    "blocked": (
+        "（情况：你刚去站里翻数据，没连上，一条都没取到。"
+        "你只需要把“这次没查到、过会儿再来”告诉用户。"
+        "不要补充任何作品信息、评分、排名、日期或推荐——"
+        "连“印象里很高”“应该挺强”这种也不许说。"
+        "也别提接口、系统、工具这些词，就当自己跑了一趟没跑成。）"
+    ),
+    "empty": (
+        "（情况：你刚去站里翻过了，没有找到匹配的内容。"
+        "你只需要把“没找着、换个说法”告诉用户。"
+        "不要补充任何作品信息、评分、排名、日期或推荐——"
+        "连“印象里好像有”这种也不许说。"
+        "也别提接口、系统、工具这些词，就当自己翻了一圈没翻着。）"
+    ),
+}
+
+_ERROR_KEY_SUFFIX = "_error"
+
+
+def _tool_outcome(messages: list) -> str:
+    """倒推工具这一轮到底给了什么 —— 决定降级时该说哪种"没有"。
+
+    能走到这里，前提是模型一句话都没吐：熔断（连续空搜索 / 重复调用 / 迭代上限）
+    在 tool_node 之后直接掐断了图，最后一条消息是 ToolMessage。所以要靠工具结果
+    本身判断该跟用户交代什么。
+
+    Returns:
+        ``"no_tools"`` 压根没查过（模型空手而归，不是查了没有）
+        ``"has_data"`` 至少一条结果有可用内容（问题是模型没接住，不是没查到）
+        ``"blocked"``  结果全是错误（够不着 / 连不上）
+        ``"empty"``    有结果但都空（翻过了，没有）
+    """
+    kinds = [
+        _tool_payload_kind(m.content)
+        for m in messages
+        if isinstance(m, ToolMessage)
+    ]
+    if not kinds:
+        # 一次都没查过却说"翻了一圈没找着"是撒谎 —— 跟"有数据说没查到"一样，
+        # 都属于把实际发生的事说错。两者都该走"我没接住"。
+        return "no_tools"
+    if "data" in kinds:
+        return "has_data"
+    if "error" in kinds:
+        return "blocked"
+    return "empty"
+
+
+def _tool_payload_kind(content) -> str:
+    """把一条 ToolMessage 的 content 归成 error / data / empty。"""
+    text = content if isinstance(content, str) else str(content)
+    try:
+        obj = json.loads(text)
+    except (TypeError, ValueError):
+        # 不是 JSON：有字就算有内容（工具偶尔返回纯文本），空串就是空。
+        return "data" if text.strip() else "empty"
+
+    if isinstance(obj, dict):
+        # 错误形状有两层：约定内的顶层 _error，以及 get_user_profile 那类
+        # {key}_error 子键（如 comments_error）—— 后者是部分失败，同样没数据。
+        if "_error" in obj or any(k.endswith(_ERROR_KEY_SUFFIX) for k in obj):
+            return "error"
+        containers = [v for v in obj.values() if isinstance(v, (list, dict))]
+        # 只有标量（如 {"total": 0}）不算内容：没有可供用户看的实体。
+        return "data" if any(containers) else "empty"
+    if isinstance(obj, list):
+        return "data" if obj else "empty"
+    return "empty"
+
+
+async def _render_no_text_followup(
+    messages: list,
+    user_query: str,
+    output_style: str,
+    depth: str,
+) -> tuple[list, str]:
+    """模型没吐出任何文本时的收尾（方案 C）。
+
+    A：把实际结局当事实交给 render，让角色用人格说出来。
+    B：render 也失败 → 回落不经 LLM 的结局话术，绝不把技术黑话丢给用户。
+
+    ⚠ 一律【追加】AIMessage，不用 ``_replace_last_ai_content``：此刻最后一条
+    AIMessage 是空 content + tool_calls，替换会把它的 ToolMessage 变成孤儿
+    （配对丢失）。追加得到的转录仍然合法：
+    ``AIMessage(tool_calls) → ToolMessage → AIMessage(text)``。
+
+    Returns:
+        (更新后的 messages, 回复文本)。这里永远给得出文本，不会返回 None。
+    """
+    character = get_character(output_style)
+    outcome = _tool_outcome(messages)
+
+    if outcome in ("has_data", "no_tools"):
+        # 有数据却没接住（或压根没查成）—— 该说的是"我走神了"，不是"我没查到"。
+        # 这两个结局没有"数据"要转述，喂 render 只会逼它去编，所以根本不调。
+        line = render_fallback_line(character)
+        logger.warning("render: 模型未收尾（%s）→ 走神话术 (%d chars)", outcome, len(line))
+        return messages + [AIMessage(content=line)], line
+
+    logger.warning("render: 模型未收尾（%s），交给人格层交代", outcome)
+    try:
+        rendered = await render_reply(
+            render_input=_NO_DATA_RENDER_INPUT[outcome],
+            user_query=user_query,
+            character=character,
+            depth=depth,
+            force=True,
+        )
+    except Exception:
+        # render_reply 自己吞异常，但它在进 try 之前先调了 build_render_prompt
+        # （人格卡/格式串坏了就会炸）。这里是最后一层防线，兜底话术必须说到做到。
+        logger.exception("render: 结局交代渲染异常")
+        rendered = None
+    if rendered:
+        return messages + [AIMessage(content=rendered)], rendered
+
+    line = tool_outcome_line(character, blocked=(outcome == "blocked"))
+    logger.warning("render: 结局交代渲染失败 → 回落 %s 兜底话术", outcome)
+    return messages + [AIMessage(content=line)], line
 
 
 def _get_last_ai_message(messages: list):

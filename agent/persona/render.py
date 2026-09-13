@@ -75,6 +75,40 @@ def render_fallback_line(character) -> str:
     )
 
 
+# ── 工具没给出可用数据时的结局话术 ────────────────────────────────
+# 与 _RENDER_FALLBACK_LINES 同一设计原则：写成角色自己碰壁，既诚实又不跳出人设。
+# 只是撞的墙不同 —— 那组是"话没接住"，这组是"没查到"。
+#
+# 分两种结局，因为该给用户的下一步动作不同：够不着 → 待会儿再来；查无此物 → 换个说法。
+# 说"站里"而不是"服务器/接口/数据库"，是因为角色本来就住在 Bangumi 站内，
+# 这么讲既准确又不穿帮；"系统开小差了"这类中性 IT 话术三个角色都对不上。
+_TOOL_BLOCKED_LINES: dict[str, str] = {
+    "bangumi": "……站里这会儿我够不着，白跑一趟。过会儿再喊我。",
+    "bangumi_kawaii": "呜，我连不上站里，什么都没翻到……等下再问我一次好不好？",
+    "neutral": "暂时连不上 Bangumi 的数据，请稍后再试。",
+}
+
+_TOOL_EMPTY_LINES: dict[str, str] = {
+    "bangumi": "……翻了一圈，没找着。你是不是记岔名字了？",
+    "bangumi_kawaii": "诶，我找了好久都没找到这个……名字是不是不太对呀？",
+    "neutral": "没有找到匹配的内容，请换个说法再试。",
+}
+
+
+def tool_outcome_line(character, *, blocked: bool) -> str:
+    """工具没给出可用数据时的结局话术（不经 LLM）。
+
+    Args:
+        character: CharacterProfile 对象，按其 key 选话术。
+        blocked: True = 够不着（调用失败）；False = 翻过了，没有（结果为空）。
+
+    Returns:
+        该角色的结局话术；未知 key 回落到 neutral 的那句。
+    """
+    table = _TOOL_BLOCKED_LINES if blocked else _TOOL_EMPTY_LINES
+    return table.get(getattr(character, "key", ""), table["neutral"])
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Render Prompt Builder — v2: 完整 Character Card + 代码生成的 render_input
 # ═══════════════════════════════════════════════════════════════════════════

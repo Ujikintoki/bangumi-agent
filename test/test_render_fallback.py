@@ -13,8 +13,10 @@
    上一轮的 AIMessage（chat 直通 END，本轮不产生新 AIMessage），端点的
    `_extract_final_reply` 会往上翻把它当成这一轮的回答，用户看到的是复读。
    修复前这条路径被泄漏掩盖着，拆掉泄漏就会露出来；
-3. 非 chat 分支的降级行为 **一字不变** —— 那条路本来就对（反证：同一轮
-   render 失败，`D5-社区评价` 降级出"搜索超时，未能获取…"是按设计工作的）。
+3. 非 chat 分支**有 Aggregator 文本时**的降级行为一字不变 —— 那条路本来就对
+   （反证：同一轮 render 失败，`D5-社区评价` 降级出"搜索超时，未能获取…"是按
+   设计工作的）。**没有文本时**那条路 2026-09-14 被改了：原先是返回 None 交给
+   端点兜底，而端点兜底是一句技术黑话。见 `test_render_degrade_outcome.py`。
 
 代价是"没有 AI 回复"变成了"AI 角色说了一句它其实没想说的话"。这个取舍是
 有意的：兜底话术诚实（承认没接住），且不泄漏任何内部文本。
@@ -28,7 +30,7 @@ import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 import main
 from agent.persona.render import _RENDER_FALLBACK_LINES, render_fallback_line
@@ -38,7 +40,8 @@ from eval.reply_quality_eval import (
     _RenderSignalHandler,
 )
 
-# 触发这次修复的真实泄漏原文（冻结样本 reply_quality-20260913-111412 的 reply 字段）
+# 触发这次修复的真实泄漏原文（冻结样本 reply_quality-20260913-111412 的 reply 字段，
+# 该样本已随归档移入 eval/results/archive/）
 LEAKED_TEXT = (
     "用户对你说：哈哈，你这回复太懂我了\n\n"
     "这是一段闲聊。自然地用你的角色性格回复。"
@@ -177,13 +180,36 @@ class TestNonChatBranchUnchanged:
         assert rendered not in _RENDER_FALLBACK_LINES.values(), "非 chat 分支不该走兜底话术"
 
     @pytest.mark.asyncio
-    async def test_returns_none_without_aggregator_text(self):
-        """没有 Aggregator 文本 → 返回 (messages, None)，交给端点自己的兜底。行为不变。"""
-        messages = _explore_messages(with_aggregator_text=False)
-        messages_out, rendered = await _render(messages, intent="explore")
+    async def test_tool_results_without_text_now_gets_a_reply(self):
+        """没有 Aggregator 文本但有工具结果 → 必定给回复（2026-09-14 起）。
 
-        assert rendered is None
-        assert messages_out == messages
+        ⚠ 这条契约**被改过**。原先是「返回 (messages, None)，交给端点自己的兜底」，
+        当时的判断是"那条路本来就对"——直到实测发现端点的兜底是
+        「工具执行完成但未能生成文本回复，请重试或换个方式提问。」：一句技术黑话，
+        而且正常操作下根本不会出现（熔断掐断时最后一条是 ToolMessage）。
+        详见 test_render_degrade_outcome.py —— 那组测的是新契约本身。
+        """
+        # 要有真实的工具结果：一条都没有的话属于"压根没查过"，走的是另一条话术。
+        messages = _explore_messages(with_aggregator_text=False) + [
+            ToolMessage(
+                content='{"_error": "搜索失败。连接失败（ConnectError）"}',
+                name="search_bangumi_subject",
+                tool_call_id="call_1",
+            )
+        ]
+        # 不走 _render 助手：它自己 patch 了一份 render_reply(→None)，会盖住这里的。
+        with patch("main.render_reply", AsyncMock(return_value="（人格化的交代）")):
+            messages_out, rendered = await main._render_final_reply(
+                messages=messages,
+                user_query="进击的巨人评分",
+                query_intent="explore",
+                output_style="bangumi",
+                depth="fast",
+            )
+
+        assert rendered == "（人格化的交代）"
+        assert messages_out != messages, "必须有新消息落在 messages 里，否则端点捞不到"
+        assert main._extract_final_reply(messages_out) == rendered
 
 
 # ═══════════════════════════════════════════════════════════════════
