@@ -105,9 +105,18 @@ RAG 语料库批量灌入脚本 — Phase 2
 用法::
 
     source .venv/bin/activate
-    python -m rag.cli.ingest                # 全部流程（不进 --clear，不删旧数据）
-    python -m rag.cli.ingest --clear        # 先清空 rag_entities，再灌入（推荐）
+    python -m rag.cli.ingest                 # 全部流程（不带 --clear，不删旧数据）
+    python -m rag.cli.ingest --clear         # 先清空 rag_entities，再灌入（推荐）
     python -m rag.cli.ingest --subjects-only # 只灌 Subject（动画+书籍）
+
+三个 --*-only 开关互斥（同时给多个时取第一个命中的），作用是**只加载、只富化、
+只灌入**那几类实体。它们也决定 --clear 的清空范围：
+
+    python -m rag.cli.ingest --subjects-only --clear
+      → 只清空 entity_type='subject' 的行，再灌入 subject
+      → character / person 原封不动（不会被清空，也不会被重灌）
+
+不带任何 --*-only 时，--clear 清空**整张表**（旧行为不变）。
 """
 
 from __future__ import annotations
@@ -204,6 +213,28 @@ _DISCOVERY_FILES: dict[str, dict] = {
 }
 
 
+# CLI 的 --*-only 开关 → 允许保留的 _DISCOVERY_FILES 键。
+# 这三个开关决定两件事：① 只加载/富化/灌入这几类实体；② --clear 只清这几类。
+# 顺序即优先级 —— 同时给多个开关时取第一个命中的。
+_ONLY_FLAG_KEYS: dict[str, set[str]] = {
+    "subjects_only": {"subject_type2", "subject_type1"},
+    "characters_only": {"character"},
+    "persons_only": {"person"},
+}
+
+
+def _resolve_only_scope(args) -> tuple[str | None, set[str] | None]:
+    """把 --*-only 开关解析成"只保留哪些来源"。
+
+    Returns:
+        (命中的开关名, 允许的来源键集合)。一个都没给时返回 (None, None)。
+    """
+    for flag, keys in _ONLY_FLAG_KEYS.items():
+        if getattr(args, flag):
+            return flag, keys
+    return None, None
+
+
 def _load_ids(key: str) -> list[int]:
     """从 Phase 1 JSON 产物中加载实体 ID 列表。
 
@@ -239,13 +270,14 @@ async def main():
         description="RAG 语料库批量灌入 — Phase 2"
     )
     parser.add_argument("--clear", action="store_true",
-                        help="清空 rag_entities 后重新灌入")
+                        help="先清空再灌入。清空范围跟着 --*-only 走："
+                             "不带 --*-only 时清空整张表，带上时只清对应类型")
     parser.add_argument("--subjects-only", action="store_true",
-                        help="仅灌入 Subject（动画 + 书籍）")
+                        help="仅灌入 Subject（动画 + 书籍）；同时把 --clear 限定到 subject")
     parser.add_argument("--characters-only", action="store_true",
-                        help="仅灌入 Character（角色）")
+                        help="仅灌入 Character（角色）；同时把 --clear 限定到 character")
     parser.add_argument("--persons-only", action="store_true",
-                        help="仅灌入 Person（现实人物）")
+                        help="仅灌入 Person（现实人物）；同时把 --clear 限定到 person")
     args = parser.parse_args()
 
     # ── 初始化客户端 ──────────────────────────────────────────────
@@ -261,14 +293,8 @@ async def main():
     settings = get_settings()
     client = BangumiClient(access_token=settings.BANGUMI_ACCESS_TOKEN or None)
 
-    # 如果指定了 --subjects-only，run_all = False（只跑 subject 部分）
-    #
-    # ⚠️ 未启用的开关，【不是死代码，别删】：`run_all` 算出来之后全文件再没被读过，
-    #    所以 `--subjects-only` / `--characters-only` / `--persons-only` 三个参数
-    #    在 --help 里写着，实际【完全无效】—— 带上它们照样三类实体全灌。
-    #    危险组合：`--subjects-only --clear` 会清库并重灌全部三类，与参数的承诺相反。
-    #    修法不是删这一行（删了 bug 就再也看不见了），是让各 Phase 真的读它。
-    run_all = not (args.subjects_only or args.characters_only or args.persons_only)
+    # --*-only 开关的解析结果，Phase 1 用它裁剪来源、Phase 2 用它限定清空范围
+    only_flag, only_keys = _resolve_only_scope(args)
 
 
     # ═════════════════════════════════════════════════════════════════
@@ -290,9 +316,19 @@ async def main():
     random.seed(TAIL_SEED)  # 固定随机种子，保证可复现
 
     # 加载每个来源的完整 ID 列表（保持排名顺序——越靠前越热门）
+    #
+    # --*-only 在这里就裁掉不灌的来源：Phase 3（富化）和 Phase 4（灌入）全是
+    # `if anime_ids:` / `if character_ids:` 这种"列表非空就干活"的写法，
+    # 所以在源头裁掉即可，下游一行都不用改。
     all_ids: dict[str, list[int]] = {}
     for key in _DISCOVERY_FILES:
+        if only_keys is not None and key not in only_keys:
+            continue
         all_ids[key] = _load_ids(key)
+
+    if only_flag is not None:
+        print(f"\n  ⚠ --{only_flag.replace('_', '-')}：只加载/灌入 "
+              f"{'、'.join(sorted(only_keys))}（其余来源不读、不富化、不灌入）")
 
     # 拆分头部（确定性 Top-N）和尾部（随机采样）
     final_ids: dict[str, list[int]] = {}
@@ -323,10 +359,11 @@ async def main():
         print(line)
 
     # 按实体类型拆分 ID 列表，方便后续分别富化
-    anime_ids = final_ids["subject_type2"]       # 动画 ID 列表
-    book_ids = final_ids["subject_type1"]        # 书籍 ID 列表
-    character_ids = final_ids["character"]       # 角色 ID 列表
-    person_ids = final_ids["person"]             # 人物 ID 列表
+    # 用 .get(..., [])：--*-only 裁掉的来源不会出现在 final_ids 里
+    anime_ids = final_ids.get("subject_type2", [])   # 动画 ID 列表
+    book_ids = final_ids.get("subject_type1", [])    # 书籍 ID 列表
+    character_ids = final_ids.get("character", [])   # 角色 ID 列表
+    person_ids = final_ids.get("person", [])         # 人物 ID 列表
 
     total_ids = len(anime_ids) + len(book_ids) + len(character_ids) + len(person_ids)
     print(f"  {'─' * 45}")
@@ -357,10 +394,27 @@ async def main():
         #   进入 with 块 = 开始对话
         #   离开 with 块 = 自动关闭对话（释放数据库连接）
         with Session(engine) as session:
-            result = session.exec(text("DELETE FROM rag_entities"))
+            # 清空范围跟着 --*-only 走。
+            # 反例（曾经的行为）：--subjects-only --clear 会把整张表清掉，
+            # 而后面只重灌 subject —— character / person 被删了却不再补回来。
+            if only_keys is None:
+                result = session.exec(text("DELETE FROM rag_entities"))
+                scope_desc = "整表"
+            else:
+                # entity_type 取自模块常量（不是用户输入），无注入面
+                scoped = sorted({_DISCOVERY_FILES[k]["entity_type"] for k in only_keys})
+                placeholders = ", ".join(f"'{t}'" for t in scoped)
+                result = session.exec(
+                    text(f"DELETE FROM rag_entities WHERE entity_type IN ({placeholders})")
+                )
+                scope_desc = f"entity_type ∈ {scoped}"
+            # rowcount 必须在 commit 之前读（commit 后 result 可能已关闭）
+            count = getattr(result, "rowcount", None)
             session.commit()  # Ctrl+S——正式写入
-            count = getattr(result, 'rowcount', None)
-            logger.info("已清空 rag_entities (删除 %s 行)", count if count is not None else "?")
+            logger.info(
+                "已清空 rag_entities（%s）: 删除 %s 行",
+                scope_desc, count if count is not None else "?",
+            )
 
 
     # ═════════════════════════════════════════════════════════════════

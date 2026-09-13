@@ -32,53 +32,102 @@ logger = logging.getLogger("eval.ingestion_test")
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# 字段清单 —— 以 rag/ingestion.py 的 ingest_*() 实际读到的键为准
+# ═══════════════════════════════════════════════════════════════════════
+#
+# `required`：缺了就会炸或明显丢数据（ingest 里是 item["xxx"] 硬下标，或正文本身）
+# `known`：ingest 会读或至少不会丢的键。落在 known 之外的键会被 ingest 静默忽略，
+#          所以那是一个"数据在入库路上消失"的信号，而不是错误。
+#
+# ⚠️ 正文键叫 summary_text，不叫 chunk_text。chunk_text 是已废弃表 bangumi_chunks
+#    的历史列名，2026-08 enricher 统一改名成 summary_text 之后，这里没跟着改，
+#    导致 --dry-run 把每一条都判成"缺 chunk_text"（明明数据是全的）。
+#    改动 enricher 输出键名时，这三组清单要同步改。
+
+_SUBJECT_REQUIRED = {"subject_id", "name", "summary_text"}
+_SUBJECT_KNOWN = _SUBJECT_REQUIRED | {
+    "name_cn", "info", "score", "rating_total", "rank", "rating_count",
+    "collection", "date", "year", "platform", "eps", "volumes",
+    "series", "series_entry", "nsfw", "infobox", "tags",
+}
+
+_CHARACTER_REQUIRED = {"character_id", "name", "summary_text"}
+_CHARACTER_KNOWN = _CHARACTER_REQUIRED | {
+    "name_cn", "subject_name", "role", "collects", "comment",
+    "summary", "info", "infobox", "casts_raw", "nsfw",
+}
+
+_PERSON_REQUIRED = {"person_id", "name", "summary_text"}
+_PERSON_KNOWN = _PERSON_REQUIRED | {
+    "name_cn", "career", "type", "collects", "comment",
+    "summary", "info", "infobox", "works_raw", "nsfw",
+}
+
+
+def _unknown_field_warnings(label: str, data: list[dict], known: set[str]) -> list[str]:
+    """找出 enricher 吐了、但 ingest 不认识的键。
+
+    按"键"聚合而不是按"条"报：一个字段要是系统性多出来，1030 条会刷 1030 行
+    警告，把真正要看的那一行淹掉。
+
+    只警告不报错 —— 多字段本身不失败（可能是 enricher 新增了字段而这里没跟上），
+    但它是"字段悄悄丢了"的唯一信号，所以不能一句话都不说。
+    """
+    counts: dict[str, int] = {}
+    for item in data:
+        for key in set(item) - known:
+            counts[key] = counts.get(key, 0) + 1
+    return [
+        f"{label}: 未知字段 '{key}' 出现在 {n}/{len(data)} 条中（ingest 不认识，会被忽略）"
+        for key, n in sorted(counts.items())
+    ]
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # 数据格式校验
 # ═══════════════════════════════════════════════════════════════════════
 
 
 def validate_subjects(data: list[dict]) -> dict:
     """校验 subject 数据格式是否匹配 ingest_subjects() 期望。"""
-    required = {"subject_id", "name", "chunk_text"}
-    # ⚠️ 声明了却从不使用，【不是死数据，别删】：`required` 查缺字段，`optional`
-    #    本该查"多出来的、ingest 不认识的字段"（同一个 warnings 通道已经接好了），
-    #    但这一步从没写。删掉它等于承认"多字段"不是个问题 —— 那是产品决定，
-    #    不是清理。要么补上 warnings.append，要么显式写明为什么不查。
-    optional = {"name_cn", "score", "rank", "rating_total", "rating_count",
-                "collection", "date", "year", "platform", "eps", "nsfw", "tags"}
     errors: list[str] = []
     warnings: list[str] = []
 
     for i, item in enumerate(data):
-        for key in required:
-            if key not in item or not item[key]:
+        for key in _SUBJECT_REQUIRED:
+            if not item.get(key):
                 errors.append(f"subjects[{i}]: missing required field '{key}'")
 
-        # 检查类型
+        # 用 item.get() 而不是 item['subject_id']：上面那个循环刚说过这个键可能不存在，
+        # 这里再硬下标一次，就会把"缺字段"这句能读懂的报错换成质检员自己 KeyError 崩掉
         if not isinstance(item.get("subject_id"), int):
-            errors.append(f"subjects[{i}]: subject_id must be int, got {type(item['subject_id']).__name__}")
-
-        if not item.get("chunk_text"):
-            warnings.append(f"subjects[{i}]: empty chunk_text")
+            errors.append(
+                f"subjects[{i}]: subject_id must be int, "
+                f"got {type(item.get('subject_id')).__name__}"
+            )
 
         if not isinstance(item.get("tags", []), list):
             errors.append(f"subjects[{i}]: tags must be list")
 
+    warnings += _unknown_field_warnings("subjects", data, _SUBJECT_KNOWN)
     return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings, "count": len(data)}
 
 
 def validate_characters(data: list[dict]) -> dict:
     """校验 character 数据格式。"""
-    required = {"character_id", "name", "chunk_text"}
     errors: list[str] = []
     warnings: list[str] = []
 
     for i, item in enumerate(data):
-        for key in required:
-            if key not in item or not item[key]:
+        for key in _CHARACTER_REQUIRED:
+            if not item.get(key):
                 errors.append(f"characters[{i}]: missing required field '{key}'")
 
         if not isinstance(item.get("character_id"), int):
-            errors.append(f"characters[{i}]: character_id must be int")
+            errors.append(
+                f"characters[{i}]: character_id must be int, "
+                f"got {type(item.get('character_id')).__name__}"
+            )
 
         if not isinstance(item.get("casts_raw", []), list):
             errors.append(f"characters[{i}]: casts_raw must be list")
@@ -90,22 +139,25 @@ def validate_characters(data: list[dict]) -> dict:
             if not cast.get("subject_name"):
                 warnings.append(f"characters[{i}].casts_raw[{j}]: empty subject_name")
 
+    warnings += _unknown_field_warnings("characters", data, _CHARACTER_KNOWN)
     return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings, "count": len(data)}
 
 
 def validate_persons(data: list[dict]) -> dict:
     """校验 person 数据格式。"""
-    required = {"person_id", "name", "chunk_text"}
     errors: list[str] = []
     warnings: list[str] = []
 
     for i, item in enumerate(data):
-        for key in required:
-            if key not in item or not item[key]:
+        for key in _PERSON_REQUIRED:
+            if not item.get(key):
                 errors.append(f"persons[{i}]: missing required field '{key}'")
 
         if not isinstance(item.get("person_id"), int):
-            errors.append(f"persons[{i}]: person_id must be int")
+            errors.append(
+                f"persons[{i}]: person_id must be int, "
+                f"got {type(item.get('person_id')).__name__}"
+            )
 
         if not isinstance(item.get("career", []), list):
             errors.append(f"persons[{i}]: career must be list")
@@ -120,6 +172,7 @@ def validate_persons(data: list[dict]) -> dict:
             if not work.get("subject_name"):
                 warnings.append(f"persons[{i}].works_raw[{j}]: empty subject_name")
 
+    warnings += _unknown_field_warnings("persons", data, _PERSON_KNOWN)
     return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings, "count": len(data)}
 
 
@@ -143,10 +196,14 @@ def verify_round_trip(entity_type: str, expected_ids: list[str]) -> dict:
 
     results: dict = {"total": len(expected_ids), "found": 0, "missing": [], "issues": []}
 
+    # 列名对着 database/rag_tables.py:RagEntity（单表多态）来。
+    # 曾经这里查的是 entity_id + chunk_text —— 那是已废弃表 bangumi_chunks 的列，
+    # rag_entities 里根本没有，所以非 dry-run 一跑到 round-trip 就 UndefinedColumn。
+    # 正文的现存列是 embed_text（送 embedding 的文本）和 rag_output（检索时直接返回的 JSON）。
     with engine.connect() as conn:
         for eid in expected_ids:
             result = conn.execute(
-                text("SELECT id, entity_type, name, name_cn, nsfw, chunk_text, meta_info, embedding FROM rag_entities WHERE id = :id"),
+                text("SELECT id, entity_type, name, name_cn, nsfw, rag_output, embed_text, meta_info, embedding FROM rag_entities WHERE id = :id"),
                 {"id": eid},
             )
             row = result.first()
@@ -158,7 +215,7 @@ def verify_round_trip(entity_type: str, expected_ids: list[str]) -> dict:
             results["found"] += 1
 
             # 检查各字段
-            entity_id, et, name, name_cn, nsfw, chunk_text, meta_info, embedding = row
+            entity_id, et, name, name_cn, nsfw, rag_output, embed_text, meta_info, embedding = row
 
             if et != entity_type:
                 results["issues"].append(f"{eid}: entity_type mismatch (expected {entity_type}, got {et})")
@@ -166,8 +223,11 @@ def verify_round_trip(entity_type: str, expected_ids: list[str]) -> dict:
             if not name:
                 results["issues"].append(f"{eid}: name is empty")
 
-            if not chunk_text:
-                results["issues"].append(f"{eid}: chunk_text is empty")
+            if not embed_text:
+                results["issues"].append(f"{eid}: embed_text is empty")
+
+            if not rag_output:
+                results["issues"].append(f"{eid}: rag_output is empty")
 
             if meta_info is None or not meta_info:
                 results["issues"].append(f"{eid}: meta_info is empty")
@@ -200,7 +260,10 @@ def run_ingestion_test(
     base = Path(data_dir) if data_dir else _CORPUS_PROCESSED_DIR
     all_results: dict[str, dict] = {}
 
-    entity_types = entity_types or ["character", "person"]
+    # 默认三种全查（函数 docstring 一直是这么写的）。曾经默认只查 character+person，
+    # 理由是"subjects 已有 61 条在 DB"—— 那个数字早就过期了，DB 里现在 1030 条 subject，
+    # 而 subject 恰恰是唯一一个 collect 产出形状出错、最该被查的类型。
+    entity_types = entity_types or ["subject", "character", "person"]
 
     for et in entity_types:
         logger.info("══ %s ingestion 测试 ══", et)
@@ -227,15 +290,18 @@ def run_ingestion_test(
         validation = validators[et](data)
         all_results[f"{et}_validation"] = validation
 
+        # 警告必须先于错误打印：错误那块末尾会 continue，写在它后面就永远打不出来。
+        # 曾经就是这个顺序 —— 数据越坏，"未知字段"这类最有信息量的警告越看不见
+        # （汇总里数得到、正文里找不到），而那恰恰是唯一指向根因的一行。
+        if validation["warnings"]:
+            for w in validation["warnings"]:
+                logger.warning("  ⚠ %s", w)
+
         if validation["errors"]:
             logger.error("格式校验失败:")
             for err in validation["errors"]:
                 logger.error("  ✗ %s", err)
             continue
-
-        if validation["warnings"]:
-            for w in validation["warnings"]:
-                logger.warning("  ⚠ %s", w)
 
         logger.info("格式校验: ✓ (%d 条)", validation["count"])
 
@@ -244,12 +310,15 @@ def run_ingestion_test(
             continue
 
         # 3. 截断过长文本（embedding API 有 token 上限）
+        #    截的是 summary_text —— 它既是 embed_text 的原料，也是 rag_output 的正文
         MAX_CHUNK_CHARS = 2000
         for item in data:
-            if len(item.get("chunk_text", "")) > MAX_CHUNK_CHARS:
-                item["chunk_text"] = item["chunk_text"][:MAX_CHUNK_CHARS] + "..."
-                logger.debug("  截断 %s_%d chunk_text: %d → %d",
-                            et, item.get(f"{et}_id"), len(item.get("chunk_text", "")), MAX_CHUNK_CHARS)
+            text_len = len(item.get("summary_text", ""))
+            if text_len > MAX_CHUNK_CHARS:
+                # 先记长度再截断 —— 截完再取 len() 记的是"截到多少"，不是原来的多长
+                item["summary_text"] = item["summary_text"][:MAX_CHUNK_CHARS] + "..."
+                logger.debug("  截断 %s_%s summary_text: %d → %d",
+                            et, item.get(f"{et}_id"), text_len, MAX_CHUNK_CHARS)
 
         # 4. Ingestion — 小 batch 避免 embedding API 超限
         BATCH_SIZE = 5
@@ -317,7 +386,7 @@ def main():
     args = parser.parse_args()
 
     entity_types = {
-        "all": ["character", "person"],  # subjects 已有 61 条在 DB，默认跳过
+        "all": ["subject", "character", "person"],
         "subject": ["subject"],
         "character": ["character"],
         "person": ["person"],
@@ -335,23 +404,42 @@ def main():
     print("  Ingestion 管线测试结果")
     print("=" * 60)
 
+    failed: list[str] = []
     for key, result in results.items():
         if key.endswith("_validation"):
-            status = "✓" if result["valid"] else "✗"
-            print(f"  [{status}] {key}: {result['count']} 条, {len(result['errors'])} 错误, {len(result['warnings'])} 警告")
+            ok = bool(result["valid"])
+            mark = "✓" if ok else "✗"
+            print(f"  [{mark}] {key}: {result['count']} 条, {len(result['errors'])} 错误, {len(result['warnings'])} 警告")
         elif key.endswith("_round_trip"):
             ok = result["found"] == result["total"] and not result["issues"]
-            status = "✓" if ok else "✗"
-            print(f"  [{status}] {key}: {result['found']}/{result['total']} 找到, {len(result['issues'])} 问题")
+            mark = "✓" if ok else "✗"
+            print(f"  [{mark}] {key}: {result['found']}/{result['total']} 找到, {len(result['issues'])} 问题")
         elif key.endswith("_ingestion"):
-            has_error = "error" in result
-            status = "✗" if has_error else "✓"
-            print(f"  [{status}] {key}: {result.get('error', 'OK')}")
+            ok = "error" not in result
+            mark = "✓" if ok else "✗"
+            print(f"  [{mark}] {key}: {result.get('error', 'OK')}")
+        else:
+            ok = True
+        if not ok:
+            failed.append(key)
 
     if args.dry_run:
         print("\n  (dry-run 模式，未实际写入数据库)")
 
     print()
+
+    # 退出码必须跟着结果走。曾经这里只 print()，于是全红也退 0 ——
+    # `verify --dry-run && echo ok` 在任何情况下都会 echo ok，CI 会静默放行一份全红的报告。
+    # （同一类缺陷在轴 2 的 `--check` 上出现过一次，方向相反：断言全绿却退 1。）
+    if not results:
+        logger.error(
+            "没有可校验的数据：%s 下没找到任何 {subject,character,person}s.json",
+            _CORPUS_PROCESSED_DIR,
+        )
+        sys.exit(1)
+    if failed:
+        logger.error("未通过: %s", "、".join(failed))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

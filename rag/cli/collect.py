@@ -11,8 +11,13 @@ Phase 1 数据收集脚本
     python -m rag.cli.collect --limit 10         # 每种各 10 个（默认 20）
 
 产出:
-    rag/corpus/raw/          — 原始 API 响应 JSON (仅 subject)
-    rag/corpus/processed/    — enricher 输出的 ingestion-ready 数据
+    rag/corpus/processed/    — enricher 输出的 ingestion-ready 数据（verify / ingest 消费）
+    rag/corpus/raw/          — 历史遗留目录：旧版 collect 的原始响应存档。
+                               当前没有任何代码写它或读它（subject 分支改为走
+                               SubjectCollector 后就不再落盘了），留着仅供人工比对。
+
+三种类型都经由各自 enricher 产出同一形状：键名带前缀（subject_id /
+character_id / person_id），正文放 summary_text。verify.py 的校验器按这个形状查。
 """
 
 from __future__ import annotations
@@ -69,13 +74,21 @@ _SUBJECT_IDS_FOR_CHARACTERS: list[int] = [
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Subject 收集（无 enricher——subject API 一次返回全量数据）
+# Subject 收集（ID 发现走 trending/calendar，数据走 SubjectCollector 富化）
 # ═══════════════════════════════════════════════════════════════════════
 
 
-async def collect_subjects(client, limit: int, raw_dir: Path) -> list[dict]:
-    """收集 Subject 数据。"""
-    from clients.sanitizers import sanitize_subject_detail
+async def collect_subjects(client, limit: int) -> list[dict]:
+    """收集 Subject 数据——trending/calendar 发现 ID → SubjectCollector 富化。
+
+    产出形状必须是 ``ingest_subjects()`` 消费的那一种。曾经这里直接返回
+    ``sanitize_subject_detail(raw)``（键是 ``id``/``summary``/``type``，API 层形状），
+    而 ingest 要的是 ``subject_id``/``summary_text``/``platform``（入库层形状）——
+    两者之间差着 SubjectCollector 做的富化（summary+info 合成 chunk_text、
+    collection 的中文键还原成数字键、year 从 date 里切）。
+    直接灌 API 形状 = verify 全红 + 入库字段大面积丢失。
+    """
+    from rag.enricher import SubjectCollector
 
     logger.info("── 收集 Subject ──")
 
@@ -110,27 +123,18 @@ async def collect_subjects(client, limit: int, raw_dir: Path) -> list[dict]:
     except Exception as e:
         logger.warning("calendar 失败: %s", e)
 
-    subject_ids = set(list(subject_ids)[:limit])
+    # sorted 再截断：set 的迭代顺序不稳定，取"前 limit 个"会变成每次跑都不一样
+    target_ids = sorted(subject_ids)[:limit]
 
-    results: list[dict] = []
-    for sid in sorted(subject_ids):
-        try:
-            raw = await client._get(f"/p1/subjects/{sid}")
-            if "_error" in raw:
-                logger.warning("subject %d 详情失败: %s", sid, raw["_error"])
-                continue
-            (raw_dir / f"subject_{sid}_raw.json").write_text(
-                json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            cleaned = sanitize_subject_detail(raw)
-            results.append(cleaned)
-            logger.info("  subject_%d: %s", sid, cleaned.get("name_cn") or cleaned.get("name", ""))
-            await asyncio.sleep(0.15)
-        except Exception as e:
-            logger.warning("subject %d 处理失败: %s", sid, e)
+    enricher = SubjectCollector(client)
+    results = await enricher.collect_batch(target_ids)
+    valid = [r for r in results if "_error" not in r]
+    failed = len(results) - len(valid)
+    if failed:
+        logger.warning("%d 条富化失败", failed)
 
-    logger.info("Subject: 成功 %d/%d", len(results), len(subject_ids))
-    return results
+    logger.info("Subject: 成功 %d/%d", len(valid), len(target_ids))
+    return valid
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -254,15 +258,14 @@ async def main():
     client = BangumiClient(access_token=settings.BANGUMI_ACCESS_TOKEN or None)
 
     base_dir = Path(__file__).resolve().parent.parent / "corpus"
-    raw_dir = base_dir / "raw"
+    # raw/ 不再创建：三种类型现在都只产出 processed/（见模块 docstring）
     processed_dir = base_dir / "processed"
-    raw_dir.mkdir(parents=True, exist_ok=True)
     processed_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     if args.type in ("all", "subject"):
-        subjects = await collect_subjects(client, args.limit, raw_dir)
+        subjects = await collect_subjects(client, args.limit)
         (processed_dir / "subjects.json").write_text(
             json.dumps(subjects, ensure_ascii=False, indent=2), encoding="utf-8"
         )

@@ -12,6 +12,12 @@
   3. 根据 discover 产物回填已有数据:
      - subject_ids_type2.json 中的 ID → subject_type = 2（动画）
      - subject_ids_type1.json 中的 ID → subject_type = 1（书籍）
+
+状态（2026-09-13 核）:
+  迁移已执行完毕，DB 现状 1030 条 subject = 130 书籍(type1) + 900 动画(type2)，
+  全表 1500 条（+350 character +120 person）。脚本保留为可重入的运维工具——
+  ALTER/CREATE 都带 IF NOT EXISTS，回填是幂等 UPDATE，重跑无副作用。
+  Step 3 自报的数字取自 rowcount（实际匹配行数），可直接引用。
 """
 
 from __future__ import annotations
@@ -88,7 +94,8 @@ def main():
                 continue
             # 批量更新（按 500 分批）
             id_list = sorted(ids)
-            total = 0
+            matched = 0    # 真的改到的行数（来自 rowcount）
+            targeted = 0   # 打算改的行数（来自 ID 列表）
             for i in range(0, len(id_list), 500):
                 batch = id_list[i : i + 500]
                 prefixed = [f"subject_{sid}" for sid in batch]
@@ -97,14 +104,20 @@ def main():
                     f"UPDATE rag_entities SET subject_type = {stype} "
                     f"WHERE entity_type = 'subject' AND id IN ({placeholders})"
                 )
-                # ⚠️ `result` 被算出来却没用，【不是死代码，别删】：下面打印的
-                #    total 累加的是 len(batch)（打算改多少），不是 result.rowcount
-                #    （真改了多少）。UPDATE 的 WHERE 少匹配时，脚本照样报满数。
-                #    迁移脚本自报的数字必须可引用 —— 要么用 rowcount，要么别打印 ✓。
                 result = session.exec(text(sql))
+                # total 必须累加 rowcount，不能累加 len(batch)。
+                # len(batch) 是"打算改多少"：WHERE 少匹配时脚本照样报满数，而迁移
+                # 脚本自报的数字是会被引用的。rowcount 要在 commit 之前读。
+                matched += getattr(result, "rowcount", 0) or 0
                 session.commit()
-                total += len(batch)
-            print(f"  ✓ {label}: {total} 条已设置为 subject_type={stype}")
+                targeted += len(batch)
+            if matched == targeted:
+                print(f"  ✓ {label}: {matched} 条已设置为 subject_type={stype}")
+            else:
+                # 对不上是常态而非故障：ID 列表来自 discover 的热门榜，库里未必
+                # 每条都灌过。两个数都印出来，避免"匹配 N 条"被读成"覆盖了 N 条"。
+                print(f"  ⚠ {label}: 实际匹配 {matched} 条（ID 列表里给了 {targeted} 条，"
+                      f"其余不在 DB 中）")
 
         # ── 验证 ──
         print("\nStep 4: 验证...")
