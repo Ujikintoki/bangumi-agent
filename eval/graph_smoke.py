@@ -95,13 +95,18 @@ def _assert_scenario(scen: dict, res: dict) -> list[str]:
     return failures
 
 
-async def _run_scenario(client, scen: dict) -> dict:
+async def _run_scenario(client, scen: dict, run_id: str) -> dict:
     payload = {
         "message": scen["message"],
         "depth": scen.get("depth", "fast"),
         "output_style": scen.get("output_style", "bangumi"),
         "session_id": f"eval-{scen['id']}",
-        "user_id": "eval",
+        # ★ 密闭性：L2 记忆召回按 user_id 检索（agent/memory/long_term.py 里
+        #   `SessionMemory.user_id == user_id`），session_id 压根不参与查询。
+        #   原来固定写 "eval"，于是第 N 次运行一开局就带着第 N-1 次的记忆，
+        #   同一轮里前面的场景也会污染后面的 —— 门禁的 PASS/FAIL 因此不可复现。
+        #   带上 run_id 之后每次运行都是干净起点；场景 id 让场景之间也互不干扰。
+        "user_id": f"eval-{run_id}-{scen['id']}",
     }
     t0 = time.monotonic()
     resp = await client.post("/chat", json=payload)
@@ -133,6 +138,8 @@ async def run(scenarios: list[dict], smoke: int = 0) -> dict:
     results: list[dict] = []
     skipped: list[dict] = []
     to_run = scenarios[:smoke] if smoke else scenarios
+    # 本次运行的隔离标识 —— 见 _run_scenario 里 user_id 那段
+    run_id = time.strftime("%Y%m%d-%H%M%S")
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://eval") as client:
         for i, scen in enumerate(to_run):
@@ -140,7 +147,7 @@ async def run(scenarios: list[dict], smoke: int = 0) -> dict:
                 skipped.append({"id": scen["id"], "reason": "requires_token 但无 BANGUMI_ACCESS_TOKEN"})
                 continue
             try:
-                res = await _run_scenario(client, scen)
+                res = await _run_scenario(client, scen, run_id)
                 res["failures"] = _assert_scenario(scen, res)
                 res["scenario_id"] = scen["id"]
                 res["expect_intent"] = scen["expect_intent"]

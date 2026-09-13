@@ -1,0 +1,1184 @@
+{
+  "meta": {
+    "axis": "轴 3 · 回复质量（生成侧冻结样本）",
+    "recorded_at": "2026-09-13T11:24:42+0800",
+    "run_id": "20260913-111412",
+    "git_hash": "cfc4a84",
+    "scenario_file": "eval/data/e2e_scenarios.json",
+    "n_recorded": 21,
+    "skipped": [
+      {
+        "id": "C2-查评分",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "C3-人物查询",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "C4-找相似",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "C6-放送排期",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "D3-评分动态",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "D4-社区热点",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "E1-deep讨论",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "E2-歧义裸标题",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      },
+      {
+        "id": "E6-本季霸权",
+        "reason": "需要 Bangumi API 工具（--offline 跳过）"
+      }
+    ],
+    "offline_mode": true,
+    "isolation": "user_id=eval-20260913-111412-<scenario_id> —— L2 召回按 user_id 检索（session_id 不参与查询），故每个场景开局都是零记忆",
+    "settings_snapshot": {
+      "MEMORY_ENABLED": true,
+      "MEMORY_RECALL_TOP_K": 5,
+      "MEMORY_RECALL_THRESHOLD": 0.5,
+      "MEMORY_RECENCY_FALLBACK_THRESHOLD": 0.6,
+      "MEMORY_TIME_DECAY_HALF_LIFE_DAYS": 14,
+      "LLM_MODEL": "deepseek-v4-flash",
+      "LLM_TEMPERATURE": 0.3,
+      "EMBEDDING_MODEL": "embedding-2"
+    },
+    "known_limits": [
+      "LLM 非确定（RENDER_TEMPERATURE=0.4, LLM_TEMPERATURE 见快照）→ 看分布与 delta，不看单条",
+      "场景真实调用 Bangumi API（离线环境下工具的 _error 会进回复）",
+      "Tier 2（LLM-judge rubric）未建，本样本只够跑 Tier 1"
+    ]
+  },
+  "samples": [
+    {
+      "scenario_id": "A1-常识日期",
+      "message": "今天星期几",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "status_code": 200,
+      "reply": "不知道，这个我真查不到——日历没读出来，不是藏着不说。\n\n你手机或者电脑右下角看一眼就知道了。要是有具体日期，我倒能帮你算星期几或者往后推日子。",
+      "query_intent": "realtime",
+      "tools_used": [
+        "get_calendar"
+      ],
+      "iterations": 2,
+      "latency_ms": 38509.9,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 38498,
+        "llm_calls": [
+          {
+            "label": "pipeline#1",
+            "elapsed_ms": 692,
+            "prompt_tokens": 1534,
+            "completion_tokens": 53
+          },
+          {
+            "label": "pipeline#2",
+            "elapsed_ms": 1142,
+            "prompt_tokens": 166,
+            "completion_tokens": 64
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 1985,
+            "prompt_tokens": 873,
+            "completion_tokens": 89
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1126
+          },
+          {
+            "node": "realtime_pipeline",
+            "elapsed_ms": 35382
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "A2-常识概念",
+      "message": "什么是OVA",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "status_code": 200,
+      "reply": "OVA 就是 Original Video Animation，不走电视播出，直接卖录像带或光盘的动画。\n\n它在上世纪八九十年代是黄金期，因为不受电视台尺度和档期限制，导演能放开手做。今敏早期的《未麻的部屋》严格说算剧场版，但那种实验气质就是 OVA 时代养出来的。现在的 OVA 大多是 TV 动画的附赠番外，噱头大于内容，跟当年完全不是一回事。\n\n想感受真正的 OVA，找八十年代那批，画面和野心都够劲。",
+      "query_intent": "chat",
+      "tools_used": [],
+      "iterations": 0,
+      "latency_ms": 3416.2,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 3406,
+        "llm_calls": [
+          {
+            "label": "render",
+            "elapsed_ms": 2352,
+            "prompt_tokens": 839,
+            "completion_tokens": 195
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1051
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "A3-一句话推荐",
+      "message": "用一句话推荐一部你最近在看的番",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "status_code": 200,
+      "reply": "这次榜单没拉出来，我就不瞎报菜名了——编一部\"最近在看的\"糊弄你，没意思。\n\n要不你给个方向？治愈、悬疑、机战、日常都行，我照着帮你找一部真的对味的。",
+      "query_intent": "explore",
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "iterations": 2,
+      "latency_ms": 38554.3,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 38543,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 798,
+            "prompt_tokens": 7016,
+            "completion_tokens": 54
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1255,
+            "prompt_tokens": 7140,
+            "completion_tokens": 44
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 1892,
+            "prompt_tokens": 859,
+            "completion_tokens": 189
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1311
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1051
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33023
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1262
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "A4-列表格式",
+      "message": "给我列一份五部冷门番的清单",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "status_code": 200,
+      "reply": "硬凑五部我做不到——手头没法核实哪些是真冷门，不想拿热门番冒充。这种清单最怕的就是拿\"听说过的人不多\"糊弄，结果点开一查收藏四万多。\n\n换个路子：你说个喜欢的类型或氛围，治愈、悬疑、机战、老 OVA 之类的，我按那个方向给你挑评分撑得住、但确实没什么人看的。这样出来的\"冷门\"才有依据。\n\n不然我给你报几部，你八成一半都听过，那不算冷门，算我记性还行。",
+      "query_intent": "explore",
+      "tools_used": [
+        "search_local_bangumi",
+        "get_trending_subjects"
+      ],
+      "iterations": 2,
+      "latency_ms": 41328.2,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 41318,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1198,
+            "prompt_tokens": 7017,
+            "completion_tokens": 158
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 2009,
+            "prompt_tokens": 8748,
+            "completion_tokens": 117
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 3380,
+            "prompt_tokens": 933,
+            "completion_tokens": 401
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1328
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1520
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33034
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 2051
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "A5-deep深入",
+      "message": "深入分析EVA和巨人的主题差异",
+      "depth": "deep",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "status_code": 200,
+      "reply": "工具执行完成但未能生成文本回复，请重试或换个方式提问。",
+      "query_intent": "explore",
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "iterations": 1,
+      "latency_ms": 36980.2,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 36971,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 900,
+            "prompt_tokens": 7041,
+            "completion_tokens": 73
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 2758
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1169
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33042
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "A6-无意义输入",
+      "message": "...",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fallback",
+      "status_code": 200,
+      "reply": "你这条是空的——问题没发过来，还是被吞了？\n\n想看什么直接说作品名或者人名就行，动画、漫画、gal、声优、staff 都能聊。不确定的我也会直说没看过，不硬凑。\n\n再发一遍吧。",
+      "query_intent": "fallback",
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "iterations": 2,
+      "latency_ms": 38924.5,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 38913,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1076,
+            "prompt_tokens": 4217,
+            "completion_tokens": 35
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1075,
+            "prompt_tokens": 4317,
+            "completion_tokens": 28
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 1871,
+            "prompt_tokens": 834,
+            "completion_tokens": 155
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1500
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1427
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33028
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1083
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "B1-bangumi人格",
+      "message": "推荐一部周五晚上放松看的番",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "status_code": 200,
+      "reply": "周五晚上放松就看《败犬女主太多了！》。A-1 做的，12 话，节奏快笑点密，不烧脑不虐心，看完心情挺好——正好是不用带脑子的下饭番。\n\n要说缺点也有，后半靠重复梗撑场，不是每集都稳。但周五你要的就是这个，够了。\n\n想安静点就《葬送的芙莉莲》，治愈公路片，适合想被温柔对待的晚上。",
+      "query_intent": "explore",
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "iterations": 2,
+      "latency_ms": 7232.7,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 7220,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1786,
+            "prompt_tokens": 7014,
+            "completion_tokens": 146
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1253,
+            "prompt_tokens": 10150,
+            "completion_tokens": 139
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 2230,
+            "prompt_tokens": 952,
+            "completion_tokens": 324
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1489
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 2101
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 88
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1308
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "B2-kawaii人格",
+      "message": "有没有特别可爱的日常番",
+      "depth": "fast",
+      "output_style": "bangumi_kawaii",
+      "expect_intent": "explore",
+      "status_code": 200,
+      "reply": "有！《罗小黑战记》你一定要看。\n\n一个少女养猫，结果那猫不是普通猫，然后就冒出各种离奇又温馨的小故事。画风特别中国式，看着就舒服。28话泡面番长度，我当初一口气看到凌晨，回过神来天都亮了。\n\n最难得的是它萌得不腻。很多可爱番看两集就审美疲劳，这个不会，刷完我还去翻同人补粮。\n\n还有《白圣女与黑牧师》，圣女和牧师同居的放闪日常，幻想世界背景。评分一般，但甜啊，我就是吃这一套。\n\n你是更想看纯治愈的，还是想带点小奇幻、有点故事的？我好再给你挑。",
+      "query_intent": "explore",
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "iterations": 2,
+      "latency_ms": 7579.1,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 7569,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 671,
+            "prompt_tokens": 6972,
+            "completion_tokens": 72
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1570,
+            "prompt_tokens": 8499,
+            "completion_tokens": 125
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 3944,
+            "prompt_tokens": 845,
+            "completion_tokens": 480
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1001
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 933
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 79
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1607
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "B3-neutral人格",
+      "message": "介绍一下乒乓这部作品讲了什么",
+      "depth": "fast",
+      "output_style": "neutral",
+      "expect_intent": "explore",
+      "status_code": 200,
+      "reply": "这次没能取到《乒乓》的资料，暂时没法介绍剧情。\n\n你说的应该是松本大洋的《ピンポン》吧——漫画，2014 年汤浅政明执导的动画版。要不要我重试一次，或者你换个说法，我再查查评分和口碑？",
+      "query_intent": "explore",
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "iterations": 2,
+      "latency_ms": 39171.1,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 39160,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 992,
+            "prompt_tokens": 6919,
+            "completion_tokens": 36
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1364,
+            "prompt_tokens": 7020,
+            "completion_tokens": 19
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 2199,
+            "prompt_tokens": 547,
+            "completion_tokens": 223
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1248
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1303
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33031
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1374
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "B4-立场评价",
+      "message": "EVA是不是被过誉了",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "discuss",
+      "status_code": 200,
+      "reply": "查询处理超时，请尝试更具体的提问方式。",
+      "query_intent": "unknown",
+      "tools_used": [],
+      "iterations": 0,
+      "latency_ms": 45009.3,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": null
+    },
+    {
+      "scenario_id": "B5-反馈修正",
+      "message": "你上次推荐的那部我看了，一般般吧",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "status_code": 200,
+      "reply": "哪部？我聊过的片子里有几部我自己也没吹得多高，一般般是对的。要是那部我真心觉得被埋了的，那你说的\"一般般\"我就想问问是在哪一般——节奏、人物，还是它压根没勾住你。\n\n也可能就是我看走眼了。说说看。",
+      "query_intent": "chat",
+      "tools_used": [],
+      "iterations": 0,
+      "latency_ms": 3646.6,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 3640,
+        "llm_calls": [
+          {
+            "label": "render",
+            "elapsed_ms": 2317,
+            "prompt_tokens": 857,
+            "completion_tokens": 258
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1320
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "B6-闲聊回应",
+      "message": "哈哈，你这回复太懂我了",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "status_code": 200,
+      "reply": "用户对你说：哈哈，你这回复太懂我了\n\n这是一段闲聊。自然地用你的角色性格回复。不要列数据、不要提搜索、就像朋友聊天一样。",
+      "query_intent": "chat",
+      "tools_used": [],
+      "iterations": 0,
+      "latency_ms": 2432.4,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": true
+      },
+      "telemetry": {
+        "elapsed_ms": 2422,
+        "llm_calls": [
+          {
+            "label": "render",
+            "elapsed_ms": 1206,
+            "prompt_tokens": 849,
+            "completion_tokens": 57
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1213
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "C1-禁工具常识",
+      "message": "现在几点钟了",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "chat",
+      "status_code": 200,
+      "reply": "我这边没有钟可看，也没查到时间，所以现在几点我真说不上来——不给你编。你瞄一眼自己设备的系统时间最准。不过你要问的是\"今晚几点蹲新番\"那种，我倒可以跟你聊聊。",
+      "query_intent": "realtime",
+      "tools_used": [
+        "get_calendar"
+      ],
+      "iterations": 2,
+      "latency_ms": 40518.8,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 40506,
+        "llm_calls": [
+          {
+            "label": "pipeline#1",
+            "elapsed_ms": 805,
+            "prompt_tokens": 1535,
+            "completion_tokens": 35
+          },
+          {
+            "label": "pipeline#2",
+            "elapsed_ms": 733,
+            "prompt_tokens": 149,
+            "completion_tokens": 55
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 4760,
+            "prompt_tokens": 865,
+            "completion_tokens": 678
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 925
+          },
+          {
+            "node": "realtime_pipeline",
+            "elapsed_ms": 34815
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "C5-deep必调工具",
+      "message": "推荐几部冷门佳作给我",
+      "depth": "deep",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "status_code": 200,
+      "reply": "两部，方向不太一样。\n\n- **异国日记**：今年 1 月朱夏做的，大城美幸监督，牛尾憲輔配乐。内向小说家收养外甥女，两个人年龄差得挺尴尬，就这么住一起。那种安安静静往里走的文艺向作品，评分不低但看的人少——不是因为它冷门所以好，是它确实把那种\"不熟的人硬凑成一家人\"的错位感写出来了。牛尾的配乐加分不少。\n- **白箱**：2014 年 P.A.WORKS，水岛努。这个严格说不算冷门，老观众都知道，但新入坑的经常跳过它——一听是讲动画公司上班的就觉得没意思。其实它把做片子的那点混乱、赶工期、人手不够全摊开了，还挺诚恳。当职场剧看也行。\n\n你要是有具体方向上想找的（科幻、悬疑、机战之类），说一声我再想想。",
+      "query_intent": "explore",
+      "tools_used": [
+        "search_local_bangumi",
+        "get_trending_subjects"
+      ],
+      "iterations": 3,
+      "latency_ms": 43615.5,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 43604,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1027,
+            "prompt_tokens": 7039,
+            "completion_tokens": 128
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1604,
+            "prompt_tokens": 8811,
+            "completion_tokens": 157
+          },
+          {
+            "label": "reasoning#3",
+            "elapsed_ms": 1941,
+            "prompt_tokens": 11968,
+            "completion_tokens": 210
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 4705,
+            "prompt_tokens": 1023,
+            "completion_tokens": 507
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 750
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1345
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33030
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1645
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 95
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 2027
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "D1-无上下文指代",
+      "message": "刚才那部具体讲讲",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fallback",
+      "status_code": 200,
+      "reply": "哪部？咱俩前面没聊到具体作品，我这边没对上号。你说个名字，或者提一句是哪年的、什么类型的，我就给你讲——不然我瞎猜容易讲岔了。\n\n顺带说一句，如果你指的是最近哪部热度高的，我大概有印象，但不确定就不装看过了。给个名字最省事。",
+      "query_intent": "explore",
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "iterations": 2,
+      "latency_ms": 38245.9,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 38234,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 444,
+            "prompt_tokens": 7012,
+            "completion_tokens": 54
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 727,
+            "prompt_tokens": 7136,
+            "completion_tokens": 31
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 1916,
+            "prompt_tokens": 842,
+            "completion_tokens": 179
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1768
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 777
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33029
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 738
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "D2-用户画像",
+      "message": "@茕兔 的看番品味怎么样",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "profile",
+      "status_code": 200,
+      "reply": "评不了。我这边没拉到他的收藏和评分，什么都看不到——可能名字有出入，也可能账号没公开。\n\n没有实际看过的作品清单，我说\"品味好\"或者\"一般\"都是瞎掰。看番品味这东西，得看具体收了什么、给谁打了高分、日志里在夸还是在骂，光凭一个 ID 是聊不出来的。\n\n你要是知道他常看的几部，报给我，我倒是能聊聊。",
+      "query_intent": "profile",
+      "tools_used": [
+        "get_user_profile",
+        "get_user_timeline"
+      ],
+      "iterations": 2,
+      "latency_ms": 39784.5,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 39773,
+        "llm_calls": [
+          {
+            "label": "pipeline#1",
+            "elapsed_ms": 973,
+            "prompt_tokens": 1110,
+            "completion_tokens": 120
+          },
+          {
+            "label": "pipeline#2",
+            "elapsed_ms": 1788,
+            "prompt_tokens": 346,
+            "completion_tokens": 231
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 2508,
+            "prompt_tokens": 1047,
+            "completion_tokens": 209
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1100
+          },
+          {
+            "node": "profile_pipeline",
+            "elapsed_ms": 36161
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "D5-社区评价",
+      "message": "社区对芙莉莲的评价怎么样",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "discuss",
+      "status_code": 200,
+      "reply": "搜索超时，未能获取《葬送的芙莉莲》的社区评价数据。暂无数据可答，建议稍后重试。",
+      "query_intent": "explore",
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "iterations": 2,
+      "latency_ms": 39500.9,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": true
+      },
+      "telemetry": {
+        "elapsed_ms": 39491,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 894,
+            "prompt_tokens": 7014,
+            "completion_tokens": 40
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 729,
+            "prompt_tokens": 7119,
+            "completion_tokens": 29
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 3232,
+            "prompt_tokens": 842,
+            "completion_tokens": 372
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1217
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1264
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33032
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 742
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "D6-我的追番",
+      "message": "帮我看看我的追番进度",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "profile",
+      "status_code": 200,
+      "reply": "看不了。我这边只能查公开的条目、角色、人物信息，碰不到你账号里的收藏进度。\n\n想聊的话换个方式：报个作品名，我给你讲讲它什么水准、值不值得往下看。或者你想知道自己到底追了多少部、哪些囤着没动，那得你自己去 Bangumi 收藏页翻——那玩意儿比我靠谱。\n\n有具体想聊的片子就说。",
+      "query_intent": "fallback",
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "iterations": 2,
+      "latency_ms": 38791.9,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 38781,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 515,
+            "prompt_tokens": 4222,
+            "completion_tokens": 38
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1106,
+            "prompt_tokens": 4325,
+            "completion_tokens": 48
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 1380,
+            "prompt_tokens": 860,
+            "completion_tokens": 125
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 2462
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 782
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33035
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1116
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "E3-梗找番",
+      "message": "求一部纯爱番",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "explore",
+      "status_code": 200,
+      "reply": "- 《你的名字。》——稳妥答案。身体互换加彗星，情绪推得很满，结尾那一下确实能打，8 分出头不冤。\n- 但它更像新海诚式的情绪大片，灾难和世界系占了不少。要是想纯爱本身就够，看《玉子爱情故事》，京阿尼的，两个高中生的告白和犹豫，干净得没杂质，看完很舒服。\n\n不够的话再说方向，想要甜的还是想被扎一下，我给的不一样。",
+      "query_intent": "explore",
+      "tools_used": [
+        "search_local_bangumi"
+      ],
+      "iterations": 2,
+      "latency_ms": 8112.9,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 8102,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 1204,
+            "prompt_tokens": 7012,
+            "completion_tokens": 110
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 2069,
+            "prompt_tokens": 8646,
+            "completion_tokens": 117
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 3676,
+            "prompt_tokens": 928,
+            "completion_tokens": 418
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 709
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1522
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 89
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 2101
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "E4-梗讨论",
+      "message": "这部番是不是要崩了",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "discuss",
+      "status_code": 200,
+      "reply": "你没说是哪部。\n\n\"崩\"得分开看——是制作崩（作画、工期），还是口碑崩（后半段收不住）。这俩是两回事，一部番作画一直稳但剧情塌了，跟作画肉眼可见崩坏，完全是两种死法。\n\n告诉我番名，我去看看评分走势和前几集的口碑，再说它是在往下掉，还是只是你自己的预期没跟上。\n\n顺一句:好多被喊\"要崩\"的，其实前八集就埋了伏笔，只是当时没人注意。真崩的往往是那种一开始就没想清楚要讲什么的。",
+      "query_intent": "explore",
+      "tools_used": [
+        "get_trending_subjects"
+      ],
+      "iterations": 2,
+      "latency_ms": 39238.5,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 39224,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 577,
+            "prompt_tokens": 7013,
+            "completion_tokens": 54
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 932,
+            "prompt_tokens": 7137,
+            "completion_tokens": 28
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 2166,
+            "prompt_tokens": 840,
+            "completion_tokens": 223
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 2164
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 911
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33036
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 941
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "E5-能力外",
+      "message": "帮我写一封邮件",
+      "depth": "fast",
+      "output_style": "bangumi",
+      "expect_intent": "fallback",
+      "status_code": 200,
+      "reply": "这个我真帮不上——我只会聊动画，写邮件不在射程内。要是你想查某部番的评分、角色、声优谁配的，报个名字我就说。邮件这种事，找个顺手的工具自己写吧，我插不上嘴。",
+      "query_intent": "fallback",
+      "tools_used": [
+        "search_bangumi_subject"
+      ],
+      "iterations": 2,
+      "latency_ms": 39109.8,
+      "render": {
+        "hard_cutoff": false,
+        "degraded": false
+      },
+      "telemetry": {
+        "elapsed_ms": 39097,
+        "llm_calls": [
+          {
+            "label": "reasoning#1",
+            "elapsed_ms": 720,
+            "prompt_tokens": 4220,
+            "completion_tokens": 36
+          },
+          {
+            "label": "reasoning#2",
+            "elapsed_ms": 1099,
+            "prompt_tokens": 4321,
+            "completion_tokens": 43
+          },
+          {
+            "label": "render",
+            "elapsed_ms": 2116,
+            "prompt_tokens": 853,
+            "completion_tokens": 251
+          }
+        ],
+        "node_timings": [
+          {
+            "node": "classify_node",
+            "elapsed_ms": 1785
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1048
+          },
+          {
+            "node": "tool_node",
+            "elapsed_ms": 33036
+          },
+          {
+            "node": "reasoning_node",
+            "elapsed_ms": 1108
+          }
+        ]
+      }
+    }
+  ]
+}
