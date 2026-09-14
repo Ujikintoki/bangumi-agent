@@ -721,7 +721,9 @@ chat 36 · fetch 15 · explore 14 · discuss 11 · realtime 10 · fallback 8 · 
 → 2026-08-26 冻结于 `a70b0e7`。对抗集由 `generate_intent_data.py` 生成草稿后人工筛。
 
 > `generate_intent_data.py`、`data/drafts/` 是**本地工作文件，未提交**。
-> `review_sheet_v7.md` 的表格已在 `78067e2` 提交，之后的人工批注留在本地。
+> `review_sheet_v7.md` 的表格在 `78067e2` 提交，其上的**人工批注 2026-09-14 补齐入库**
+> （P1–P3 批准；条目 4 改判 discuss、条目 7 改判 chat，其余批准）。批注**已执行**：
+> 逐条核过冻结集，主集 18/18、对抗集条目 7 与批注一致。
 
 ---
 
@@ -801,7 +803,7 @@ eval/                          ← 只放"测量"
 │   │   ├── annotation_sheet_b.md       D 组判官的人工标注表（50 条，已标）
 │   │   ├── annotation_key_b.json       标注表的答案纸（算 κ 用，标完才看）
 │   │   └── judge_cache.jsonl           判定缓存（按 rubric 指纹分代，改口径即失效）
-│   ├── review_sheet_v7.md         人工复核表（表格已提交；本地批注未提交）
+│   ├── review_sheet_v7.md         轴 1 人工复核表（表格 + 人工批注，均已提交）
 │   ├── annotation_sheet_tier2.md     轴 3 Tier 2 的人工标注表（κ 用；判官判定不在表里）
 │   ├── annotation_key_tier2.json     上面那张表的答案纸（判官判定 + 改判前的 judge_prev）
 │   ├── reply_quality_judge_cache.jsonl  轴 3 Tier 2 判定缓存（按 rubric 指纹分代，改口径即失效）
