@@ -194,6 +194,17 @@ REAL_SHAPES: dict[str, dict] = {
 
 _EP_COMMENT = {"comment": "这集演出很棒" * 5, "replies": 2}
 
+_BLOG_REAL = {
+    "id": 1, "title": "标题", "content": "正文" * 50, "tags": ["随笔"],
+    "created_at": "2026-09-01", "replies": 4, "views": 1200, "type": 1,
+    "related": 0, "user_name": "alice",
+}
+"""``get_blog`` 的 ``blog`` 子字典 —— 逐字抄 ``clients/client.py:452-463``。
+
+**别照印象删字段**：5 个标量是它会被封套机制当作「单体记录」的原因，
+少写几个会让「get_blog 不受影响」这个结论反过来。
+"""
+
 # 时光机事件的三种真实原始形状（clients/sanitizers.py:1144-1240 的三个分支）：
 #   type=9/10/12 收藏 → subject_id ；type=0 进度 → subject_id ；type=1 日志 → **只有 blog_id**
 _TL_COLLECT = {"type": 9, "createdAt": 1787497318, "memo": {"subject": [
@@ -247,18 +258,18 @@ SYNTH_SHAPES: dict[str, dict] = {
     ),
     # get_blog 是 clients/client.py 手工拼的，sanitizer 造不出来 → 直接写。
     # 形状随 include_comments / include_subjects 变（默认都 True），三个组合都要测。
-    "get_blog": {
-        "entry_id": 1, "blog": {"id": 1, "title": "标题", "content": "正文" * 50},
-        "comments": ["评论一" * 10, "评论二" * 10], "subjects": [{"id": 8, "name": "EVA"}],
-    },
-    "get_blog(无 subjects)": {
-        "entry_id": 1, "blog": {"id": 1, "title": "标题", "content": "正文" * 50},
-        "comments": ["评论一" * 10],
-    },
-    "get_blog(无 comments)": {
-        "entry_id": 1, "blog": {"id": 1, "title": "标题", "content": "正文" * 50},
-        "subjects": [{"id": 8, "name": "EVA"}],
-    },
+    # ⚠️ ``blog`` 的**真实字段**逐字抄自 ``clients/client.py:452-463``：10 个键、
+    # **5 个标量**（id/replies/views/type/related）+ tags(list)。
+    # 2026-09-14 Step 6 抓到：这里原本只写了 ``{id,title,content}``（1 个标量），
+    # 差点让人以为「blog 不够单体骨架，封套机制不会误伤 get_blog」——
+    # 真实形状是**够的**。同类夹具事故第四次，记在此处。
+    "get_blog": {"entry_id": 1, "blog": _BLOG_REAL,
+                 "comments": ["评论一" * 10, "评论二" * 10],
+                 "subjects": [{"id": 8, "name": "EVA"}]},
+    "get_blog(无 subjects)": {"entry_id": 1, "blog": _BLOG_REAL,
+                              "comments": ["评论一" * 10]},
+    "get_blog(无 comments)": {"entry_id": 1, "blog": _BLOG_REAL,
+                              "subjects": [{"id": 8, "name": "EVA"}]},
     # user_profile 的**成功形状**：1 个 str + 3 个 dict + 3 个 list
     # （键名取自 clients/client.py:338-378 的实际组装，不是印象）
     "get_user_profile(成功形状)": {
@@ -867,3 +878,164 @@ def test_plain_bucket_falls_back_when_scalars_alone_exceed_budget() -> None:
     assert out.strip(), "压出了空消息"
     assert "[已压缩]" in out, "退回截断路径也必须带压缩标记"
     assert count_tokens(out) <= _MAX_SINGLE_MESSAGE_TOKENS
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Step 6：错误提示不许被截断吃掉
+# ═══════════════════════════════════════════════════════════════════
+# 背景：``get_episode_comments`` 评论拉取失败时返回
+# ``{episode(334 tok), comments: [], comment_count: 0, comments_error}`` = 373 tok，
+# 兜底从 JSON **头部**切 300 tok → ``comments_error`` 一定在窗口之外被切掉。
+# 模型于是看到「这集没什么评论」，而不是「评论没拉到」。
+#
+# **丢错误比丢数据严重**：丢评论至少有「另有 N 条未列出」的披露，丢错误是让
+# agent 不知道自己不知道 —— 它会照着空评论区把话讲圆。
+
+
+def _episode_comments(comments_error: str = "") -> dict:
+    """``get_episode_comments`` 的真实返回（``clients/client.py:185-208``）。
+
+    ``desc`` 给到 sanitizer 的 500 字上限 —— 不然 episode 吃不满预算，
+    错误键就切不到，这条测试会变成空转。
+    """
+    payload: dict = {
+        "episode": S.sanitize_episode_detail(
+            {"id": 1088, "sort": 10, "name": "第10话 名为『芙莉莲』的魔法",
+             "name_cn": "第10话", "airdate": "2024-03-08", "duration": "24m",
+             "desc": "芙莉莲一行在旅途中遇到了……" * 12, "comment": 42,
+             "subject": {"id": 400602, "name": "葬送のフリーレン"}}),
+        "comments": [], "comment_count": 0,
+    }
+    if comments_error:
+        payload["comments_error"] = comments_error
+    return payload
+
+
+def test_error_key_survives_the_fallback() -> None:
+    """评论拉取失败时，模型必须知道「没拉到」，而不是以为「没有评论」。"""
+    from agent.memory.short_term import _compress_tool_result, count_tokens
+
+    content = json.dumps(_episode_comments("获取评论失败（HTTP 503）"), ensure_ascii=False)
+    assert count_tokens(content) > 300, "夹具没超预算 → 这条测试会空转"
+
+    out = _compress_tool_result(ToolMessage(
+        content=content, tool_call_id="t1", name="get_episode_comments")).content
+
+    assert "comments_error" in out, "错误键被截断吃掉了"
+    assert "HTTP 503" in out, "错误原因没传到下一轮"
+    assert out.startswith("[已压缩] "), "错误提示要排在标记之后、正文之前"
+    assert count_tokens(out) <= 300, "兜底档没守住 300"
+
+
+def test_error_notice_leaves_clean_payloads_byte_identical() -> None:
+    """没有错误键 → 兜底与改动前**逐字节相同**（安全阀不许被这次改动碰松）。"""
+    from agent.memory.short_term import (
+        _COMPRESSION_MARKER,
+        _compress_tool_result,
+        _truncate_text_by_tokens,
+        count_tokens,
+    )
+
+    # 用**同一个真实形状**、只是不带错误键 —— 变量隔离得干净：
+    # 上一条测试与这条唯一的差别就是 `comments_error` 在不在。
+    # （ALL_SHAPES 里的封套夹具都是缩水版、都 <300 tok，测不到截断路径。）
+    content = json.dumps(_episode_comments(), ensure_ascii=False)
+    assert count_tokens(content) > 300, "夹具得真的超预算，否则测不到截断路径"
+
+    out = _compress_tool_result(ToolMessage(
+        content=content, tool_call_id="t1", name="get_subject_opinions")).content
+    expected = _COMPRESSION_MARKER + _truncate_text_by_tokens(
+        content, 300 - count_tokens(_COMPRESSION_MARKER))
+
+    assert out == expected, "没有错误键的 payload 被这次改动碰到了"
+
+
+def test_error_notice_is_capped_so_the_body_still_fits() -> None:
+    """病态长错误（真实形状不可能）也不许把正文挤没、不许越过兜底上限。
+
+    可达的错误串最长约 60 字 / 30 tok（``clients/base.py:178`` 的 404 文案带
+    path），所以这条是防御性的：真有工具开始往 ``_error`` 里塞正文，
+    提示会被截到 ``_ERROR_KEY_MAX_TOKENS`` 并记 warning，而不是吃掉整个窗口。
+    """
+    from agent.memory.short_term import (
+        _COMPRESSION_MARKER,
+        _ERROR_KEY_MAX_TOKENS,
+        _compress_tool_result,
+        count_tokens,
+    )
+
+    content = json.dumps({"body": "正文" * 400, "_error": "错误" * 500},
+                         ensure_ascii=False)
+    out = _compress_tool_result(ToolMessage(
+        content=content, tool_call_id="t1", name="某工具")).content
+
+    assert "_error=" in out, "错误键丢了"
+    assert "正文" in out, "正文被错误提示挤没了"
+    assert count_tokens(out) <= 300, "越过兜底上限"
+    head = out.splitlines()[0]
+    assert count_tokens(head) <= _ERROR_KEY_MAX_TOKENS + count_tokens(_COMPRESSION_MARKER) + 2
+
+
+def test_error_notice_reads_the_suffix_convention() -> None:
+    """认后缀，不认名字：``_error`` 与 ``*_error`` 都算；空值、非字符串、深层不算。"""
+    from agent.memory.short_term import _error_notice
+
+    assert _error_notice({"_error": "连接超时"}) == "_error=连接超时"
+    assert _error_notice({"comments_error": "A", "reviews_error": "B"}) == \
+        "comments_error=A | reviews_error=B"
+    assert _error_notice({"error": "不是后缀"}) == ""
+    assert _error_notice({"comments_error": ""}) == ""
+    assert _error_notice({"comments_error": "   "}) == ""
+    assert _error_notice({"comments_error": None}) == ""
+    assert _error_notice({"comments_error": []}) == ""
+    assert _error_notice({"nested": {"comments_error": "深层不算"}}) == ""
+    assert _error_notice("不是 dict") == ""
+    assert _error_notice(None) == ""
+
+
+def test_error_carrying_shapes_all_land_in_the_fallback() -> None:
+    """★ 前提 pin：带 ``*_error`` 键的真实形状**全部**落兜底，一个都不进桶。
+
+    ``_error_notice`` 只装在 ``_compress_by_truncation`` 上 —— 这条断言就是它的
+    适用前提。五个顶层错误键产生点（``clients/client.py`` 的 198 / 238 / 252 /
+    347 / 446 行）对应的形状都在下面。
+
+    **将来谁放松了判据（比如给多部件信封加机制），这条会先红**：那时错误提示
+    必须跟着搬到新路径上，否则会悄悄退回到「agent 不知道自己不知道」。
+    本文件里的 ``get_blog`` 夹具是真实形状（5 个标量的 ``blog``），
+    所以「blog 也不会进桶」这个结论是真的 —— 换成假夹具这条就会失灵。
+    """
+    from agent.memory.short_term import _classify, _try_json
+
+    carriers = {
+        # client.py:198（episode 元数据拿到了，评论失败）
+        "episode_comments(评论失败)": {"episode": {"id": 1088}, "comments": [],
+                                       "comment_count": 0,
+                                       "comments_error": "获取评论失败（HTTP 503）"},
+        # client.py:446
+        "blog(blog 失败)": {"entry_id": 1, "blog_error": "请求超时",
+                            "comments": ["评论一"], "subjects": [{"id": 8, "name": "EVA"}]},
+        "blog(comments 失败)": {"entry_id": 1, "blog": _BLOG_REAL,
+                                "comments_error": "获取评论失败",
+                                "subjects": [{"id": 8, "name": "EVA"}]},
+        "blog(全失败)": {"entry_id": 1, "blog_error": "请求超时",
+                         "comments_error": "获取评论失败",
+                         "subjects_error": "连接失败（ConnectError）"},
+        # client.py:238 / 252
+        "opinions(评论失败)": {"subject_id": 265, "comments_error": "获取评论失败",
+                               "reviews": {"items": [{"id": 1}], "total": 1}},
+        # client.py:347
+        "profile(user 失败)": {"username": "alice", "user_error": "认证失败",
+                               "user_stats": {"anime": {"collect": 100}},
+                               "collections": {"items": [{"id": 1}], "total": 1},
+                               "characters": [{"id": 1, "name": "角色"}],
+                               "persons": [{"id": 2, "name": "人物"}],
+                               "blogs": [{"id": 3, "title": "日志"}]},
+    }
+    for label, shape in carriers.items():
+        data = _try_json(json.dumps(shape, ensure_ascii=False))
+        assert data is not None, f"{label} 的夹具不是 JSON dict"
+        assert _classify(data)[0] is None, (
+            f"{label} 进了「{_classify(data)[0]}」桶 —— 兜底那行错误提示就不生效了，"
+            "得把 _error_notice 搬到这条新路径上"
+        )

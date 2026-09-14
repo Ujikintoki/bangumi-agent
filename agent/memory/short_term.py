@@ -843,14 +843,82 @@ def _compress_tool_result(msg: ToolMessage) -> ToolMessage:
     return _compress_by_truncation(msg, content, max_tokens=300)
 
 
+_ERROR_KEY_SUFFIX = "_error"
+"""顶层错误键的统一后缀（``comments_error`` / ``reviews_error`` / ``blog_error`` …）。
+
+``"_error".endswith("_error")`` 为真，所以裸 ``_error`` 也算 —— 一条判据覆盖两种写法。
+"""
+
+_ERROR_KEY_MAX_TOKENS = 75
+"""错误提示在兜底预算里最多占多少 token（300 的四分之一）。
+
+可达的错误串最长约 60 字 / 30 tok（``clients/base.py:178`` 的 404 文案带 path），
+75 是照实测量级留的余量。真被这个上限截到会记 warning —— 那说明有工具开始
+往 ``_error`` 里塞正文了，得回来看。
+"""
+
+_ERROR_VALUE_MAX_CHARS = 120
+"""单个错误值的字符上限（与单体桶的字符串上限同口径）。"""
+
+
+def _error_notice(data: object) -> str:
+    """顶层错误键（``_error`` / ``*_error``）→ 一行提示；没有则返回空串。
+
+    **错误提示必须比正文先活下来。** ``get_episode_comments`` 的返回里
+    ``comments_error`` 排在 ``episode`` 之后，而 episode 一个就 334 tok（含 500 字
+    ``desc``）—— 兜底从 JSON 头部切 300 tok 时，错误键**一定**在窗口之外。
+    模型于是看到「这集没什么评论」，而不是「评论没拉到」。
+
+    为什么这条比丢评论更严重：丢评论至少有「另有 N 条未列出」的披露，**丢错误是
+    让 agent 不知道自己不知道** —— 它会照着空评论区把话讲圆。实测（2026-09-14）：
+    评论拉取失败那条 payload 373 tok → 299 tok，``comments_error`` 被切掉，
+    HTTP 503 的原因一个字都传不到下一轮。
+
+    认的是**后缀约定**，不是工具名名单（本任务刚删掉的那个反模式）。这族工具
+    产生顶层错误键的地方只有 5 处（``clients/client.py`` 的 198 / 238 / 252 /
+    347 / 446 行），且**全部落在兜底路径上** —— 记录桶 / 文本桶 / 单体桶都接不到
+    带错误键的形状（它们要么被「顶层不许有 dict」拦下，要么顶层 list 数不为 1），
+    所以只需在兜底负责。`test_compression_shapes.py` 有 pin 钉着这条前提。
+    """
+    if not isinstance(data, dict):
+        return ""
+    parts: list[str] = []
+    for key, value in data.items():
+        if not isinstance(key, str) or not key.endswith(_ERROR_KEY_SUFFIX):
+            continue
+        if not isinstance(value, str) or not value.strip():
+            continue
+        text = value.strip()
+        if len(text) > _ERROR_VALUE_MAX_CHARS:
+            text = text[:_ERROR_VALUE_MAX_CHARS] + "…"
+        parts.append(f"{key}={text}")
+    return " | ".join(parts)
+
+
 def _compress_by_truncation(msg: ToolMessage, content: str, max_tokens: int) -> ToolMessage:
-    """按 token 截断内容，添加压缩标记。"""
+    """按 token 截断内容，添加压缩标记。
+
+    截断前先把顶层错误提示摘出来放在最前面（见 `_error_notice`）：它只有一二十
+    token，却是「这次没拿到数据」的唯一凭据，不能跟着正文一起被切掉。
+
+    **没有错误键时，这条路径与改动前逐字节相同** —— 对拍钉着（Step 6）。
+    """
     current = count_tokens(content)
     if current <= max_tokens:
         return msg
-    truncated = _truncate_text_by_tokens(content, max_tokens - count_tokens(_COMPRESSION_MARKER))
+    notice = _error_notice(_try_json(content))
+    if notice:
+        if count_tokens(notice) > _ERROR_KEY_MAX_TOKENS:
+            logger.warning(
+                "memory: 错误提示超 %d tok，截断后展示（有工具开始往 _error 里塞正文？）",
+                _ERROR_KEY_MAX_TOKENS,
+            )
+            notice = _truncate_text_by_tokens(notice, _ERROR_KEY_MAX_TOKENS)
+        notice += "\n"
+    budget = max_tokens - count_tokens(_COMPRESSION_MARKER) - count_tokens(notice)
+    truncated = _truncate_text_by_tokens(content, max(1, budget))
     return ToolMessage(
-        content=_COMPRESSION_MARKER + truncated,
+        content=_COMPRESSION_MARKER + notice + truncated,
         tool_call_id=getattr(msg, "tool_call_id", ""),
         name=getattr(msg, "name", None),
     )
