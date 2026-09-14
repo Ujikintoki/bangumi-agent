@@ -70,8 +70,9 @@ _LOCAL_TOOLS = {"search_local_bangumi"}
 # 改了上限就是换了证据，旧判定一律作废。
 #
 # 2026-09-14 实测：本地检索（search_local_bangumi）一次 limit=10 能吐 30–37k 字符，
-# 占满单场景预算 —— 首跑 30 条就有 10 次调用被截断/整条丢弃。所以检索类工具改走
-# 【卡片化】（见 _card_result），这两个上限降级为兜底。
+# 占满单场景预算 —— 首跑 30 条就有 10 次调用被截断/整条丢弃，所以当天加了录制侧的
+# 【卡片化】。同日晚些时候产出侧自己改了索引卡，这两个上限于是**退成纯兜底**：
+# 单次返回不可能再撑爆场景预算，命中它们等于有工具越界了。
 _EVIDENCE_CALL_CHARS = 20000
 # 单场景上限。实测分布：29/30 个场景 ≤ 23510 字，唯一的离群点是 C5-deep必调工具
 # （"冷门番"太难，Agent 换了 6 次说法重试检索）59771 字。理论上限 = deep 迭代 6 轮 ×
@@ -79,24 +80,21 @@ _EVIDENCE_CALL_CHARS = 20000
 # 卡片化后的最坏判官 prompt 约 70k 字 ≈ 11k token，判官吃得下。
 _EVIDENCE_TOTAL_CHARS = 80000
 
-# 证据卡片版本。改卡片规则（留哪些字段、封多大）必须改它 —— 它进样本 meta，也是
-# Step 3 判官缓存键的一部分：换了卡片就是换了证据，旧判定一律作废。
-_EVIDENCE_POLICY = "card-v1"
-
-# 哪些工具走卡片化。只列检索类：它们的返回是"记录列表"，体积随 limit 线性膨胀。
-# 其余工具（detail/person/episodes/comments…）实测都 < 4000 字符，原样留全文更诚实。
-_CARDED_TOOLS = {"search_local_bangumi"}
-
-# 卡片保留的标量字段。判官核断言时靠它们定位"这句话说的是哪条记录"。
-_CARD_KEEP = ("id", "name", "name_cn", "type", "info", "date", "eps",
-              "score", "rank", "rating_total", "_source", "_next")
-_CARD_SUMMARY_CHARS = 300        # 与 D 组 JUDGE_SUMMARY_CHARS 取齐
-_CARD_INFOBOX_KEYS = 12          # 作品级 infobox 每条约 30 键；前 12 键是导演/原作/音乐这类
-_CARD_INFOBOX_VALUE_CHARS = 80   # 实测只有 8% 的 infobox 值超过 80 字，封顶几乎不丢信息
-# 卡片丢掉了什么。进样本 meta（不逐条塞进证据里），判官据此把"依赖未列字段的断言"判 unknown。
-_CARD_OMITTED = ("infobox 第 13 键及其后", "infobox 值超 80 字的部分",
-                 "rating_count", "collection", "tags[].count",
-                 "series / series_entry / nsfw / volumes / subject_type")
+# 证据口径版本。进样本 meta，也是 Tier 2 判官缓存键的一部分：换了口径就是换了证据，
+# 旧判定一律作废。
+#
+# card-v1 → index-v1（2026-09-14）。v1 那层卡片（`_CARD_KEEP` / `_card_record`）是给
+# 当时的 `search_local_bangumi` 兜体积用的 —— 工具原样吐 20,522 token，录制侧只能削。
+# 当天工具改成**产出侧索引卡**（`tools/bgm_tools.py:_local_index_card`：2200 字整块预算
+# + `{total, shown, results, note}` 信封）之后，录制侧这一层不但冗余，而且**有害**：
+# v1 的保留字段集（有 `_source`/`_next`，没有 `role`/`career`/`entity_type`/`tags`）会把
+# 工具刚给出来的角色身份、声优经历、标签再削一遍 —— 判官于是看不到模型明明看到过的字段。
+#
+# 所以 index-v1 的含义是：**录制侧不再投影任何工具**，盘上存的就是工具真实返回。
+# 想改证据形状 = 改工具本身（CLAUDE.md 规则 7），不再是改这个文件。
+# 代价：判官的"看不到"清单不再由预注册卡片给出，得由工具自己的 docstring 承担
+# （`search_local_bangumi` 的 docstring 里写了 `shown < total` 与卡片字段）。
+_EVIDENCE_POLICY = "index-v1"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -263,50 +261,6 @@ class _RenderSignalHandler(logging.Handler):
 # 每局开局都是零记忆，所以"凭记忆说的话"这类断言在当前样本里不存在。
 
 
-def _card_record(rec: dict) -> dict:
-    """把一条检索结果投影成判官卡片。
-
-    判官要核的是「回复里的断言」，不是「条目数据库长什么样」，所以只留能支撑断言的
-    字段。infobox【不整块丢】—— 它是"导演: 新房昭之 / 音乐: 梶浦由記"这种角色→人名
-    的映射，而损友人设最容易点评的正是这些；整块丢掉会让真话判成 unsupported。
-    封顶到 12 键 / 单值 80 字：实测因此丢掉的只有 8% 的值。
-    """
-    card = {k: rec[k] for k in _CARD_KEEP if k in rec}
-    if isinstance(rec.get("summary"), str):
-        card["summary"] = rec["summary"][:_CARD_SUMMARY_CHARS]
-    tags = rec.get("tags")
-    if isinstance(tags, list):
-        names = [t.get("name") for t in tags if isinstance(t, dict) and t.get("name")]
-        if names:
-            card["tags"] = names
-    infobox = rec.get("infobox")
-    if isinstance(infobox, dict):
-        capped: dict = {}
-        for i, (k, v) in enumerate(infobox.items()):
-            if i >= _CARD_INFOBOX_KEYS:
-                break
-            capped[k] = v[:_CARD_INFOBOX_VALUE_CHARS] if isinstance(v, str) else v
-        if capped:
-            card["infobox"] = capped
-    return card
-
-
-def _card_result(result):
-    """检索类返回 → 卡片。返回 (投影后的结果, 有没有真的卡片化)。
-
-    只认 ``{"results": [...]}`` 这个形状（CLAUDE.md 工具返回约定）；错误返回、
-    别的形状一律原样放行，交给体积上限兜底。
-    """
-    if not isinstance(result, dict) or not isinstance(result.get("results"), list):
-        return result, False
-    out = dict(result)
-    out["results"] = [r if not isinstance(r, dict) else _card_record(r)
-                      for r in result["results"]]
-    # 空结果（"results": []）没投影任何东西，不能记成"已卡片化"—— 报告里那个计数
-    # 是给判官看的"证据是投影过的"，记虚了就等于骗判官。
-    return out, any(isinstance(r, dict) for r in result["results"])
-
-
 class _EvidenceSink:
     """一轮场景的工具调用流水。
 
@@ -335,10 +289,8 @@ class _EvidenceSink:
             # 就还是怎么处理，替身不改变行为。
             rec["result"], rec["raised"] = None, raised
         else:
-            if tool in _CARDED_TOOLS:
-                result, carded = _card_result(result)
-                if carded:
-                    rec["carded"] = True
+            # 不再有任何工具走录制侧投影（policy index-v1）—— 盘上存工具真实返回。
+            # `carded` 键仍会被 `_evidence_stats` 统计：card-v1 时代的旧样本带它。
             text = self._as_text(result)
             if self.total_chars + len(text) > _EVIDENCE_TOTAL_CHARS:
                 rec["result"] = {"_dropped": True,
@@ -560,22 +512,17 @@ async def record(scenarios: list[dict], smoke: int, offline: bool, scenario_file
                 "enabled": True,
                 "n_tools_wrapped": n_tools,
                 "policy": _EVIDENCE_POLICY,
-                "carded_tools": sorted(_CARDED_TOOLS),
-                "card": {
-                    "keep": list(_CARD_KEEP),
-                    "summary_chars": _CARD_SUMMARY_CHARS,
-                    "infobox_keys": _CARD_INFOBOX_KEYS,
-                    "infobox_value_chars": _CARD_INFOBOX_VALUE_CHARS,
-                    "tags": "只留 name，丢掉 count",
-                    "omitted": list(_CARD_OMITTED),
-                },
                 "per_call_chars": _EVIDENCE_CALL_CHARS,
                 "per_scenario_chars": _EVIDENCE_TOTAL_CHARS,
-                "what": "工具返回（失败的 _error 返回与抛出的异常也在内），逐条样本冻结在 evidence 里；"
-                        "检索类工具按上方 card 规则投影成卡片（每条标 carded=True）",
-                "not_captured": "L2 记忆召回 / L1 压缩后的上下文 / system prompt",
-                "cache_note": "policy + card 规则 + 两个上限都要进 Tier 2 判官的缓存键："
-                              "改任何一项＝换证据，旧判定作废",
+                "what": "工具返回（失败的 _error 返回与抛出的异常也在内），逐条样本【原样】冻结在 "
+                        "evidence 里 —— index-v1 起录制侧不投影任何工具。检索类工具的体积由"
+                        "产出侧自己兜（`search_local_bangumi` 返回索引卡，≤2200 字 + "
+                        "{total, shown, results, note} 信封），故判官看到的 = 工具当时给出的",
+                "not_captured": "L2 记忆召回 / L1 压缩后的上下文 / system prompt —— "
+                                "本字段是【工具原始返回】，模型在后续轮次看到的是它被 L1 "
+                                "截断/压缩后的样子；轴 3 单轮录制里两者通常一致",
+                "cache_note": "policy + 两个上限进 Tier 2 判官缓存键：改任何一项＝换证据，"
+                              "旧判定作废",
             },
             "known_limits": [
                 "LLM 非确定（RENDER_TEMPERATURE=0.4, LLM_TEMPERATURE 见快照）→ 看分布与 delta，不看单条",
@@ -845,8 +792,8 @@ def _print_judge(rep: dict) -> None:
     print("    · 「未调工具」与「调了但全失败」分开报，别混：前者是设计（禁工具/闲聊场景），")
     print("      后者才是故障。两者都是 Tier 2 的分层轴 —— 那批上判出的 unsupported")
     print("      含义与「有据不用」完全不同。")
-    print("    · 「卡片化」不是残缺，是预注册的证据投影（元数据 evidence_capture.card）；")
-    print("      判官对依赖未列字段的断言必须判 unknown。截断/丢弃才是真的残缺。")
+    print("    · 「卡片化」不是残缺，是预注册的证据投影；index-v1 起录制侧不再投影，")
+    print("      于是恒为 0 —— 检索类工具的体积已由产出侧自己兜。截断/丢弃才是真的残缺。")
 
 
 def _save_judge(rep: dict, frozen_path: Path) -> tuple[Path, Path]:
@@ -908,16 +855,27 @@ def _save_judge(rep: dict, frozen_path: Path) -> tuple[Path, Path]:
         )
         if cap:
             card = cap.get("card") or {}
-            lines.append(
-                f"\n**证据策略** `{cap.get('policy')}`：检索类工具（"
-                f"{'、'.join('`' + t + '`' for t in cap.get('carded_tools', []))}）"
-                f"按预注册卡片投影 —— 保留 {', '.join('`' + k + '`' for k in card.get('keep', []))}，"
-                f"简介封顶 {card.get('summary_chars')} 字，infobox 前 {card.get('infobox_keys')} 键"
-                f"（单值 ≤{card.get('infobox_value_chars')} 字），标签只留 name。"
-                f"未列出的内容（{'；'.join(card.get('omitted', []))}）判官【看不到】，"
-                f"依赖它们的断言必须判 unknown，不得判 unsupported。"
-                f"单次上限 {cap.get('per_call_chars')} 字、单场景 {cap.get('per_scenario_chars')} 字。"
-            )
+            if card:
+                lines.append(
+                    f"\n**证据策略** `{cap.get('policy')}`：检索类工具（"
+                    f"{'、'.join('`' + t + '`' for t in cap.get('carded_tools', []))}）"
+                    f"按预注册卡片投影 —— 保留 {', '.join('`' + k + '`' for k in card.get('keep', []))}，"
+                    f"简介封顶 {card.get('summary_chars')} 字，infobox 前 {card.get('infobox_keys')} 键"
+                    f"（单值 ≤{card.get('infobox_value_chars')} 字），标签只留 name。"
+                    f"未列出的内容（{'；'.join(card.get('omitted', []))}）判官【看不到】，"
+                    f"依赖它们的断言必须判 unknown，不得判 unsupported。"
+                    f"单次上限 {cap.get('per_call_chars')} 字、单场景 {cap.get('per_scenario_chars')} 字。"
+                )
+            else:
+                lines.append(
+                    f"\n**证据策略** `{cap.get('policy')}`：**录制侧不投影**，盘上存的是工具"
+                    f"【原样】返回。检索类工具的体积由产出侧自己兜（`search_local_bangumi` "
+                    f"返回索引卡：≤2200 字 + `{{total, shown, results, note}}` 信封；"
+                    f"`shown < total` 表示只给了前若干条）。"
+                    f"单次上限 {cap.get('per_call_chars')} 字、单场景 "
+                    f"{cap.get('per_scenario_chars')} 字 —— index-v1 起这两个数退成兜底，"
+                    f"命中即说明有工具越界。"
+                )
 
     if m.get("skipped"):
         lines += [f"\n## 未录制（{len(m['skipped'])} 条）\n"]
