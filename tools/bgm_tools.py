@@ -1154,7 +1154,8 @@ async def search_local_bangumi(
     Args:
         query: 自然语言查询，如 "温馨的日常治愈番"。
         entity_type: subject / character / person / all。
-        limit: 返回结果数上限，默认 5。
+        limit: 候选条数上限，默认 5，最大 20。注意这是【检索】上限，不是
+            返回上限——见下方 Returns 的 shown。
         nsfw: 是否包含 R18 内容，默认 False。
         subject_type: 条目子类型：1=书籍, 2=动画, 3=音乐, 4=游戏, 6=真人。
         tags: 必须同时包含的标签（AND 逻辑），如 ['芳文社', '原创']。
@@ -1162,9 +1163,25 @@ async def search_local_bangumi(
         min_score: 评分下限 (0-10)，如 8.5。
 
     Returns:
-        结构化 dict: {"results": [dict, ...], "total": N}，
-        每个 dict 格式对应 API detail 工具。
-        无结果或出错时返回 {"_error": "..."}。
+        {"total": int, "shown": int, "results": [card, ...]}
+        被截时多一个 "note"。信封键排在 results 之前。
+
+        - total: 检索到的条数；shown: 实际返回的条数。两者相等时是无损的。
+        - 每张 card 是【选择用索引卡】，不是详情：
+          {"id", "entity_type", "name", "name_cn", "type", "date", "eps",
+           "score", "rank", "info", "tags"}
+          character 另有 "role"、person 另有 "career"；三种实体没有的键会缺席
+          （character 没有 type/date/score/rank）。
+        - **卡片不含 summary 与 infobox**。要剧情简介、制作班底、角色列表，
+          拿 card 里的 id 去调对应的 detail 工具——不要凭卡片内容编造剧情。
+        - 无结果或出错时返回 {"_error": "..."}。
+
+        两条保证：
+          ① shown 有容量上限：单条消息的容量决定了最多显示 6-8 条（实测中位 8），
+             limit 调到 8 以上基本不再增加（调大不会变少，但也不会变多）。
+             想看不同的候选，换查询词，不要反复调大 limit。
+          ② entity_type="all" 时人物卡比条目卡小得多（实测中位 103/127 字 vs 272 字），
+             同一个 limit 下 shown 会明显不同——这是设计，不是故障。
     """
     import asyncio
     return await asyncio.to_thread(
@@ -1172,6 +1189,101 @@ async def search_local_bangumi(
         query, entity_type, limit, nsfw,
         subject_type, tags, year, min_score,
     )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# search_local_bangumi 产出侧投影 —— 选择用索引卡
+# ═══════════════════════════════════════════════════════════════════
+
+# 卡片保留键。三种实体的 `rag_output` 键集合不同，没有的键自然缺席：
+#   subject   → id/name/name_cn/type/date/eps/score/rank/info/tags
+#   character → id/name/name_cn/role/info        （**没有** type/date/score/rank）
+#   person    → id/name/name_cn/type/career/info （**没有** date/eps/score/rank）
+# role / career 不是锦上添花：character 没有 type，不带 role 那张卡就只剩 id+名+info。
+_LOCAL_CARD_KEEP = (
+    "id", "name", "name_cn", "type", "date", "eps",
+    "score", "rank", "info", "role", "career",
+)
+
+# 标签只留前 N 个的 name，丢掉 count —— {"name":"萝莉","count":2725} 里的 count
+# 对「选哪一部」零价值，而 8 个标签名实测只占 30-51 字，是卡片里最便宜的味道信号。
+_LOCAL_CARD_MAX_TAGS = 8
+
+# 整块预算（字符，含信封）。超了【整条丢】，绝不切单条 —— 单值封顶管不住多条
+# 一起膨胀，与 clients/sanitizers._INFOBOX_CHAR_BUDGET 同款教训。
+#
+# 2200 的依据（2026-09-14 实测）：
+#   · 下游是 L1 单条消息上限 2000 token（agent/memory/short_term._MAX_SINGLE_MESSAGE_TOKENS）。
+#     超了会被掐头截断、从 JSON 中间切断：实测 11/11 次调用超限，真实 payload 中位
+#     20,522 token（上限的 10 倍），114 条候选只有 5 条完整进了模型。
+#   · 最坏 token 密度 0.75 tok/字（JSON 标点 + "GHOST IN THE SHELL / 攻殻機動隊"
+#     这类大写 ASCII 名把均值拉上去），2200 字 → 最坏约 1650 token，余量 17%。
+#   · 实测：2200 → shown 中位 7-8、最坏 1653 tok ✅
+#          2600 → 最坏 1944-1956 tok（上限的 97%，太贴）⚠️
+#          2800 → 最坏 2086-2097 tok ❌ 已越界
+#
+# 这里用字符而不是 token：tools/ 是数据层、agent/memory/ 是记忆层，上层依赖下层，
+# 数据层不能反向 import 记忆层的 count_tokens。跨层契约交给 test/test_bgm_tools.py 断言
+# （test/test_sanitizers.py:614 是同样的套路：sanitizer 用字符自我封顶，测试断言 token 不超）。
+_LOCAL_CARD_CHAR_BUDGET = 2200
+
+
+def _local_index_card(record: dict, entity_type: str) -> dict:
+    """一条 rag_output → 选择用索引卡（不含 summary / infobox）。"""
+    card = {k: record[k] for k in _LOCAL_CARD_KEEP if k in record}
+    # entity_type 是消歧必需的：agent/prompts/aggregator.py 的示例 5 教模型认
+    # type="person"，但没有任何路径吐这个值（API 与 RAG 都给「个人」），
+    # 而 character 连 type 键都没有。没有它模型认不出人物卡。
+    card["entity_type"] = entity_type
+    tags = record.get("tags")
+    if isinstance(tags, list):
+        names = [
+            t.get("name")
+            for t in tags[:_LOCAL_CARD_MAX_TAGS]
+            if isinstance(t, dict) and t.get("name")
+        ]
+        if names:
+            card["tags"] = names
+    return card
+
+
+def _local_envelope(found: int, kept: list[dict], truncated: bool) -> dict:
+    """信封键一律排在 results 【之前】。
+
+    头部截断保头弃尾，「已省略 N 条」这句披露若放在尾部，任何一次未来回归
+    都会先把它切掉 —— 而那正是截断发生时最需要留下的一句话。
+    """
+    payload: dict = {"total": found, "shown": len(kept)}
+    if truncated:
+        # 不要建议「调大 limit」——实测 limit 从 8 调到 20，shown 稳定在 8，毫无增益。
+        # 想看到不同的候选只能换查询词。
+        payload["note"] = (
+            f"另有 {found - len(kept)} 条未显示（按相关度排序，未显示的是靠后的）。"
+            f"想看更多请换更具体的查询词；调大 limit 不会增加显示条数。"
+        )
+    payload["results"] = kept
+    return payload
+
+
+def _local_payload(records: list[tuple[dict, str]]) -> dict:
+    """整块预算：逐条累加，下一条放不下就停。"""
+    found = len(records)
+    kept: list[dict] = []
+    for record, entity_type in records:
+        kept.append(_local_index_card(record, entity_type))
+        # 按【最坏情况】计量：假定最终会带 note。真实 payload 绝不会比它大。
+        size = len(json.dumps(_local_envelope(found, kept, truncated=True), ensure_ascii=False))
+        if size > _LOCAL_CARD_CHAR_BUDGET:
+            kept.pop()
+            break
+
+    # 保底 1 条。丢光会让 main._tool_payload_kind 把 {"results": [], "total": 10}
+    # 判成 "empty"（它只看容器非空），降级话术就会对用户说「翻过了，没有找到匹配的内容」
+    # —— 明明找到了 10 条。实测最胖的卡片才 599 字，这个保底成本为零。
+    if not kept and records:
+        kept = [_local_index_card(records[0][0], records[0][1])]
+
+    return _local_envelope(found, kept, truncated=len(kept) < found)
 
 
 def _search_local_bangumi_sync(
@@ -1227,17 +1339,21 @@ def _search_local_bangumi_sync(
     if not results:
         return {"_error": f"未找到与「{query}」相关的条目，建议尝试更宽泛的关键词。"}
 
-    formatted: list[dict] = []
+    # ── 投影成选择用索引卡（不回传 summary/infobox —— 那是 detail 工具的活）──
+    records: list[tuple[dict, str]] = []
     for r in results:
         try:
-            formatted.append(json.loads(r.rag_output))
+            record = json.loads(r.rag_output)
         except (json.JSONDecodeError, TypeError):
             logger.warning("RAG rag_output JSON 解析失败: entity=%s id=%s", r.entity_type, r.entity_id)
+            continue
+        if isinstance(record, dict):
+            records.append((record, r.entity_type))
 
-    if not formatted:
-        return {"_error": f"检索到 {len(results)} 条结果但解析均失败。"}
+    if not records:
+        return {"_error": f"检索到 {len(results)} 条结果但无法解析为结构化记录。"}
 
-    return {"results": formatted, "total": len(formatted)}
+    return _local_payload(records)
 
 
 
