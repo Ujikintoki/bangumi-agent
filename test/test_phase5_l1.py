@@ -359,8 +359,8 @@ class TestToolResultCompression:
         """search_bangumi_subject 的 dict 结果应被压缩为关键字段。
 
         注意：这里喂的 `rating: {score, rank}` 是 **Bangumi API 的原始形状**，
-        压缩函数的嵌套兜底分支。生产路径给的是扁平 `score`/`rank`
-        （见 `_compress_search_result` 内注释）——扁平形状由
+        走的是压缩函数的嵌套兜底分支（`_render_record` 尾部的 `rating` 兜底）。
+        生产路径给的是扁平 `score`/`rank` —— 扁平形状由
         `test_compress_flat_score_rank_from_production` 覆盖。
         本测试历史上是唯一的压缩测试，它喂嵌套形状，所以扁平路径的
         ⭐/# 一直缺席也没被发现。
@@ -535,14 +535,25 @@ class TestToolResultCompression:
         assert "[已压缩]" in tool_msgs[0].content
 
     def test_compress_person_detail(self):
-        """get_person_detail 应保留前 400 tokens。"""
+        """非 JSON 内容走**通用兜底**（300），工具名不再有任何特权。
+
+        HANDOFF 18 Step 5 之前这里断言的是 400 —— `get_person_detail` /
+        `get_character_detail` 曾靠一份硬编码名单拿 400。名单删掉后一律 300。
+
+        这条差异**够不着**：这两个工具的非 JSON 内容只可能来自
+        `ToolNode(handle_tool_errors=format_tool_error)`（agent/guardrails.py:163）
+        的异常文本，实测参数校验失败 63–77 tok；`_error` 返回是定长短串且走
+        JSON 分支。都远低于 300，两种实现都原样返回 `msg`（见
+        test_compression_shapes.py::test_non_json_content_gets_no_tool_specialty）。
+        这里喂 1000 tok 是为了让差异**可见**，不是为了它会发生。
+        """
         from agent.memory.short_term import _compress_tool_result
 
         content = "person detail data " * 200  # long content
         msg = ToolMessage(content=content, tool_call_id="t1", name="get_person_detail")
 
         compressed = _compress_tool_result(msg)
-        assert count_tokens(compressed.content) <= 450  # 400 + marker
+        assert count_tokens(compressed.content) <= 340  # 300 + 截断标记
         assert "[已压缩]" in compressed.content
 
     def test_compress_empty_content_noop(self):
