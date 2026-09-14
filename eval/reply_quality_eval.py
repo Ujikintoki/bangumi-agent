@@ -955,6 +955,8 @@ def main() -> None:
     g = parser.add_mutually_exclusive_group(required=True)
     g.add_argument("--record", action="store_true", help="跑 /chat 并冻结样本（要联网、要钱）")
     g.add_argument("--judge", metavar="FROZEN_JSON", help="对冻结样本判定（离线、免费）")
+    g.add_argument("--tier2-dry-run", metavar="FROZEN_JSON",
+                   help="Tier 2 证据投影 dry-run：只打印判官将看到多少字，不调 LLM、不花钱")
     g.add_argument("--list", action="store_true", help="列出已有冻结样本")
     parser.add_argument("--data", default="eval/data/e2e_scenarios.json", help="场景集")
     parser.add_argument("--smoke", type=int, default=0, help="只跑前 N 条（0=全部）")
@@ -973,6 +975,11 @@ def main() -> None:
             meta = json.loads(f.read_text(encoding="utf-8")).get("meta", {})
             print(f"  {f.name}  n={meta.get('n_recorded')}  {meta.get('recorded_at')}"
                   f"  git={meta.get('git_hash')}")
+        return
+
+    if args.tier2_dry_run:
+        from eval import reply_quality_judge as t2
+        t2.print_dry_run(t2.dry_run_report(t2.load_frozen(args.tier2_dry_run)))
         return
 
     if args.judge:
