@@ -39,7 +39,9 @@
     python -m eval.reply_quality_eval --record                # 录制冻结样本（全部场景）
     python -m eval.reply_quality_eval --record --offline      # 只录不依赖 Bangumi API 的场景
     python -m eval.reply_quality_eval --record --smoke 3      # 冒烟：只跑前 N 条
-    python -m eval.reply_quality_eval --judge <frozen.json>   # 判定（离线、免费、可反复跑）
+    python -m eval.reply_quality_eval --judge <frozen.json>   # Tier 1 判定（离线、免费、可反复跑）
+    python -m eval.reply_quality_eval --tier2-dry-run <frozen.json>  # Tier 2 证据预览（免费）
+    python -m eval.reply_quality_eval --tier2 <frozen.json>   # Tier 2 忠实性判定（要钱，可反复跑）
     python -m eval.reply_quality_eval --list                  # 列出已有冻结样本
 """
 
@@ -915,9 +917,13 @@ def main() -> None:
     g.add_argument("--judge", metavar="FROZEN_JSON", help="对冻结样本判定（离线、免费）")
     g.add_argument("--tier2-dry-run", metavar="FROZEN_JSON",
                    help="Tier 2 证据投影 dry-run：只打印判官将看到多少字，不调 LLM、不花钱")
+    g.add_argument("--tier2", metavar="FROZEN_JSON",
+                   help="Tier 2 忠实性判定（调 LLM、要钱；结果落 judge_cache.jsonl）")
     g.add_argument("--list", action="store_true", help="列出已有冻结样本")
     parser.add_argument("--data", default="eval/data/e2e_scenarios.json", help="场景集")
     parser.add_argument("--smoke", type=int, default=0, help="只跑前 N 条（0=全部）")
+    parser.add_argument("--tier2-limit", type=int, default=0,
+                        help="Tier 2 只判前 N 条场景（0=全部）：冒烟验收口径，再跑满")
     parser.add_argument("--offline", action="store_true",
                         help="跳过需要 Bangumi API 工具的场景（本机 api.bgm.tv 不通时用）")
     args = parser.parse_args()
@@ -938,6 +944,15 @@ def main() -> None:
     if args.tier2_dry_run:
         from eval import reply_quality_judge as t2
         t2.print_dry_run(t2.dry_run_report(t2.load_frozen(args.tier2_dry_run)))
+        return
+
+    if args.tier2:
+        from eval import reply_quality_judge as t2
+        frozen_path = Path(args.tier2)
+        rep = t2.judge_tier2(t2.load_frozen(args.tier2), limit=args.tier2_limit)
+        t2.print_tier2(rep)
+        jp, mp = t2.save_tier2(rep, frozen_path)
+        print(f"\n已归档: {jp}\n报告:   {mp}")
         return
 
     if args.judge:

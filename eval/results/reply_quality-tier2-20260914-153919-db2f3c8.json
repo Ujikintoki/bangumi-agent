@@ -1,0 +1,1790 @@
+{
+  "meta": {
+    "judged_at": "2026-09-14T15:39:19",
+    "sample_git_hash": "db2f3c8",
+    "sample_recorded_at": "2026-09-14T15:26:45+0800",
+    "evidence_policy": "index-v1",
+    "judge_version": "faithfulness-v1",
+    "rubric_fingerprint": "faithfulness-v1|cap=2000|ef59def6",
+    "model": "deepseek-v4-flash",
+    "temperature": 0.0,
+    "max_single_message_tokens": 2000,
+    "limit": 0,
+    "elapsed_s": 0.0
+  },
+  "scenarios": [
+    {
+      "scenario_id": "A1-常识日期",
+      "depth": "fast",
+      "reply_chars": 41,
+      "evidence": {
+        "calls": 0,
+        "complete": 0,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 0,
+        "tokens": 0,
+        "max_tokens": 0
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 1,
+      "note": "零证据场景（未调工具）—— 单列，不进任何分母"
+    },
+    {
+      "scenario_id": "A2-常识概念",
+      "depth": "fast",
+      "reply_chars": 187,
+      "evidence": {
+        "calls": 0,
+        "complete": 0,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 0,
+        "tokens": 0,
+        "max_tokens": 0
+      },
+      "assertions": [
+        {
+          "i": 0,
+          "text": "OVA 就是 Original Video Animation",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 1,
+          "text": "OVA 是不靠电视播、直接卖碟的动画",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 2,
+          "text": "八十年代到九十年代是 OVA 的黄金期",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 3,
+          "text": "OVA 不用受电视台的时长和尺度限制",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 4,
+          "text": "很多导演拿 OVA 做实验",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 5,
+          "text": "《回忆三部曲》是今敏早期的作品",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 6,
+          "text": "今敏在《回忆三部曲》里负责《她的回忆》",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 7,
+          "text": "《她的回忆》是 OVA 路子",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 8,
+          "text": "现在 OVA 这个概念有点模糊了",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 9,
+          "text": "Netflix 那些算不算 OVA 也说不清",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        },
+        {
+          "i": 10,
+          "text": "不上电视、直接发售，就是 OVA",
+          "v": null,
+          "why": "本场景 Agent 未调用任何工具，无证据可核"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 1,
+      "note": "零证据场景（未调工具）—— 单列，不进任何分母"
+    },
+    {
+      "scenario_id": "A3-一句话推荐",
+      "depth": "fast",
+      "reply_chars": 44,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 1043,
+        "tokens": 597,
+        "max_tokens": 597
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据中该作评分8，为列表最高",
+          "cite": "{\"id\": 552533, \"name\": \"穹庐下的魔女\", \"type\": \"动画\", \"score\": 8, \"trending_score\": 1436}",
+          "i": 0,
+          "text": "《穹庐下的魔女》是本季热门里评分最高的那部",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "A4-列表格式",
+      "depth": "fast",
+      "reply_chars": 149,
+      "evidence": {
+        "calls": 2,
+        "complete": 2,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 3992,
+        "tokens": 2460,
+        "max_tokens": 1249
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "A5-deep深入",
+      "depth": "deep",
+      "reply_chars": 347,
+      "evidence": {
+        "calls": 6,
+        "complete": 3,
+        "truncated": 3,
+        "failed": 0,
+        "chars": 14483,
+        "tokens": 10407,
+        "max_tokens": 2000
+      },
+      "assertions": [
+        {
+          "v": "unsupported",
+          "why": "证据无此主题解读，属模型自带解读",
+          "cite": "",
+          "i": 0,
+          "text": "EVA问的是\"我为什么无法与人相连\""
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无此主题解读，属模型自带解读",
+          "cite": "",
+          "i": 1,
+          "text": "巨人问的是\"我们为什么无法获得自由\""
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无'战场在真嗣脑子里'的说法",
+          "cite": "",
+          "i": 2,
+          "text": "EVA的战场在真嗣脑子里"
+        },
+        {
+          "v": "supported",
+          "why": "summary含使徒、补完计划，tags含EVA",
+          "cite": "被称作“第一使徒”亚当的“光之巨人”",
+          "i": 3,
+          "text": "EVA中有使徒、NERV、补完计划这些元素",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "infobox导演为庵野秀明",
+          "cite": "\"导演\": \"庵野秀明\"",
+          "i": 4,
+          "text": "庵野是EVA的创作者",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无'意识流收尾'表述",
+          "cite": "",
+          "i": 5,
+          "text": "EVA用意识流收尾"
+        },
+        {
+          "v": "supported",
+          "why": "info与eps均为26话",
+          "cite": "\"eps\": 26",
+          "i": 6,
+          "text": "EVA有26话",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无'当年骂声一片'的记录",
+          "cite": "",
+          "i": 7,
+          "text": "EVA的26话结局当年骂声一片"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无墙/真相/民族仇恨循环的解读",
+          "cite": "",
+          "i": 8,
+          "text": "巨人的驱动力在结构里，包括墙、真相、民族仇恨的循环"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无'必须向外走给答案'的说法",
+          "cite": "",
+          "i": 9,
+          "text": "巨人必须向外走，必须给答案"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "A6-无意义输入",
+      "depth": "fast",
+      "reply_chars": 81,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 2978,
+        "tokens": 1550,
+        "max_tokens": 1550
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "B1-bangumi人格",
+      "depth": "fast",
+      "reply_chars": 136,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 2153,
+        "tokens": 1358,
+        "max_tokens": 1358
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据中孤独摇滚条目eps为12",
+          "cite": "\"name_cn\": \"孤独摇滚！\" ... \"eps\": 12",
+          "i": 0,
+          "text": "《孤独摇滚！》有12话",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据只有标签，无剧情简介",
+          "cite": "",
+          "i": 1,
+          "text": "《孤独摇滚！》讲的是社恐少女组乐队"
+        },
+        {
+          "v": "supported",
+          "why": "日常条目tags含京阿尼",
+          "cite": "\"name_cn\": \"日常\" ... \"tags\": [\"日常\", \"京阿尼\"",
+          "i": 2,
+          "text": "《日常》是京阿尼的作品",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "日常条目tags含电波",
+          "cite": "\"tags\": [\"日常\", \"京阿尼\", \"搞笑\", \"治愈\", \"爆笑\", \"电波\"",
+          "i": 3,
+          "text": "《日常》是电波系作品",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "日常条目eps为26",
+          "cite": "\"name_cn\": \"日常\" ... \"eps\": 26",
+          "i": 4,
+          "text": "《日常》有26话",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无「温柔向」标签或描述",
+          "cite": "",
+          "i": 5,
+          "text": "《轻音少女》是温柔向的作品"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "B2-kawaii人格",
+      "depth": "fast",
+      "reply_chars": 209,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 2131,
+        "tokens": 1361,
+        "max_tokens": 1361
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据标签含治愈、日常、萌",
+          "cite": "tags: [\"京阿尼\", \"K-ON!\", \"校园\", \"轻音\", \"萌\", \"治愈\", \"日常\", \"2009年4月\"]",
+          "i": 0,
+          "text": "《轻音少女》是可爱日常番",
+          "cite_verified": false
+        },
+        {
+          "v": "unsupported",
+          "why": "证据只有索引卡，无剧情内容",
+          "cite": "",
+          "i": 1,
+          "text": "《轻音少女》讲的是五个女孩放学后凑在一起喝茶、吃蛋糕、偶尔练练琴"
+        },
+        {
+          "v": "supported",
+          "why": "标签含京阿尼",
+          "cite": "\"tags\": [\"京阿尼\", \"K-ON!\", \"校园\", \"轻音\", \"萌\", \"治愈\", \"日常\", \"2009年4月\"]",
+          "i": 2,
+          "text": "《轻音少女》是京阿尼做的",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无社恐或组乐队剧情描述",
+          "cite": "",
+          "i": 3,
+          "text": "《孤独摇滚！》讲的是社恐少女组乐队"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无脑内小剧场相关内容",
+          "cite": "",
+          "i": 4,
+          "text": "《孤独摇滚！》的主角有脑内小剧场"
+        },
+        {
+          "v": "supported",
+          "why": "标签含国产",
+          "cite": "\"tags\": [\"国产\", \"原创\", \"战斗\", \"治愈\", \"泡面番\", \"奇幻\", \"2011\", \"日常\"]",
+          "i": 5,
+          "text": "《罗小黑战记》是国产的",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无猫妖剧情描述",
+          "cite": "",
+          "i": 6,
+          "text": "《罗小黑战记》讲的是猫妖日常"
+        },
+        {
+          "v": "supported",
+          "why": "标签含泡面番",
+          "cite": "\"tags\": [\"国产\", \"原创\", \"战斗\", \"治愈\", \"泡面番\", \"奇幻\", \"2011\", \"日常\"]",
+          "i": 7,
+          "text": "《罗小黑战记》是泡面番节奏",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无单集时长信息",
+          "cite": "",
+          "i": 8,
+          "text": "《罗小黑战记》一集很短"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "B3-neutral人格",
+      "depth": "fast",
+      "reply_chars": 181,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 2907,
+        "tokens": 1733,
+        "max_tokens": 1733
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据中该条目score为8.68",
+          "cite": "\"name\": \"ピンポン THE ANIMATION\", \"name_cn\": \"乒乓\", \"type\": \"动画\", \"score\": 8.68",
+          "i": 0,
+          "text": "《乒乓》（ピンポン THE ANIMATION）的评分为 8.68",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "info字段列出湯浅政明为导演",
+          "cite": "11话 / 2014年4月10日 / 湯浅政明 / 松本大洋（小学館 ビッグスピリッツコミックス刊） / 伊東伸高",
+          "i": 1,
+          "text": "《乒乓》（ピンポン THE ANIMATION）由汤浅政明执导",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "info中标注2014年4月10日",
+          "cite": "11话 / 2014年4月10日 / 湯浅政明",
+          "i": 2,
+          "text": "《乒乓》（ピンポン THE ANIMATION）是 2014 年的作品",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "info开头写明11话",
+          "cite": "11话 / 2014年4月10日 / 湯浅政明",
+          "i": 3,
+          "text": "《乒乓》（ピンポン THE ANIMATION）共 11 话",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据只有索引卡，无剧情简介",
+          "cite": "",
+          "i": 4,
+          "text": "《乒乓》讲述两名高中生乒乓球手的故事"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无角色名及人物设定",
+          "cite": "",
+          "i": 5,
+          "text": "星野裕（Peco）是天赋惊人却提不起劲的乒乓球手"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无角色名及人物设定",
+          "cite": "",
+          "i": 6,
+          "text": "月本诚（Smile）是埋头苦练的乒乓球手"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无分镜作画评价信息",
+          "cite": "",
+          "i": 7,
+          "text": "《乒乓》的分镜和动态作画极具冲击力"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "B4-立场评价",
+      "depth": "fast",
+      "reply_chars": 216,
+      "evidence": {
+        "calls": 3,
+        "complete": 1,
+        "truncated": 2,
+        "failed": 0,
+        "chars": 7325,
+        "tokens": 5342,
+        "max_tokens": 2000
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据2标签含原创，日期1995",
+          "cite": "{\"name\": \"原创\", \"count\": 2203}",
+          "i": 0,
+          "text": "EVA 是 95 年的原创作品",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "评论提到意识流收尾",
+          "cite": "选择用意识流的手法来表达青春伤痛的主题",
+          "i": 1,
+          "text": "EVA 采用意识流收尾",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "标签含宗教、圣经",
+          "cite": "{\"name\": \"宗教\", \"count\": 2580}",
+          "i": 2,
+          "text": "EVA 包含宗教符号",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "仅个别评论称经费不足，非公认",
+          "cite": "",
+          "i": 3,
+          "text": "EVA 第 25、26 集经费不足是公认的"
+        },
+        {
+          "v": "unsupported",
+          "why": "评论称没钱画意识流，非结局一半",
+          "cite": "",
+          "i": 4,
+          "text": "EVA 的结局一半是没钱逼出来的"
+        },
+        {
+          "v": "supported",
+          "why": "证据2评分8.68",
+          "cite": "\"score\": 8.68",
+          "i": 5,
+          "text": "EVA 的评分是 8.68 分",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "有评论以失去的十年切入",
+          "cite": "《新世纪福音战士 EVA》创作的 90 年代日本社会完整背景",
+          "i": 6,
+          "text": "有人从「失去的十年」切入解读 EVA",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "评论称青春伤痛、谜语人",
+          "cite": "主旨无非就是青春伤痛",
+          "i": 7,
+          "text": "有人看完 EVA 只觉得是青春伤痛加谜语人",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无前24集评分说法",
+          "cite": "",
+          "i": 8,
+          "text": "EVA 前 24 集值 8 分往上"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无整体7分半到8分说法",
+          "cite": "",
+          "i": 9,
+          "text": "EVA 整体算上收尾在 7 分半到 8 分之间"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "B5-反馈修正",
+      "depth": "fast",
+      "reply_chars": 122,
+      "evidence": {
+        "calls": 0,
+        "complete": 0,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 0,
+        "tokens": 0,
+        "max_tokens": 0
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 1,
+      "note": "零证据场景（未调工具）—— 单列，不进任何分母"
+    },
+    {
+      "scenario_id": "B6-闲聊回应",
+      "depth": "fast",
+      "reply_chars": 70,
+      "evidence": {
+        "calls": 0,
+        "complete": 0,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 0,
+        "tokens": 0,
+        "max_tokens": 0
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 1,
+      "note": "零证据场景（未调工具）—— 单列，不进任何分母"
+    },
+    {
+      "scenario_id": "C1-禁工具常识",
+      "depth": "fast",
+      "reply_chars": 29,
+      "evidence": {
+        "calls": 0,
+        "complete": 0,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 0,
+        "tokens": 0,
+        "max_tokens": 0
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 1,
+      "note": "零证据场景（未调工具）—— 单列，不进任何分母"
+    },
+    {
+      "scenario_id": "C2-查评分",
+      "depth": "fast",
+      "reply_chars": 184,
+      "evidence": {
+        "calls": 2,
+        "complete": 1,
+        "truncated": 1,
+        "failed": 0,
+        "chars": 4789,
+        "tokens": 3122,
+        "max_tokens": 1999
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据2中score为8.23",
+          "cite": "\"score\": 8.23",
+          "i": 0,
+          "text": "《进击的巨人》第一季评分是 8.23",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据2中rank为120",
+          "cite": "\"rank\": 120",
+          "i": 1,
+          "text": "《进击的巨人》第一季在站内动画排 120 名左右",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据1漫画条目score为7.43",
+          "cite": "{\"id\": 8491, \"name\": \"進撃の巨人\", \"name_cn\": \"进击的巨人\", \"type\": \"书籍\", \"score\": 7.43",
+          "i": 2,
+          "text": "《进击的巨人》漫画原作评分是 7.43",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "漫画7.43低于动画8.23",
+          "cite": "\"score\": 7.43",
+          "i": 3,
+          "text": "《进击的巨人》漫画原作评分比动画低一截",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "C3-人物查询",
+      "depth": "fast",
+      "reply_chars": 179,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 2752,
+        "tokens": 1467,
+        "max_tokens": 1467
+      },
+      "assertions": [
+        {
+          "v": "unsupported",
+          "why": "证据仅有索引卡，无配音角色信息",
+          "cite": "",
+          "i": 0,
+          "text": "花泽香菜配过千石抚子（《化物语》）"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无任何角色/作品配音记录",
+          "cite": "",
+          "i": 1,
+          "text": "花泽香菜配过立华奏（《Angel Beats!》）"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无角色配音信息",
+          "cite": "",
+          "i": 2,
+          "text": "花泽香菜配过神乐（《银魂》）"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无角色配音信息",
+          "cite": "",
+          "i": 3,
+          "text": "花泽香菜配过黑猫/五更琉璃（《俺妹》）"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无角色配音信息",
+          "cite": "",
+          "i": 4,
+          "text": "花泽香菜配过常守朱（《PSYCHO-PASS》）"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无角色配音信息",
+          "cite": "",
+          "i": 5,
+          "text": "花泽香菜配过松前绪花（《花开伊吕波》）"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无角色配音信息",
+          "cite": "",
+          "i": 6,
+          "text": "花泽香菜配过椎名真白（《樱花庄》）"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无角色配音信息",
+          "cite": "",
+          "i": 7,
+          "text": "花泽香菜配过小野寺小咲（《伪恋》）"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "C4-找相似",
+      "depth": "fast",
+      "reply_chars": 184,
+      "evidence": {
+        "calls": 2,
+        "complete": 1,
+        "truncated": 1,
+        "failed": 0,
+        "chars": 4909,
+        "tokens": 3202,
+        "max_tokens": 2000
+      },
+      "assertions": [
+        {
+          "v": "unsupported",
+          "why": "证据仅有标签科幻悬疑推理，无骨架拼真相描述",
+          "cite": "",
+          "i": 0,
+          "text": "《异度侵入 ID:INVADED》是科幻设定当骨架、信息一点点拼出真相的作品"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无单元推理与主线收束的任何描述",
+          "cite": "",
+          "i": 1,
+          "text": "《异度侵入 ID:INVADED》前期是单元推理，后期收束成主线"
+        },
+        {
+          "v": "supported",
+          "why": "异度侵入标签含原创",
+          "cite": "tags\": [\"原创\", \"悬疑\", \"推理\"",
+          "i": 2,
+          "text": "《异度侵入 ID:INVADED》是原创剧本",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "来自新世界标签含反乌托邦",
+          "cite": "tags\": [\"反乌托邦\", \"A-1Pictures\"",
+          "i": 3,
+          "text": "《来自新世界》是反乌托邦作品",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无世界观反转相关描述",
+          "cite": "",
+          "i": 4,
+          "text": "《来自新世界》世界观层层反转"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无两者压抑程度比较依据",
+          "cite": "",
+          "i": 5,
+          "text": "《来自新世界》比《命运石之门》压抑得多"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无命运石之门0延续本传的说明",
+          "cite": "",
+          "i": 6,
+          "text": "《命运石之门 0》延续《命运石之门》本身"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无命运石之门0补β世界线的说明",
+          "cite": "",
+          "i": 7,
+          "text": "《命运石之门 0》补的是 β 世界线"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "C5-deep必调工具",
+      "depth": "deep",
+      "reply_chars": 328,
+      "evidence": {
+        "calls": 4,
+        "complete": 4,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 8073,
+        "tokens": 5088,
+        "max_tokens": 1336
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据4中异国日记score为8.41",
+          "cite": "\"name_cn\": \"异国日记\", \"type\": \"动画\", \"date\": \"2026-01-04\", \"eps\": 13, \"score\": 8.41",
+          "i": 0,
+          "text": "《异国日记》评分在 8.4 分左右",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据4标签含文艺",
+          "cite": "\"tags\": [\"治愈\", \"漫画改\", \"日常\", \"2026年1月\", \"TV\", \"文艺\", \"牛尾憲輔\", \"2026\"]",
+          "i": 1,
+          "text": "《异国日记》是新番里偏文艺向的作品",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无热度/观看人数数据",
+          "cite": "",
+          "i": 2,
+          "text": "《异国日记》的热度远低于同分作品"
+        },
+        {
+          "v": "supported",
+          "why": "证据4标签含牛尾憲輔",
+          "cite": "\"tags\": [\"治愈\", \"漫画改\", \"日常\", \"2026年1月\", \"TV\", \"文艺\", \"牛尾憲輔\", \"2026\"]",
+          "i": 3,
+          "text": "《异国日记》由牛尾宪辅配乐",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据4标签含治愈、日常",
+          "cite": "\"tags\": [\"治愈\", \"漫画改\", \"日常\", \"2026年1月\", \"TV\", \"文艺\", \"牛尾憲輔\", \"2026\"]",
+          "i": 4,
+          "text": "《异国日记》是治愈日常题材",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据3千年女优info含今敏",
+          "cite": "\"name_cn\": \"千年女优\", \"type\": \"动画\", \"date\": \"2002-09-14\", \"eps\": 1, \"score\": 8.72, \"rank\": 18, \"info\": \"1话 / 2002年9月14日(日本)、2001年7月28日(幻想曲国际电影节) / 今敏 / 本田雄、今敏\"",
+          "i": 5,
+          "text": "《千年女优》是今敏的作品",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据3蓝色恐惧info含今敏",
+          "cite": "\"name_cn\": \"蓝色恐惧\", \"type\": \"动画\", \"date\": \"1998-02-28\", \"eps\": 1, \"score\": 8.74, \"rank\": 14, \"info\": \"1话 / 1998年2月28日 / 今敏 / 竹内義和 / 今敏、濱洲英喜\"",
+          "i": 6,
+          "text": "《蓝色恐惧》是今敏的作品",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无「公认经典」这类评价",
+          "cite": "",
+          "i": 7,
+          "text": "《千年女优》和《蓝色恐惧》是公认经典"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无受众规模对比数据",
+          "cite": "",
+          "i": 8,
+          "text": "《千年女优》和《蓝色恐惧》的受众比宫崎骏系窄太多"
+        },
+        {
+          "v": "supported",
+          "why": "证据3蓝色恐惧标签含惊悚、悬疑",
+          "cite": "\"tags\": [\"今敏\", \"剧场版\", \"MADHouse\", \"1998\", \"惊悚\", \"悬疑\", \"未麻的部屋\", \"虚实交错\"]",
+          "i": 9,
+          "text": "《蓝色恐惧》是心理惊悚题材",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "C6-放送排期",
+      "depth": "fast",
+      "reply_chars": 153,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 848,
+        "tokens": 584,
+        "max_tokens": 584
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "watchers 7991 为列表最高",
+          "cite": "{\"id\": 569116, \"name\": \"碧蓝之海 第三季\", \"score\": 7.12, \"watchers\": 7991}",
+          "i": 0,
+          "text": "碧蓝之海第三季是本周新番中关注最高的",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据只有名字评分关注数，无续作信息",
+          "cite": "",
+          "i": 1,
+          "text": "碧蓝之海第三季是续作"
+        },
+        {
+          "v": "supported",
+          "why": "score 7.12 即七分出头",
+          "cite": "\"name\": \"碧蓝之海 第三季\", \"score\": 7.12",
+          "i": 2,
+          "text": "碧蓝之海第三季评分七分出头",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无题材标签，无法判断异世界转生占比",
+          "cite": "",
+          "i": 3,
+          "text": "本周新番中大半是异世界和转生题材"
+        },
+        {
+          "v": "supported",
+          "why": "5.56、5.24、5.24、5.5 等五点几分",
+          "cite": "\"score\": 5.56",
+          "i": 4,
+          "text": "本周新番中有几部评分五点几",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "watchers 165 即一百多",
+          "cite": "\"name\": \"斗球女弹子\", \"score\": 6.02, \"watchers\": 165",
+          "i": 5,
+          "text": "斗球女弹子关注才一百多",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "score 6.02 即六分出头",
+          "cite": "\"name\": \"斗球女弹子\", \"score\": 6.02",
+          "i": 6,
+          "text": "斗球女弹子评分六分出头",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无题材标签，无法判断是运动番",
+          "cite": "",
+          "i": 7,
+          "text": "斗球女弹子是冷门运动番"
+        },
+        {
+          "v": "supported",
+          "why": "watchers 仅 1，数据极少",
+          "cite": "\"name\": \"天子传奇：姬发篇\", \"score\": 5.5, \"watchers\": 1",
+          "i": 8,
+          "text": "天子传奇数据太少",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "score 0、watchers 0，数据极少",
+          "cite": "\"name\": \"蜘蛛侠与他的神奇朋友们 第五季\", \"score\": 0, \"watchers\": 0",
+          "i": 9,
+          "text": "蜘蛛侠那部数据太少",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "D1-无上下文指代",
+      "depth": "fast",
+      "reply_chars": 121,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 1043,
+        "tokens": 597,
+        "max_tokens": 597
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据中趋势榜前三正是这三部",
+          "cite": "Re：从零开始的异世界生活 第四季 夺还篇、尼古喵喵、无职转生 第三季 ～到了异世界就拿出真本事～",
+          "i": 0,
+          "text": "趋势榜前三大概是 Re:Zero 第四季、尼古喵喵、无职转生第三季",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据只给趋势榜，无播出时间信息",
+          "cite": "",
+          "i": 1,
+          "text": "Re:Zero 第四季最近在播"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据只给趋势榜，无播出时间信息",
+          "cite": "",
+          "i": 2,
+          "text": "尼古喵喵最近在播"
+        },
+        {
+          "v": "unsupported",
+          "why": "证据只给趋势榜，无播出时间信息",
+          "cite": "",
+          "i": 3,
+          "text": "无职转生第三季最近在播"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "D2-用户画像",
+      "depth": "fast",
+      "reply_chars": 72,
+      "evidence": {
+        "calls": 2,
+        "complete": 0,
+        "truncated": 0,
+        "failed": 2,
+        "chars": 302,
+        "tokens": 128,
+        "max_tokens": 104
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "D3-评分动态",
+      "depth": "fast",
+      "reply_chars": 153,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 1224,
+        "tokens": 694,
+        "max_tokens": 694
+      },
+      "assertions": [
+        {
+          "v": "unsupported",
+          "why": "证据只有趋势榜，未提及任何评分上升榜",
+          "cite": "",
+          "i": 0,
+          "text": "「评分上升最快」这个榜单不存在"
+        },
+        {
+          "v": "supported",
+          "why": "证据仅含趋势榜返回，无其他榜单",
+          "cite": "get_trending_subjects",
+          "i": 1,
+          "text": "助手手上只有趋势榜",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据未说明趋势榜含义，属模型解读",
+          "cite": "",
+          "i": 2,
+          "text": "趋势榜反映的是当前热度，不是评分涨幅"
+        },
+        {
+          "v": "supported",
+          "why": "前三名与证据一致",
+          "cite": "Re：从零开始的异世界生活 第四季 夺还篇、尼古喵喵、无职转生 第三季 ～到了异世界就拿出真本事～",
+          "i": 3,
+          "text": "趋势最热的前三是 Re:0 第四季夺还篇、尼古喵喵、无职转生第三季",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "穹庐下的魔女评分8为榜内最高",
+          "cite": "{\"id\": 552533, \"name\": \"穹庐下的魔女\", \"type\": \"动画\", \"score\": 8, \"trending_score\": 1436}",
+          "i": 4,
+          "text": "评分最高的是穹庐下的魔女",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据中该条score为8",
+          "cite": "\"name\": \"穹庐下的魔女\", \"type\": \"动画\", \"score\": 8",
+          "i": 5,
+          "text": "穹庐下的魔女的评分是 8.0",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "该条在列表中排第四",
+          "cite": "{\"id\": 552533, \"name\": \"穹庐下的魔女\", \"type\": \"动画\", \"score\": 8, \"trending_score\": 1436}",
+          "i": 6,
+          "text": "穹庐下的魔女在趋势榜只排第四",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据未提及是否有历史数据",
+          "cite": "",
+          "i": 7,
+          "text": "助手没有历史数据"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "D4-社区热点",
+      "depth": "fast",
+      "reply_chars": 194,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 1063,
+        "tokens": 624,
+        "max_tokens": 624
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "该条reply_count 82为列表最高",
+          "cite": "{\"title\": \"《萤火虫的出嫁》百度百科、豆瓣被删除\", \"reply_count\": 82",
+          "i": 0,
+          "text": "《萤火虫的出嫁》词条被删这事闹得最大，讨论量也最高。",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "有莉兹与青鸟的百合实锤话题",
+          "cite": "{\"title\": \"所以这部真的实锤百合了吗？\", \"reply_count\": 65, \"subject_name\": \"莉兹与青鸟\"",
+          "i": 1,
+          "text": "《莉兹与青鸟》又被翻出来吵百合实锤。",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "有武田绫乃发言相关话题",
+          "cite": "{\"title\": \"武田绫乃: 霙对希美的喜欢是孩子对母亲的喜欢 希美三十多岁结婚生子\"",
+          "i": 2,
+          "text": "武田绫乃那段发言也添了把火。",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据未提导演信息",
+          "cite": "",
+          "i": 3,
+          "text": "《莉兹与青鸟》是山田尚子执导的。"
+        },
+        {
+          "v": "supported",
+          "why": "有BGM数据夸张话题",
+          "cite": "{\"title\": \"这片BGM各种数据太夸张了\", \"reply_count\": 76, \"subject_name\": \"超辉夜姬！\"",
+          "i": 4,
+          "text": "《超辉夜姬》有数据夸张的话题。",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "有押井守神山话题",
+          "cite": "{\"title\": \"押井守和神山健治是对的\", \"reply_count\": 24, \"subject_name\": \"攻壳机动队 THE GHOST IN THE SHELL\"",
+          "i": 5,
+          "text": "《攻壳》有一条“押井守和神山是对的”的话题。",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "D5-社区评价",
+      "depth": "fast",
+      "reply_chars": 204,
+      "evidence": {
+        "calls": 3,
+        "complete": 1,
+        "truncated": 2,
+        "failed": 0,
+        "chars": 6982,
+        "tokens": 5432,
+        "max_tokens": 2000
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "评分8.53、rank 42，前五十",
+          "cite": "\"score\": 8.53, \"rank\": 42",
+          "i": 0,
+          "text": "芙莉莲整体是高分神作待遇，8.5 分全站前五十",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "rating_total 36196",
+          "cite": "\"rating_total\": 36196",
+          "i": 1,
+          "text": "芙莉莲有三万六千人打分",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "tags含治愈/公路片/寿命论",
+          "cite": "{\"name\": \"治愈\", \"count\": 8043}, {\"name\": \"公路片\", \"count\": 6434}, ... {\"name\": \"寿命论\", \"count\": 3691}",
+          "i": 2,
+          "text": "芙莉莲的标签里有治愈、公路片、寿命论",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据无「公认情感核心」表述",
+          "cite": "",
+          "i": 3,
+          "text": "辛美尔那条线是公认的情感核心"
+        },
+        {
+          "v": "supported",
+          "why": "rating_count第7档3664",
+          "cite": "\"rating_count\": [130, 37, 52, 111, 350, 1082, 3664, 10463, 12855, 7452]",
+          "i": 4,
+          "text": "芙莉莲 7 分档有三千多人",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "评论有公路乏味、漫画读不下去",
+          "cite": "漫画没看下去 太无聊了 但是动画叙事节奏很不错哦",
+          "i": 5,
+          "text": "芙莉莲的争议之一是公路过程偏淡，有人漫画读不下去，靠动画节奏救回来",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "长评标题及摘要直说没深刻东西",
+          "cite": "神作是真的算不上没有什么深刻的东西啊",
+          "i": 6,
+          "text": "芙莉莲的争议之一是觉得被神化过头，有长评直说\"没有深刻的东西\"",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "第二季score 7.47",
+          "cite": "\"name_cn\": \"葬送的芙莉莲 第二季\", \"type\": \"动画\", \"score\": 7.47",
+          "i": 7,
+          "text": "芙莉莲第二季掉到 7.5 左右",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "D6-我的追番",
+      "depth": "fast",
+      "reply_chars": 101,
+      "evidence": {
+        "calls": 2,
+        "complete": 0,
+        "truncated": 0,
+        "failed": 2,
+        "chars": 290,
+        "tokens": 103,
+        "max_tokens": 79
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "两次调用均返回未找到资源",
+          "cite": "未找到资源 (path=/p1/users/deepseek_jiang)",
+          "i": 0,
+          "text": "`deepseek_jiang` 这个 ID 在站里没有对应数据",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "收藏、日志、时间线均报未找到资源",
+          "cite": "collections_error\": \"未找到资源 (path=/p1/users/deepseek_jiang/collections/subjects)\", \"blogs_error\": \"未找到资源 (path=/p1/users/deepseek_jiang/blogs)",
+          "i": 1,
+          "text": "`deepseek_jiang` 这个 ID 的收藏、日志、时间线都是空的",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "E1-deep讨论",
+      "depth": "deep",
+      "reply_chars": 302,
+      "evidence": {
+        "calls": 4,
+        "complete": 2,
+        "truncated": 2,
+        "failed": 0,
+        "chars": 9077,
+        "tokens": 6700,
+        "max_tokens": 2000
+      },
+      "assertions": [
+        {
+          "v": "unsupported",
+          "why": "评分分布中8分10463、9分12855，合计23318/36196约64%，但证据未直接说'近三分之二'，需自行计算；不过数字可核，属可推导",
+          "cite": "",
+          "i": 0,
+          "text": "《葬送的芙莉莲》的评分中，8分和9分两档占了近三分之二"
+        },
+        {
+          "v": "supported",
+          "why": "1-4分档130+37+52+111=330，约三百多人",
+          "cite": "\"rating_count\": [130, 37, 52, 111, 350, 1082, 3664, 10463, 12855, 7452]",
+          "i": 1,
+          "text": "《葬送的芙莉莲》的评分中，1到4分加起来才三百多人",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "infobox动画制作明确写MADHOUSE",
+          "cite": "\"动画制作\": \"MADHOUSE\"",
+          "i": 2,
+          "text": "《葬送的芙莉莲》的制作公司是MADHOUSE",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "infobox导演为斎藤圭一郎",
+          "cite": "\"导演\": \"斎藤圭一郎\"",
+          "i": 3,
+          "text": "《葬送的芙莉莲》由斋藤圭一郎执导",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "infobox音乐为Evan Call",
+          "cite": "\"音乐\": \"Evan Call\"",
+          "i": 4,
+          "text": "《葬送的芙莉莲》的配乐由Evan Call负责",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "E2-歧义裸标题",
+      "depth": "fast",
+      "reply_chars": 186,
+      "evidence": {
+        "calls": 2,
+        "complete": 1,
+        "truncated": 1,
+        "failed": 0,
+        "chars": 5743,
+        "tokens": 3692,
+        "max_tokens": 1999
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据2中动画条目评分8.23",
+          "cite": "{\"id\": 55770, \"name\": \"進撃の巨人\", \"name_cn\": \"进击的巨人\", \"type\": \"动画\", \"score\": 8.23",
+          "i": 0,
+          "text": "《进击的巨人》动画第一季评分是 8.23 分",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据2动画条目播出日期2013年4月6日",
+          "cite": "\"info\": \"25话 / 2013年4月6日 / 荒木哲郎",
+          "i": 1,
+          "text": "《进击的巨人》动画第一季于 2013 年播出",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据2漫画条目作者諫山創",
+          "cite": "139话 / 2010-03-17 / 諫山創 / 講談社",
+          "i": 2,
+          "text": "《进击的巨人》的作者是谏山创",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据2漫画条目评分7.43",
+          "cite": "{\"id\": 8491, \"name\": \"進撃の巨人\", \"name_cn\": \"进击的巨人\", \"type\": \"书籍\", \"score\": 7.43",
+          "i": 3,
+          "text": "《进击的巨人》漫画评分是 7.43 分",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "漫画7.43低于动画8.23",
+          "cite": "\"type\": \"书籍\", \"score\": 7.43",
+          "i": 4,
+          "text": "《进击的巨人》漫画评分比动画评分低",
+          "cite_verified": true
+        },
+        {
+          "v": "unsupported",
+          "why": "证据中无「巨人之星」即「巨人」的说法",
+          "cite": "",
+          "i": 5,
+          "text": "《巨人之星》是一部名为「巨人」的作品"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "E3-梗找番",
+      "depth": "fast",
+      "reply_chars": 184,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 2127,
+        "tokens": 1365,
+        "max_tokens": 1365
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "证据中该条目score为8.26",
+          "cite": "\"name_cn\": \"我心里危险的东西 第二季\", \"type\": \"动画\", \"date\": \"2024-01-06\", \"eps\": 13, \"score\": 8.26",
+          "i": 0,
+          "text": "《我心里危险的东西 第二季》评分是8.26分",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据中该条目rank为106",
+          "cite": "\"score\": 8.26, \"rank\": 106",
+          "i": 1,
+          "text": "《我心里危险的东西 第二季》全站排名106",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据中date为2024-01-06",
+          "cite": "\"date\": \"2024-01-06\"",
+          "i": 2,
+          "text": "《我心里危险的东西 第二季》是2024年1月播出",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据中eps为13",
+          "cite": "\"eps\": 13, \"score\": 8.26",
+          "i": 3,
+          "text": "《我心里危险的东西 第二季》共13话",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "标签列表含纯爱",
+          "cite": "\"tags\": [\"恋爱\", \"校园\", \"纯爱\"",
+          "i": 4,
+          "text": "《我心里危险的东西 第二季》的标签是纯爱",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "info中导演为赤城博昭",
+          "cite": "13话 / 2024年1月6日 / 赤城博昭",
+          "i": 5,
+          "text": "《我心里危险的东西 第二季》由赤城博昭导演",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "标签列表含牛尾宪辅",
+          "cite": "\"牛尾宪辅\"",
+          "i": 6,
+          "text": "《我心里危险的东西 第二季》由牛尾宪辅配乐",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "证据中该条目score为8.04",
+          "cite": "\"name_cn\": \"擅长捉弄的高木同学 第三季\", \"type\": \"动画\", \"date\": \"2022-01-07\", \"eps\": 12, \"score\": 8.04",
+          "i": 7,
+          "text": "《擅长捉弄的高木同学 第三季》评分是8.04分",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "两条目info均为赤城博昭",
+          "cite": "13话 / 2022年1月7日 / 赤城博昭",
+          "i": 8,
+          "text": "《擅长捉弄的高木同学 第三季》与《我心里危险的东西 第二季》是同一个导演",
+          "cite_verified": false
+        },
+        {
+          "v": "unsupported",
+          "why": "证据仅有标签，无甜而不腻评价",
+          "cite": "",
+          "i": 9,
+          "text": "《擅长捉弄的高木同学 第三季》是甜而不腻的日常向"
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "E4-梗讨论",
+      "depth": "fast",
+      "reply_chars": 85,
+      "evidence": {
+        "calls": 1,
+        "complete": 1,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 1043,
+        "tokens": 597,
+        "max_tokens": 597
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    },
+    {
+      "scenario_id": "E5-能力外",
+      "depth": "fast",
+      "reply_chars": 168,
+      "evidence": {
+        "calls": 0,
+        "complete": 0,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 0,
+        "tokens": 0,
+        "max_tokens": 0
+      },
+      "assertions": [],
+      "judge_calls": 0,
+      "cached": 1,
+      "note": "零证据场景（未调工具）—— 单列，不进任何分母"
+    },
+    {
+      "scenario_id": "E6-本季霸权",
+      "depth": "fast",
+      "reply_chars": 148,
+      "evidence": {
+        "calls": 2,
+        "complete": 2,
+        "truncated": 0,
+        "failed": 0,
+        "chars": 1740,
+        "tokens": 1071,
+        "max_tokens": 597
+      },
+      "assertions": [
+        {
+          "v": "supported",
+          "why": "Re:Zero第四季trending_score最高3445",
+          "cite": "{\"id\": 633836, \"name\": \"Re：从零开始的异世界生活 第四季 夺还篇\", \"type\": \"动画\", \"score\": 7.8, \"trending_score\": 3445}",
+          "i": 0,
+          "text": "Re:Zero 第四季是本季热度领跑的动画",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "穹庐下的魔女score为8",
+          "cite": "{\"id\": 552533, \"name\": \"穹庐下的魔女\", \"type\": \"动画\", \"score\": 8, \"trending_score\": 1436}",
+          "i": 1,
+          "text": "《穹庐下的魔女》本季口碑评分是 8.0",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "穹庐下的魔女score 8为列表最高",
+          "cite": "{\"id\": 552533, \"name\": \"穹庐下的魔女\", \"type\": \"动画\", \"score\": 8, \"trending_score\": 1436}",
+          "i": 2,
+          "text": "《穹庐下的魔女》是本季口碑最高的",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "1436远低于3445",
+          "cite": "{\"id\": 552533, \"name\": \"穹庐下的魔女\", \"type\": \"动画\", \"score\": 8, \"trending_score\": 1436}",
+          "i": 3,
+          "text": "《穹庐下的魔女》热度比 Re:Zero 第四季差一截",
+          "cite_verified": true
+        },
+        {
+          "v": "supported",
+          "why": "无职转生第三季score为7.88",
+          "cite": "{\"id\": 501963, \"name\": \"无职转生 第三季 ～到了异世界就拿出真本事～\", \"type\": \"动画\", \"score\": 7.88, \"trending_score\": 1829}",
+          "i": 4,
+          "text": "无职第三季评分是 7.88",
+          "cite_verified": true
+        }
+      ],
+      "judge_calls": 0,
+      "cached": 2,
+      "no_cite": 0
+    }
+  ],
+  "overall": {
+    "n_scenarios": 30,
+    "n_judged": 24,
+    "n_no_evidence": 6,
+    "no_evidence_scenarios": [
+      {
+        "scenario_id": "A1-常识日期",
+        "n_assertions": 0,
+        "assertions": []
+      },
+      {
+        "scenario_id": "A2-常识概念",
+        "n_assertions": 11,
+        "assertions": [
+          "OVA 就是 Original Video Animation",
+          "OVA 是不靠电视播、直接卖碟的动画",
+          "八十年代到九十年代是 OVA 的黄金期",
+          "OVA 不用受电视台的时长和尺度限制",
+          "很多导演拿 OVA 做实验",
+          "《回忆三部曲》是今敏早期的作品",
+          "今敏在《回忆三部曲》里负责《她的回忆》",
+          "《她的回忆》是 OVA 路子",
+          "现在 OVA 这个概念有点模糊了",
+          "Netflix 那些算不算 OVA 也说不清",
+          "不上电视、直接发售，就是 OVA"
+        ]
+      },
+      {
+        "scenario_id": "B5-反馈修正",
+        "n_assertions": 0,
+        "assertions": []
+      },
+      {
+        "scenario_id": "B6-闲聊回应",
+        "n_assertions": 0,
+        "assertions": []
+      },
+      {
+        "scenario_id": "C1-禁工具常识",
+        "n_assertions": 0,
+        "assertions": []
+      },
+      {
+        "scenario_id": "E5-能力外",
+        "n_assertions": 0,
+        "assertions": []
+      }
+    ],
+    "supported": 85,
+    "unsupported": 53,
+    "unknown": 0,
+    "denom": 138,
+    "unsupported_rate": 0.38405797101449274,
+    "unknown_rate": 0.0,
+    "all_assertions_incl_no_evidence": {
+      "supported": 85,
+      "unsupported": 53,
+      "unknown": 0
+    },
+    "scenarios_with_unsupported": 16,
+    "scenarios_with_unsupported_rate": 0.6666666666666666,
+    "no_cite_downgrades": 0,
+    "cite_unverified": 2,
+    "judge_calls": 0,
+    "cache_hits": 54,
+    "by_depth": {
+      "deep": {
+        "supported": 14,
+        "unsupported": 11,
+        "unknown": 0,
+        "n_scenarios": 3,
+        "denom": 25,
+        "unsupported_rate": 0.44,
+        "scenarios_with_unsupported": 3,
+        "scenarios_with_unsupported_rate": 1.0
+      },
+      "fast": {
+        "supported": 71,
+        "unsupported": 42,
+        "unknown": 0,
+        "n_scenarios": 21,
+        "denom": 113,
+        "unsupported_rate": 0.37168141592920356,
+        "scenarios_with_unsupported": 13,
+        "scenarios_with_unsupported_rate": 0.6190476190476191
+      }
+    },
+    "truncated_evidence_calls": 12,
+    "failed_evidence_calls": 4
+  },
+  "usage": {
+    "http_calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0
+  }
+}
