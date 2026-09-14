@@ -9,7 +9,11 @@ from __future__ import annotations
 import json
 
 import pytest
-from agent.memory.short_term import _MAX_SINGLE_MESSAGE_TOKENS, count_tokens
+from agent.memory.short_term import (
+    _MAX_SINGLE_MESSAGE_TOKENS,
+    _compress_tool_result,
+    count_tokens,
+)
 from clients.sanitizers import (
     _ORG_KEYS,
     _SUBJECT_INFOBOX_KEEP,
@@ -30,12 +34,14 @@ from clients.sanitizers import (
     sanitize_subject_comments,
     sanitize_subject_detail,
     sanitize_subject_episodes,
+    sanitize_subject_search,
     sanitize_trending,
     sanitize_trending_topics,
     sanitize_user_collections,
     sanitize_user_stats,
     sanitize_timeline_events,
 )
+from langchain_core.messages import ToolMessage
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -390,6 +396,68 @@ class TestSanitizeSearchSubjects:
         result = sanitize_search_subjects(raw)
         assert result["results"][0]["score"] == 0
         assert result["results"][0]["rank"] == 0
+
+
+# ═══════════════════════════════════════════════════════════════════
+# sanitize_subject_search × 记忆层压缩 —— 跨层契约
+# ═══════════════════════════════════════════════════════════════════
+#
+# 这个 bug 能活到今天，是因为两层各测各的、中间没人测：
+#   · test_phase5_l1 的压缩测试喂的是嵌套 `rating: {score, rank}`
+#     （API 原始形状），而 sanitize_subject_search 的产出是扁平的；
+#   · sanitize_subject_search 此前【没有任何测试】（本文件只测了隔壁的
+#     sanitize_search_subjects）。
+# 于是「压缩后 ⭐/# 全丢」这件事，两边都是绿的。
+#
+# 这里从真实 sanitizer 产出出发，走完压缩入口，断言关键字段存活。
+
+
+class TestSubjectSearchCompressionCrossLayer:
+    def _compress(self, raw_search, tool_name="search_bangumi_subject"):
+        payload = {"results": sanitize_subject_search(raw_search), "total": 1}
+        msg = ToolMessage(
+            content=json.dumps(payload, ensure_ascii=False),
+            tool_call_id="t1", name=tool_name,
+        )
+        return _compress_tool_result(msg).content
+
+    def test_real_sanitizer_output_survives_compression(self):
+        """真实 API 样本：评分/排名/ID 必须活到压缩之后。"""
+        raw = [{
+            "id": 305429, "name": "葬送のフリーレン", "nameCN": "葬送的芙莉莲",
+            "type": 2, "info": "TV动画 2023年9月29日~2024年3月22日",
+            "rating": {"score": 9.4, "rank": 1, "total": 20000},
+        }]
+        compressed = self._compress(raw)
+
+        assert "葬送的芙莉莲" in compressed
+        assert "⭐9.4" in compressed
+        assert "#1" in compressed
+        assert "id=305429" in compressed
+
+    def test_sanitizer_output_is_flat_not_nested(self):
+        """锁定前提：sanitizer 产出扁平 score/rank，没有 rating 子字典。
+
+        这条断言是给上面那条测试兜底的——哪天 sanitizer 改成嵌套形状，
+        这里先红，而不是等压缩悄悄丢字段。
+        """
+        out = sanitize_subject_search([{
+            "id": 1, "name": "X", "nameCN": "", "type": 2,
+            "rating": {"score": 7.5, "rank": 100},
+        }])
+        assert out[0]["score"] == 7.5
+        assert out[0]["rank"] == 100
+        assert "rating" not in out[0]
+
+    def test_unrated_entry_survives_without_fake_star(self):
+        """整批无评分（Bangumi 搜索常见）：不该渲染出 ⭐0，也不该丢记录。"""
+        raw = [{"id": 1, "name": "新番", "nameCN": "新番", "type": 2},
+               {"id": 2, "name": "旧番", "nameCN": "旧番", "type": 2}]
+        compressed = self._compress(raw)
+
+        assert "⭐" not in compressed
+        assert "#" not in compressed
+        assert "id=1" in compressed and "id=2" in compressed
 
 
 # ═══════════════════════════════════════════════════════════════════

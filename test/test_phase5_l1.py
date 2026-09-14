@@ -24,6 +24,7 @@ from agent.memory.short_term import (
     DEFAULT_MAX_TOKENS,
     DEPTH_TOKEN_BUDGETS,
     L2_MEMORY_BUDGET_TOKENS,
+    _MAX_SINGLE_MESSAGE_TOKENS,
     count_tokens,
     estimate_tokens,
     manage_memory,
@@ -355,7 +356,15 @@ class TestToolResultCompression:
     """Phase 8: 历史 ToolMessage 压缩为关键字段摘要。"""
 
     def test_compress_search_result_reduces_size(self):
-        """search_bangumi_subject 的 dict 结果应被压缩为关键字段。"""
+        """search_bangumi_subject 的 dict 结果应被压缩为关键字段。
+
+        注意：这里喂的 `rating: {score, rank}` 是 **Bangumi API 的原始形状**，
+        压缩函数的嵌套兜底分支。生产路径给的是扁平 `score`/`rank`
+        （见 `_compress_search_result` 内注释）——扁平形状由
+        `test_compress_flat_score_rank_from_production` 覆盖。
+        本测试历史上是唯一的压缩测试，它喂嵌套形状，所以扁平路径的
+        ⭐/# 一直缺席也没被发现。
+        """
         from agent.memory.short_term import _compress_tool_result
 
         # 模拟 search_bangumi_subject 返回
@@ -386,6 +395,119 @@ class TestToolResultCompression:
         assert "伪物语" in compressed.content
         # 应远小于原始
         assert count_tokens(compressed.content) < count_tokens(content) // 3
+
+    # ── 扁平形状（生产路径）+ 跨工具路由 ──────────────────────────────
+
+    def test_compress_flat_score_rank_from_production(self):
+        """真实生产形状是扁平的 —— ⭐/# 必须活下来。
+
+        `sanitize_subject_search`（clients/sanitizers.py:146-148）与 RAG 的
+        rag_output 都把 score/rank 直接挂在记录上。旧代码只读嵌套 `rating`，
+        于是压缩行只剩「名字 | 类型 | id=N」，评分排名全丢。
+        """
+        from agent.memory.short_term import _compress_tool_result
+
+        content = json.dumps({
+            "results": [{
+                "id": 305429, "name": "葬送のフリーレン", "name_cn": "葬送的芙莉莲",
+                "type": "动画", "date": "2023-09-29", "score": 9.4, "rank": 1,
+                "info": "TV动画 2023年9月",
+            }],
+            "total": 1,
+        }, ensure_ascii=False)
+        msg = ToolMessage(content=content, tool_call_id="t1",
+                          name="search_bangumi_subject")
+        compressed = _compress_tool_result(msg)
+
+        assert "⭐9.4" in compressed.content
+        assert "#1" in compressed.content
+        assert "id=305429" in compressed.content
+        assert "葬送的芙莉莲" in compressed.content
+
+    def test_unrated_entry_does_not_render_star_zero(self):
+        """无评分条目（sanitize 给 score=0/rank=0）不能渲染成「⭐0 | #0」。"""
+        from agent.memory.short_term import _compress_tool_result
+
+        content = json.dumps({"results": [
+            {"id": 1, "name": "X", "name_cn": "", "type": "动画",
+             "date": "", "score": 0, "rank": 0, "info": ""},
+        ], "total": 1}, ensure_ascii=False)
+        compressed = _compress_tool_result(
+            ToolMessage(content=content, tool_call_id="t1",
+                        name="search_bangumi_subject"))
+
+        assert "⭐" not in compressed.content
+        assert "#" not in compressed.content
+        assert "id=1" in compressed.content
+
+    def test_compress_local_search_keeps_every_card(self):
+        """search_local_bangumi 走列表压缩，不是「兜底掐 300 token」。
+
+        产出侧投影后的 payload 中位 ~1,256 token；兜底分支的上限是 300 token，
+        会切在 JSON 中间，模型下一轮只看得见前 1-2 条——与产出侧刚修好的
+        缺陷同类，只是晚一轮发作。
+        """
+        from agent.memory.short_term import _compress_tool_result
+        from tools.bgm_tools import _local_payload
+
+        recs = [
+            ({"id": 1000 + i, "name": f"作品{i}", "name_cn": f"作品{i}",
+              "type": "TV", "date": "2024-07-13", "eps": 12,
+              "score": 8.0 + i / 10, "rank": 100 + i, "info": "TV动画",
+              "tags": [{"name": "标签", "count": 1}]}, "subject")
+            for i in range(8)
+        ]
+        payload = _local_payload(recs)
+        msg = ToolMessage(content=json.dumps(payload, ensure_ascii=False),
+                          tool_call_id="t1", name="search_local_bangumi")
+        compressed = _compress_tool_result(msg)
+
+        assert compressed is not msg
+        assert "[已压缩]" in compressed.content
+        for i in range(8):                       # 8 张卡一条不少
+            assert f"id={1000 + i}" in compressed.content
+        assert "⭐8.0" in compressed.content
+        assert "#100" in compressed.content
+        assert count_tokens(compressed.content) < _MAX_SINGLE_MESSAGE_TOKENS
+
+    def test_compress_keeps_character_role_and_person_career(self):
+        """character 只剩 role、person 只剩 career —— 压缩时不能丢。
+
+        产出侧特意为它们保留了这两键（character 卡片没有 type/date/score/rank）。
+        """
+        from agent.memory.short_term import _compress_tool_result
+
+        content = json.dumps({"total": 2, "shown": 2, "results": [
+            {"id": 7, "name": "竈門炭治郎", "name_cn": "灶门炭治郎",
+             "entity_type": "character", "role": "主角", "info": "鬼灭之刃的主角"},
+            {"id": 8, "name": "花江夏樹", "name_cn": "花江夏树",
+             "entity_type": "person", "career": ["artist", "seiyu"],
+             "info": "日本声优"},
+        ]}, ensure_ascii=False)
+        compressed = _compress_tool_result(
+            ToolMessage(content=content, tool_call_id="t1",
+                        name="search_local_bangumi"))
+
+        assert "主角" in compressed.content
+        assert "artist、seiyu" in compressed.content
+        assert "id=7" in compressed.content and "id=8" in compressed.content
+
+    def test_compress_keeps_omitted_count(self):
+        """产出侧丢过条时，压缩后仍要说明「没看全」。"""
+        from agent.memory.short_term import _compress_tool_result
+        from tools.bgm_tools import _local_payload
+
+        recs = [({"id": i, "name": "長" * 400, "type": "TV", "score": 8.0,
+                  "info": "情" * 300}, "subject") for i in range(12)]
+        payload = _local_payload(recs)
+        assert payload["shown"] < payload["total"], "夹具没触发丢条，测试无意义"
+
+        compressed = _compress_tool_result(ToolMessage(
+            content=json.dumps(payload, ensure_ascii=False),
+            tool_call_id="t1", name="search_local_bangumi",
+        ))
+        assert f"共 {payload['total']} 条" in compressed.content
+        assert f"前 {payload['shown']} 条" in compressed.content
 
     def test_compress_skips_current_round(self):
         """当前轮的 ToolMessage 保留完整——只有上一轮的才压缩。"""

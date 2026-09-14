@@ -369,8 +369,11 @@ def _compress_tool_result(msg: ToolMessage) -> ToolMessage:
 
     tool_name = getattr(msg, "name", "") or ""
 
-    # search_bangumi_subject: 提取作品列表关键字段
-    if tool_name == "search_bangumi_subject":
+    # search_bangumi_subject / search_local_bangumi: 提取列表关键字段。
+    # 两者都是「候选列表」，压成纯文本行而不是掐头截断——列表 JSON 被拦腰
+    # 切断后模型只看得见前 1-2 条（search_local_bangumi 的 payload 中位
+    # 1,256 token，兜底分支的 300 token 上限切在 JSON 中间）。
+    if tool_name in ("search_bangumi_subject", "search_local_bangumi"):
         return _compress_search_result(msg, content)
 
     # get_person_detail / get_character_detail: 保留前 400 tokens
@@ -382,7 +385,7 @@ def _compress_tool_result(msg: ToolMessage) -> ToolMessage:
 
 
 def _compress_search_result(msg: ToolMessage, content: str) -> ToolMessage:
-    """压缩 search_bangumi_subject 返回的 dict。"""
+    """压缩候选列表类工具的返回 dict（search_bangumi_subject / search_local_bangumi）。"""
     try:
         data = json.loads(content)
     except (json.JSONDecodeError, TypeError):
@@ -408,14 +411,28 @@ def _compress_search_result(msg: ToolMessage, content: str) -> ToolMessage:
             parts.append(str(item["type"]))
         if "date" in item and item["date"]:
             parts.append(str(item["date"]))
+        # score/rank 扁平优先、嵌套 rating 兜底。生产路径产出的是扁平形状
+        # （clients/sanitizers.py:146-148 的 sanitize_subject_search 与 RAG 的
+        # rag_output 都把 score/rank 直接挂在记录上）；嵌套只存在于 API 原始
+        # 响应里。旧代码只读嵌套 → 真实数据永远取不到值，压缩行的 ⭐/# 一直
+        # 缺席（测试喂的恰是嵌套假形状，所以一直绿）。
+        # 用真值判断而非 is not None：sanitize_subject_search 对无评分条目给
+        # score=0/rank=0，渲染成「⭐0 | #0」比不渲染更糟。
         rating = item.get("rating")
-        if isinstance(rating, dict):
-            score = rating.get("score")
-            rank = rating.get("rank")
-            if score is not None:
-                parts.append(f"⭐{score}")
-            if rank is not None:
-                parts.append(f"#{rank}")
+        rating = rating if isinstance(rating, dict) else {}
+        score = item.get("score", rating.get("score"))
+        rank = item.get("rank", rating.get("rank"))
+        if score:
+            parts.append(f"⭐{score}")
+        if rank:
+            parts.append(f"#{rank}")
+        # character 没有 type/date/score/rank，只靠 role（实测 350 条里 348 条
+        # 是「主角」）；person 反过来只有 career（英文 slug 列表）。
+        if item.get("role"):
+            parts.append(str(item["role"]))
+        career = item.get("career")
+        if isinstance(career, list) and career:
+            parts.append("、".join(str(c) for c in career[:3]))
         item_id = item.get("id")
         if item_id is not None:
             parts.append(f"id={item_id}")
@@ -424,6 +441,14 @@ def _compress_search_result(msg: ToolMessage, content: str) -> ToolMessage:
     summary = _COMPRESSION_MARKER + "\n".join(f"- {c}" for c in compressed_items[:20])
     if len(compressed_items) > 20:
         summary += f"\n… 共 {len(compressed_items)} 条结果"
+
+    # 产出侧因整块预算丢过条时（search_local_bangumi 的信封带 shown/total），
+    # 压缩后仍要让模型知道「没看全」——否则下一轮它会把 8 条当成全部。
+    # search_bangumi_subject 没有 shown 键，天然跳过。
+    shown = data.get("shown")
+    total = data.get("total")
+    if isinstance(shown, int) and isinstance(total, int) and shown < total:
+        summary += f"\n（本次检索共 {total} 条，此处只有前 {shown} 条）"
 
     return ToolMessage(
         content=summary,
