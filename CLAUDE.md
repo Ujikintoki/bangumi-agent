@@ -163,7 +163,11 @@ Render Node (独立 LLM 调用)    → 决定输出怎么表达（HOW to say it�
 
 6. **`AgentState`** 使用 `TypedDict + Annotated[list, operator.add]`——消息在节点间追加而非覆盖。
 
-7. **工具返回格式**：全部工具返回结构化 `dict`（A/B/C/D 字段方法论）。`search_local_bangumi` 返回 `{"results": [...], "total": N}`（无结果/出错时 `{"_error": ...}`）。新增工具必须遵循 dict 返回约定。
+7. **工具返回格式**：全部工具返回结构化 `dict`（A/B/C/D 字段方法论），无结果/出错时 `{"_error": ...}`。新增工具必须遵循 dict 返回约定。
+
+   **跨层契约（2026-09-14 起）**：工具返回体必须 ≤ L1 单条消息上限（`agent/memory/short_term.py:_MAX_SINGLE_MESSAGE_TOKENS`，2000 token），**超限工具的产出侧必须自带整块预算并在丢尾时显式报数**。别指望记忆层兜底 —— 它是弃尾保头、从 JSON 中间切断，模型只看得见前 1–2 条候选，而且**不知道自己少看了**（实测 `search_local_bangumi` 中位 20,522 token，11/11 超限，114 条记录里只有 5 条完整进入模型）。
+
+   `search_local_bangumi` 是唯一自带预算的检索工具：返回 `{"total": 检索到的条数, "shown": 实际返回的条数, "results": [索引卡...], "note": ...}`，`note` 仅在 `shown < total` 时出现，`total > 0` 时保底放 1 条。**`total` 语义与其余工具不同**（其余带 `total` 的工具仍是「返回条数」）。索引卡不含 `summary`/`infobox` —— 要正文请拿 `id` 去调 detail 工具。
 
 ### Deprecated — 禁止使用或新增引用
 

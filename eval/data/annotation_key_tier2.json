@@ -1,0 +1,427 @@
+{
+ "version": "tier2-anno-1",
+ "created": "2026-09-14 16:07",
+ "purpose": "轴 3 Tier 2 判官的人工校准集。判官判定【故意不写进标注表】，避免锚定；这一份是事后算 κ 的答案纸。",
+ "source_report": "reply_quality-tier2-20260914-165422-db2f3c8.md",
+ "rubric_fingerprint": "faithfulness-v1|cap=2000|18356f9d",
+ "model": "deepseek-v4-flash",
+ "sample": {
+  "n": 39,
+  "seed": 20260914,
+  "per_scenario": 2,
+  "strata": {
+   "unsupported": 18,
+   "supported": 21
+  },
+  "population": {
+   "n": 138,
+   "supported": 85,
+   "unsupported": 53,
+   "n_scenarios": 24
+  },
+  "warning": "分层样本，不是总体加权 —— 总体 supported:unsupported = 85:53，本表是 21:18。κ 要连着这句一起报。"
+ },
+ "items": [
+  {
+   "i": 1,
+   "scenario": "C6-放送排期",
+   "depth": "fast",
+   "idx": 1,
+   "text": "碧蓝之海第三季是续作",
+   "judge": "supported",
+   "cite_verified": true,
+   "judge_prev": "unsupported",
+   "tool_self": false
+  },
+  {
+   "i": 2,
+   "scenario": "C6-放送排期",
+   "depth": "fast",
+   "idx": 6,
+   "text": "斗球女弹子评分六分出头",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 3,
+   "scenario": "B1-bangumi人格",
+   "depth": "fast",
+   "idx": 4,
+   "text": "《日常》有26话",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 4,
+   "scenario": "B1-bangumi人格",
+   "depth": "fast",
+   "idx": 5,
+   "text": "《轻音少女》是温柔向的作品",
+   "judge": "supported",
+   "cite_verified": true,
+   "judge_prev": "unsupported",
+   "tool_self": false
+  },
+  {
+   "i": 5,
+   "scenario": "E3-梗找番",
+   "depth": "fast",
+   "idx": 4,
+   "text": "《我心里危险的东西 第二季》的标签是纯爱",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 6,
+   "scenario": "E3-梗找番",
+   "depth": "fast",
+   "idx": 9,
+   "text": "《擅长捉弄的高木同学 第三季》是甜而不腻的日常向",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false,
+   "judge_prev": "supported"
+  },
+  {
+   "i": 7,
+   "scenario": "B3-neutral人格",
+   "depth": "fast",
+   "idx": 3,
+   "text": "《乒乓》（ピンポン THE ANIMATION）共 11 话",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 8,
+   "scenario": "B3-neutral人格",
+   "depth": "fast",
+   "idx": 4,
+   "text": "《乒乓》讲述两名高中生乒乓球手的故事",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false
+  },
+  {
+   "i": 9,
+   "scenario": "E6-本季霸权",
+   "depth": "fast",
+   "idx": 0,
+   "text": "Re:Zero 第四季是本季热度领跑的动画",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 10,
+   "scenario": "E6-本季霸权",
+   "depth": "fast",
+   "idx": 4,
+   "text": "无职第三季评分是 7.88",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 11,
+   "scenario": "E2-歧义裸标题",
+   "depth": "fast",
+   "idx": 4,
+   "text": "《进击的巨人》漫画评分比动画评分低",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 12,
+   "scenario": "E2-歧义裸标题",
+   "depth": "fast",
+   "idx": 5,
+   "text": "《巨人之星》是一部名为「巨人」的作品",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "judge_prev": "supported",
+   "tool_self": false
+  },
+  {
+   "i": 13,
+   "scenario": "D1-无上下文指代",
+   "depth": "fast",
+   "idx": 0,
+   "text": "趋势榜前三大概是 Re:Zero 第四季、尼古喵喵、无职转生第三季",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 14,
+   "scenario": "D1-无上下文指代",
+   "depth": "fast",
+   "idx": 2,
+   "text": "尼古喵喵最近在播",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "judge_prev": "supported",
+   "tool_self": false
+  },
+  {
+   "i": 15,
+   "scenario": "D3-评分动态",
+   "depth": "fast",
+   "idx": 0,
+   "text": "「评分上升最快」这个榜单不存在",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": true
+  },
+  {
+   "i": 16,
+   "scenario": "D3-评分动态",
+   "depth": "fast",
+   "idx": 2,
+   "text": "趋势榜反映的是当前热度，不是评分涨幅",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": true
+  },
+  {
+   "i": 17,
+   "scenario": "C2-查评分",
+   "depth": "fast",
+   "idx": 1,
+   "text": "《进击的巨人》第一季在站内动画排 120 名左右",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 18,
+   "scenario": "C2-查评分",
+   "depth": "fast",
+   "idx": 2,
+   "text": "《进击的巨人》漫画原作评分是 7.43",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 19,
+   "scenario": "B2-kawaii人格",
+   "depth": "fast",
+   "idx": 3,
+   "text": "《孤独摇滚！》讲的是社恐少女组乐队",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false
+  },
+  {
+   "i": 20,
+   "scenario": "B2-kawaii人格",
+   "depth": "fast",
+   "idx": 7,
+   "text": "《罗小黑战记》是泡面番节奏",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 21,
+   "scenario": "D6-我的追番",
+   "depth": "fast",
+   "idx": 0,
+   "text": "`deepseek_jiang` 这个 ID 在站里没有对应数据",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 22,
+   "scenario": "D6-我的追番",
+   "depth": "fast",
+   "idx": 1,
+   "text": "`deepseek_jiang` 这个 ID 的收藏、日志、时间线都是空的",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false,
+   "judge_prev": "supported"
+  },
+  {
+   "i": 23,
+   "scenario": "E1-deep讨论",
+   "depth": "deep",
+   "idx": 0,
+   "text": "《葬送的芙莉莲》的评分中，8分和9分两档占了近三分之二",
+   "judge": "supported",
+   "cite_verified": false,
+   "judge_prev": "unsupported",
+   "tool_self": false
+  },
+  {
+   "i": 24,
+   "scenario": "E1-deep讨论",
+   "depth": "deep",
+   "idx": 4,
+   "text": "《葬送的芙莉莲》的配乐由Evan Call负责",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 25,
+   "scenario": "D5-社区评价",
+   "depth": "fast",
+   "idx": 3,
+   "text": "辛美尔那条线是公认的情感核心",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "judge_prev": "supported",
+   "tool_self": false
+  },
+  {
+   "i": 26,
+   "scenario": "D5-社区评价",
+   "depth": "fast",
+   "idx": 5,
+   "text": "芙莉莲的争议之一是公路过程偏淡，有人漫画读不下去，靠动画节奏救回来",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 27,
+   "scenario": "B4-立场评价",
+   "depth": "fast",
+   "idx": 5,
+   "text": "EVA 的评分是 8.68 分",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 28,
+   "scenario": "B4-立场评价",
+   "depth": "fast",
+   "idx": 9,
+   "text": "EVA 整体算上收尾在 7 分半到 8 分之间",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false
+  },
+  {
+   "i": 29,
+   "scenario": "C3-人物查询",
+   "depth": "fast",
+   "idx": 4,
+   "text": "花泽香菜配过常守朱（《PSYCHO-PASS》）",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false
+  },
+  {
+   "i": 30,
+   "scenario": "C3-人物查询",
+   "depth": "fast",
+   "idx": 7,
+   "text": "花泽香菜配过小野寺小咲（《伪恋》）",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false
+  },
+  {
+   "i": 31,
+   "scenario": "C4-找相似",
+   "depth": "fast",
+   "idx": 2,
+   "text": "《异度侵入 ID:INVADED》是原创剧本",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 32,
+   "scenario": "C4-找相似",
+   "depth": "fast",
+   "idx": 6,
+   "text": "《命运石之门 0》延续《命运石之门》本身",
+   "judge": "supported",
+   "cite_verified": true,
+   "judge_prev": "unsupported",
+   "tool_self": false
+  },
+  {
+   "i": 33,
+   "scenario": "A5-deep深入",
+   "depth": "deep",
+   "idx": 6,
+   "text": "EVA有26话",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 34,
+   "scenario": "A5-deep深入",
+   "depth": "deep",
+   "idx": 9,
+   "text": "巨人必须向外走，必须给答案",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false
+  },
+  {
+   "i": 35,
+   "scenario": "A3-一句话推荐",
+   "depth": "fast",
+   "idx": 0,
+   "text": "《穹庐下的魔女》是本季热门里评分最高的那部",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 36,
+   "scenario": "D4-社区热点",
+   "depth": "fast",
+   "idx": 1,
+   "text": "《莉兹与青鸟》又被翻出来吵百合实锤。",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 37,
+   "scenario": "D4-社区热点",
+   "depth": "fast",
+   "idx": 3,
+   "text": "《莉兹与青鸟》是山田尚子执导的。",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "judge_prev": "supported",
+   "tool_self": false
+  },
+  {
+   "i": 38,
+   "scenario": "C5-deep必调工具",
+   "depth": "deep",
+   "idx": 3,
+   "text": "《异国日记》由牛尾宪辅配乐",
+   "judge": "supported",
+   "cite_verified": true,
+   "tool_self": false
+  },
+  {
+   "i": 39,
+   "scenario": "C5-deep必调工具",
+   "depth": "deep",
+   "idx": 7,
+   "text": "《千年女优》和《蓝色恐惧》是公认经典",
+   "judge": "unsupported",
+   "cite_verified": null,
+   "tool_self": false
+  }
+ ],
+ "refreshed_at": "2026-09-14 16:54"
+}

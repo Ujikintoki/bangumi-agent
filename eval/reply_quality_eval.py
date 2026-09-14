@@ -910,6 +910,39 @@ def _save_judge(rep: dict, frozen_path: Path) -> tuple[Path, Path]:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def _latest_tier2_report(frozen: dict) -> tuple[dict, Path]:
+    """给一份冻结样本，找它最新的 Tier 2 报告 —— (报告, 路径)。
+
+    按样本 meta 的 `recorded_at` + `git_hash` 配，不按文件名猜（文件名里的 git 是
+    【录制那次提交】，跟报告的 stamp 不是一回事）。冒烟报告（limit>0）跳过 ——
+    它只判了前几条，拿来出标注表会缺一半。
+
+    找不到就报错让用户先跑 --tier2：与其自己挑一份口径不明的报告，不如让人看见
+    缺什么。判官判定是 κ 的输入，认错报告 = 整个校准白做。
+    """
+    from eval.reply_quality_judge import RESULTS_DIR as RD
+    m = frozen.get("meta") or {}
+    want = (m.get("recorded_at"), m.get("git_hash"))
+    cands: list[tuple[float, Path, dict]] = []
+    for p in RD.glob("reply_quality-tier2-*.json"):
+        try:
+            r = json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        rm = r.get("meta") or {}
+        if (rm.get("sample_recorded_at"), rm.get("sample_git_hash")) != want:
+            continue
+        if rm.get("limit"):
+            continue                      # 冒烟报告不完整
+        cands.append((p.stat().st_mtime, p, r))
+    if not cands:
+        raise SystemExit(
+            f"找不到 {want[0]} 的完整 Tier 2 报告。先跑：\n"
+            f"  python -m eval.reply_quality_eval --tier2 <frozen.json>")
+    _, p, r = max(cands)
+    return r, p
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="轴 3 · 回复质量（生成/判定分离）")
     g = parser.add_mutually_exclusive_group(required=True)
@@ -919,6 +952,11 @@ def main() -> None:
                    help="Tier 2 证据投影 dry-run：只打印判官将看到多少字，不调 LLM、不花钱")
     g.add_argument("--tier2", metavar="FROZEN_JSON",
                    help="Tier 2 忠实性判定（调 LLM、要钱；结果落 judge_cache.jsonl）")
+    g.add_argument("--tier2-annotate", metavar="FROZEN_JSON",
+                   help="出人工 κ 标注表（免费、离线；判官判定取自最新 Tier 2 报告）")
+    g.add_argument("--tier2-kappa", action="store_true",
+                   help="算判官 vs 人工的 Cohen's κ（读标注表 + 答案纸）")
+    parser.add_argument("--seed", type=int, default=20260914, help="标注表抽样种子")
     g.add_argument("--list", action="store_true", help="列出已有冻结样本")
     parser.add_argument("--data", default="eval/data/e2e_scenarios.json", help="场景集")
     parser.add_argument("--smoke", type=int, default=0, help="只跑前 N 条（0=全部）")
@@ -953,6 +991,39 @@ def main() -> None:
         t2.print_tier2(rep)
         jp, mp = t2.save_tier2(rep, frozen_path)
         print(f"\n已归档: {jp}\n报告:   {mp}")
+        # 改过 rubric 就会走到这里：判定变了，但人工勾过的答案还有效（断言和证据
+        # 都没动，动的只是判官怎么读）。把 key 里判官那一列刷成新口径，κ 直接重算。
+        # 冒烟跑（--tier2-limit）不刷 —— 只判了一部分场景，刷完是半新半旧的混合态。
+        if not args.tier2_limit and t2.ANNOTATION_KEY.exists():
+            ch, mt, tot = t2.refresh_annotation_key(rep, mp.name)
+            print(f"标注答案纸已刷新：{mt}/{tot} 条对上，判官判定改了 {ch} 条"
+                  f"（人工判定一个字没动）")
+            if ch:
+                print(f"  跑 --tier2-kappa 看新 κ；旧判定留在 key 的 judge_prev 里")
+        return
+
+    if args.tier2_annotate:
+        from eval import reply_quality_judge as t2
+        frozen = t2.load_frozen(args.tier2_annotate)
+        rep, rp = _latest_tier2_report(frozen)
+        print(f"用报告: {rp.name}")
+        sh, kp = t2.save_annotation_sheet(rep, frozen, rp.name, seed=args.seed)
+        n_item = len(json.loads(kp.read_text(encoding="utf-8"))["items"])
+        print(f"\n标注表: {sh}\n答案纸: {kp}")
+        print(f"  抽了 {n_item} 条 ｜ 判官口径 {rep['meta']['rubric_fingerprint']}")
+        print(f"  填法：在每条 `**你的判定**：` 后面写 "
+              f"{' / '.join(t2.TIER2_VERDICTS)}")
+        print("  填完跑：python -m eval.reply_quality_eval --tier2-kappa")
+        return
+
+    if args.tier2_kappa:
+        from eval import reply_quality_judge as t2
+        k = t2.judge_human_kappa()
+        if k is None:
+            print(f"还没法算：{t2.ANNOTATION_KEY.name} 或已填的标注表不存在。"
+                  f"\n先跑 --tier2-annotate 出表，填完再回来。")
+            return
+        t2.print_kappa(k)
         return
 
     if args.judge:

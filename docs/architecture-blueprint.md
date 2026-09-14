@@ -104,7 +104,7 @@
 
 | 层 | 接口 | 契约 |
 |---|------|------|
-| 数据层 → 上 | `get_agent_tools() → list[Tool]` | 工具返回结构化 dict（唯一例外 `search_local_bangumi` 返回 str）；失败返回 `{"_error": ...}`，绝不抛异常；不感知 `AgentState` |
+| 数据层 → 上 | `get_agent_tools() → list[Tool]` | 工具返回结构化 dict（**无例外**）；失败返回 `{"_error": ...}`，绝不抛异常；**返回体 ≤ L1 单条上限 2000 token，超限工具由产出侧自带整块预算**（`search_local_bangumi` 的 `{total, shown, results, note}` 信封）；不感知 `AgentState` |
 | 记忆层 → 上 | `manage_memory(messages, max_tokens)`；`get_memory_manager().recall_for_prompt(...)` / `remember_session(...)`；`session_cache.load/store` | 召回结果是一段可注入 prompt 的文本；记忆层不直接调用 Bangumi API；编排层通过 `helpers.recall_memory_step()` 适配 |
 | 人格层 → 上 | `get_character(style) → CharacterProfile`；`get_agent_profile() → AgentProfile`；`render_reply(...) → str \| None` | 人格层不访问数据库；Card 与 Render 必须同步修改 |
 | 编排层 → 上 | `agent_app.ainvoke(state) → final_state` | 唯一消费者是 main.py；state 是 TypedDict + 字段 reducer |
