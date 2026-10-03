@@ -26,6 +26,10 @@ docs/phase3/
 docs/DEPRECATED/
 test/AI.js
 docs/test_output/
+docs/Test/test_output/
+eval/results/
+rag/corpus/
+scripts/data/
 
 # ── Logs ─────────────────────────────────────────────────
 *.log
@@ -38,3 +42,5 @@ htmlcov/
 
 # ── Claude Code ──────────────────────────────────────────
 .claude/
+
+bangumi-agent-sanitized/

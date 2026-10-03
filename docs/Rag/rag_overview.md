@@ -468,6 +468,6 @@ NamuWiki 和行业标准强调的 SHA1 稳定 ID 用于：
 | `rag/cli/discover.py` | 语料 ID 发现脚本（p1 API + HTML 解析） | **活跃** |
 | `rag/cli/collect.py` | 离线语料抓取（→ `rag/corpus/`） | **活跃** |
 | `rag/cli/verify.py` | 语料灌库自检 + round-trip 验证 | **活跃** |
-| `rag/corpus/` | 离线语料（raw + processed） | **活跃** |
+| `rag/corpus/` | 本地生成的离线语料（raw + processed，不纳入版本控制） | **活跃** |
 | `rag/_utils.py` | 内部共享工具（_clean_text, _first_sentence） | **活跃** |
 | `test/test_rag.py` | 集成测试（retriever 正确性 + ingest→search roundtrip） | **活跃** |
