@@ -12,7 +12,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -27,6 +27,7 @@ from agent.persona.render import (
 )
 from agent.persona.render import render_fallback_line, render_reply, tool_outcome_line
 from agent.state import AgentState
+from core.auth import authenticated_user, validate_auth_configuration
 from core.config import get_settings
 from database.engine import init_db
 from middleware import rate_limit_middleware
@@ -98,13 +99,14 @@ class ChatRequest(BaseModel):
         default="",
         description="会话 ID，用于 L1 多轮上下文。留空时自动生成随机 UUID",
     )
-    user_id: str = Field(default="anonymous", description="用户 ID（L2 跨会话记忆）")
+    user_id: str = Field(default="anonymous", description="兼容字段；实名必须与 Bearer 身份一致，匿名模式不接受实名")
 
 
 class ChatResponse(BaseModel):
     """对话响应。"""
 
     reply: str = Field(..., description="Agent 的最终回复")
+    session_id: str = Field(default="", description="实际会话 ID，后续请求原样传回")
     iterations: int = Field(..., description="ReAct 循环轮数")
     tools_used: list[str] = Field(
         default_factory=list, description="本轮调用的工具名称"
@@ -142,6 +144,7 @@ def _resolve_output_style(request: ChatRequest) -> str:
 async def lifespan(app: FastAPI):
     """管理应用的生命周期。"""
     logger.info("🚀 系统启动 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
+    validate_auth_configuration()
     init_db()
     print(f"[lifespan] {settings.PROJECT_NAME} v{settings.VERSION} 启动成功")
     yield
@@ -155,8 +158,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: 不使用 cookie 认证（session 通过显式 session_id 参数追踪），因此不设 credentials。
-# origin 保持通配符——此 API 为公开服务，接受来自任意前端的请求。
+# Bearer 凭据绑定用户；CORS 不承担认证。生产来源白名单仍待部署阶段配置。
 #
 # 注意：限流中间件直接返回 429 时不经过外层 CORS（BaseHTTPMiddleware 行为），
 # 其 CORS 头由 middleware.py 自补，与注册顺序无关。
@@ -257,8 +259,32 @@ async def health_check() -> dict:
     }
 
 
+def _session_key(user_id: str, session_id: str) -> str:
+    return json.dumps([user_id, session_id], ensure_ascii=False)
+
+
+async def _authorized_chat_request(
+    request: ChatRequest, user_id: str = Depends(authenticated_user),
+):
+    if request.user_id not in ("anonymous", user_id):
+        raise HTTPException(status_code=403, detail="user_id does not match authenticated user")
+    return request.model_copy(update={
+        "user_id": user_id, "session_id": request.session_id or uuid.uuid4().hex,
+    })
+
+
+_authorized_request_dependency = Depends(_authorized_chat_request)
+
+
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest = _authorized_request_dependency) -> ChatResponse:
+    async with get_session_cache().claim(_session_key(request.user_id, request.session_id)) as acquired:
+        if not acquired:
+            raise HTTPException(status_code=409, detail="Session already has an active request")
+        return await _chat(request)
+
+
+async def _chat(request: ChatRequest) -> ChatResponse:
     """Agent 对话端点。
 
     通过 ``depth`` 控制深度模式：
@@ -317,13 +343,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
         return result, query_intent
 
     try:
-        result, query_intent = await asyncio.wait_for(
+        result, _ = await asyncio.wait_for(
             _graph_and_render(), timeout=timeout_s
         )
     except asyncio.TimeoutError:
         # TimeoutError 是 Exception 子类，必须放在 except Exception 之前
         logger.warning("/chat: 请求超时 (depth=%s, timeout=%ss)", depth, timeout_s)
         return ChatResponse(
+            session_id=session_id,
             reply="查询处理超时，请尝试更具体的提问方式。",
             iterations=0,
             tools_used=[],
@@ -334,6 +361,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     except GraphRecursionError:
         logger.warning("/chat: recursion_limit 触发 (depth=%s)", depth)
         return ChatResponse(
+            session_id=session_id,
             reply="查询处理超时，请尝试更具体的提问方式。",
             iterations=0,
             tools_used=[],
@@ -344,6 +372,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     except Exception:
         logger.exception("/chat: Agent 执行异常")
         return ChatResponse(
+            session_id=session_id,
             reply="抱歉，处理请求时遇到了问题，请稍后重试。",
             iterations=0,
             tools_used=[],
@@ -359,7 +388,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     session_cache = get_session_cache()
     max_cached = 30 if depth == "deep" else 20
     await session_cache.store(
-        session_id,
+        _session_key(request.user_id, session_id),
         result.get("messages", []),
         max_messages=max_cached,
     )
@@ -374,6 +403,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     max_iterations = get_max_iterations(depth)
     messages = result.get("messages", [])
     return ChatResponse(
+        session_id=session_id,
         reply=_extract_final_reply(
             messages,
             error_flag=result.get("error_flag", False),
@@ -390,7 +420,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(request: ChatRequest = _authorized_request_dependency):
     """Agent 对话流式端点（SSE）。
 
     Graph 推理层全部使用非流式 ainvoke，不输出中间节点事件。
@@ -402,9 +432,17 @@ async def chat_stream(request: ChatRequest):
     Returns:
         StreamingResponse: SSE 事件流（text/event-stream）。
     """
-    initial_state, session_id, depth, output_style = await _build_initial_state(
-        request
-    )
+    # The response owns the reservation, including streaming and cancellation.
+    claim = get_session_cache().claim(_session_key(request.user_id, request.session_id))
+    acquired = await claim.__aenter__()
+    if not acquired:
+        await claim.__aexit__(None, None, None)
+        raise HTTPException(status_code=409, detail="Session already has an active request")
+    try:
+        initial_state, session_id, depth, output_style = await _build_initial_state(request)
+    except BaseException:
+        await claim.__aexit__(None, None, None)
+        raise
 
     async def generate():
         session_cache = get_session_cache()  # 单例，恢复/保存 L1 session
@@ -444,31 +482,29 @@ async def chat_stream(request: ChatRequest):
                 _graph_and_render(), timeout=timeout_s
             )
 
-            # ── 发送 render 事件 + 最终回复 ──
-            yield f"data: {json.dumps({'node': 'render', 'reply': reply_to_send}, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
-
             # ── L1 Session 缓存 + L2 记忆写入 ──
             max_cached = 30 if depth == "deep" else 20
             await session_cache.store(
-                session_id,
+                _session_key(request.user_id, session_id),
                 final_state.get("messages", []),
                 max_messages=max_cached,
             )
             asyncio.create_task(
                 _remember_session(final_state, request, depth, session_id=session_id)
             )
+            yield f"data: {json.dumps({'node': 'render', 'reply': reply_to_send, 'session_id': session_id}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
 
         except asyncio.TimeoutError:
             # 请求级超时——必须放在 except Exception 之前（TimeoutError 是其子类）
             logger.warning(
                 "/chat/stream: 请求超时 (depth=%s, timeout=%ss)", depth, timeout_s
             )
-            yield f"data: {json.dumps({'node': 'error', 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except GraphRecursionError:
             logger.warning("/chat/stream: recursion_limit 触发 (depth=%s)", depth)
-            yield f"data: {json.dumps({'node': 'error', 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except asyncio.CancelledError:
             # 客户端断开 — CancelledError 是 BaseException 子类，不被 except Exception 捕获。
@@ -477,23 +513,30 @@ async def chat_stream(request: ChatRequest):
             try:
                 await asyncio.shield(
                     session_cache.store(
-                        session_id,
+                        _session_key(request.user_id, session_id),
                         final_state.get("messages", []),
                         max_messages=30 if depth == "deep" else 20,
                     )
                 )
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - best-effort cancellation save
+                logger.debug("/chat/stream: 中断状态保存失败 (%s)", type(exc).__name__)
             # 注意：断开时只保存 L1 session 缓存，不写 L2 长期记忆——
             # 中断的对话不完整（可能只执行到一半），写入会污染语义召回
             # 的注入内容（审计盲区修复）。
             # 连接已断开，不发送 SSE 事件，直接退出生成器
         except Exception:
             logger.exception("/chat/stream: Agent 执行异常")
-            yield f"data: {json.dumps({'node': 'error', 'message': '内部处理错误，请稍后重试'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '内部处理错误，请稍后重试'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    class ReservedStream(StreamingResponse):
+        async def __call__(self, scope, receive, send):
+            try:
+                await super().__call__(scope, receive, send)
+            finally:
+                await claim.__aexit__(None, None, None)
+
+    return ReservedStream(generate(), media_type="text/event-stream")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -556,7 +599,7 @@ async def _build_initial_state(
 
     # ── L1 Session 缓存：恢复同 session 前序消息 ──
     session_cache = get_session_cache()
-    cached = await session_cache.load(session_id)
+    cached = await session_cache.load(_session_key(request.user_id, session_id))
 
     # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
     _seed = get_agent_profile("companion").capabilities
@@ -872,6 +915,7 @@ async def _remember_session(
     Args:
         session_id: 实际使用的 session ID（优先于 request.session_id，避免匿名 session 塌缩）。
     """
+    effective_session_id = session_id or request.session_id
     try:
         from agent.config import get_max_iterations
         from agent.memory.long_term import get_memory_manager

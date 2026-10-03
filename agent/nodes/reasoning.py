@@ -23,7 +23,7 @@ from agent.memory.short_term import (
 )
 from agent.persona.profiles import get_character
 from agent.prompts.aggregator import build_aggregator_prompt
-from agent.prompts.scene_hints import COMPANION_INTENT_PROMPTS, COMPANION_SCENE_HINTS
+from agent.prompts.scene_hints import COMPANION_SCENE_HINTS
 from agent.prompts.scene_hints_deep import DEEP_SCENE_HINTS
 from agent.prompts.tool_config import TOOLS_BY_INTENT, get_tool_choice
 from agent.state import AgentState
@@ -83,8 +83,7 @@ async def reasoning_node(state: AgentState) -> dict:
         memory_context = state.get("_memory_context", "") or ""
 
     # ── Step 2: 构建 Aggregator System Prompt（每轮重建） ────
-    # 人格必须每轮在场。此前仅首轮构建、第 2 轮起 system_content=None，
-    # 导致模型只能在"工具结果 + 历史"上裸推理（P3）。
+    # 人格必须每轮在场：SystemMessage 每轮重新构建，历史轮次中不得省略。
     # memory_context 在上文已按轮次取好（首轮召回 / 后续读 state）。
     output_style = state.get("output_style", "bangumi")
     character = get_character(output_style)
@@ -131,8 +130,7 @@ async def reasoning_node(state: AgentState) -> dict:
         from agent.prompts.aggregator import _LAST_CHANCE_DIGEST_HINT
         messages_for_llm.append(HumanMessage(content=_LAST_CHANCE_DIGEST_HINT))
     elif is_digesting:
-        # [PHASE5-A] 检测 search-only 模式
-        # grep: SEARCH_ONLY_DETECTION
+        # 检测 search-only 模式 — grep: SEARCH_ONLY_DETECTION
         search_only = _detect_search_only_stall(messages, query_intent)
         if search_only:
             digest_hint = (
@@ -157,10 +155,10 @@ async def reasoning_node(state: AgentState) -> dict:
     # ── LLM 调用 ────────────────────────────────────────────
     try:
         response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)
-    except Exception as e:
-        logger.exception("reasoning_node: LLM 调用失败")
+    except Exception as e:  # noqa: BLE001 - node contract converts provider failures
+        logger.warning("reasoning_node: LLM 调用失败 (%s)", type(e).__name__)
         fallback = (
-            f"抱歉，AI 服务暂时不可用：{e}" if is_deep else f"啧，脑子短路了。{e}"
+            "抱歉，暂时没能处理好，请稍后再试。" if is_deep else "啧，脑子短路了，等会儿再聊？"
         )
         return {
             "messages": [AIMessage(content=fallback)],
@@ -204,7 +202,7 @@ async def reasoning_node(state: AgentState) -> dict:
 # 消化态检测
 # ═══════════════════════════════════════════════════════════════════
 
-# [PHASE5-A] Search-only 检测 — grep: SEARCH_ONLY_DETECTION
+# Search-only 检测 — grep: SEARCH_ONLY_DETECTION
 
 _SEARCH_ONLY_TOOLS = frozenset({"search_bangumi_subject", "search_local_bangumi"})
 """只有这些工具被调用过 → search-only 模式。"""

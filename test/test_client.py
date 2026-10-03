@@ -124,6 +124,73 @@ class TestErrorHandling:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 429 限流 — 退避与 Retry-After 解析
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestRateLimitRetry:
+    """回归：429 分支的末轮与 Retry-After 解析。
+
+    1. 末轮不再 sleep —— 改前 429 分支缺 ``attempt < max_retries - 1`` 守卫，
+       和 502/503 不对称，最后一次失败还要白等 ``Retry-After * 4`` 秒。
+    2. Retry-After 允许 HTTP-date 形式（RFC 9110 §10.2.3），只按 ``int()`` 解析
+       会抛 ValueError 穿出 ``_request``，违反「不抛异常」。
+    """
+
+    @staticmethod
+    def _resp(status: int, headers: dict[str, str] | None = None) -> httpx.Response:
+        """真 httpx.Response —— 保证 raise_for_status() 真的会抛。"""
+        req = httpx.Request("GET", "https://next.bgm.tv/p1/subjects/8")
+        return httpx.Response(status, headers=headers or {}, request=req)
+
+    @pytest.mark.asyncio
+    async def test_429_exhausted_sleeps_only_between_attempts(self):
+        """3 次全 429：只该 sleep 2 次（attempt 0/1），末轮直接返回。"""
+        client = BangumiClient()
+        resp = self._resp(429, {"Retry-After": "7"})
+        with (
+            patch.object(client._client, "request", AsyncMock(return_value=resp)),
+            patch("clients.base.asyncio.sleep", AsyncMock()) as sleeper,
+        ):
+            result = await client._request("GET", "/p1/subjects/8")
+
+        assert sleeper.call_count == 2, "末轮白 sleep 了"
+        assert [c.args[0] for c in sleeper.call_args_list] == [7, 14], "退避应为 7*2^attempt"
+
+    @pytest.mark.asyncio
+    async def test_429_exhausted_returns_readable_error(self):
+        """耗尽后要给可读错误，不是通用的「请求失败」。"""
+        client = BangumiClient()
+        resp = self._resp(429, {"Retry-After": "1"})
+        with (
+            patch.object(client._client, "request", AsyncMock(return_value=resp)),
+            patch("clients.base.asyncio.sleep", AsyncMock()),
+        ):
+            result = await client._request("GET", "/p1/subjects/8")
+
+        assert result == {"_error": "请求过于频繁，触发限流"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "header",
+        ["30", " 12 ", "", "garbage", "Wed, 21 Oct 2015 07:28:00 GMT"],
+        ids=["delta-seconds", "含空白", "空值", "无法解析", "HTTP-date（过去）"],
+    )
+    async def test_retry_after_never_raises(self, header: str):
+        """任何 Retry-After 取值都不能穿透 —— 含过去的日期（会算出负等待）。"""
+        client = BangumiClient()
+        resp = self._resp(429, {"Retry-After": header})
+        with (
+            patch.object(client._client, "request", AsyncMock(return_value=resp)),
+            patch("clients.base.asyncio.sleep", AsyncMock()) as sleeper,
+        ):
+            result = await client._request("GET", "/p1/subjects/8")
+
+        assert isinstance(result, dict) and "_error" in result, "穿透了（应返回 _error dict）"
+        assert all(c.args[0] >= 0 for c in sleeper.call_args_list), "等待秒数不得为负"
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 业务方法 — 端点和参数验证
 # ═══════════════════════════════════════════════════════════════════
 

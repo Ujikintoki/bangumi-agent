@@ -9,12 +9,13 @@ import asyncio
 import inspect
 import json
 
+import pytest
+
 from agent.memory.short_term import _MAX_SINGLE_MESSAGE_TOKENS, count_tokens
 from tools.bgm_tools import (
     _local_payload,
     search_local_bangumi,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Agent type contextvar — removed (last consumer _format_person_detail deleted)
@@ -34,19 +35,28 @@ class TestSearchLocalAsync:
         assert coro_func is not None, "search_local_bangumi 应有 coroutine 属性"
         assert inspect.iscoroutinefunction(coro_func)
 
-    def test_no_block_event_loop(self):
+    def test_no_block_event_loop(self, monkeypatch):
         """调用不应阻塞事件循环（即使 RAG 不可用，函数应在超时前返回）。
 
         v2 契约：search_local_bangumi 返回结构化 dict
         （{"total", "shown", "results"}，无结果/出错时 {"_error": ...}）。
         """
-        coro_func = search_local_bangumi.coroutine
-        result = asyncio.run(
-            asyncio.wait_for(
-                coro_func("测试查询", limit=1),
-                timeout=5.0,
-            )
-        )
+        import threading
+        heartbeat = threading.Event()
+
+        def fake_search(*args, **kwargs):
+            assert heartbeat.wait(2), "同步检索阻塞了事件循环"
+            return {"total": 0, "shown": 0, "results": []}
+
+        monkeypatch.setattr("tools.bgm_tools._search_local_bangumi_sync", fake_search)
+
+        async def run():
+            task = asyncio.create_task(search_local_bangumi.coroutine("测试查询", limit=1))
+            await asyncio.sleep(0.01)
+            heartbeat.set()
+            return await task
+
+        result = asyncio.run(run())
         assert isinstance(result, dict)
         assert "results" in result or "_error" in result
 
@@ -177,6 +187,10 @@ class TestLocalSearchCardContract:
 
 
 class TestLocalSearchToolWiring:
+    @pytest.fixture(autouse=True)
+    def _stub_tag_vocabulary(self, monkeypatch):
+        monkeypatch.setattr("rag._tag_dict.load_tag_vocabulary", lambda: frozenset())
+
     """走真实工具装配路径（只 patch 检索器与设置，不碰库、不联网）。"""
 
     def _run(self, monkeypatch, raw_records):

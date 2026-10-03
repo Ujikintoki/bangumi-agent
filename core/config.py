@@ -58,6 +58,12 @@ class Settings(BaseSettings):
 
     预览期保护 LLM 成本。<= 0 时完全关闭限流（测试环境用）。"""
 
+    AUTH_ENABLED: bool = False
+    """启用管理员分发的个人 Bearer 凭据；关闭时仅允许 anonymous。"""
+
+    API_USER_TOKENS: dict[str, str] = Field(default_factory=dict, repr=False)
+    """用户 ID → 独立访问凭据，环境变量使用 JSON 对象；不要提交真实凭据。"""
+
     # ── 数据库配置 ────────────────────────────────────────────
     DATABASE_URL: str = "postgresql://myuser:mypassword@localhost:5432/bangumidb"
     """PostgreSQL 数据库连接 URL，默认连接本地 bangumidb 库。"""
@@ -139,7 +145,7 @@ class Settings(BaseSettings):
     """是否启用 L2 记忆系统。关闭后所有记忆操作变为 no-op，Agent 退化回无记忆模式。"""
 
     MEMORY_MAX_INJECT_TOKENS: int = 500
-    """注入 System Prompt 的记忆文本最大 Token 数。Phase 8 收紧至 500（原 700）。"""
+    """注入 System Prompt 的记忆文本最大 Token 数。"""
 
     MEMORY_RECALL_TOP_K: int = 5
     """语义检索召回的候选 session 摘要数。"""

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -23,6 +25,30 @@ P1_BASE_URL = "https://next.bgm.tv"
 
 USER_AGENT = "BangumiAgent/0.1.0 (https://github.com/Ujikintoki/bangumi-agent)"
 """遵循 Bangumi 社区规范的自定义 User-Agent。"""
+
+
+def _parse_retry_after(raw: str | None, default: int = 5) -> int:
+    """解析 Retry-After 头，返回应等待的秒数。
+
+    RFC 9110 §10.2.3 允许两种形式：delta-seconds（``"30"``）或 HTTP-date
+    （``"Wed, 21 Oct 2015 07:28:00 GMT"``）。只按 ``int()`` 解析的话，遇到
+    date 形式会抛 ValueError —— 它不在 ``_request`` 的 except 列表里，会直接
+    穿透出去，违反「不抛异常」（CLAUDE.md 编码规则 #1）。解析不出来就回落到
+    ``default``，绝不抛。
+    """
+    if not raw:
+        return default
+    try:
+        return max(0, int(raw.strip()))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(raw)
+    except (TypeError, ValueError):
+        return default
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return max(0, int((when - datetime.now(timezone.utc)).total_seconds()))
 
 
 class BaseClient:
@@ -72,8 +98,10 @@ class BaseClient:
                 response = await self._client.request(method, path, **kwargs)
                 logger.debug("[%s] %s → %d", method, path, response.status_code)
 
-                if response.status_code == 429:
-                    retry_after = int(response.headers.get("Retry-After", "5"))
+                if response.status_code == 429 and attempt < max_retries - 1:
+                    retry_after = _parse_retry_after(
+                        response.headers.get("Retry-After")
+                    )
                     wait = retry_after * (2**attempt)
                     logger.warning(
                         "429 限流，%d 秒后重试 (attempt=%d)", wait, attempt + 1
@@ -176,6 +204,7 @@ class BaseClient:
     def _handle_http_error(path: str, status: int) -> dict[str, Any]:
         """将 HTTP 状态码转译为可读的错误消息。"""
         errors: dict[int, str] = {
+            429: "请求过于频繁，触发限流",
             404: f"未找到资源 (path={path})",
             401: "认证失败，Access Token 可能已过期",
             403: "无权限访问该资源",

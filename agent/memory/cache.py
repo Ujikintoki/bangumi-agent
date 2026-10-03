@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from contextlib import asynccontextmanager
 
 from langchain_core.messages import SystemMessage
 
@@ -61,6 +62,21 @@ class SessionCache:
         self._ttl = ttl_seconds
         self._max_entries = max_entries
         self._lock = asyncio.Lock()
+        self._in_flight: set[str] = set()
+
+    @asynccontextmanager
+    async def claim(self, key: str):
+        """Reserve one complete turn; callers receive False on contention."""
+        async with self._lock:
+            acquired = key not in self._in_flight
+            if acquired:
+                self._in_flight.add(key)
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                async with self._lock:
+                    self._in_flight.discard(key)
 
     async def load(self, session_id: str) -> list:
         """加载 session 的缓存消息。

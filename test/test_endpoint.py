@@ -7,14 +7,12 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from main import app, ChatResponse
-from test.conftest import MOCK_TOOLS, make_mock_llm
+from main import app
 
 client = TestClient(app)
 
@@ -48,7 +46,7 @@ class TestChatEndpoint:
         }
 
         response = client.post("/chat", json={
-            "message": "你好", "session_id": "s1", "user_id": "u1",
+            "message": "你好", "session_id": "s1", "user_id": "anonymous",
         })
         assert response.status_code == 200
         data = response.json()
