@@ -1,7 +1,7 @@
 # 数据库管理手册
 
 > 面向管理员/开发者 — PostgreSQL + pgvector 日常运维。
-> 最后更新: 2026-06-15
+> 最后更新: 2026-10-03
 
 ## 速查
 
@@ -48,9 +48,11 @@ brew install --cask tableplus
 ```
 bangumidb
 ├── rag_entities             ← RAG 语义搜索（Subject/Character/Person）
+├── bangumi_chunks           ← 旧检索表（已废弃，仅迁移建表）
 ├── session_memories         ← L2 会话摘要 + embedding
-├── user_profiles            ← L3 用户画像
-└── public_memories          ← Phase 6 预留（全局共识记忆）
+├── user_profiles            ← L3 画像表（运行时读写已移除，表由迁移保留）
+├── public_memories          ← 全局共识记忆（只建表；应用侧写入仍是 no-op）
+└── alembic_version          ← 迁移版本（由 Alembic 维护）
 ```
 
 ---
@@ -202,6 +204,9 @@ LIMIT 10;
 
 ### 用户画像
 
+> ⚠️ L3 画像的运行时读写已移除（见 `agent/memory/long_term.py` 的 `[L3 deprecated]` 标记），
+> 当前版本不再写入 `user_profiles`。下列查询只对历史数据排查有意义。
+
 ```sql
 -- 详细画像
 SELECT
@@ -216,7 +221,7 @@ SELECT
 FROM user_profiles
 ORDER BY total_sessions DESC;
 
--- 冷启动中的用户（未达到 L3 注入阈值）
+-- 冷启动中的用户（历史口径；L3 已移除，不再据此注入画像）
 SELECT user_id, total_sessions, first_seen_at
 FROM user_profiles
 WHERE total_sessions < 5
@@ -308,7 +313,9 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 SELECT indexname FROM pg_indexes WHERE tablename = 'session_memories';
 ```
 
-如果 HNSW 索引缺失，重启服务后 `database/engine.py:init_db()` 会自动重建。日志中 `索引创建跳过` 的 warning 不影响基本功能——只是语义检索会走纯时效回退。
+HNSW 索引由 Alembic 迁移创建。`database/engine.py:init_db()` 只建扩展并执行 `alembic upgrade head`，
+对已应用版本不会重跑，因此**重启服务不会重建缺失的索引**；需要手工补索引或回退迁移版本。
+代码中不存在 `索引创建跳过` 这条日志。
 
 ### 连接被拒绝
 

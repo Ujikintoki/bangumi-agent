@@ -1,6 +1,8 @@
 # Intent 路由层设计
 
-> 状态：定稿，待实施
+> 状态：**历史档案** — 设计已实现，现行代码见 `agent/routing/routes.py` 与
+> `agent/prompts/tool_config.py`（`TOOLS_BY_INTENT` / `get_tool_choice()`）。
+> 下文保留 2026-08-03 的设计推演，其中的 `agent/orchestrate/*` 路径与行号是当时的目录结构。
 > 日期：2026-08-03
 > 关联：[架构演进记录](architecture-evolution.md) · [分离合成设计 v2](decoupled-synthesis-design-v2.md)
 

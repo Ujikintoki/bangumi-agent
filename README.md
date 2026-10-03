@@ -3,7 +3,6 @@
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/PostgreSQL-16_%2B_pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/LangGraph-异质拓扑-ff6b35?style=for-the-badge" alt="LangGraph">
-  <img src="https://img.shields.io/badge/tests-539-brightgreen?style=for-the-badge" alt="Tests">
   <img src="https://img.shields.io/badge/version-0.1.1-informational?style=for-the-badge" alt="Version">
 </p>
 
@@ -91,17 +90,26 @@ curl -s -X POST http://localhost:8000/chat \
 
 ### POST /chat
 
+私有多用户预览设置 `AUTH_ENABLED=true`、`API_USER_TOKENS`（用户 ID 到独立随机凭据的 JSON 对象）。
+凭据至少 32 个 ASCII 字符、不得含空白；管理员私下分发，客户端用 `Authorization: Bearer <个人凭据>`。
+这不是 Bangumi OAuth，也不使用 `BANGUMI_ACCESS_TOKEN` 识别本服务用户。
+默认关闭认证仅允许匿名聊天，拒绝自报实名；`ENVIRONMENT=production` 必须开启认证。
+原有实名客户端需增加 Bearer 头，否则返回 403。无效/缺失凭据返回 401，同会话并发返回 409。
+认证/会话缓存/限流仍仅支持单应用进程，公开部署尚待验收。
+匿名 session ID 相当于续聊凭据，应保密；旧内存会话重启后不保留。
+
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `message` | `str` | *必填* | 用户消息 |
 | `depth` | `"fast"` \| `"deep"` | `"fast"` | 深度控制（迭代上限 + Token 预算） |
 | `output_style` | `"bangumi"` \| `"bangumi_kawaii"` \| `"neutral"` | `"bangumi"` | 人格模式 |
 | `session_id` | `str` | 自动生成 | 多轮会话 ID（L1 续聊） |
-| `user_id` | `str` | `"anonymous"` | 跨会话记忆用户 ID（L2） |
+| `user_id` | `str` | `"anonymous"` | 兼容字段；实名必须与 Bearer 身份一致，关闭认证时仅匿名 |
 
 | 响应字段 | 类型 | 说明 |
 |----------|------|------|
 | `reply` | `str` | Agent 回复 |
+| `session_id` | `str` | 服务端实际会话 ID，后续请求原样传回 |
 | `iterations` | `int` | 循环轮数 |
 | `tools_used` | `list[str]` | 本轮调用的工具名称 |
 | `query_intent` | `str` | 意图分类（chat/fetch/explore/discuss/realtime/profile/fallback） |
@@ -111,7 +119,7 @@ curl -s -X POST http://localhost:8000/chat \
 
 ### POST /chat/stream
 
-同上参数，返回 SSE（`text/event-stream`）。当前 graph 推理为非流式，SSE 推送最终 `render` 事件 + `[DONE]`，接口形态为逐 token 渲染预留。
+同上参数，返回 SSE（`text/event-stream`）。当前 graph 推理为非流式，SSE 的成功/执行错误事件携带 `session_id`；成功时先存 L1 再推送最终 `render` 事件 + `[DONE]`，接口形态为逐 token 渲染预留。
 
 ### GET /health
 
@@ -158,22 +166,20 @@ START → classify_node ─┬─ chat ─────────────�
 | **记忆层** | L1 滑动窗口 + 压缩 + L2 语义召回 + session 缓存 |
 | **数据层** | 工具函数 + HTTP Client + RAG + pgvector |
 
-上层依赖下层，下层不感知上层。详细架构、编码规范、调参速查见 [`CLAUDE.md`](CLAUDE.md)。
+上层依赖下层，下层不感知上层。开发约束见 [`AGENTS.md`](AGENTS.md)，详细边界见[架构蓝图](docs/architecture-blueprint.md)。
 
 ---
 
 ## 测试
 
 ```bash
-# 全部测试（539 个，需要 PostgreSQL + pgvector）
-pytest test/ -v
+# 先准备编码缓存（此步需要下载公开文件，不调用模型或数据库）
+TIKTOKEN_CACHE_DIR=/private/tmp/bgm-agent-tiktoken python -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
 
-# 跳过数据库依赖的测试
-pytest test/ --ignore=test/test_rag.py -v
+# 已审阅的离线单元测试集：不加载 .env，阻断网络与 PostgreSQL
+TIKTOKEN_CACHE_DIR=/private/tmp/bgm-agent-tiktoken python scripts/test_offline.py
 
-# 仅记忆系统
-pytest test/test_memory.py test/test_memory_manager.py test/test_phase5_l1.py -v
-
+# 全量测试需独立数据库和显式外部服务配置，不能在真实库直接运行
 # 代码格式化 / 检查
 ruff format .
 ruff check .
@@ -213,7 +219,7 @@ schemas/        # Pydantic v2 工具输入 schema
 core/config.py  # 全局配置（.env / 环境变量）
 main.py         # FastAPI 入口（/health, /chat, /chat/stream）
 eval/           # 分类器 / RAG 离线评测脚本
-test/           # 539 测试 / 20 文件
+test/           # 单元与集成测试，数量以收集结果为准
 docs/           # design/、eval/、memory/、Rag/、Tools/
 ```
 
@@ -223,9 +229,10 @@ docs/           # design/、eval/、memory/、Rag/、Tools/
 
 | 文档 | 内容 |
 |------|------|
-| [`CLAUDE.md`](CLAUDE.md) | 架构详解、编码规范、文件地图、调参速查（AI 协作入口） |
+| [`PRODUCT.md`](PRODUCT.md) | 当前产品定位、边界与价值信号 |
+| [`AGENTS.md`](AGENTS.md) | 轻量开发规则与安全边界（AI 协作入口） |
 | [`ROADMAP.md`](ROADMAP.md) | 当前状态、待解决问题、路线图 |
-| [`docs/design/claude-on-bangumi-vision.md`](docs/design/claude-on-bangumi-vision.md) | **产品愿景**——"住在 Bangumi 里的动画损友"，功能与人格修改的锚 |
+| [`docs/design/claude-on-bangumi-vision.md`](docs/design/claude-on-bangumi-vision.md) | 7 月产品愿景——长期北极星与历史来源 |
 | [`docs/architecture-blueprint.md`](docs/architecture-blueprint.md) | **宏观架构蓝图**——9 板块清单、分层接口契约、编排模式库、演化地图 |
 | [`docs/design/evolution-roadmap-phase7-9.md`](docs/design/evolution-roadmap-phase7-9.md) | Phase 7-9 分层演进路线 |
 | [`docs/design/`](docs/design/) | 设计决策（`R-*` 方法论与基线、`O-*` 历史文档） |

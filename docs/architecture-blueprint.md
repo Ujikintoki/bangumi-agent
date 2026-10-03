@@ -24,13 +24,17 @@
 |------|------|
 | `docs/design/claude-on-bangumi-vision.md` | 为什么做（产品定位） |
 | **`docs/architecture-blueprint.md`（本文）** | **怎么搭（宏观结构）** |
-| `docs/design/evolution-roadmap-phase7-9.md` | 分阶段怎么走到愿景（注意：部分旧路径需按 CLAUDE.md 文件地图换算） |
+| `docs/design/evolution-roadmap-phase7-9.md` | 历史分阶段推演；其中旧路径必须按当前代码核对 |
 | `docs/design/macro-architecture-decisions.md` | 为什么选 X 而不是 Y（10 项宏观决策） |
 | `docs/design/O-architecture-evolution.md` | 历史（Phase 1-10 演化与教训） |
-| `CLAUDE.md` + `README.md` | 现状锚点（以代码为准） |
-| `ROADMAP.md` | 近期任务清单（待解决 P0/P1/P2） |
+| `PRODUCT.md` + `ROADMAP.md` | 当前产品边界与近期工作（以代码和验证结果为准） |
+| `AGENTS.md` + `README.md` | 开发规则与使用入口 |
 
 ---
+
+> 2026-10-02 运行边界补充：HTTP 入口已有私有预览 Bearer 身份校验、用户级 session key 和整轮互斥。
+> Pipeline L2 现已注入各步骤 prompt；chat 历史/长期记忆仍待验证。状态均为单进程内存，尚未生产验收。
+> HTTP 边界允许结构化 401/403/409/503；“工具不抛异常”不等于认证失败返回 200。
 
 ## 1. 你的直觉是对的：板块 × 分层是两个正交视角
 
@@ -96,7 +100,7 @@
 
 **依赖规则**（也是自查标准）：
 
-1. **箭头只能向上**。任何模块 import 了更高层的东西 = 违规
+1. **依赖只能从上层指向下层**。任何模块 import 了更高层的东西 = 违规
 2. **层间通信只走接口函数**（§3.2 清单），不直接读对方的内部状态
 3. **横切基础能力无方向性**，但不得感知任何层（llm.py 不知道 graph 的存在）
 
@@ -104,7 +108,7 @@
 
 | 层 | 接口 | 契约 |
 |---|------|------|
-| 数据层 → 上 | `get_agent_tools() → list[Tool]` | 工具返回结构化 dict（**无例外**）；失败返回 `{"_error": ...}`，绝不抛异常；**返回体 ≤ L1 单条上限 2000 token，超限工具由产出侧自带整块预算**（`search_local_bangumi` 的 `{total, shown, results, note}` 信封）；不感知 `AgentState` |
+| 数据层 → 上 | `get_agent_tools() → list[Tool]` | 工具返回结构化 dict（**无例外**）；工具失败返回 `{"_error": ...}`，不泄露异常正文；**返回体 ≤ L1 单条上限 2000 token，超限工具由产出侧自带整块预算**（`search_local_bangumi` 的 `{total, shown, results, note}` 信封）；不感知 `AgentState` |
 | 记忆层 → 上 | `manage_memory(messages, max_tokens)`；`get_memory_manager().recall_for_prompt(...)` / `remember_session(...)`；`session_cache.load/store` | 召回结果是一段可注入 prompt 的文本；记忆层不直接调用 Bangumi API；编排层通过 `helpers.recall_memory_step()` 适配 |
 | 人格层 → 上 | `get_character(style) → CharacterProfile`；`get_agent_profile() → AgentProfile`；`render_reply(...) → str \| None` | 人格层不访问数据库；Card 与 Render 必须同步修改 |
 | 编排层 → 上 | `agent_app.ainvoke(state) → final_state` | 唯一消费者是 main.py；state 是 TypedDict + 字段 reducer |
@@ -215,7 +219,7 @@
 
 现状：评测资产已归拢到根 `eval/` 一处（分类器 / RAG 检索 / 回复质量 / 记忆四条轴 + 一道图接线门禁，详见 `eval/README.md`），`docs/eval/` 是计划书，但评测**不在开发闭环里**——人格/提示词改动不强制跑评测。
 
-方向（下一步就该做）：把人格/端到端场景评测常驻化——20-30 条场景 golden set（`docs/Eval/e2e-scenario-testing.md` 已有设计），snark 风格 / 字数 / 意图分类三类行为断言，prompt 变更后一键回归。**评测常驻之前，人格层改动都应该视为高风险操作。**
+方向（下一步就该做）：把人格/端到端场景评测常驻化——20-30 条场景 golden set（`docs/eval/e2e-scenario-testing.md` 已有设计），snark 风格 / 字数 / 意图分类三类行为断言，prompt 变更后一键回归。**评测常驻之前，人格层改动都应该视为高风险操作。**
 
 ---
 
@@ -231,7 +235,7 @@
 | **可调人格**（多维参数） | 人格层 | CharacterProfile 加维度（现有 `snark` 范式） | Render 管线不动 |
 | **叙事性记忆**（"记得你说过"） | 记忆层 | L2 `memory_type` 扩展 + 召回注入格式 | `recall_memory_step` 签名不动 |
 
-分阶段推演见 [`evolution-roadmap-phase7-9.md`](design/evolution-roadmap-phase7-9.md)（其中部分旧路径需按 CLAUDE.md 文件地图换算）。**所有 Phase 7 级改动都是增量式的——加字段、加文件、加参数，reasoning → tool → render 管线不动**。
+历史分阶段推演见 [`evolution-roadmap-phase7-9.md`](design/evolution-roadmap-phase7-9.md)；其中路径和假设必须按当前代码与产品基线重新核对，不能直接作为开发任务。
 
 **地图使用规则**：每个新功能先在这张表上定位——属于哪个板块、动哪层、加什么接口。定位不进去的需求 = 重新评审地图，而不是硬塞进现有代码。这条规则就是"不 lost"的定义。
 
@@ -248,9 +252,9 @@
 
 **变更完成后三同步**：
 
-1. `CLAUDE.md` 文件地图/架构节（现状锚点）
-2. 本蓝图（如果板块或接口变了）
-3. `docs/design/` 设计决策（如果是新选择，沿用 `R-*` 传统）
+1. 本蓝图（如果板块或接口变了）
+2. `PRODUCT.md`（如果产品边界变了）或 `ROADMAP.md`（如果当前顺序变了）
+3. 必要的独立决策记录（只有出现新的长期选择时才增加）
 
 **节奏纪律**：
 
@@ -285,7 +289,7 @@
 - [ ] 人格层访问了数据库？
 - [ ] 修改了 `profiles.py` 的 Character Card 但没检查 `render.py`？
 - [ ] 新节点绕过 `get_character()` / `get_agent_profile()` 自己拼人格文本？
-- [ ] 工具返回了非 dict（除 `search_local_bangumi`）？
+- [ ] 工具返回了非 dict？
 - [ ] 工具抛了异常而不是返回 `{"_error": ...}`？
 
 开发流程：

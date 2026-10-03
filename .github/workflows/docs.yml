@@ -1,0 +1,38 @@
+name: docs
+
+# 检查文档里引用的仓库路径是否真实存在、大小写是否与 git 索引一致。
+#
+# 为什么必须在 CI 跑：macOS 的 APFS 不区分大小写，本仓库又设了
+# core.ignorecase=true。两个因素叠加的后果是 —— 本地永远看不到问题，
+# 而 Linux / GitHub 上 `docs/Eval/xxx` 这类引用会直接 404。
+# CI 跑在 Linux 上，是唯一能稳定重现这个问题的环境。
+#
+# 脚本只用标准库，所以这步不装任何依赖。
+
+on:
+  push:
+    paths:
+      - "**/*.md"
+      - "scripts/check_doc_refs.py"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "**/*.md"
+      - "scripts/check_doc_refs.py"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+jobs:
+  check-refs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # checkout 会把索引填好，脚本靠 `git ls-files` 判定，
+      # 所以这里不需要额外的 git 配置。
+      - name: 文档引用检查
+        run: python3 scripts/check_doc_refs.py
