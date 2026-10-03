@@ -31,7 +31,7 @@ _WORD_LIMIT: dict[str, str] = {
     "deep": "350",
 }
 
-# [PHASE5-A] 硬截断上限（字符数）。prompt 建议 + 硬截断双保险。
+# 硬截断上限（字符数）。prompt 建议 + 硬截断双保险。
 # 如果 LLM-judge 评测中截断导致回复质量下降，将此值调高或设为 None 禁用。
 # grep: HARD_CUTOFF_MAX_CHARS
 _HARD_CUTOFF_MAX_CHARS: dict[str, int | None] = {
@@ -232,7 +232,7 @@ async def render_reply(
         logger.warning("render_reply: 渲染结果过短 (%d chars)，使用原始输入", len(rendered))
         return None
 
-    # [PHASE5-A] 硬截断：双保险——prompt 已建议字数上限，此处硬截
+    # 硬截断：双保险——prompt 已建议字数上限，此处硬截
     max_chars = _HARD_CUTOFF_MAX_CHARS.get(depth) if depth in _HARD_CUTOFF_MAX_CHARS else _HARD_CUTOFF_MAX_CHARS.get("fast", 280)
     if max_chars and len(rendered) > max_chars:
         original_len = len(rendered)

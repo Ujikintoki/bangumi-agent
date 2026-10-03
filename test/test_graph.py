@@ -1,5 +1,5 @@
 """
-图谱集成测试（mock LLM + mock 工具）— Phase 6 统一架构
+图谱集成测试（mock LLM + mock 工具）
 
 验证跨模块耦合：critic_feedback 传播、memory 截断不破坏 graph、
 消化态隔离、多轮状态一致性。
@@ -116,7 +116,7 @@ class TestGraphIntegration:
 
 
 class TestCriticFeedbackPropagation:
-    """Phase 9: Critic 屏蔽后，critic_feedback 不再影响 prompt。保留测试验证该隔离。"""
+    """Critic 已移除，critic_feedback 不再影响 prompt。保留测试验证该隔离。"""
 
     @patch("agent.nodes.reasoning.create_llm")
     @patch("agent.nodes.reasoning.get_agent_tools")
@@ -144,7 +144,7 @@ class TestCriticFeedbackPropagation:
         messages_to_llm = invoke_call[0][0]
         system_msgs = [m for m in messages_to_llm if isinstance(m, SystemMessage)]
         combined_system = " ".join(m.content for m in system_msgs)
-        # Phase 9: critic_feedback 不再注入
+        # critic_feedback 不再注入
         assert "上一轮回复需要改进" not in combined_system
 
 
@@ -220,7 +220,7 @@ class TestStateLifecycle:
     async def test_shallow_mode_skips_critic(
         self, mock_pipeline_tools, mock_pipeline_llm, mock_create_llm
     ):
-        """[DEPRECATED Phase 10] depth="fast" 模式：Critic 已移除，验证 graph 正常完成。
+        """depth="fast" 模式：Critic 已移除，验证 graph 正常完成。
 
         原测试验证 critic_status 保持 PENDING。Critic 已从图谱中移除，
         graph 直接从 reasoning_node → END。

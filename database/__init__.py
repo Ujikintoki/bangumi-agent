@@ -5,10 +5,10 @@
 
 导出:
     - RagEntity: 单表多态 RAG 实体模型（新架构）
-    - BangumiChunk: [DEPRECATED] 旧 chunk 模型，将在后续 Phase 中移除
+    - BangumiChunk: [DEPRECATED] 旧 chunk 模型，已弃用
     - engine: SQLAlchemy Engine 单例
     - get_session: FastAPI 依赖注入用 Session 生成器
-    - init_db: 数据库初始化（扩展 + 建表 + 索引）
+    - init_db: 数据库初始化（启用扩展 + 执行 Alembic 迁移）
 """
 
 from database.engine import engine, get_session, init_db

@@ -1,5 +1,5 @@
 """
-系统提示词测试 — Phase 7 Prompt Engineering 重设计
+系统提示词测试
 
 验证 Character Card、TOOL_GUIDANCE、Scene Hints、参数映射、
 render prompt（参数感知 + 快速跳过）、guardrails 字数占位符。
@@ -55,10 +55,10 @@ class TestProfiles:
         assert len(BANGUMI_CHARACTER.motivation) > 10
         assert len(BANGUMI_CHARACTER.expression_guide) > 10
         assert len(BANGUMI_CHARACTER.guardrails) > 20
-        # Phase 7: guardrails 使用 {word_limit} 占位符
+        # guardrails 使用 {word_limit} 占位符
         assert "{word_limit}" in BANGUMI_CHARACTER.guardrails
         assert "不用 emoji" in BANGUMI_CHARACTER.guardrails
-        # Phase 7: 参数字段应有默认值
+        # 参数字段应有默认值
         assert 0.0 <= BANGUMI_CHARACTER.snark <= 1.0
         assert 0.0 <= BANGUMI_CHARACTER.depth_taste <= 1.0
         assert 0.0 <= BANGUMI_CHARACTER.initiative <= 1.0
@@ -93,7 +93,7 @@ class TestProfiles:
         assert "数据完整性优先" not in BANGUMI_CHARACTER.tool_behavior
 
     def test_character_card_exists_for_bangumi(self):
-        """Bangumi 应有 Character Card（Phase 7.5: 人格描述，非台词范本）。"""
+        """Bangumi 应有 Character Card（人格描述，非台词范本）。"""
         card = get_character_card("bangumi")
         assert card is not None
         assert "Bangumi 看板娘" in card
@@ -134,7 +134,7 @@ class TestIntentPrompts:
 
     def test_fetch_and_fallback_have_scene_hint(self):
         """Deep fetch/fallback 的 Scene Hints 不应嵌入工具约束——
-        Phase 8: TOOL_DEPENDENCY_CONSTRAINT 已合并到 TOOL_GUIDANCE。"""
+        工具规则统一在 TOOL_GUIDANCE。"""
         for intent in ["fetch", "fallback"]:
             assert "[当前：" in DEEP_INTENT_PROMPTS[intent]
 
@@ -143,7 +143,7 @@ class TestIntentPrompts:
         assert "[当前：" in DEEP_INTENT_PROMPTS["chitchat"]
 
     def test_companion_intents_exclude_tool_constraint(self):
-        """Companion 浅层策略：Scene Hints 应为视角提示，不含工具约束（Phase 8: 工具规则统一在 TOOL_GUIDANCE）。"""
+        """Companion 浅层策略：Scene Hints 应为视角提示，不含工具约束（工具规则统一在 TOOL_GUIDANCE）。"""
         for intent in COMPANION_INTENT_PROMPTS:
             assert "[当前：" in COMPANION_INTENT_PROMPTS[intent] or COMPANION_INTENT_PROMPTS[intent] == "", \
                 f"companion intent {intent} 格式不正确"
@@ -185,7 +185,7 @@ class TestHonestyPrinciple:
 
 
 class TestRenderPrompt:
-    """Render prompt 构建（Phase 7.5: character 对象替代碎片化参数）。"""
+    """Render prompt 构建（character 对象替代碎片化参数）。"""
 
     def test_render_prompt_non_empty(self):
         """build_render_prompt 应返回非空 prompt。"""

@@ -39,26 +39,8 @@ _EMBEDDING_DIM = get_settings().EMBEDDING_DIMENSION
 # ============================================================================
 # 新架构: RagEntity — 单表多态 RAG 实体
 # ============================================================================
-# 建表后需执行以下 DDL 以建立高性能索引（由 init_db() 统一执行）:
-#
-#   -- 向量索引: HNSW + cosine 距离算子
-#   CREATE INDEX IF NOT EXISTS ix_rag_entities_embedding
-#       ON rag_entities USING hnsw (embedding vector_cosine_ops);
-#
-#   -- 全文索引: GIN + trigram，加速 name / chunk_text 的模糊匹配
-#   CREATE EXTENSION IF NOT EXISTS pg_trgm;
-#   CREATE INDEX IF NOT EXISTS ix_rag_entities_name_trgm
-#       ON rag_entities USING gin (name gin_trgm_ops);
-#   CREATE INDEX IF NOT EXISTS ix_rag_entities_chunk_text_trgm
-#       ON rag_entities USING gin (chunk_text gin_trgm_ops);
-#
-#   -- 热度排序: B-Tree，加速 ORDER BY popularity DESC
-#   CREATE INDEX IF NOT EXISTS ix_rag_entities_popularity
-#       ON rag_entities (popularity);
-#
-#   -- Subject 子类型: B-Tree，加速 WHERE subject_type = N
-#   CREATE INDEX IF NOT EXISTS ix_rag_entities_subject_type
-#       ON rag_entities (subject_type);
+# 表结构与索引均由 Alembic 迁移创建，索引清单以
+# database/migrations/versions/20260803_001_initial_schema.py 为准。
 # ============================================================================
 
 
@@ -301,7 +283,7 @@ class PersonMeta(BaseModel):
 
 
 # ============================================================================
-# 旧架构兼容: BangumiChunk（已弃用，将在后续 Phase 中移除）
+# 旧架构兼容: BangumiChunk（已弃用，保留建表以兼容旧库）
 # ============================================================================
 
 
@@ -309,7 +291,7 @@ class BangumiChunk(SQLModel, table=True):
     """[DEPRECATED] 番剧文本块的向量化存储模型。
 
     .. deprecated::
-        此模型将在后续 Phase 中移除，请迁移至 ``RagEntity``。
+        此模型已弃用，请使用 ``RagEntity``。
         新架构使用单表多态设计，通过 ``entity_type`` 区分 Subject、
         Character、Person 三类实体，主键改为前缀化字符串。
 

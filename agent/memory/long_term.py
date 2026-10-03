@@ -1,5 +1,5 @@
 """
-Phase 5 L2 记忆管理器（L3 用户画像已移除）
+L2 记忆管理器（L3 用户画像已移除）
 
 L2 长记忆的统一入口：召回（recall） + 记住（remember）。
 
@@ -581,7 +581,7 @@ class MemoryManager:
         Returns:
             格式化的对话文本。
         """
-        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+        from langchain_core.messages import AIMessage, HumanMessage
 
         lines: list[str] = []
         for m in messages:
@@ -749,7 +749,7 @@ class MemoryManager:
     def _update_genres(prefs: dict, entities: list[dict]) -> dict:
         """[L3 deprecated] 增量更新类型频率。保留代码以便未来重新激活。
 
-        当前 Phase 5 初期做轻量处理：从实体名推断类型关键词，
+        轻量处理：从实体名推断类型关键词，
         按 count 降序截断 top-10。
 
         Args:
@@ -980,7 +980,7 @@ class MemoryManager:
         if not prefs:
             return ""
 
-        # Phase 5.3: L3 画像是补充信息——权重低于 L1/L2
+        # L3 画像是补充信息——权重低于 L1/L2
         # 输出精简，不做统计数字展示，避免模型过度依赖画像
         parts: list[str] = []
 
@@ -1010,15 +1010,15 @@ class MemoryManager:
         return "，".join(parts) if parts else ""
 
     # ═══════════════════════════════════════════════════════════════════
-    # Phase 6 桩
+    # 公共记忆接口（尚无写入方）
     # ═══════════════════════════════════════════════════════════════════
 
     async def remember_public(self, **kwargs: Any) -> None:
-        """[Phase 6] 写入公共记忆。当前为 no-op。"""
+        """写入公共记忆。当前为 no-op：写入管道未接入。"""
         pass
 
     async def recall_public(self, query: str) -> list:
-        """[Phase 6] 召回公共记忆。当前返回空列表。"""
+        """召回公共记忆。当前返回空列表：读取路径未接入。"""
         return []
 
 

@@ -260,7 +260,7 @@ def build_aggregator_prompt(
         character: CharacterProfile 对象。
         depth: 深度模式，控制字数上限。
         intent: 查询意图。
-        scene_hints: Phase 7 简短场景提示 dict。
+        scene_hints: 简短场景提示 dict。
         intent_strategies: [deprecated] 旧意图策略 dict，向后兼容 fallback。
         memory_context: L2 记忆召回 + tone 提示的格式化文本。
 

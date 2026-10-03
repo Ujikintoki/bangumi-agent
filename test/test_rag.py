@@ -1,7 +1,7 @@
 """test_rag.py — RAG 模块全栈测试。
 
 依赖 PostgreSQL + pgvector + 智谱 embedding-2。
-覆盖 text_processor / ingestion / retriever 三个子模块。
+覆盖 ingestion / retriever 两个子模块。
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from rag.retriever import (
     RagSearchResult,
     _extract_heat_signal,
 )
-# [DEPRECATED] from rag.text_processor import BangumiTextProcessor  — text_processor 已废弃
 from core.config import get_settings
 
 
@@ -35,12 +34,6 @@ from core.config import get_settings
 @pytest.fixture(scope="module")
 def settings():
     return get_settings()
-
-
-# [DEPRECATED] text_processor fixture — BangumiTextProcessor 已废弃
-# @pytest.fixture(scope="module")
-# def processor():
-#     return BangumiTextProcessor(chunk_size=300, chunk_overlap=50)
 
 
 @pytest.fixture(scope="module")
@@ -78,23 +71,6 @@ def cleanup_test_data():
         ))
         s.commit()
 
-
-# ═══════════════════════════════════════════════════════════════════
-# [DEPRECATED] text_processor 测试 — BangumiTextProcessor 已废弃
-# 原 TestCleanText / TestSplitText / TestCreateEntityDocuments 类见 git history
-# ═══════════════════════════════════════════════════════════════════
-
-# [DEPRECATED] TestCleanText / TestSplitText / TestCreateEntityDocuments
-# BangumiTextProcessor 已废弃，对应测试类注释掉。clean_text 逻辑已迁移至
-# rag/ingestion.py 的 _clean_text()，后续可添加对应测试。
-"""
-class TestCleanText:
-    ... (见 git history)
-class TestSplitText:
-    ...
-class TestCreateEntityDocuments:
-    ...
-"""
 
 # ═══════════════════════════════════════════════════════════════════
 # ingestion — ID 前缀 + chunk 构建（纯函数）

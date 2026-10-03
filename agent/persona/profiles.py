@@ -1,9 +1,9 @@
 """
 Character & Agent Profiles — 人格化模块的 canonical source
 
-Phase 7.5: 人格描述哲学转变——从"教 model 怎么表演"（行为指令）转为
-"给 model 一个真实的人格"（人格描述）。Character Card 不再是台词范本 +
-表演规则，而是一个有审美体系、有自我认知的角色素描。
+设计取向：Character Card 是"给 model 一个真实的人格"（人格描述），
+不是"教 model 怎么表演"（行为指令）——不是台词范本 + 表演规则，
+而是一个有审美体系、有自我认知的角色素描。
 
 ==== 设计原则 ====
 
@@ -37,7 +37,7 @@ from dataclasses import dataclass
 class CharacterProfile:
     """角色人格定义 — '我是谁、我怎么说话'
 
-    Phase 7.5: snark / initiative 通过 ``_pick_level()`` 映射为
+    snark / initiative 通过 ``_pick_level()`` 映射为
     Render 层语气片段；depth_taste 通过 ``get_aggregator_depth_instruction()``
     映射为 Aggregator 层搜索深度行为指令。
 
@@ -173,7 +173,7 @@ def _pick_level(value: float, levels: list[tuple[float, str]]) -> str:
 
 
 # ============================================================================
-# Character Cards — 角色素描（Phase 7.5: 台词范本 → 人格描述）
+# Character Cards — 角色素描
 # ============================================================================
 
 _BANGUMI_CHARACTER_CARD = """\

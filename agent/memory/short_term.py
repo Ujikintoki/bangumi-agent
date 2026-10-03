@@ -38,7 +38,7 @@ except Exception:
     )
     _ENCODER = None
 
-# ── Token 预算分配（Phase 8: 按 depth 分级，与 system prompt 大小解耦） ─
+# ── Token 预算分配（按 depth 分级，与 system prompt 大小解耦） ─
 DEPTH_TOKEN_BUDGETS: dict[str, int] = {
     "fast": 10000,
     "deep": 16000,
@@ -58,7 +58,7 @@ DEFAULT_MAX_TOKENS = 10000
 """默认 Token 预算（auto 模式，向后兼容旧常量引用）。"""
 
 L2_MEMORY_BUDGET_TOKENS = 500
-"""L2 记忆注入预留 Token 数上限。Phase 8 收紧至 500（原 700）。"""
+"""L2 记忆注入预留 Token 数上限。"""
 
 # 单条消息最大 Token 数（超出则截断内容，主要针对 ToolMessage 返回的海量 JSON）
 # 2000 的依据：条目详情是最大的单条记录，infobox 白名单过滤后 24 部实测
@@ -194,7 +194,7 @@ def _truncate_oversized_messages(
     changed = False
     result: list[BaseMessage] = []
     for m in messages:
-        # Phase 8: System prompt is sacred — never truncate
+        # System prompt is sacred — never truncate
         if isinstance(m, SystemMessage):
             result.append(m)
             continue
@@ -345,7 +345,7 @@ def trim_messages(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Tool Result 压缩（Phase 8: 提取关键字段，2000 tokens → ~80 tokens）
+# Tool Result 压缩（提取关键字段，2000 tokens → ~80 tokens）
 # ═══════════════════════════════════════════════════════════════════════════
 
 _COMPRESSION_MARKER = "[已压缩] "
@@ -972,7 +972,7 @@ def manage_memory(
 ) -> list[BaseMessage]:
     """记忆管理入口：压缩历史工具结果 → 截断超大消息 → 滑动窗口。
 
-    Phase 8 三步策略：
+    三步策略：
         1. 压缩上一轮 ToolMessage——提取关键字段，2000→80 tokens
         2. 截断当前轮超大消息（SystemMessage 除外）
         3. 滑动窗口截断
@@ -986,7 +986,7 @@ def manage_memory(
     Returns:
         可能压缩/截断后的消息列表。
     """
-    # Step 0: 压缩上一轮工具结果（Phase 8: 保留语义骨架）
+    # Step 0: 压缩上一轮工具结果（保留语义骨架）
     messages = _compress_previous_round_tools(messages)
 
     # Step 1: 截断超大单条消息（SystemMessage 除外）

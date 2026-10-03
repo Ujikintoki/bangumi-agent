@@ -1,5 +1,5 @@
 """
-Companion 浅层意图 Scene Hints — Phase 7.5: 任务指令 → 视角提示
+Companion 浅层意图 Scene Hints
 
 Hints 告诉 model "当前场景下你想什么"，而不是"你该做什么"。
 信任 model 的语言能力——给出了正确的心理框架，行为自然对。

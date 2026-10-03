@@ -152,7 +152,7 @@ def route_after_tool(
     # ── Pipeline 步骤路由 ──
     if intent == "fetch":
         if current_iter == 1:
-            # [PHASE5-A] 空搜索早停 — grep: EMPTY_SEARCH_EARLY_STOP
+            # 空搜索早停 — grep: EMPTY_SEARCH_EARLY_STOP
             if _last_search_was_empty(messages):
                 logger.info(
                     "route_after_tool: fetch 空搜索早停 → synthesize (跳过 detail)"
@@ -292,7 +292,7 @@ def _count_consecutive_empty_searches(messages: list) -> int:
     return count
 
 
-# [PHASE5-A] 空搜索检测 — grep: EMPTY_SEARCH_EARLY_STOP
+# 空搜索检测 — grep: EMPTY_SEARCH_EARLY_STOP
 
 
 def _last_search_was_empty(messages: list) -> bool:

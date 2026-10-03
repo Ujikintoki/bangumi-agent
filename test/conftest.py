@@ -1,4 +1,4 @@
-"""Phase 1-3 共享 Fixtures 和测试工具。
+"""共享 Fixtures 和测试工具。
 
 提供 mock HTTP 响应、mock 数据工厂、mock LLM、mock 工具
 等可复用测试工具。所有 fixture 不依赖外部服务（无网络、无数据库）。
@@ -117,7 +117,7 @@ def mock_httpx_client(response_map: dict[str, dict | list]) -> AsyncMock:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Agent Phase 3 共享测试工厂
+# Agent 共享测试工厂
 # ═══════════════════════════════════════════════════════════════════
 
 

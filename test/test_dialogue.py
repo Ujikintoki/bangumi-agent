@@ -1,5 +1,5 @@
 """
-reasoning_node 测试（mock LLM）— Phase 6 统一架构
+reasoning_node 测试（mock LLM）
 
 验证意图分类、bind_tools 开关、消化态行为、路由、熔断。
 覆盖 depth="fast"（原 fast）和 depth="fast" 模式。
@@ -233,7 +233,7 @@ class TestRouting:
         assert route_after_reasoning(state) == "tool_node"
 
     def test_no_tool_calls_routes_to_end(self):
-        """AIMessage 有 content 但无 tool_calls + depth="fast" → END（Phase 7: 始终走 render）"""
+        """AIMessage 有 content 但无 tool_calls + depth="fast" → END（始终走 render）"""
         from agent.routing.routes import route_after_reasoning
 
         state = _make_state(

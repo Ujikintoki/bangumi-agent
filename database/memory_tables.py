@@ -1,11 +1,11 @@
 """
-Phase 5 L2/L3 记忆系统 ORM 模型
+L2/L3 记忆系统 ORM 模型
 
 三张表，与现有 ``rag_entities`` 共用同一个 PostgreSQL + pgvector 实例：
 
 - ``session_memories`` — 每次对话的 LLM 摘要 + embedding，按 user_id 分区
 - ``user_profiles``  — 跨 session 聚合的用户偏好画像，每个 user_id 仅一行
-- ``public_memories`` — 全局社区共识快照（Phase 6 写入，Phase 5 仅建表）
+- ``public_memories`` — 全局社区共识快照（已建表，写入管道未接入）
 
 设计决策：
     - UUID 主键：分布式友好、不暴露数据规模
@@ -14,8 +14,9 @@ Phase 5 L2/L3 记忆系统 ORM 模型
     - user_profiles 用 JSONB：画像维度会扩展，避免频繁 DDL
     - embedding 可为 NULL：embedding API 失败时仍能存储摘要文本
 
-建表：由 ``SQLModel.metadata.create_all(engine)`` 自动执行。
-索引：由 ``database/engine.py:init_db()`` 统一创建 HNSW + B-tree 索引。
+建表与索引：均由 Alembic 迁移创建（见 ``database/migrations/versions/``）。
+``database/engine.py:init_db()`` 只负责启用扩展并执行 ``alembic upgrade head``，
+自身不含任何 DDL。
 """
 
 from __future__ import annotations
@@ -180,7 +181,7 @@ class UserProfile(SQLModel, table=True):
 
 
 # ============================================================================
-# L3: 公共记忆（Phase 6 写入）
+# L3: 公共记忆（已建表，尚无写入方）
 # ============================================================================
 
 
@@ -190,7 +191,7 @@ class PublicMemory(SQLModel, table=True):
     不是关于"某个用户"的记忆，而是关于"Bangumi 社区整体"的记忆：
     社区热议话题、类型共识排名、周期性事件等。
 
-    Phase 5 建表，Phase 6 实现写入管道。写入来源包括
+    表已建好，写入管道尚未接入（应用侧调用为 no-op）。计划写入来源包括
     小组讨论分析结果、热门趋势快照、编辑精选等。
     """
 

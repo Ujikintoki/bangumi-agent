@@ -1,5 +1,5 @@
 """
-reasoning_node 测试（mock LLM）— Phase 6 统一架构
+reasoning_node 测试（mock LLM）
 
 验证意图分类、bind_tools 开关、消化态隔离、critic_feedback 注入、LLM 异常处理。
 depth="deep" 模式测试。
@@ -126,7 +126,7 @@ class TestReasoningNode:
     @patch("agent.nodes.reasoning.create_llm")
     @patch("agent.nodes.reasoning.get_agent_tools")
     async def test_critic_feedback_injected_and_cleared(self, mock_get_tools, mock_create_llm):
-        """[DEPRECATED Phase 10] critic_feedback 已废弃——验证 reasoning_node 正常运行。"""
+        """critic_feedback 已废弃——验证 reasoning_node 正常运行。"""
         mock_get_tools.return_value = []
         mock = make_mock_llm(content="已修正的回复")
         mock_create_llm.return_value = mock
@@ -135,7 +135,7 @@ class TestReasoningNode:
             query_intent="lookup", iterations=1, depth="deep",
         )
         result = await reasoning_node(state)
-        # Phase 10: critic_feedback 不再由 reasoning_node 管理
+        # critic_feedback 不再由 reasoning_node 管理
 
     @patch("agent.nodes.reasoning.create_llm")
     async def test_preserves_existing_query_intent(self, mock_create_llm):

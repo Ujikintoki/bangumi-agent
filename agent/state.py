@@ -47,12 +47,6 @@ class AgentState(TypedDict):
     iterations: int
     """当前循环轮次，从 0 开始计数。"""
 
-    # [DEPRECATED Phase 10] critic_status/critic_feedback 已从 AgentState 移除。
-    # Critic 节点已从图谱中移除，这两个字段不再被任何节点写入。
-    # 保留注释以备未来恢复 Critic 时重新激活。
-    # critic_status: str
-    # critic_feedback: str
-
     query_intent: str
     """查询 Intent 分类（v4: 7 intent）：chat | fetch | explore | discuss | profile | realtime | fallback。
 

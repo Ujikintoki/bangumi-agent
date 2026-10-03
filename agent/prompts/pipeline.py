@@ -1,5 +1,5 @@
 """
-Per-node Pipeline Prompts — Phase 4 pipeline 节点的专属简短 prompt
+Per-node Pipeline Prompts — pipeline 节点的专属简短 prompt
 """
 
 from __future__ import annotations

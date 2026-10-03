@@ -17,7 +17,7 @@ from test.conftest import make_state
 
 
 class TestAgentStateStructure:
-    """AgentState 字段完整性（Phase 6 新增 depth 和 _memory_context）"""
+    """AgentState 字段完整性（depth 和 _memory_context）"""
 
     def test_all_required_keys_present(self):
         state = make_state()

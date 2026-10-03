@@ -1,5 +1,5 @@
 """
-Phase 5 L1 短记忆模块 — 验证测试
+L1 短记忆模块 — 验证测试
 
 验证 manage_memory 入口后移后的核心行为：
 1. 预算常量正确
@@ -33,7 +33,7 @@ from agent.memory.short_term import (
 
 
 class TestBudgetConstants:
-    """预算常量定义验证（Phase 8: 按 depth 分级）"""
+    """预算常量定义验证（按 depth 分级）"""
 
     def test_default_max_is_10000(self):
         assert DEFAULT_MAX_TOKENS == 10000
@@ -353,7 +353,7 @@ class TestDigestionGuidanceInBudget:
 
 
 class TestToolResultCompression:
-    """Phase 8: 历史 ToolMessage 压缩为关键字段摘要。"""
+    """历史 ToolMessage 压缩为关键字段摘要。"""
 
     def test_compress_search_result_reduces_size(self):
         """search_bangumi_subject 的 dict 结果应被压缩为关键字段。
