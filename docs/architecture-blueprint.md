@@ -1,7 +1,7 @@
 # 宏观架构蓝图 — 一个 Companion Agent 项目应该长什么样
 
-> 2026-08-16 | 文档定位：系统级"地图"。回答三个问题——agent 项目由哪些板块组成（§2）、板块之间如何分层与互相依赖（§3）、我们的项目现在在哪、往哪走（§4-6）。
-> 依据：Anthropic / OpenAI / Google / LangChain 官方设计指南（附录 A）+ 本项目代码现状（v0.1.1）+ 项目历史教训。
+> 2026-08-16 | 文档定位：系统级“地图”。当前事实以代码为准；本文回答系统有哪些板块、当前怎样分层、一次请求怎样运行以及层间怎样协作。
+> 依据：当前代码与测试；外部设计指南和项目历史只提供解释背景，不决定当前产品范围。
 > 读者：未来的自己。感到 lost 时回到这里，而不是继续加功能。
 
 ---
@@ -10,24 +10,25 @@
 
 两个月独立开发的迷失不是能力问题，是缺一张"结构地图"：每个修改单独看都合理，但没有一个坐标系回答"这个功能属于系统的哪个位置、它依赖什么、被什么依赖"。叠加两个月后，结构失焦。
 
-项目历史里最贵的教训（[`O-architecture-evolution.md`](design/O-architecture-evolution.md) 核心教训一节）：**架构假设必须与产品定位一致**。Tool Agent 的架构 + Companion Agent 的定位，造成了四个 Phase 的返工。所以本蓝图的第一锚点是产品愿景（[`claude-on-bangumi-vision.md`](design/claude-on-bangumi-vision.md)），第二锚点才是结构。
+项目历史里最贵的教训（[`O-architecture-evolution.md`](design/O-architecture-evolution.md) 核心教训一节）：**架构假设必须与产品定位一致**。[`PRODUCT.md`](../PRODUCT.md) 是当前产品范围和取舍的唯一依据，[`ROADMAP.md`](../ROADMAP.md) 记录当前状态和近期工作；7 月愿景和历史演化文档只提供长期或历史背景，不能直接生成当前架构任务。
 
 本文档给三样东西：
 
 1. **板块清单**（§2）——agent 系统必备的组成，横向视图
 2. **分层与接口**（§3）——依赖方向与每层契约，纵向视图
-3. **演化地图**（§6）——从现状到愿景的路径，每个新功能的定位法
+3. **当前主请求路径**（§3.3）——一次请求实际经过哪些组件，分支在哪里
 
 **文档体系（不 lost 的最小集合）**：
 
 | 文档 | 回答 |
 |------|------|
-| `docs/design/claude-on-bangumi-vision.md` | 为什么做（产品定位） |
-| **`docs/architecture-blueprint.md`（本文）** | **怎么搭（宏观结构）** |
+| `PRODUCT.md` | 当前产品范围和取舍的唯一依据 |
+| `ROADMAP.md` | 当前状态和近期工作 |
+| **`docs/architecture-blueprint.md`（本文）** | **当前系统板块、分层、主路径与层间契约** |
+| `docs/design/claude-on-bangumi-vision.md` | 历史背景与长期北极星，不是当前实现清单 |
 | `docs/design/evolution-roadmap-phase7-9.md` | 历史分阶段推演；其中旧路径必须按当前代码核对 |
 | `docs/design/macro-architecture-decisions.md` | 为什么选 X 而不是 Y（10 项宏观决策） |
 | `docs/design/O-architecture-evolution.md` | 历史（Phase 1-10 演化与教训） |
-| `PRODUCT.md` + `ROADMAP.md` | 当前产品边界与近期工作（以代码和验证结果为准） |
 | `AGENTS.md` + `README.md` | 开发规则与使用入口 |
 
 ---
@@ -54,11 +55,11 @@
 | # | 板块 | 职责（官方定义） | 我们的对应 | 状态 |
 |---|------|----------------|-----------|------|
 | 1 | **模型层** Model | 推理、规划、工具选择。选型标准是"可靠的工具使用与多步推理"，而非 benchmark 分数 | `agent/llm.py` `create_llm()` 工厂（DeepSeek/OpenAI 兼容） | ✅ |
-| 2 | **工具层** Tools | 与外部世界交互的手。契约 = 描述 + schema + 错误约定 | `tools/bgm_tools.py` 16 个 @tool | ✅ |
+| 2 | **工具层** Tools | 与外部世界交互的手。契约 = 描述 + schema + 错误约定 | `tools/bgm_tools.py` 的工具注册表 | ✅ |
 | 3 | **知识与检索** Knowledge/RAG | 外部知识接入（Google 的 Data Stores 类工具）；Skills 概念（可移植程序性知识："MCP 连数据，Skills 教 agent 怎么用"） | `rag/` 三通道检索（知识）+ `prompts/`（程序性知识） | ✅ |
 | 4 | **上下文与记忆** Context & Memory | 策展每次推理看到的全部 token；短期在线程内、长期在外置 store | L1 / L2 / session cache（§5.3） | ✅ |
-| 5 | **编排层** Orchestration | 管理 Think-Act-Observe 循环与上下文窗口；"engineer owns the graph" vs "model owns the graph" | `agent/graph.py` 异质拓扑 | ✅ |
-| 6 | **人格层** Persona | 本项目特有：决定 agent 怎么思考（Card）与怎么表达（Render） | `agent/persona/` 两层管线 | ✅ |
+| 5 | **编排层** Orchestration | 管理整轮请求生命周期与图内 Think-Act-Observe 循环 | `main.py` 整轮编排 + `agent/graph.py` 任务内编排 | ✅ |
+| 6 | **人格层** Persona | 提供角色配置，并在部分取数路径影响数据态度、在所有成功路径影响最终表达 | `agent/persona/` + Aggregator / Render 调用点 | ✅ |
 | 7 | **护栏** Guardrails | 在 harness 代码里而非只靠 prompt：预算封顶、输入校验、错误格式化 | `agent/guardrails.py` + 路由熔断 | 🟡 |
 | 8 | **可观测性** Observability | 全量 trace、checkpoint 持久执行、失败可续跑 | `agent/devtools.py`（DEV_MODE telemetry） | 🟡 |
 | 9 | **评估** Evaluation | 官方定位为"number one thing"：golden set + CI 回归 + judge | `eval/`（现状见 `eval/README.md`）+ `docs/eval/` 方法论 | 🟡 |
@@ -73,34 +74,28 @@
 
 ## 3. 分层与接口（纵向视图）
 
-### 3.1 我们的四层 + 依赖方向
+### 3.1 当前运行分层与调用方向
 
 ```
-                       HTTP 入口 (main.py: /chat /chat/stream)
-                                  │
-              ┌───────────────────▼────────────────────┐
-              │  编排层 Orchestration                   │ 唯一被 HTTP 调用的层
-              │  graph / nodes / routing / prompts /    │ 对外接口：编译后的 agent_app
-              │  config / state / helpers               │
-              └───┬─────────────┬──────────────┬────────┘
-                  │             │              │
-        ┌─────────▼───┐  ┌──────▼───────┐  ┌───▼──────────────────┐
-        │ 人格层       │  │ 记忆层        │  │ 数据层                │
-        │ persona/    │  │ memory/      │  │ tools / clients /     │
-        │ Card+Render │  │ L1/L2/Cache  │  │ rag / database /      │
-        └─────────────┘  └──────────────┘  │ schemas               │
-                                           └───────────────────────┘
+HTTP 服务 / 整轮编排 main.py
+├─→ 任务内编排 agent/graph + nodes + routing
+│   ├─→ 人格配置 persona/profiles（ReAct 的数据态度与搜索深度）
+│   ├─→ 记忆 memory（模型视图裁剪与 L2 召回）
+│   └─→ 数据 tools → clients / rag / database / schemas
+├─→ 人格渲染 persona/render（最终用户可见表达）
+└─→ 记忆 memory（SessionCache 恢复/保存与 L2 后台写入）
 
    横切基础能力（被多层使用，不属任何层，也不感知任何层）：
    模型工厂 agent/llm.py · 护栏 agent/guardrails.py · 观测 agent/devtools.py
    层外：评估 eval/（不参与运行时，是开发期工具）
 ```
 
-（说明：人格层同时被编排层（reasoning_node 装配 Character Card）与 HTTP 入口（main.py render 后处理）调用——两层管线的下半段在 main.py。这不违反分层：调用方始终在上方。）
+人格层和记忆层不是只能由 graph 间接到达：`main.py` 会直接调用 Render、SessionCache 和 L2
+写入；任务内节点会调用角色配置、短期裁剪和 L2 召回。这里画的是当前调用关系，不是目标架构。
 
 **依赖规则**（也是自查标准）：
 
-1. **依赖只能从上层指向下层**。任何模块 import 了更高层的东西 = 违规
+1. **依赖只能从调用/编排方指向被调用能力**。数据、记忆和人格模块不得反向依赖 HTTP 或 `AgentState`
 2. **层间通信只走接口函数**（§3.2 清单），不直接读对方的内部状态
 3. **横切基础能力无方向性**，但不得感知任何层（llm.py 不知道 graph 的存在）
 
@@ -108,12 +103,157 @@
 
 | 层 | 接口 | 契约 |
 |---|------|------|
-| 数据层 → 上 | `get_agent_tools() → list[Tool]` | 工具返回结构化 dict（**无例外**）；工具失败返回 `{"_error": ...}`，不泄露异常正文；**返回体 ≤ L1 单条上限 2000 token，超限工具由产出侧自带整块预算**（`search_local_bangumi` 的 `{total, shown, results, note}` 信封）；不感知 `AgentState` |
-| 记忆层 → 上 | `manage_memory(messages, max_tokens)`；`get_memory_manager().recall_for_prompt(...)` / `remember_session(...)`；`session_cache.load/store` | 召回结果是一段可注入 prompt 的文本；记忆层不直接调用 Bangumi API；编排层通过 `helpers.recall_memory_step()` 适配 |
-| 人格层 → 上 | `get_character(style) → CharacterProfile`；`get_agent_profile() → AgentProfile`；`render_reply(...) → str \| None` | 人格层不访问数据库；Card 与 Render 必须同步修改 |
-| 编排层 → 上 | `agent_app.ainvoke(state) → final_state` | 唯一消费者是 main.py；state 是 TypedDict + 字段 reducer |
+| 数据层 → 任务内编排 | `get_agent_tools() → list[Tool]` | 工具返回结构化 dict（**无例外**）；工具失败返回 `{"_error": ...}`，不泄露异常正文；**返回体 ≤ L1 单条上限 2000 token，超限工具由产出侧自带整块预算**（`search_local_bangumi` 的 `{total, shown, results, note}` 信封）；不感知 `AgentState` |
+| 记忆层 → HTTP/Application 与任务内编排 | `manage_memory(messages, max_tokens)`；`get_memory_manager().recall_for_prompt(...)` / `remember_session(...)`；`session_cache.load/store/claim` | graph 节点通过 `helpers.recall_memory_step()` 召回并在模型调用前裁剪；`main.py` 直接负责会话互斥、L1 恢复/保存和 L2 后台写入 |
+| 人格层 → HTTP/Application 与任务内编排 | `get_character(style) → CharacterProfile`；`get_agent_profile() → AgentProfile`；`render_reply(...) → str \| None` | ReAct 读取角色配置影响部分取数行为；`main.py` 直接调用 Render 生成最终用户可见表达；人格层不访问数据库 |
+| 任务内编排 → HTTP/Application | `agent_app.ainvoke(state) → final_state` | graph 返回分类、工具结果和聚合状态；最终 Render、降级、记忆保存与 HTTP 响应由 `main.py` 完成 |
+| HTTP/Application → 客户端 | `/chat`、`/chat/stream` | 负责认证、session 生命周期、整轮超时与错误响应；JSON/SSE 都只交付最终回复，不暴露图内中间事件 |
 
 **如果新功能无法归属到某层的接口之内 → 先重新评审分层，再写代码。这是防 lost 的第一道闸门。**
+
+### 3.3 当前 Agent 主路径（按一次真实请求形态追踪）
+
+本节只描述当前代码怎样运行。它不以历史设计名词推断实现，也不评价某个模块是否应该存在。
+追踪样例采用第一条产品闭环的请求形态：用户在 `message` 中提供一个 Bangumi 条目和一段相关
+内容，并要求 Agent 分析和讨论。当前 API 没有独立的“条目”或“内容”字段，两者都只能进入
+`ChatRequest.message`。
+
+```text
+POST /chat 或 /chat/stream
+  │
+  ├─ HTTP 边界：Bearer 身份绑定 → 补 session_id → 同一用户/会话整轮互斥
+  │
+  ├─ _build_initial_state
+  │    ├─ 从 L1 SessionCache 恢复旧消息（key = [user_id, session_id]）
+  │    └─ seed SystemMessage + 历史 + 本轮 HumanMessage → AgentState
+  │
+  ├─ LangGraph 主图
+  │    └─ classify_node：独立分类模型 → 7 intent + confidence
+  │         ├─ chat ───────────────────────────────────────────────┐
+  │         ├─ fetch/realtime/profile（高置信度）→ 对应 Pipeline ─┤
+  │         └─ explore/discuss/fallback 或低置信度 → ReAct 循环 ─┤
+  │                                                              │
+  │    Pipeline：固定步骤 prompt → 指定工具 → ToolNode → 总结     │
+  │    ReAct：人格的数据态度/搜索深度 + L2 → 动态工具 → ToolNode ↺ │
+  │                                                              │
+  ├─ 图外 _render_final_reply ◀───────────────────────────────────┘
+  │    ├─ chat：根据原始用户消息直接生成人格回复
+  │    └─ 其他：把图内最后一条文本摘要交给 Character Render 改写
+  │
+  ├─ 用 Render 结果替换/追加最后一条 AIMessage
+  ├─ 保存 L1 消息缓存
+  ├─ 后台将整段会话摘要 UPSERT 到 L2（实名且 MEMORY_ENABLED）
+  └─ JSON reply 或只有最终 render 事件的 SSE
+```
+
+这里的**运行主干**不是任意一条 intent 分支，而是：
+
+> HTTP 会话生命周期 → 分类 →（确定性 Pipeline 或开放式 ReAct）→ 图外统一 Render
+> → L1 保存 / L2 后台写入 → HTTP 响应。
+
+`agent_app` 只覆盖中间的“分类—取数—聚合”部分；最终回答、会话互斥、缓存恢复/保存和长期
+记忆写入均由 `main.py` 包住。因此“编译后的 graph 是唯一编排层”并不完全符合当前运行事实，
+更准确的边界是：**LangGraph 负责任务内编排，HTTP 服务层负责整轮编排。**
+
+#### 3.3.1 分类后的四条实际分支
+
+| 分支 | 进入条件 | 图内路径 | 图外收尾 |
+|---|---|---|---|
+| 闲聊 | 路由后的 intent 为 `chat` | `classify_node → END`，本轮不产生图内 AI 回复 | Render 用原始用户消息直接生成回复 |
+| 确定性查询 | 高置信度 `fetch` / `realtime` / `profile` | 独立子图按固定步骤调用限定工具，再由 `synthesize_node` 输出摘要 | Render 改写摘要 |
+| 开放式任务 | `explore` / `discuss` / `fallback` | `reasoning_node ⇄ tool_node`；首轮强制工具，之后由模型决定继续查或输出摘要 | Render 改写摘要 |
+| 低置信度安全网 | classifier confidence 低于 Pipeline 阈值 | 即使 intent 名仍可能是 Pipeline 类，也进入父图 ReAct；父图使用专用 `route_after_tool_react` | Render 改写摘要 |
+
+Pipeline 子图挂到父图时只回传新增消息，这是 `messages: operator.add` 下防止整段历史被重复追加的
+边界适配，不是新的业务分支。硬迭代上限同时适用于 Pipeline 和 ReAct。ReAct 在每次工具返回后
+还会检查连续空搜索和重复工具调用；Fetch Pipeline 则在第一次搜索为空时直接跳到 synthesize。
+Pipeline 的固定步骤路由会先于通用软熔断返回，因此不能概括为父图和所有子图统一经过三类熔断。
+
+#### 3.3.2 动态路由、人格、RAG、Memory 在哪里
+
+| 能力 | 决策/执行位置 | 当前实际作用 |
+|---|---|---|
+| 动态路由 | `classify_node`、`route_by_classification()`、`route_after_classify()` | 分类模型先产出 intent/confidence；代码先改写低置信度 intent，再决定进入 Pipeline、ReAct 或直接结束 |
+| 动态工具 | `TOOLS_BY_INTENT`、Pipeline 节点的 `tool_names`、各 `ToolNode` | ReAct 按 intent 绑定工具；Pipeline 按步骤绑定更小集合；模型只可调用当前绑定的工具 |
+| 人格 | `reasoning_node` 的 Aggregator prompt + `main.py` 调用的 `render_reply()` | ReAct 中 `tool_behavior` 和 `depth_taste` 影响如何取数；所有成功分支最终由 Character Card、snark、initiative 和 guardrails 决定表达 |
+| RAG | `search_local_bangumi` 工具 → `rag.retriever.RagEntityRetriever` | 不是每轮自动注入的检索层；目前仅作为工具暴露给 `explore`（及旧 `discovery`）ReAct 路径，三通道返回选择用索引卡，详情仍交给 API detail 工具 |
+| L1 Memory | `SessionCache` + `AgentState.messages` + `manage_memory()` | HTTP 轮次间恢复/保存消息；节点调用模型前按 token 预算生成局部裁剪视图，SystemMessage 始终重建 |
+| L2 Memory | `recall_memory_step()` / `remember_session()` | Pipeline 首步或 ReAct 首轮按当前问题语义召回并注入 System prompt；Render 完成后，HTTP 层后台把会话摘要按 `(user_id, session_id)` UPSERT |
+
+两个容易混淆的边界：本地 RAG 是**领域知识检索**，L2 是**用户跨会话记忆**；二者都用向量能力，
+但数据、触发方式和注入位置不同。L1 的“缓存”保存跨 HTTP 的原消息，`manage_memory()` 的“短期
+记忆管理”只裁剪单次模型调用看到的副本，不回写图状态。
+
+#### 3.3.3 复杂但职责仍单一的地方
+
+以下复杂度能对应到一个明确约束，先记录为现状，不归为职责冲突：
+
+1. **父图 + 三个子图 + ReAct 双拓扑**：确定性查询使用固定步骤，开放式讨论允许模型继续取数；
+   子图增量包装专门解决 reducer 重复历史问题。
+2. **父图与子图使用不同的 tool 后路由**：Pipeline 需要进入确定的下一步，ReAct 只能回到
+   `reasoning_node` 或结束；分开可避免低置信度 Pipeline intent 在父图跳向不存在的节点。
+3. **SystemMessage 每次重建，L1 只缓存非 SystemMessage**：让最新人格、场景提示和 L2 召回
+   每轮生效，同时保证系统提示不被对话截断。
+4. **图外 Render 的失败分级**：有聚合摘要时可清理后直出；闲聊没有可展示的中间文本时使用
+   人格兜底；工具失败/空结果另有结局话术。
+5. **RAG 只返回有整体预算的索引卡**：选择候选与获取详情分工明确，并避免大结果在 L1 中被
+   从 JSON 中间截断。
+6. **SSE 仍以整轮为互斥单位**：当前只流最终事件，但连接取消、状态抢占和 L1 紧急保存仍需
+   覆盖整个响应生命周期。
+
+#### 3.3.4 当前职责重复或边界不清处
+
+这里只标出“同一个决定由多处共同拥有”或“文档分层与调用事实不一致”，不提出重构方案。
+
+| 边界 | 代码事实 | 冲突/不清晰点 |
+|---|---|---|
+| 整轮编排归属 | graph 管分类与取数；`main.py` 管 Render、降级、L1/L2 和最终响应 | “HTTP 只调用编排层”与现状不符；服务层本身拥有关键编排语义 |
+| 置信度路由 | `route_by_classification()` 先按 0.8/0.5 改写 intent；`route_after_classify()` 再按 Pipeline 阈值判断拓扑 | “分类语义降级”和“执行拓扑降级”分属两处，最终路径不能只看 state 中的 intent 名 |
+| 工具可用集合 | 全局注册表、`TOOLS_BY_INTENT`、Pipeline builder 过滤、Pipeline step `tool_names` 都描述工具边界 | 同一“此路径能调用什么”的责任在注册、节点和 prompt 配置间重复；新增/移除工具需同步核对多处 |
+| 人格影响范围 | ReAct Aggregator 读取角色的数据态度/搜索深度；Pipeline 使用固定步骤 prompt；所有分支再统一 Render | 人格既被定义为思考与表达两层，又没有一致进入全部取数路径；当前“人格是否影响检索”取决于拓扑 |
+| 最终消息所有权 | 图内节点先产出摘要，图外 Render 再替换最近 AIMessage；无 AIMessage 时追加 | 同一 `messages` 同时保存内部聚合产物和用户可见回复，Render 通过位置替换区分两者，缺少显式消息角色 |
+| L1 职责 | SessionCache 管跨请求历史，`AgentState` 管本轮累积，`manage_memory()` 管模型视图裁剪 | 三者都叫短期/会话记忆，但持久范围与是否改写 state 不同；接口名称没有直接表达差异 |
+| L2 调用位置 | 图内首步同步召回，图外响应前创建后台写入任务 | 读取属于节点上下文装配，写入属于 HTTP 生命周期；“记忆层接口由编排层调用”实际有两个调用方 |
+| 闲聊路径 | graph 只分类后结束，Render 直接基于原始问题作答 | `chat` 的回答生成完全在 graph 外，与其他 intent 的“图内摘要→图外表达”不是同一语义管线 |
+| 响应提取 | `_render_final_reply()` 已返回文本并改写 messages，`_extract_final_reply()` 随后再次从 messages 取最终回复 | 最终文本既作为显式返回值又以消息位置隐式传递，存在两套结果通道 |
+
+另外有两处**描述漂移**：`reasoning_node` docstring 仍写“意图分类（仅首轮）”，实际分类已经由独立
+`classify_node` 完成；Aggregator prompt 自称“不是 Agent Persona”，但仍读取 CharacterProfile 的
+`tool_behavior` 与 `depth_taste`。它们不改变运行结果，却会干扰后续边界判断。
+
+#### 3.3.5 第一条候选产品闭环可复用的骨架位置
+
+下面是依据当前代码做的**可复用性映射**，不是已经确定的产品路径，也不代表这些现有能力已经
+满足闭环。最终输入、来源、阶段和输出仍以待编写的“问题—选择—验收”卡片为准。
+
+```text
+用户给出条目 + 内容
+  → 现有 ChatRequest.message（已有承载，但未结构化区分来源）
+  → 由现有分类器决定 intent（可能进入 discuss/explore，也可能进入其他路径）
+  → 若进入 ReAct，可调用现有工具获取作品事实、社区信号或本地候选
+  → Aggregator 形成事实摘要/判断素材（已有）
+  → Character Render 给出人格化分析并继续对话（已有）
+  → 同 session 的 L1 保持讨论连续性（已有）
+  → 用户形成观点后要求整理草稿（现有 ReAct + Render 可以承载，但尚未验证是否适合）
+  → 返回可编辑文本（当前只有通用 reply，没有“草稿”输出契约）
+```
+
+`discuss/explore → ReAct → Render → L1 续聊` 只是基于现有组件推导出的一个候选落点，不是
+已经确认的请求路径。如果产品卡片最终选择这条交互，可以先复用这些组件做验证；实际 intent、
+是否需要新的状态或路径，都要由结构化输入和真实请求验收后决定。当前代码能够承载、但尚未由
+产品契约固定的部分是：
+
+- 条目、用户提供内容及其来源都混在自由文本 `message` 中，无法在状态里稳定区分“作品事实、
+  社区原文、Agent 判断、用户观点”；
+- `discuss` 可调用评论工具，但本地 RAG 只绑定给 `explore`，同一闭环中“作品事实”和“社区内容”
+  具体走哪类来源取决于分类结果与模型选工具；
+- 多轮可以依靠 L1 延续，但没有显式的“理解 → 讨论 → 草稿”阶段状态；
+- 最终只有通用 `reply: str`，尚无草稿类型、引用/来源边界或“用户可继续编辑”的验收信号；
+- L2 会对实名会话做摘要写入，但第一版只应保存用户明确且值得长期保留的偏好；当前是否保存由
+  服务配置与会话摘要流程决定，不由这条产品闭环显式确认。
+
+这张映射只回答“现有骨架哪里可能复用”，不回答“闭环已经怎样落地”。输入、输出、来源边界和
+成功条件仍应由独立的“问题—选择—验收”卡片定义后，才能据此判断最小实现改动。
 
 ---
 
@@ -160,7 +300,7 @@
 - ⚠️ **描述质量**：官方要求 ≥3-4 句、写明"何时用**以及何时不用**"、错误文案指路（"告诉 agent 下一步做什么"而非诊断）——现状 docstring 偏简，错误文案偏诊断
 - ⚠️ **`input_examples`**（复杂工具 1-5 个真实示例；官方评测复杂参数准确率 72%→90%）——未使用
 
-方向：用 eval 数据迭代工具描述（官方方法论：把失败 transcript 反馈回工具重写描述）。16 个工具的规模健康——OpenAI 指南观点：15+ 个定义清晰的工具优于 10 个以下的重叠工具；新增工具的入口是 `schemas/tools_input.py` + `get_agent_tools()` 注册。
+方向：用 eval 数据迭代工具描述（官方方法论：把失败 transcript 反馈回工具重写描述）。新增工具的入口是 `schemas/tools_input.py` + `get_agent_tools()` 注册。
 
 ### 5.3 上下文与记忆 ✅（方向明确）
 
