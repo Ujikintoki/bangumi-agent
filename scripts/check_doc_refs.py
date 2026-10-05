@@ -28,10 +28,11 @@ macOS 的 APFS 默认不区分大小写，本仓库又设了 ``core.ignorecase=t
 CASE         索引里有，但大小写不符（Linux / GitHub 上会 404）
 BROKEN       索引和磁盘都没有（真正断链）
 UNTRACKED    磁盘上有，没被忽略，但没进索引 —— 多半是忘了 git add
-LOCAL-ONLY   磁盘上有，但被 .gitignore 挡着（别人 clone 后拿不到）
+LOCAL-ONLY   索引里没有，且路径被 .gitignore 覆盖（别人 clone 后拿不到）
 
-UNTRACKED 和 LOCAL-ONLY 都是"磁盘上有、别人拿不到"，但病根不同：
-前者是疏忽（git add 就好），后者是决定（别往里放别人要读的东西）。
+UNTRACKED 和 LOCAL-ONLY 都是“别人 clone 后拿不到”，但病根不同：
+前者是本地已存在但忘了 git add，后者是被忽略规则明确排除。
+LOCAL-ONLY 不要求路径当前存在；这样本地工作区和干净 CI checkout 会得到相同结果。
 
 退出码
 ------
@@ -150,11 +151,19 @@ _IGNORED_CACHE: dict[str, bool] = {}
 
 
 def ignored(rel: str) -> bool:
-    """这个路径被 .gitignore 挡着吗？（结果缓存）"""
+    """这个路径被 .gitignore 挡着吗？（结果缓存）
+
+    对尚未存在的目录同时检查带尾斜杠形式；否则 ``foo/`` 这类
+    目录规则在干净 checkout 中不会匹配候选 ``foo``。
+    """
     if rel not in _IGNORED_CACHE:
-        _IGNORED_CACHE[rel] = subprocess.run(
-            ["git", "check-ignore", "-q", rel], cwd=REPO, check=False,
-        ).returncode == 0
+        candidates = (rel, f"{rel.rstrip('/')}/")
+        _IGNORED_CACHE[rel] = any(
+            subprocess.run(
+                ["git", "check-ignore", "-q", candidate], cwd=REPO, check=False,
+            ).returncode == 0
+            for candidate in candidates
+        )
     return _IGNORED_CACHE[rel]
 
 
@@ -196,7 +205,7 @@ def refs_in(line: str, top_level: set[str]) -> set[str]:
 
 
 def classify(ref: str, doc_dir: str, files, dirs, ci):
-    """→ (状态, 补充信息)。状态 ∈ OK / CASE / BROKEN / LOCAL-ONLY。"""
+    """→ (状态, 补充信息)。状态 ∈ OK / CASE / BROKEN / UNTRACKED / LOCAL-ONLY。"""
     cands = [ref]
     if doc_dir:
         cands.append(f"{doc_dir}/{ref}")
@@ -224,6 +233,11 @@ def classify(ref: str, doc_dir: str, files, dirs, ci):
             #   被 .gitignore 挡着 → 故意的，别人 clone 拿不到（LOCAL-ONLY）
             #   没被忽略        → 忘了 git add（UNTRACKED）
             return ("LOCAL-ONLY" if ignored(on_disk) else "UNTRACKED"), on_disk
+    # 干净 checkout 中被忽略的生成目录通常尚不存在，但它们仍然不是
+    # “意外断链”。直接用 git 的忽略规则判定，保证本地与 CI 分类一致。
+    for c in cands:
+        if ignored(c):
+            return "LOCAL-ONLY", c
     return "BROKEN", ""
 
 
