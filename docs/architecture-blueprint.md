@@ -137,10 +137,10 @@ POST /chat 或 /chat/stream
   │    ReAct：人格的数据态度/搜索深度 + L2 → 动态工具 → ToolNode ↺ │
   │                                                              │
   ├─ 图外 _render_final_reply ◀───────────────────────────────────┘
-  │    ├─ chat：根据原始用户消息直接生成人格回复
-  │    └─ 其他：把图内最后一条文本摘要交给 Character Render 改写
+  │    ├─ chat：根据当前消息与最近可见对话生成人格回复
+  │    └─ 其他：把本轮摘要、结局与有预算的来源材料交给 Character Render
   │
-  ├─ 用 Render 结果替换/追加最后一条 AIMessage
+  ├─ 用 Render 结果替换本轮无 tool_calls 的正文消息，或追加新消息
   ├─ 保存 L1 消息缓存
   ├─ 后台将整段会话摘要 UPSERT 到 L2（实名且 MEMORY_ENABLED）
   └─ JSON reply 或只有最终 render 事件的 SSE
@@ -159,7 +159,7 @@ POST /chat 或 /chat/stream
 
 | 分支 | 进入条件 | 图内路径 | 图外收尾 |
 |---|---|---|---|
-| 闲聊 | 路由后的 intent 为 `chat` | `classify_node → END`，本轮不产生图内 AI 回复 | Render 用原始用户消息直接生成回复 |
+| 闲聊 | 路由后的 intent 为 `chat` | `classify_node → END`，本轮不产生图内 AI 回复 | Render 接收当前消息及独立的最近可见对话，生成后更新执行状态 |
 | 确定性查询 | 高置信度 `fetch` / `realtime` / `profile` | 独立子图按固定步骤调用限定工具，再由 `synthesize_node` 输出摘要 | Render 改写摘要 |
 | 开放式任务 | `explore` / `discuss` / `fallback` | `reasoning_node ⇄ tool_node`；首轮强制工具，之后由模型决定继续查或输出摘要 | Render 改写摘要 |
 | 低置信度安全网 | classifier confidence 低于 Pipeline 阈值 | 即使 intent 名仍可能是 Pipeline 类，也进入父图 ReAct；父图使用专用 `route_after_tool_react` | Render 改写摘要 |
@@ -168,6 +168,15 @@ Pipeline 子图挂到父图时只回传新增消息，这是 `messages: operator
 边界适配，不是新的业务分支。硬迭代上限同时适用于 Pipeline 和 ReAct。ReAct 在每次工具返回后
 还会检查连续空搜索和重复工具调用；Fetch Pipeline 则在第一次搜索为空时直接跳到 synthesize。
 Pipeline 的固定步骤路由会先于通用软熔断返回，因此不能概括为父图和所有子图统一经过三类熔断。
+重复调用检测在用户轮次边界重置，同一会话下一轮可重新读取相同对象。
+
+`AgentState.turn_result` 是类型化的执行结局，不是产品验收判定。Pipeline 与 ReAct 的模型异常
+都返回空消息和结构化失败；HTTP 层据此跳过二次扩写。JSON 与 SSE 同时返回本轮状态，
+`task_status=unverified` 明确表示工具或生成成功仍需核对回答内容。
+
+口碑和日志原文保留在原始工具转录中；推理上下文按记录预算缩减并保留有效 JSON。Render 单独
+预算社区材料，传递实际保留条数与原文截断标记。评论引文通过显式 `comment:ID` 绑定本轮来源，
+未知 ID、缺作者或缺定位链接会降级为来源未核实，不靠作者名称匹配。
 
 #### 3.3.2 动态路由、人格、RAG、Memory 在哪里
 
@@ -211,10 +220,10 @@ Pipeline 的固定步骤路由会先于通用软熔断返回，因此不能概�
 | 置信度路由 | `route_by_classification()` 先按 0.8/0.5 改写 intent；`route_after_classify()` 再按 Pipeline 阈值判断拓扑 | “分类语义降级”和“执行拓扑降级”分属两处，最终路径不能只看 state 中的 intent 名 |
 | 工具可用集合 | 全局注册表、`TOOLS_BY_INTENT`、Pipeline builder 过滤、Pipeline step `tool_names` 都描述工具边界 | 同一“此路径能调用什么”的责任在注册、节点和 prompt 配置间重复；新增/移除工具需同步核对多处 |
 | 人格影响范围 | ReAct Aggregator 读取角色的数据态度/搜索深度；Pipeline 使用固定步骤 prompt；所有分支再统一 Render | 人格既被定义为思考与表达两层，又没有一致进入全部取数路径；当前“人格是否影响检索”取决于拓扑 |
-| 最终消息所有权 | 图内节点先产出摘要，图外 Render 再替换最近 AIMessage；无 AIMessage 时追加 | 同一 `messages` 同时保存内部聚合产物和用户可见回复，Render 通过位置替换区分两者，缺少显式消息角色 |
+| 最终消息所有权 | 图内节点先产出摘要，图外 Render 仅替换本轮无工具调用的正文；否则追加 | 同一 `messages` 仍保存内部摘要与用户回复；本轮边界和 tool_calls 配对由程序保证 |
 | L1 职责 | SessionCache 管跨请求历史，`AgentState` 管本轮累积，`manage_memory()` 管模型视图裁剪 | 三者都叫短期/会话记忆，但持久范围与是否改写 state 不同；接口名称没有直接表达差异 |
 | L2 调用位置 | 图内首步同步召回，图外响应前创建后台写入任务 | 读取属于节点上下文装配，写入属于 HTTP 生命周期；“记忆层接口由编排层调用”实际有两个调用方 |
-| 闲聊路径 | graph 只分类后结束，Render 直接基于原始问题作答 | `chat` 的回答生成完全在 graph 外，与其他 intent 的“图内摘要→图外表达”不是同一语义管线 |
+| 闲聊路径 | graph 只分类后结束，Render 基于当前消息与最近可见对话作答 | `chat` 的回答生成完全在 graph 外，历史可见对话作为背景传递，不当作本轮取数事实 |
 | 响应提取 | `_render_final_reply()` 已返回文本并改写 messages，`_extract_final_reply()` 随后再次从 messages 取最终回复 | 最终文本既作为显式返回值又以消息位置隐式传递，存在两套结果通道 |
 
 另外有两处**描述漂移**：`reasoning_node` docstring 仍写“意图分类（仅首轮）”，实际分类已经由独立
