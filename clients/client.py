@@ -241,7 +241,9 @@ class BangumiClient(BaseClient):
                 raw if isinstance(raw, list)
                 else raw.get("data", raw.get("results", []))
             )
-            result["comments"] = sanitizers.sanitize_subject_comments(comments_list, limit)
+            result["comments"] = sanitizers.sanitize_subject_comments(
+                comments_list, limit, subject_id=sid
+            )
 
         # reviews
         try:
@@ -252,6 +254,14 @@ class BangumiClient(BaseClient):
             result["reviews_error"] = raw["_error"]
         else:
             result["reviews"] = sanitizers.sanitize_reviews(raw)
+
+        result["coverage"] = {
+            "comments": "failed" if "comments_error" in result else "covered",
+            "reviews": "failed" if "reviews_error" in result else "covered_as_summaries",
+            # 现有 p1 client 没有条目 board 楼层读取链。明确暴露缺口，避免模型
+            # 把 comments/reviews 或全站 hot topics 说成完整社区覆盖。
+            "board": "not_covered",
+        }
 
         return result
 

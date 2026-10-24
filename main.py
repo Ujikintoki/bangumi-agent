@@ -117,6 +117,10 @@ class ChatResponse(BaseModel):
     telemetry: dict | None = Field(
         default=None, description="开发者可观测性数据（仅 DEV_MODE=true 时返回）"
     )
+    turn_result: dict = Field(
+        default_factory=dict,
+        description="本轮结构化结局：状态、缺失项与脱敏来源概况",
+    )
 
 
 def _resolve_output_style(request: ChatRequest) -> str:
@@ -331,12 +335,19 @@ async def _chat(request: ChatRequest) -> ChatResponse:
             _extract_user_query_from_messages(messages_for_render) or request.message
         )
         query_intent = result.get("query_intent", "fallback")
+        turn_result = _build_turn_result(
+            messages_for_render,
+            explicit=result.get("turn_result"),
+            user_query=user_query,
+        )
+        result["turn_result"] = turn_result
         messages_for_render, rendered = await _render_final_reply(
             messages=messages_for_render,
             user_query=user_query,
             query_intent=query_intent,
             output_style=output_style,
             depth=depth,
+            turn_result=turn_result,
         )
         if rendered:
             result["messages"] = messages_for_render
@@ -416,6 +427,7 @@ async def _chat(request: ChatRequest) -> ChatResponse:
         output_style=output_style,
         depth=depth,
         telemetry=telemetry.to_dict() if telemetry else None,
+        turn_result=result.get("turn_result", {}),
     )
 
 
@@ -467,12 +479,19 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
                     or request.message
                 )
                 query_intent = state.get("query_intent", "fallback")
+                turn_result = _build_turn_result(
+                    messages_for_render,
+                    explicit=state.get("turn_result"),
+                    user_query=user_query,
+                )
+                state["turn_result"] = turn_result
                 messages_for_render, reply_to_send = await _render_final_reply(
                     messages=messages_for_render,
                     user_query=user_query,
                     query_intent=query_intent,
                     output_style=output_style,
                     depth=depth,
+                    turn_result=turn_result,
                 )
                 if reply_to_send:
                     state["messages"] = messages_for_render
@@ -627,6 +646,7 @@ async def _render_final_reply(
     query_intent: str,
     output_style: str,
     depth: str,
+    turn_result: dict | None = None,
 ) -> tuple[list, str | None]:
     """统一渲染路径（/chat 与 /chat/stream 共用，隐式终止后处理）。
 
@@ -643,6 +663,16 @@ async def _render_final_reply(
         (更新后的 messages, 最终回复文本)。末行的 None 是防御性兜底，
         正常路径不会再走到（非 chat 分支要么有摘要、要么已由上面那条转走）。
     """
+    if turn_result and turn_result.get("status") == "failed":
+        # 确定性的失败出口：不把异常话术包装成事实，也不再次调用模型。
+        character = get_character(output_style)
+        line = render_fallback_line(character)
+        logger.warning(
+            "render: 本轮推理失败 (error_type=%s)，跳过二次渲染",
+            turn_result.get("error_type", "unknown"),
+        )
+        return _replace_last_ai_content(messages, line), line
+
     if query_intent == "chat":
         render_input = (
             f"用户对你说：{user_query}\n\n"
@@ -653,10 +683,10 @@ async def _render_final_reply(
         fallback = None
     else:
         # 隐式终止：直接使用 Aggregator 文本摘要
-        last_ai = _get_last_ai_message(messages)
+        last_ai = _get_last_ai_message(messages, current_turn_only=True)
         if last_ai and last_ai.content:
-            render_input = last_ai.content
-            fallback = render_input
+            fallback = last_ai.content
+            render_input = _render_input_for_turn(fallback, turn_result)
             force_render = True
             logger.info(
                 "render: 隐式终止 — 使用 Aggregator 文本摘要 (%d chars)",
@@ -679,6 +709,7 @@ async def _render_final_reply(
         force=force_render,
     )
     if rendered:
+        rendered = _append_community_provenance(rendered, turn_result)
         return _replace_last_ai_content(messages, rendered), rendered
     if fallback is not None:
         # 降级：render 失败时清理原始文本，避免 emoji/markdown 泄漏。
@@ -699,6 +730,184 @@ async def _render_final_reply(
         logger.warning("Render 失败，chat 分支回落通用话术 (%d chars)", len(line))
         return _replace_last_ai_content(messages, line), line
     return messages, None
+
+
+def _build_turn_result(
+    messages: list, *, explicit: dict | None = None, user_query: str = ""
+) -> dict:
+    """从最后一条用户消息后的转录生成小而确定的本轮结局。
+
+    这里只记录可公开的结构：工具名、调用 ID、结果类别、覆盖范围和样本元数据。
+    不保存工具参数值、异常正文或供应商响应。
+    """
+    start = _current_turn_start(messages)
+    current = messages[start + 1 :]
+    sources: list[dict] = []
+    kinds: list[str] = []
+    missing = list((explicit or {}).get("missing", []))
+
+    for message in current:
+        if not isinstance(message, ToolMessage):
+            continue
+        kind = _tool_payload_kind(message.content)
+        source: dict = {
+            "tool": getattr(message, "name", "") or "unknown",
+            "call_id": getattr(message, "tool_call_id", "") or "",
+            "outcome": kind,
+        }
+        try:
+            payload = json.loads(message.content) if isinstance(message.content, str) else message.content
+        except (TypeError, ValueError):
+            payload = None
+        if isinstance(payload, dict):
+            has_error = "_error" in payload or any(
+                key.endswith(_ERROR_KEY_SUFFIX) for key in payload
+            )
+            if isinstance(payload.get("coverage"), dict):
+                comments_payload = payload.get("comments", {})
+                reviews_payload = payload.get("reviews", {})
+                has_data = bool(
+                    isinstance(comments_payload, dict)
+                    and (comments_payload.get("items") or comments_payload.get("comments"))
+                ) or bool(
+                    isinstance(reviews_payload, dict) and reviews_payload.get("items")
+                )
+                kind = "data" if has_data else ("error" if has_error else "empty")
+            else:
+                has_data = any(
+                    bool(value)
+                    for key, value in payload.items()
+                    if key != "_error"
+                    and not key.endswith(_ERROR_KEY_SUFFIX)
+                    and isinstance(value, (list, dict))
+                )
+            if has_error and has_data:
+                kind = "partial"
+                kinds.extend(["data", "error"])
+            else:
+                kinds.append(kind)
+            coverage = payload.get("coverage")
+            if isinstance(coverage, dict):
+                source["coverage"] = coverage
+                missing.extend(k for k, v in coverage.items() if v in {"failed", "not_covered"})
+            comments = payload.get("comments")
+            if isinstance(comments, dict):
+                compact_items = [
+                    {
+                        "id": item.get("id", 0),
+                        "author": item.get("author", ""),
+                        "excerpt": str(item.get("content", ""))[:160],
+                        "url": item.get("url", ""),
+                        "truncated": item.get("truncated", False),
+                    }
+                    for item in comments.get("items", [])
+                    if isinstance(item, dict)
+                ]
+                source["comments_sample"] = {
+                    "total": comments.get("comment_count", 0),
+                    "sampled": comments.get("sampled_count", len(comments.get("items", []))),
+                    "limit": comments.get("sample_limit"),
+                    "truncated": comments.get("truncated", False),
+                    "items": compact_items,
+                }
+            reviews = payload.get("reviews")
+            if isinstance(reviews, dict):
+                source["reviews_sample"] = {
+                    "total": reviews.get("total", 0),
+                    "items": [
+                        {
+                            "id": item.get("id", 0),
+                            "author": item.get("user_name", ""),
+                            "title": item.get("title", ""),
+                            "url": item.get("url", ""),
+                            "truncated": item.get("truncated", False),
+                        }
+                        for item in reviews.get("items", [])
+                        if isinstance(item, dict)
+                    ],
+                }
+        else:
+            kinds.append(kind)
+        source["outcome"] = kind
+        sources.append(source)
+
+    tool_names = {source["tool"] for source in sources}
+    if "热度" in user_query and "get_trending_subjects" not in tool_names:
+        missing.append("recent_trend")
+    if any(word in user_query for word in ("评论", "短评", "班友")) and not (
+        {"get_subject_opinions", "get_episode_comments", "get_entity_comments"}
+        & tool_names
+    ):
+        missing.append("community_comments")
+
+    explicit_status = (explicit or {}).get("status")
+    if explicit_status == "failed":
+        status = "failed"
+    elif "data" in kinds and "error" in kinds:
+        status = "partial"
+    elif "data" in kinds:
+        status = "success"
+    elif "error" in kinds:
+        status = "failed"
+    elif kinds:
+        status = "empty"
+    else:
+        status = "success" if _get_last_ai_message(messages, current_turn_only=True) else "empty"
+
+    missing = list(dict.fromkeys(missing))
+    if status == "success" and missing:
+        status = "partial"
+
+    result = {
+        "status": status,
+        "missing": missing,
+        "sources": sources,
+    }
+    if explicit_status == "failed":
+        result["error_type"] = (explicit or {}).get("error_type", "unknown")
+    return result
+
+
+def _render_input_for_turn(summary: str, turn_result: dict | None) -> str:
+    """把本轮摘要与确定性状态交给 Render，不混入历史正文或用户立场。"""
+    if not turn_result:
+        return summary
+    public_result = {
+        "status": turn_result.get("status", "unknown"),
+        "missing": turn_result.get("missing", []),
+        "sources": turn_result.get("sources", []),
+    }
+    return (
+        f"本轮摘要：\n{summary}\n\n"
+        f"本轮状态与来源（不得扩大样本范围）：\n"
+        f"{json.dumps(public_result, ensure_ascii=False, separators=(',', ':'))}"
+    )
+
+
+def _append_community_provenance(reply: str, turn_result: dict | None) -> str:
+    """正文点名社区作者时，确定性补上原评定位与实际覆盖范围。"""
+    if not turn_result:
+        return reply
+    for source in turn_result.get("sources", []):
+        sample = source.get("comments_sample")
+        if not isinstance(sample, dict):
+            continue
+        for item in sample.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            author = str(item.get("author", "")).strip()
+            url = str(item.get("url", "")).strip()
+            if not author or not url or author not in reply or url in reply:
+                continue
+            sampled = sample.get("sampled", 0)
+            total = sample.get("total", 0)
+            coverage = source.get("coverage", {})
+            board_note = "；board 未覆盖" if coverage.get("board") == "not_covered" else ""
+            return (
+                f"{reply}\n\n"
+                f"来源：[{author} 的原评]({url})（comments 本次 {sampled}/{total} 条{board_note}）"
+            )
+    return reply
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -747,9 +956,10 @@ def _tool_outcome(messages: list) -> str:
         ``"blocked"``  结果全是错误（够不着 / 连不上）
         ``"empty"``    有结果但都空（翻过了，没有）
     """
+    current = messages[_current_turn_start(messages) + 1 :]
     kinds = [
         _tool_payload_kind(m.content)
-        for m in messages
+        for m in current
         if isinstance(m, ToolMessage)
     ]
     if not kinds:
@@ -836,24 +1046,33 @@ async def _render_no_text_followup(
     return messages + [AIMessage(content=line)], line
 
 
-def _get_last_ai_message(messages: list):
-    """从后往前取最后一条有 content 的 AIMessage。"""
-    for m in reversed(messages):
+def _current_turn_start(messages: list) -> int:
+    """返回最后一条 HumanMessage 的下标；没有用户消息时从列表开头算。"""
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            return i
+    return 0
+
+
+def _get_last_ai_message(messages: list, *, current_turn_only: bool = False):
+    """从后往前取最后一条有 content 的 AIMessage，可限制在当前轮。"""
+    start = _current_turn_start(messages) if current_turn_only else 0
+    for m in reversed(messages[start:]):
         if isinstance(m, AIMessage) and m.content:
             return m
     return None
 
 
 def _replace_last_ai_content(messages: list, new_content: str) -> list:
-    """返回新列表，最后一条 AIMessage 被替换为只有 new_content 的 AIMessage。
+    """替换本轮最后一条正文 AIMessage；本轮没有正文时追加。
 
-    v2: aggregator 最后一条 AIMessage 可能只有 tool_calls 而 content 为空。
-    此函数匹配任意 AIMessage（含空 content 的），替换为纯文本 AIMessage。
-    找不到时追加一条新的。
+    绝不跨最后一条 HumanMessage 修改历史，也不替换只有 tool_calls 的消息，
+    否则会破坏 AIMessage → ToolMessage 配对。
     """
     result = list(messages)
-    for i in range(len(result) - 1, -1, -1):
-        if isinstance(result[i], AIMessage):
+    start = _current_turn_start(result)
+    for i in range(len(result) - 1, start, -1):
+        if isinstance(result[i], AIMessage) and result[i].content:
             result[i] = AIMessage(
                 content=new_content,
                 response_metadata=getattr(result[i], "response_metadata", {}),

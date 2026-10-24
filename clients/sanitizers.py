@@ -547,7 +547,9 @@ def sanitize_comments(raw: list[dict], limit: int) -> list[str]:
     return cleaned[:limit]
 
 
-def sanitize_subject_comments(raw: list[dict], limit: int) -> dict:
+def sanitize_subject_comments(
+    raw: list[dict], limit: int, *, subject_id: int | None = None
+) -> dict:
     """条目评论瘦身 → 评分分布聚合 + 去重 + 时间序。
 
     与通用评论不同：条目评论附带用户评分（1-10），这是真实信号。
@@ -558,12 +560,21 @@ def sanitize_subject_comments(raw: list[dict], limit: int) -> dict:
     额外聚合 rating_distribution: {"1-3": N, "4-6": N, "7-8": N, "9-10": N}
     """
     if not raw:
-        return {"comments": [], "rating_distribution": {}, "comment_count": 0}
+        return {
+            "comments": [],
+            "items": [],
+            "rating_distribution": {},
+            "comment_count": 0,
+            "sampled_count": 0,
+            "sample_limit": limit,
+            "truncated": False,
+        }
 
     real_total = len(raw)
     rating_dist: dict[str, int] = {"1-3": 0, "4-6": 0, "7-8": 0, "9-10": 0}
     seen: set[str] = set()
     cleaned: list[str] = []
+    items: list[dict] = []
 
     for c in raw:
         content = (c.get("comment") or c.get("content") or "").strip()
@@ -588,18 +599,39 @@ def sanitize_subject_comments(raw: list[dict], limit: int) -> dict:
         seen.add(key)
 
         rate_label = f"{rate}星" if rate else "未评分"
-        text = f"[{rate_label}] {_truncate(content, 200)}"
+        excerpt = _truncate(content, 200)
+        text = f"[{rate_label}] {excerpt}"
         cleaned.append(text)
+        user = c.get("user", {}) or {}
+        comment_id = c.get("id", 0) or 0
+        item = {
+            "id": comment_id,
+            "author": user.get("nickname", "") or user.get("username", ""),
+            "rating": rate or None,
+            "content": excerpt,
+            "created_at": c.get("created_at", "") or c.get("createdAt", ""),
+            "truncated": len(content) > len(excerpt),
+        }
+        if subject_id:
+            item["url"] = f"https://bgm.tv/subject/{subject_id}/comments"
+            if comment_id:
+                item["url"] += f"#{comment_id}"
+        items.append(item)
 
     # 时间倒序：API 返回最新在前，反转为自然阅读顺序
     cleaned.reverse()
+    items.reverse()
 
     rating_dist = {k: v for k, v in rating_dist.items() if v > 0}
 
     return {
         "comments": cleaned[:limit],
+        "items": items[:limit],
         "rating_distribution": rating_dist,
         "comment_count": real_total,
+        "sampled_count": min(len(items), limit),
+        "sample_limit": limit,
+        "truncated": len(items) > limit,
     }
 
 
@@ -736,6 +768,8 @@ def sanitize_reviews(raw: dict) -> dict:
             "user_name": user.get("nickname", ""),
             "reply_count": entry.get("replies", 0) or 0,
             "created_at": entry.get("created_at", "") or entry.get("createdAt", ""),
+            "url": f"https://bgm.tv/blog/{r.get('id', 0)}" if r.get("id") else "",
+            "truncated": len(entry.get("summary", "") or "") > 200,
         })
 
     return {"items": items, "total": raw.get("total", len(items))}

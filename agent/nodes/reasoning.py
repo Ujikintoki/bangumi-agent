@@ -157,14 +157,18 @@ async def reasoning_node(state: AgentState) -> dict:
         response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)
     except Exception as e:  # noqa: BLE001 - node contract converts provider failures
         logger.warning("reasoning_node: LLM 调用失败 (%s)", type(e).__name__)
-        fallback = (
-            "抱歉，暂时没能处理好，请稍后再试。" if is_deep else "啧，脑子短路了，等会儿再聊？"
-        )
         return {
-            "messages": [AIMessage(content=fallback)],
+            # 供应商异常不是 Aggregator 摘要。若塞进普通 AIMessage，图外 Render
+            # 会把错误话术当作 retrieved facts 再扩写，甚至补出无依据判断。
+            "messages": [],
             "query_intent": query_intent,
             "iterations": new_iterations,
             "_memory_context": memory_context or "",
+            "turn_result": {
+                "status": "failed",
+                "error_type": type(e).__name__,
+                "missing": ["reasoning"],
+            },
         }
 
     # ── XML 泄漏防护 ────────────────────────────────────────
@@ -195,6 +199,11 @@ async def reasoning_node(state: AgentState) -> dict:
         "iterations": new_iterations,
         "query_intent": query_intent,
         "_memory_context": memory_context or "",
+        "turn_result": {
+            "status": "success" if response.content else "pending",
+            "error_type": None,
+            "missing": [],
+        },
     }
 
 

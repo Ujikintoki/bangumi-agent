@@ -157,5 +157,10 @@ async def test_provider_errors_not_exposed(monkeypatch, caplog, kind):
     state = {"messages": [HumanMessage(content="hello")], "user_id": "anonymous"}
     result = await (pipeline._pipeline_step(state, [], "auto", "base") if kind == "pipeline"
                     else reasoning.reasoning_node(state))
-    assert "secret-marker" not in result["messages"][0].content
+    if kind == "reasoning":
+        assert result["messages"] == []
+        assert result["turn_result"]["status"] == "failed"
+        assert result["turn_result"]["error_type"] == "RuntimeError"
+    else:
+        assert "secret-marker" not in result["messages"][0].content
     assert "secret-marker" not in caplog.text

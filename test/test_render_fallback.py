@@ -211,6 +211,153 @@ class TestNonChatBranchUnchanged:
         assert messages_out != messages, "必须有新消息落在 messages 里，否则端点捞不到"
         assert main._extract_final_reply(messages_out) == rendered
 
+    @pytest.mark.asyncio
+    async def test_current_turn_without_text_never_reuses_previous_reply(self):
+        """非 chat 也必须以最后一条 HumanMessage 为本轮边界。
+
+        上一轮有正文、本轮只有工具错误时，历史正文不是本轮 Aggregator 摘要。
+        """
+        messages = [
+            SystemMessage(content="seed"),
+            HumanMessage(content="第一轮"),
+            AIMessage(content=PREV_TURN_REPLY),
+            HumanMessage(content="第二轮，继续查"),
+            AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": "search_bangumi_subject",
+                    "args": {"keyword": "边缘行者 2"},
+                    "id": "call_2",
+                }],
+            ),
+            ToolMessage(
+                content='{"_error":"搜索失败。连接失败（ConnectError）"}',
+                name="search_bangumi_subject",
+                tool_call_id="call_2",
+            ),
+        ]
+        seen: list[str] = []
+
+        async def _capture(render_input, **kwargs):
+            seen.append(render_input)
+            return "这次没查到，过会儿再来。"
+
+        with patch("main.render_reply", AsyncMock(side_effect=_capture)):
+            _, rendered = await main._render_final_reply(
+                messages=messages,
+                user_query="第二轮，继续查",
+                query_intent="explore",
+                output_style="bangumi",
+                depth="fast",
+            )
+
+        assert rendered != PREV_TURN_REPLY
+        assert seen and seen[0] != PREV_TURN_REPLY
+
+    def test_turn_result_distinguishes_partial_and_preserves_sources(self):
+        payload = {
+            "subject_id": 513878,
+            "comments": {
+                "items": [{
+                    "id": 77,
+                    "author": "班友甲",
+                    "content": "有梗评论",
+                    "url": "https://bgm.tv/subject/513878/comments#77",
+                    "truncated": False,
+                }],
+                "comment_count": 30,
+                "sampled_count": 1,
+                "sample_limit": 8,
+                "truncated": True,
+            },
+            "reviews_error": "获取评测失败",
+            "coverage": {
+                "comments": "covered",
+                "reviews": "failed",
+                "board": "not_covered",
+            },
+        }
+        messages = [
+            HumanMessage(content="哪条评论最有梗"),
+            ToolMessage(
+                content=__import__("json").dumps(payload, ensure_ascii=False),
+                name="get_subject_opinions",
+                tool_call_id="opinions-1",
+            ),
+            AIMessage(content="班友甲这条最有梗。"),
+        ]
+
+        result = main._build_turn_result(messages)
+
+        assert result["status"] == "partial"
+        assert result["missing"] == ["reviews", "board"]
+        sample = result["sources"][0]["comments_sample"]
+        assert sample["total"] == 30
+        assert sample["items"][0]["author"] == "班友甲"
+        assert sample["items"][0]["excerpt"] == "有梗评论"
+
+    def test_missing_trend_makes_otherwise_successful_turn_partial(self):
+        messages = [
+            HumanMessage(content="评分和热度呢"),
+            ToolMessage(
+                content='{"results":[{"id":1,"score":5.5}],"total":1}',
+                name="search_bangumi_subject",
+                tool_call_id="search-1",
+            ),
+            AIMessage(content="评分 5.5。"),
+        ]
+
+        result = main._build_turn_result(messages, user_query="评分和热度呢")
+
+        assert result["status"] == "partial"
+        assert result["missing"] == ["recent_trend"]
+
+    def test_named_community_author_gets_deterministic_source_link(self):
+        turn_result = {
+            "sources": [{
+                "coverage": {"board": "not_covered"},
+                "comments_sample": {
+                    "sampled": 15,
+                    "total": 15,
+                    "items": [{
+                        "author": "K-ON",
+                        "url": "https://bgm.tv/subject/513878/comments#54631524",
+                    }],
+                },
+            }],
+        }
+
+        reply = main._append_community_provenance("我选 K-ON 这条。", turn_result)
+
+        assert "[K-ON 的原评](https://bgm.tv/subject/513878/comments#54631524)" in reply
+        assert "comments 本次 15/15 条" in reply
+        assert "board 未覆盖" in reply
+
+    def test_empty_opinion_sections_are_empty_not_success(self):
+        payload = {
+            "subject_id": 1,
+            "comments": {"items": [], "comments": [], "comment_count": 0},
+            "reviews": {"items": [], "total": 0},
+            "coverage": {
+                "comments": "covered",
+                "reviews": "covered_as_summaries",
+                "board": "not_covered",
+            },
+        }
+        messages = [
+            HumanMessage(content="大家怎么评"),
+            ToolMessage(
+                content=__import__("json").dumps(payload),
+                name="get_subject_opinions",
+                tool_call_id="opinions-empty",
+            ),
+        ]
+
+        result = main._build_turn_result(messages, user_query="大家怎么评")
+
+        assert result["status"] == "empty"
+        assert result["missing"] == ["board"]
+
 
 # ═══════════════════════════════════════════════════════════════════
 # 判定侧契约：出口日志 ↔ 降级率信号

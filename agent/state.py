@@ -11,7 +11,7 @@ Bangumi Agent 统一状态定义
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langchain_core.messages import BaseMessage
 
@@ -73,3 +73,6 @@ class AgentState(TypedDict):
 
     depth: str
     """深度模式：fast | deep。控制迭代上限和 token 预算。"""
+
+    turn_result: NotRequired[dict]
+    """本轮确定性结局。至少包含 status；失败时只保留脱敏 error_type。"""

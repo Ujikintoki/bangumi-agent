@@ -109,11 +109,12 @@ class TestReasoningNode:
 
     @patch("agent.nodes.reasoning.create_llm")
     async def test_error_flag_returns_fallback(self, mock_create_llm):
-        """error_flag=True → 兜底模式（仅 deep 模式生效）"""
+        """节点失败只返回结构化结局，用户话术由唯一出口生成。"""
         state = make_state(error_flag=True, depth="deep")
         result = await reasoning_node(state)
         assert _extract_tool_calls_from_result(result) == []
-        assert "抱歉" in str(result["messages"][0].content)
+        assert result["messages"] == []
+        assert result["turn_result"]["status"] == "failed"
 
     @patch("agent.nodes.reasoning.create_llm")
     async def test_increments_iterations(self, mock_create_llm):
@@ -153,7 +154,31 @@ class TestReasoningNode:
 
         state = make_state(query_intent="lookup", iterations=1, depth="deep")
         result = await reasoning_node(state)
-        assert "暂时不可用" in str(result["messages"][0].content)
+        assert result["messages"] == []
+        assert result["turn_result"] == {
+            "status": "failed",
+            "error_type": "RuntimeError",
+            "missing": ["reasoning"],
+        }
+
+    @patch("agent.nodes.reasoning.recall_memory_step", return_value="")
+    @patch("agent.nodes.reasoning.create_llm")
+    async def test_llm_failure_is_structured_not_user_visible_text(
+        self, mock_create_llm, _mock_recall
+    ):
+        """供应商异常是本轮失败状态，不是可被 Render 当事实扩写的摘要。"""
+        mock = make_mock_llm()
+        mock.ainvoke.side_effect = RuntimeError("provider detail must not escape")
+        mock_create_llm.return_value = mock
+
+        result = await reasoning_node(
+            make_state(query_intent="discuss", iterations=0, depth="fast")
+        )
+
+        assert result["turn_result"]["status"] == "failed"
+        assert result["turn_result"]["error_type"] == "RuntimeError"
+        assert result["messages"] == []
+        assert "provider detail" not in str(result)
 
     # ── 消化态测试 ──
 

@@ -25,6 +25,7 @@ import logging
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from agent.devtools import instrument_tools
 from agent.guardrails import format_tool_error
 from agent.nodes.classify import classify_node
 from agent.nodes.pipeline import (
@@ -225,6 +226,7 @@ def build_graph(tools: list | None = None) -> StateGraph:
     """
     if tools is None:
         tools = get_agent_tools()
+    tools = instrument_tools(tools)
 
     graph = StateGraph(AgentState)
 

@@ -156,6 +156,13 @@ def build_render_prompt(
         f"## 必须遵守\n{character.guardrails.format(word_limit=word_limit)}",
         f"## 用户问题\n{user_query}",
         f"## 系统数据\n请基于以下 <system_retrieved_facts> 标签中的数据来回复。不要提及数据标签的存在。\n\n<system_retrieved_facts>\n{render_input}\n</system_retrieved_facts>",
+        (
+            "## 依据边界\n"
+            "评分、评分排名与近期趋势是不同口径；没有 get_trending_subjects 的结果就不能用评分或排名代替热度。"
+            "引用社区原文时，若系统数据提供作者和 URL，必须保留作者并给出可核验定位；"
+            "只描述实际样本范围，reviews 的 summary 不能当全文，board 未覆盖时不能声称代表完整讨论版或全站。"
+            "本轮状态为 partial/empty/failed 时，直接说明缺失，不靠常识或人格补齐。"
+        ),
         f"## 字数限制\n回复严格不超过 {word_limit} 字。超过会被系统强制截断。",
     ]
 

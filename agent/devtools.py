@@ -54,6 +54,20 @@ class NodeTiming:
         return {"node": self.node, "elapsed_ms": self.elapsed_ms}
 
 
+@dataclasses.dataclass
+class ToolCallRecord:
+    """单次工具边界记录；只保留参数名，不保留参数值。"""
+
+    tool: str
+    elapsed_ms: int
+    status: str
+    argument_keys: list[str]
+    error_type: str | None = None
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
+
+
 class RequestTelemetry:
     """单次 /chat 请求的可观测性数据收集器。"""
 
@@ -61,6 +75,7 @@ class RequestTelemetry:
         self.t_start: float = time.monotonic()
         self.llm_calls: list[LLMCallRecord] = []
         self.node_timings: list[NodeTiming] = []
+        self.tool_calls: list[ToolCallRecord] = []
 
     def add_llm_call(self, record: LLMCallRecord) -> None:
         self.llm_calls.append(record)
@@ -68,11 +83,15 @@ class RequestTelemetry:
     def add_node_timing(self, timing: NodeTiming) -> None:
         self.node_timings.append(timing)
 
+    def add_tool_call(self, record: ToolCallRecord) -> None:
+        self.tool_calls.append(record)
+
     def to_dict(self) -> dict:
         return {
             "elapsed_ms": int((time.monotonic() - self.t_start) * 1000),
             "llm_calls": [c.to_dict() for c in self.llm_calls],
             "node_timings": [t.to_dict() for t in self.node_timings],
+            "tool_calls": [t.to_dict() for t in self.tool_calls],
         }
 
 
@@ -93,6 +112,57 @@ def get_current_telemetry() -> RequestTelemetry | None:
 def set_current_telemetry(t: RequestTelemetry | None) -> None:
     """设置当前请求的 telemetry 实例。"""
     _current_telemetry.set(t)
+
+
+def instrument_tools(tools: list) -> list:
+    """用同 schema 包装工具，按调用记录脱敏参数键、耗时和结局。"""
+    from langchain_core.tools import StructuredTool
+
+    wrapped = []
+    for original in tools:
+        async def _invoke(_tool=original, **kwargs):
+            started = time.monotonic()
+            status = "success"
+            error_type = None
+            try:
+                result = await _tool.ainvoke(kwargs)
+                if isinstance(result, dict) and (
+                    "_error" in result
+                    or any(str(key).endswith("_error") for key in result)
+                ):
+                    has_data = any(
+                        bool(value)
+                        for key, value in result.items()
+                        if key != "_error"
+                        and not str(key).endswith("_error")
+                        and isinstance(value, (dict, list))
+                    )
+                    status = "partial" if has_data else "failed"
+                    error_type = "structured_tool_error"
+                return result
+            except Exception as exc:
+                status = "failed"
+                error_type = type(exc).__name__
+                raise
+            finally:
+                telemetry = get_current_telemetry()
+                if telemetry is not None:
+                    telemetry.add_tool_call(ToolCallRecord(
+                        tool=_tool.name,
+                        elapsed_ms=int((time.monotonic() - started) * 1000),
+                        status=status,
+                        argument_keys=sorted(kwargs),
+                        error_type=error_type,
+                    ))
+
+        wrapped.append(StructuredTool(
+            name=original.name,
+            description=original.description,
+            args_schema=original.args_schema,
+            coroutine=_invoke,
+            return_direct=getattr(original, "return_direct", False),
+        ))
+    return wrapped
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -137,7 +207,7 @@ class TelemetryLLMWrapper:
 
     def bind_tools(
         self, tools: list, **kwargs: Any
-    ) -> "TelemetryLLMWrapper":
+    ) -> TelemetryLLMWrapper:
         """返回包装后的绑定对象，确保工具调用场景的 token 统计不丢失。"""
         bound = self._llm.bind_tools(tools, **kwargs)
         return TelemetryLLMWrapper(bound, self._label, self._telemetry)

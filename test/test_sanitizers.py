@@ -361,6 +361,26 @@ class TestSanitizeSubjectComments:
         result = sanitize_subject_comments(comments, 10)
         assert "加粗神作" in result["comments"][0]
 
+    def test_preserves_quote_provenance_and_sample_scope(self):
+        comments = [{
+            "id": 77,
+            "comment": "很有梗的短评" + "长" * 220,
+            "rate": 6,
+            "createdAt": "2026-10-24T10:00:00Z",
+            "user": {"nickname": "班友甲", "username": "member-a"},
+        }]
+
+        result = sanitize_subject_comments(comments, 1, subject_id=513878)
+
+        item = result["items"][0]
+        assert item["id"] == 77
+        assert item["author"] == "班友甲"
+        assert item["created_at"] == "2026-10-24T10:00:00Z"
+        assert item["url"] == "https://bgm.tv/subject/513878/comments#77"
+        assert item["truncated"] is True
+        assert result["sampled_count"] == 1
+        assert result["sample_limit"] == 1
+
 
 # ═══════════════════════════════════════════════════════════════════
 # sanitize_search_subjects
