@@ -26,7 +26,7 @@ from agent.persona.render import (
     _extract_user_query as _extract_user_query_from_messages,
 )
 from agent.persona.render import render_fallback_line, render_reply, tool_outcome_line
-from agent.state import AgentState
+from agent.state import AgentState, TurnResult
 from core.auth import authenticated_user, validate_auth_configuration
 from core.config import get_settings
 from database.engine import init_db
@@ -368,6 +368,7 @@ async def _chat(request: ChatRequest) -> ChatResponse:
             query_intent="unknown",
             output_style=output_style,
             depth=depth,
+            turn_result=_failed_turn_result("timeout"),
         )
     except GraphRecursionError:
         logger.warning("/chat: recursion_limit 触发 (depth=%s)", depth)
@@ -379,9 +380,10 @@ async def _chat(request: ChatRequest) -> ChatResponse:
             query_intent="unknown",
             output_style=output_style,
             depth=depth,
+            turn_result=_failed_turn_result("iteration_limit"),
         )
-    except Exception:
-        logger.exception("/chat: Agent 执行异常")
+    except Exception as exc:  # noqa: BLE001 - HTTP boundary returns a structured failure
+        logger.warning("/chat: Agent 执行异常 (%s)", type(exc).__name__)
         return ChatResponse(
             session_id=session_id,
             reply="抱歉，处理请求时遇到了问题，请稍后重试。",
@@ -390,6 +392,7 @@ async def _chat(request: ChatRequest) -> ChatResponse:
             query_intent="unknown",
             output_style=output_style,
             depth=depth,
+            turn_result=_failed_turn_result("execution"),
         )
     finally:
         if telemetry:
@@ -511,7 +514,7 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
             asyncio.create_task(
                 _remember_session(final_state, request, depth, session_id=session_id)
             )
-            yield f"data: {json.dumps({'node': 'render', 'reply': reply_to_send, 'session_id': session_id}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'render', 'reply': reply_to_send, 'session_id': session_id, 'turn_result': final_state.get('turn_result', {})}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
         except asyncio.TimeoutError:
@@ -519,11 +522,11 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
             logger.warning(
                 "/chat/stream: 请求超时 (depth=%s, timeout=%ss)", depth, timeout_s
             )
-            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '查询处理超时，请尝试更具体的提问方式。', 'turn_result': _failed_turn_result('timeout')}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except GraphRecursionError:
             logger.warning("/chat/stream: recursion_limit 触发 (depth=%s)", depth)
-            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '查询处理超时，请尝试更具体的提问方式。'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '查询处理超时，请尝试更具体的提问方式。', 'turn_result': _failed_turn_result('iteration_limit')}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except asyncio.CancelledError:
             # 客户端断开 — CancelledError 是 BaseException 子类，不被 except Exception 捕获。
@@ -543,9 +546,9 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
             # 中断的对话不完整（可能只执行到一半），写入会污染语义召回
             # 的注入内容（审计盲区修复）。
             # 连接已断开，不发送 SSE 事件，直接退出生成器
-        except Exception:
-            logger.exception("/chat/stream: Agent 执行异常")
-            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '内部处理错误，请稍后重试'}, ensure_ascii=False)}\n\n"
+        except Exception as exc:  # noqa: BLE001 - SSE boundary returns a structured failure
+            logger.warning("/chat/stream: Agent 执行异常 (%s)", type(exc).__name__)
+            yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '内部处理错误，请稍后重试', 'turn_result': _failed_turn_result('execution')}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
     class ReservedStream(StreamingResponse):
@@ -666,7 +669,10 @@ async def _render_final_reply(
     if turn_result and turn_result.get("status") == "failed":
         # 确定性的失败出口：不把异常话术包装成事实，也不再次调用模型。
         character = get_character(output_style)
-        line = render_fallback_line(character)
+        line = (
+            render_fallback_line(character) if turn_result.get("error_type")
+            else tool_outcome_line(character, blocked=True)
+        )
         logger.warning(
             "render: 本轮推理失败 (error_type=%s)，跳过二次渲染",
             turn_result.get("error_type", "unknown"),
@@ -696,6 +702,13 @@ async def _render_final_reply(
             # 模型一句话都没说。见 _render_no_text_followup —— 这里不能塞个
             # "（无数据）"就撒手：render 会因输入过短跳过它，用户拿到的是
             # 「工具执行完成但未能生成文本回复」。
+            if turn_result is not None:
+                turn_result["task_status"] = "incomplete"
+                turn_result["missing"] = list(dict.fromkeys([
+                    *turn_result.get("missing", []), "synthesis",
+                ]))
+                if turn_result.get("status") == "success":
+                    turn_result["status"] = "partial"
             return await _render_no_text_followup(
                 messages, user_query, output_style, depth
             )
@@ -707,14 +720,23 @@ async def _render_final_reply(
         character=character,
         depth=depth,
         force=force_render,
+        conversation_context=_conversation_context(messages),
     )
     if rendered:
+        if query_intent == "chat" and turn_result is not None:
+            turn_result["status"] = "success"
+            turn_result["task_status"] = "unverified"
         rendered = _append_community_provenance(rendered, turn_result)
         return _replace_last_ai_content(messages, rendered), rendered
+    if turn_result is not None:
+        turn_result["status"] = "partial" if turn_result.get("sources") else "failed"
+        turn_result["task_status"] = "incomplete"
+        turn_result["missing"] = list(dict.fromkeys([*turn_result.get("missing", []), "render"]))
     if fallback is not None:
         # 降级：render 失败时清理原始文本，避免 emoji/markdown 泄漏。
         # 判断条件是"有没有可示人的原文"，不是"有没有数据"——后者放过 chat 分支。
         cleaned = _degrade_render_input(fallback)
+        cleaned = _append_community_provenance(cleaned, turn_result)
         logger.warning(
             "Render 失败，降级为清理后的原始文本 (%d → %d chars)",
             len(fallback),
@@ -732,9 +754,13 @@ async def _render_final_reply(
     return messages, None
 
 
+def _failed_turn_result(reason: str) -> TurnResult:
+    return {"status": "failed", "task_status": "incomplete", "missing": [reason], "sources": []}
+
+
 def _build_turn_result(
     messages: list, *, explicit: dict | None = None, user_query: str = ""
-) -> dict:
+) -> TurnResult:
     """从最后一条用户消息后的转录生成小而确定的本轮结局。
 
     这里只记录可公开的结构：工具名、调用 ID、结果类别、覆盖范围和样本元数据。
@@ -763,24 +789,8 @@ def _build_turn_result(
             has_error = "_error" in payload or any(
                 key.endswith(_ERROR_KEY_SUFFIX) for key in payload
             )
-            if isinstance(payload.get("coverage"), dict):
-                comments_payload = payload.get("comments", {})
-                reviews_payload = payload.get("reviews", {})
-                has_data = bool(
-                    isinstance(comments_payload, dict)
-                    and (comments_payload.get("items") or comments_payload.get("comments"))
-                ) or bool(
-                    isinstance(reviews_payload, dict) and reviews_payload.get("items")
-                )
-                kind = "data" if has_data else ("error" if has_error else "empty")
-            else:
-                has_data = any(
-                    bool(value)
-                    for key, value in payload.items()
-                    if key != "_error"
-                    and not key.endswith(_ERROR_KEY_SUFFIX)
-                    and isinstance(value, (list, dict))
-                )
+            has_data = _has_tool_data(payload)
+            kind = "data" if has_data else ("error" if has_error else "empty")
             if has_error and has_data:
                 kind = "partial"
                 kinds.extend(["data", "error"])
@@ -796,7 +806,10 @@ def _build_turn_result(
                     {
                         "id": item.get("id", 0),
                         "author": item.get("author", ""),
-                        "excerpt": str(item.get("content", ""))[:160],
+                        "created_at": item.get("created_at", ""),
+                        "updated_at": item.get("updated_at", ""),
+                        "excerpt": str(item.get("content", "")),
+                        "source_id": f"comment:{item.get('id', 0)}",
                         "url": item.get("url", ""),
                         "truncated": item.get("truncated", False),
                     }
@@ -834,7 +847,7 @@ def _build_turn_result(
     tool_names = {source["tool"] for source in sources}
     if "热度" in user_query and "get_trending_subjects" not in tool_names:
         missing.append("recent_trend")
-    if any(word in user_query for word in ("评论", "短评", "班友")) and not (
+    if tool_names and any(word in user_query for word in ("评论", "短评", "班友")) and not (
         {"get_subject_opinions", "get_episode_comments", "get_entity_comments"}
         & tool_names
     ):
@@ -862,6 +875,7 @@ def _build_turn_result(
         "status": status,
         "missing": missing,
         "sources": sources,
+        "task_status": "unverified" if status == "success" else "incomplete",
     }
     if explicit_status == "failed":
         result["error_type"] = (explicit or {}).get("error_type", "unknown")
@@ -872,22 +886,76 @@ def _render_input_for_turn(summary: str, turn_result: dict | None) -> str:
     """把本轮摘要与确定性状态交给 Render，不混入历史正文或用户立场。"""
     if not turn_result:
         return summary
+    from agent.memory.short_term import (
+        _budget_opinion_payload,
+        _truncate_text_by_tokens,
+    )
+
+    sources = []
+    community_count = sum(isinstance(s.get("comments_sample"), dict)
+                          for s in turn_result.get("sources", []))
+    source_budget = max(150, 1800 // max(1, community_count))
+    for source in turn_result.get("sources", []):
+        view = dict(source)
+        sample = source.get("comments_sample")
+        if isinstance(sample, dict):
+            payload = {
+                "comments": {
+                    **sample,
+                    "items": [{**item, "content": item.get("excerpt", "")}
+                              for item in sample.get("items", [])],
+                },
+                "reviews": source.get("reviews_sample", {}),
+                "coverage": source.get("coverage", {}),
+            }
+            for item in payload["comments"]["items"]:
+                item.pop("excerpt", None)
+            compact = _budget_opinion_payload(json.dumps(payload, ensure_ascii=False), source_budget)
+            if compact is not None:
+                bounded = json.loads(compact)
+                view["comments_sample"] = bounded.get("comments", {})
+                view["reviews_sample"] = bounded.get("reviews", {})
+                view["context_truncated"] = bounded.get("context_truncated", False)
+                source["reading_context"] = {
+                    "retained": len(view["comments_sample"].get("items", [])),
+                    "truncated_ids": [item.get("id") for item in view["comments_sample"].get("items", [])
+                                      if item.get("truncated")],
+                }
+        sources.append(view)
     public_result = {
         "status": turn_result.get("status", "unknown"),
         "missing": turn_result.get("missing", []),
-        "sources": turn_result.get("sources", []),
+        "sources": sources,
     }
     return (
-        f"本轮摘要：\n{summary}\n\n"
+        f"本轮摘要：\n{_truncate_text_by_tokens(summary, 800)}\n\n"
         f"本轮状态与来源（不得扩大样本范围）：\n"
         f"{json.dumps(public_result, ensure_ascii=False, separators=(',', ':'))}"
     )
 
 
 def _append_community_provenance(reply: str, turn_result: dict | None) -> str:
-    """正文点名社区作者时，确定性补上原评定位与实际覆盖范围。"""
+    """把显式 comment:ID 引用绑定到本轮原评，不能凭作者名字猜测是哪条。"""
+    import re
+
     if not turn_result:
         return reply
+    referenced = set(re.findall(r"\[comment:(\d+)\]", reply))
+    known = {
+        str(item.get("id"))
+        for source in turn_result.get("sources", [])
+        for item in source.get("comments_sample", {}).get("items", [])
+        if item.get("id") and item.get("author") and item.get("url")
+    }
+    if referenced - known or reply.count("[comment:") != len(re.findall(r"\[comment:\d+\]", reply)):
+        turn_result["status"] = "partial"
+        turn_result["task_status"] = "incomplete"
+        turn_result["missing"] = list(dict.fromkeys([
+            *turn_result.get("missing", []), "unverified_citation",
+        ]))
+        return "这条引文的来源没能核实，暂时不能据此评价。"
+    reply = re.sub(r"\[comment:\d+\]", "", reply).strip()
+    links = []
     for source in turn_result.get("sources", []):
         sample = source.get("comments_sample")
         if not isinstance(sample, dict):
@@ -897,17 +965,23 @@ def _append_community_provenance(reply: str, turn_result: dict | None) -> str:
                 continue
             author = str(item.get("author", "")).strip()
             url = str(item.get("url", "")).strip()
-            if not author or not url or author not in reply or url in reply:
+            if not author or not url or str(item.get("id", "")) not in referenced or url in reply:
                 continue
             sampled = sample.get("sampled", 0)
             total = sample.get("total", 0)
             coverage = source.get("coverage", {})
             board_note = "；board 未覆盖" if coverage.get("board") == "not_covered" else ""
-            return (
-                f"{reply}\n\n"
-                f"来源：[{author} 的原评]({url})（comments 本次 {sampled}/{total} 条{board_note}）"
+            reading_context = source.get("reading_context", {})
+            read_note = (f"；本次整理保留 {reading_context['retained']} 条"
+                         if "retained" in reading_context else "")
+            truncated_note = "；原文不完整" if (
+                item.get("truncated") or item.get("id") in reading_context.get("truncated_ids", [])
+            ) else ""
+            links.append(
+                f"[{author} 的原评]({url})（本次获取 comments {sampled} 条，"
+                f"返回记录 {total} 条{read_note}{board_note}{truncated_note}）"
             )
-    return reply
+    return reply + ("\n\n来源：" + "；".join(dict.fromkeys(links)) if links else "")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -973,6 +1047,20 @@ def _tool_outcome(messages: list) -> str:
     return "empty"
 
 
+def _has_tool_data(payload: dict) -> bool:
+    """覆盖声明和计数不是社区原文；通用工具沿用非空容器契约。"""
+    if isinstance(payload.get("coverage"), dict):
+        comments = payload.get("comments", {})
+        reviews = payload.get("reviews", {})
+        return bool(isinstance(comments, dict) and (
+            comments.get("items") or comments.get("comments")
+        )) or bool(isinstance(reviews, dict) and reviews.get("items"))
+    return any(
+        bool(value) for key, value in payload.items()
+        if not key.endswith(_ERROR_KEY_SUFFIX) and isinstance(value, (list, dict))
+    )
+
+
 def _tool_payload_kind(content) -> str:
     """把一条 ToolMessage 的 content 归成 error / data / empty。"""
     text = content if isinstance(content, str) else str(content)
@@ -983,13 +1071,16 @@ def _tool_payload_kind(content) -> str:
         return "data" if text.strip() else "empty"
 
     if isinstance(obj, dict):
+        if isinstance(obj.get("coverage"), dict):
+            if _has_tool_data(obj):
+                return "data"
+            return "error" if any(k.endswith(_ERROR_KEY_SUFFIX) for k in obj) else "empty"
         # 错误形状有两层：约定内的顶层 _error，以及 get_user_profile 那类
         # {key}_error 子键（如 comments_error）—— 后者是部分失败，同样没数据。
         if "_error" in obj or any(k.endswith(_ERROR_KEY_SUFFIX) for k in obj):
             return "error"
-        containers = [v for v in obj.values() if isinstance(v, (list, dict))]
         # 只有标量（如 {"total": 0}）不算内容：没有可供用户看的实体。
-        return "data" if any(containers) else "empty"
+        return "data" if _has_tool_data(obj) else "empty"
     if isinstance(obj, list):
         return "data" if obj else "empty"
     return "empty"
@@ -1051,14 +1142,26 @@ def _current_turn_start(messages: list) -> int:
     for i in range(len(messages) - 1, -1, -1):
         if isinstance(messages[i], HumanMessage):
             return i
-    return 0
+    return -1
+
+
+def _conversation_context(messages: list) -> list[dict[str, str]]:
+    """保留最近三组可见对话；不把工具正文或本轮摘要冒充用户历史。"""
+    history = messages[:_current_turn_start(messages)]
+    visible = [
+        {"role": "user" if isinstance(m, HumanMessage) else "assistant", "content": str(m.content)[:1500]}
+        for m in history
+        if isinstance(m, (HumanMessage, AIMessage))
+        and m.content and not (isinstance(m, AIMessage) and m.tool_calls)
+    ]
+    return visible[-6:]
 
 
 def _get_last_ai_message(messages: list, *, current_turn_only: bool = False):
     """从后往前取最后一条有 content 的 AIMessage，可限制在当前轮。"""
-    start = _current_turn_start(messages) if current_turn_only else 0
+    start = _current_turn_start(messages) + 1 if current_turn_only else 0
     for m in reversed(messages[start:]):
-        if isinstance(m, AIMessage) and m.content:
+        if isinstance(m, AIMessage) and m.content and not m.tool_calls:
             return m
     return None
 
@@ -1072,7 +1175,8 @@ def _replace_last_ai_content(messages: list, new_content: str) -> list:
     result = list(messages)
     start = _current_turn_start(result)
     for i in range(len(result) - 1, start, -1):
-        if isinstance(result[i], AIMessage) and result[i].content:
+        if (isinstance(result[i], AIMessage) and result[i].content
+                and not result[i].tool_calls):
             result[i] = AIMessage(
                 content=new_content,
                 response_metadata=getattr(result[i], "response_metadata", {}),
@@ -1101,8 +1205,9 @@ def _extract_final_reply(
     Returns:
         最终回复文本。未找到时返回兜底消息。
     """
-    for m in reversed(messages):
-        if isinstance(m, AIMessage) and m.content:
+    current = messages[_current_turn_start(messages) + 1:]
+    for m in reversed(current):
+        if isinstance(m, AIMessage) and m.content and not m.tool_calls:
             return m.content
 
     if error_flag:
@@ -1111,7 +1216,7 @@ def _extract_final_reply(
     if iterations >= max_iterations:
         return "查询达到最大处理轮次，请尝试更具体的提问方式。"
 
-    has_tool_results = any(isinstance(m, ToolMessage) for m in messages)
+    has_tool_results = any(isinstance(m, ToolMessage) for m in current)
     if has_tool_results:
         return "工具执行完成但未能生成文本回复，请重试或换个方式提问。"
 

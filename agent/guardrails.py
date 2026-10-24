@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 # ═══════════════════════════════════════════════════════════════════
 # 终端回复识别模式（逃逸舱）
@@ -118,6 +118,8 @@ def check_duplicate_tool_calls(messages: list) -> str:
     """
     tool_call_rounds: list[list[dict]] = []
     for m in messages:
+        if isinstance(m, HumanMessage):
+            tool_call_rounds.clear()
         if isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls:
             tool_call_rounds.append(list(m.tool_calls))
 

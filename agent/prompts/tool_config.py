@@ -22,14 +22,14 @@ TOOLS_BY_INTENT: dict[str, list[str]] = {
         "get_person_detail", "get_character_detail",
         "get_subject_opinions", "get_subject_characters",
         "get_subject_episodes", "get_trending_subjects",
-        "search_local_bangumi",
+        "search_local_bangumi", "get_blog",
     ],
     "discuss": [
         "search_bangumi_subject", "get_bangumi_subject_detail",
         "get_person_detail", "get_character_detail",
         "get_subject_opinions", "get_subject_characters",
         "get_subject_episodes", "get_entity_comments",
-        "get_episode_comments",
+        "get_episode_comments", "get_blog",
     ],
     "profile": [
         "get_user_profile", "get_user_timeline",

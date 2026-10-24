@@ -376,10 +376,17 @@ class TestSanitizeSubjectComments:
         assert item["id"] == 77
         assert item["author"] == "班友甲"
         assert item["created_at"] == "2026-10-24T10:00:00Z"
-        assert item["url"] == "https://bgm.tv/subject/513878/comments#77"
-        assert item["truncated"] is True
+        assert item["url"] == "https://bgm.tv/subject/513878/comments#likes_grid_77"
+        assert item["truncated"] is False
+        assert item["excerpt_truncated"] is True
+        assert item["content"] == comments[0]["comment"]
         assert result["sampled_count"] == 1
         assert result["sample_limit"] == 1
+
+    def test_update_time_is_not_claimed_as_creation_time(self):
+        result = sanitize_subject_comments([{"id": 7, "comment": "一条可读短评", "updatedAt": 12345}], 1)
+        assert result["items"][0]["created_at"] == ""
+        assert result["items"][0]["updated_at"] == 12345
 
 
 # ═══════════════════════════════════════════════════════════════════

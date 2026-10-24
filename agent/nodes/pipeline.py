@@ -97,15 +97,23 @@ async def _pipeline_step(
     except Exception as e:  # noqa: BLE001 - node contract converts provider failures
         logger.warning("pipeline_step: LLM 调用失败 (%s)", type(e).__name__)
         return {
-            "messages": [AIMessage(content="这次没能查到数据，请稍后再试。")],
+            "messages": [],
             "iterations": new_iterations,
             "_memory_context": memory_context or "",
+            "turn_result": {
+                "status": "failed", "error_type": type(e).__name__,
+                "missing": ["reasoning"],
+            },
         }
 
     return {
         "messages": [response],
         "iterations": new_iterations,
         "_memory_context": memory_context or "",
+        "turn_result": {
+            "status": "success" if response.content and not response.tool_calls else "pending",
+            "missing": [],
+        },
     }
 
 

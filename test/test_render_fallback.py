@@ -123,13 +123,9 @@ class TestChatBranch:
         assert _final_reply_from(messages, rendered) != PREV_TURN_REPLY
         assert "第一轮" not in _final_reply_from(messages, rendered)
 
-    def test_echo_failure_mode_is_real(self):
-        """反证：上面那条断言不是空的。
-
-        "chat 分支退回 None" 这个看起来最自然的修法，实际后果就是复读 ——
-        这里直接演示：messages 原样交给端点，捞出来的正是上一轮的回复。
-        """
-        assert main._extract_final_reply(_chat_messages()) == PREV_TURN_REPLY
+    def test_extraction_also_rejects_previous_turn_reply(self):
+        """即使 Render 没有补消息，提取出口也不能把旧回复当成本轮回答。"""
+        assert main._extract_final_reply(_chat_messages()) != PREV_TURN_REPLY
 
     @pytest.mark.asyncio
     async def test_first_turn_is_not_generic_error(self):
@@ -320,6 +316,7 @@ class TestNonChatBranchUnchanged:
                     "sampled": 15,
                     "total": 15,
                     "items": [{
+                        "id": 54631524,
                         "author": "K-ON",
                         "url": "https://bgm.tv/subject/513878/comments#54631524",
                     }],
@@ -327,10 +324,10 @@ class TestNonChatBranchUnchanged:
             }],
         }
 
-        reply = main._append_community_provenance("我选 K-ON 这条。", turn_result)
+        reply = main._append_community_provenance("我选 K-ON 这条。[comment:54631524]", turn_result)
 
         assert "[K-ON 的原评](https://bgm.tv/subject/513878/comments#54631524)" in reply
-        assert "comments 本次 15/15 条" in reply
+        assert "本次获取 comments 15 条" in reply
         assert "board 未覆盖" in reply
 
     def test_empty_opinion_sections_are_empty_not_success(self):

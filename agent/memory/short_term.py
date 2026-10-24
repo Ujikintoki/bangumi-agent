@@ -151,6 +151,15 @@ def _truncate_message_content(msg: BaseMessage, max_tokens: int) -> BaseMessage:
     if current_tokens <= max_tokens:
         return msg
 
+    if isinstance(msg, ToolMessage) and getattr(msg, "name", "") == "get_subject_opinions":
+        compact = _budget_opinion_payload(content, max_tokens)
+        if compact is not None:
+            return msg.model_copy(update={"content": compact})
+    if isinstance(msg, ToolMessage) and getattr(msg, "name", "") == "get_blog":
+        compact = _budget_blog_payload(content, max_tokens)
+        if compact is not None:
+            return msg.model_copy(update={"content": compact})
+
     marker_tokens = count_tokens(_TRUNCATION_MARKER)
     available = max(50, max_tokens - marker_tokens)
     truncated = _truncate_text_by_tokens(content, available) + _TRUNCATION_MARKER
@@ -174,6 +183,88 @@ def _truncate_message_content(msg: BaseMessage, max_tokens: int) -> BaseMessage:
         return HumanMessage(content=truncated)
 
     return msg
+
+
+def _budget_opinion_payload(content: str, max_tokens: int) -> str | None:
+    """口碑信封按完整记录缩减，至少尝试保留一条原评；绝不从 JSON 中间截断。"""
+    import copy
+
+    try:
+        data = json.loads(content)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    data = copy.deepcopy(data)
+    comments = data.get("comments", {})
+    reviews = data.get("reviews", {})
+    if not isinstance(comments, dict) or not isinstance(reviews, dict):
+        return None
+    # legacy strings duplicate items; item content is the authoritative reading material.
+    if comments.get("items"):
+        comments.pop("comments", None)
+    original_count = len(comments.get("items", []))
+    original_reviews = len(reviews.get("items", []))
+    data["context_truncated"] = False
+
+    def encode() -> str:
+        comments["context_retained_count"] = len(comments.get("items", []))
+        comments["context_omitted_count"] = original_count - comments["context_retained_count"]
+        reviews["context_omitted_count"] = original_reviews - len(reviews.get("items", []))
+        return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+    while count_tokens(encode()) > max_tokens and reviews.get("items"):
+        reviews["items"].pop()
+        data["context_truncated"] = True
+    while count_tokens(encode()) > max_tokens and len(comments.get("items", [])) > 1:
+        comments["items"].pop()
+        data["context_truncated"] = True
+    # An individual comment may itself exceed the entire context allowance.
+    items = comments.get("items", [])
+    if items and isinstance(items[0], dict):
+        item = items[0]
+        while count_tokens(encode()) > max_tokens and item.get("content"):
+            item["content"] = str(item["content"])[:len(str(item["content"])) // 2]
+            item["truncated"] = True
+            data["context_truncated"] = True
+    compact = encode()
+    if count_tokens(compact) <= max_tokens:
+        return compact
+    # Metadata alone exceeds the allowance; preserve the fact that data was omitted.
+    return json.dumps({"context_truncated": True, "missing": ["opinion_payload_budget"]})
+
+
+def _budget_blog_payload(content: str, max_tokens: int) -> str | None:
+    """日志正文在上下文预算边界截为片段，保留出处且显式声明不完整。"""
+    import copy
+
+    try:
+        data = json.loads(content)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("blog"), dict):
+        return None
+    data = copy.deepcopy(data)
+    data["context_truncated"] = True
+    blog = data["blog"]
+
+    def encode():
+        return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+    for key in ("comments", "subjects"):
+        if count_tokens(encode()) <= max_tokens:
+            break
+        if isinstance(data.get(key), list):
+            data[f"{key}_omitted_count"] = len(data[key])
+            data[key] = []
+    while count_tokens(encode()) > max_tokens and blog.get("content"):
+        blog["content"] = str(blog["content"])[:len(str(blog["content"])) // 2]
+        blog["truncated"] = True
+        blog["content_kind"] = "excerpt"
+    encoded = encode()
+    if count_tokens(encoded) <= max_tokens:
+        return encoded
+    return json.dumps({"context_truncated": True, "missing": ["blog_payload_budget"]})
 
 
 def _truncate_oversized_messages(

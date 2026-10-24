@@ -222,6 +222,9 @@ def route_after_reasoning(
     """
     from langchain_core.messages import AIMessage
 
+    if state.get("turn_result", {}).get("status") == "failed":
+        return END
+
     messages = state.get("messages", [])
     last_msg = messages[-1] if messages else None
     has_tool_calls = (

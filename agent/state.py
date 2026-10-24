@@ -25,6 +25,16 @@ Depth = Literal["fast", "deep"]
 """
 
 
+class TurnResult(TypedDict):
+    """执行结局与任务验收分开；工具成功不能证明回答已经完成任务。"""
+
+    status: Literal["pending", "success", "partial", "empty", "failed"]
+    error_type: NotRequired[str | None]
+    missing: list[str]
+    sources: NotRequired[list[dict]]
+    task_status: NotRequired[Literal["unverified", "incomplete"]]
+
+
 class AgentState(TypedDict):
     """Agent 全局状态，在 LangGraph 节点间流转。
 
@@ -74,5 +84,5 @@ class AgentState(TypedDict):
     depth: str
     """深度模式：fast | deep。控制迭代上限和 token 预算。"""
 
-    turn_result: NotRequired[dict]
+    turn_result: NotRequired[TurnResult]
     """本轮确定性结局。至少包含 status；失败时只保留脱敏 error_type。"""

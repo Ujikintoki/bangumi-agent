@@ -836,6 +836,9 @@ async def get_blog(
     一次调用返回三个维度的数据——正文（日志内容）、评论反应（社区观点）、
     关联作品（上下文），让 LLM 能对一篇日志做完整的语义分析。
 
+    检查 blog.content_kind 与 truncated：长文超出上下文预算时只展示片段，
+    不可把 excerpt 当作已读全文或推断未保留部分。
+
     **认证要求**：需要系统配置有效的 Bangumi Access Token。
 
     典型场景：

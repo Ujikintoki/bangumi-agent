@@ -462,9 +462,10 @@ class BangumiClient(BaseClient):
                 result["blog"] = {
                     "id": raw.get("id", 0),
                     "title": raw.get("title", ""),
-                    "content": sanitizers._truncate(
-                        sanitizers._strip_bbcode(raw.get("content") or raw.get("text") or ""), 300
-                    ),
+                    "content": sanitizers._strip_bbcode(raw.get("content") or raw.get("text") or ""),
+                    "content_kind": "full_text",
+                    "truncated": False,
+                    "url": f"https://bgm.tv/blog/{eid}",
                     "tags": raw.get("tags", []),
                     "created_at": datetime.fromtimestamp(ts).strftime("%Y-%m-%d") if ts else "",
                     "replies": raw.get("replies", 0),
