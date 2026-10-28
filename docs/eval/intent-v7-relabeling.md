@@ -1,5 +1,7 @@
 # 意图分类评测集 v7 重标注报告
 
+> 维护状态：历史参考，停止维护。下文的计划、状态、参数和待办属于原记录时点；不直接作为当前执行指令。当前入口见 [文档地图](../README.md)，范围与顺序以 [PRODUCT](../../PRODUCT.md)、[ROADMAP](../../ROADMAP.md) 为准。
+
 > 2026-08-17 | 将 `eval/data/intent_queries.json`（旧 8-intent，91 条）重标注为当前 7-intent
 > 产出：`eval/data/intent_queries_v7.json`（91 条）+ `eval/data/intent_adversarial.json`（20 条对抗集）
 > 状态：**初稿标注完成，等待 owner 复核后冻结**

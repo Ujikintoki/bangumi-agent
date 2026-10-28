@@ -1,5 +1,7 @@
 # Agent Eval 决策手册 — 官方标准 × 本项目映射
 
+> 维护状态：历史参考，停止维护。下文的计划、状态、参数和待办属于原记录时点；不直接作为当前执行指令。当前入口见 [文档地图](../README.md)，范围与顺序以 [PRODUCT](../../PRODUCT.md)、[ROADMAP](../../ROADMAP.md) 为准。
+
 > 2026-08-17 | 回答一个问题："官方说 agent 要测什么，映射到 BGM Agent 的每一块，分别建什么 pipeline、出什么数字？"
 > 官方来源：Anthropic《Demystifying evals for AI agents》（[原文](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)）、《How to build agents with the Claude API》、[LangSmith Evaluation Types](https://docs.langchain.com/langsmith/evaluation-types)、[OpenAI Evals 决策框架](https://theneuralbase.com/openai-evals/learn/intermediate/decision-frameworks/)、[τ-bench](https://github.com/sierra-research/tau-bench)、[LongMemEval](https://web.cs.ucla.edu/~kwchang/bibliography/wu2025longmemeval/)、Google Agent 白皮书
 

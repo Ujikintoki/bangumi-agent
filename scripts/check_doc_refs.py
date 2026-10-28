@@ -79,6 +79,7 @@ LIVE_PREFIXES = (
     "docs/README.md",
     "docs/architecture-blueprint.md",
     "docs/database-admin.md",
+    "docs/product/",
     "docs/memory/",
     "docs/Rag/",
     "eval/README.md",

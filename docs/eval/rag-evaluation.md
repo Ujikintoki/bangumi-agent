@@ -1,5 +1,7 @@
 # RAG 检索评测设计
 
+> 维护状态：历史参考，停止维护。下文的计划、状态、参数和待办属于原记录时点；不直接作为当前执行指令。当前入口见 [文档地图](../README.md)，范围与顺序以 [PRODUCT](../../PRODUCT.md)、[ROADMAP](../../ROADMAP.md) 为准。
+
 > **目标**: 定量验证 5 阶段检索管线中每个阶段对检索质量的贡献
 > **核心假设**: 语义分桶 + 对数归一化 + MMR 去重的组合策略，相比 vanilla pgvector cosine distance 检索，显著提升 Bangumi 领域数据的检索质量
 > **预计产出**: recall@5 / precision@5 / MRR / nDCG@5 的消融对比表

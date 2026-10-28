@@ -1,5 +1,7 @@
 # BGM Agent 架构 & 代码审查 — 合并报告 v2
 
+> 维护状态：历史参考，停止维护。下文的计划、状态、参数和待办属于原记录时点；不直接作为当前执行指令。当前入口见 [文档地图](../README.md)，范围与顺序以 [PRODUCT](../../PRODUCT.md)、[ROADMAP](../../ROADMAP.md) 为准。
+
 > 来源：Claude Code deep review (2026-08-05) + 三线审计 agent + 产品定位校准 (2026-08-06)
 > 状态：Section 1 ✅ 已修复；Section 2 ✅ 已修复；Section 3 死代码已清理 + depth_taste 数据流已修复，人格内容待用户 DIY
 

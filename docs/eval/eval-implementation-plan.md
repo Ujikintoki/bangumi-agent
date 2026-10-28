@@ -1,5 +1,7 @@
 # Eval 实施计划 v1 — 操作级细节
 
+> 维护状态：历史参考，停止维护。下文的计划、状态、参数和待办属于原记录时点；不直接作为当前执行指令。当前入口见 [文档地图](../README.md)，范围与顺序以 [PRODUCT](../../PRODUCT.md)、[ROADMAP](../../ROADMAP.md) 为准。
+
 > 2026-08-17 | 承接 `agent-eval-blueprint.md`（决策手册）与 `intent-v7-relabeling.md`（标注报告）
 > 原则：先冻结数据 → 跑出两个基线 → 建立回归机制。每个 Phase 都有文件级操作与完成标准。
 

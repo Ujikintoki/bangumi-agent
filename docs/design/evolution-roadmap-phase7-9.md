@@ -1,5 +1,7 @@
 # 从 Phase 6.5 到 Claude on Bangumi — 分层演进路线
 
+> 维护状态：历史参考，停止维护。下文的计划、状态、参数和待办属于原记录时点；不直接作为当前执行指令。当前入口见 [文档地图](../README.md)，范围与顺序以 [PRODUCT](../../PRODUCT.md)、[ROADMAP](../../ROADMAP.md) 为准。
+
 > 2026-07-27 | 基于四层架构的演进推演，对应愿景文档 [`claude-on-bangumi-vision.md`](claude-on-bangumi-vision.md)
 
 ---

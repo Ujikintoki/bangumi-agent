@@ -1,5 +1,7 @@
 # Intent 路由层设计
 
+> 维护状态：历史参考，停止维护。下文的计划、状态、参数和待办属于原记录时点；不直接作为当前执行指令。当前入口见 [文档地图](../README.md)，范围与顺序以 [PRODUCT](../../PRODUCT.md)、[ROADMAP](../../ROADMAP.md) 为准。
+
 > 状态：**历史档案** — 设计已实现，现行代码见 `agent/routing/routes.py` 与
 > `agent/prompts/tool_config.py`（`TOOLS_BY_INTENT` / `get_tool_choice()`）。
 > 下文保留 2026-08-03 的设计推演，其中的 `agent/orchestrate/*` 路径与行号是当时的目录结构。

@@ -1,5 +1,7 @@
 # Evaluation 体系文档
 
+> 维护状态：历史参考，停止维护。下文的计划、状态、参数和待办属于原记录时点；不直接作为当前执行指令。当前入口见 [文档地图](../README.md)，范围与顺序以 [PRODUCT](../../PRODUCT.md)、[ROADMAP](../../ROADMAP.md) 为准。
+
 > **⚠️ 本目录是计划书（写于 2026-07-31 ~ 08-17），不是现状描述。**
 > 里面的数字与路径多数已过期（写"45 场景"实际 30、"4 人格"实际 3、"GPT-4 做 judge"实际只有 DeepSeek、
 > `rag/eval/` 已迁至 `eval/rag_eval.py`）。**eval 的现状与唯一事实来源是 [`eval/README.md`](../../eval/README.md)。**

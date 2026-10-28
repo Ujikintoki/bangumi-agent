@@ -47,42 +47,35 @@ BGM Agent 不是"帮你查数据的 AI"——它是有自己的品位和脾气�
 
 ## 快速开始
 
-### 前置条件
+### 本机基础模式
 
-- Python 3.11+
-- Docker（PostgreSQL + pgvector）
-
-### 4 步启动
+使用 Python 3.11–3.13（本轮干净安装验证为 3.12）及 uv，不需要 Docker、PostgreSQL 或 embedding。
 
 ```bash
-# 1. 克隆
-git clone <repo-url> && cd bgm-agent-dev
-
-# 2. 安装依赖
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-
-# 3. 配置（最小可跑：LLM_API_KEY 必填，ZHIPU_API_KEY 供 RAG + L2 记忆）
+uv sync --locked --no-dev
 cp .env.example .env
-# 编辑 .env：
-#   LLM_API_KEY=sk-your-key
-#   LLM_MODEL=deepseek-v4-flash
-#   LLM_BASE_URL=https://api.deepseek.com/v1
-
-# 4. 启动 PostgreSQL + pgvector，然后运行
-docker run -d --name bangumi-pg \
-  -e POSTGRES_USER=myuser -e POSTGRES_PASSWORD=mypassword \
-  -e POSTGRES_DB=bangumidb -p 5432:5432 pgvector/pgvector:pg16
-
-uvicorn main:app --reload --port 8000
+# 编辑本机 .env：设置 LLM_API_KEY、LLM_MODEL，以及供应商需要的 LLM_BASE_URL
+# 基础模式保持 MEMORY_ENABLED=false、RAG_ENABLED=false
+uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-```bash
-# 发第一个请求
-curl -s -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "你好，最近有什么好看的番？", "depth": "fast", "output_style": "bangumi"}'
-```
+打开 http://127.0.0.1:8000/。网页显示模型配置缺项，支持快速/深入对话、新对话及失败反馈。
+启用认证的实例在页面填写 Bearer 凭据；凭据仅保留在当前页面内存中。
+当前会话仅暂存于单进程 L1，页面刷新开始新会话；历史列表、重启恢复和删除尚待接入。
+名称、链接与粘贴文本目前原样进入 Agent，不承诺已确定性解析链接或读取任意外链正文。
+匿名模式仅用于本机回环地址，不要绑定局域网或公网。
+
+本轮以替身验证 HTTP/Agent 接线和安全失败，未调用真实模型或 Bangumi API，模型兼容性及真实回答质量仍待验收。
+
+### 可选本地数据能力
+
+需要原有 RAG/L2 时使用 `uv sync --locked --extra local-data`，自行准备隔离的 PostgreSQL、
+对应语料和 embedding 配置，再显式开启 `RAG_ENABLED` 或 `MEMORY_ENABLED`。
+启用任一项会在启动时初始化原有数据库及迁移；基础模式不会执行这一步。
+这些能力不承担网页会话历史的恢复。不要把现有真实数据库用于测试。
+
+直接依赖统一维护于 pyproject.toml，uv.lock 固定版本；requirements.txt 是包含可选能力及验证工具的兼容导出，
+通过 `uv export --all-extras --group dev --no-hashes --output-file requirements.txt` 更新，不手工编辑。
 
 ---
 
@@ -139,7 +132,8 @@ curl -s -X POST http://localhost:8000/chat \
 | `DATABASE_URL` | `postgresql://myuser:mypassword@localhost:5432/bangumidb` | PostgreSQL + pgvector 连接 |
 | `ZHIPU_API_KEY` | — | 智谱 embedding-2（RAG + L2 记忆需要） |
 | `BANGUMI_ACCESS_TOKEN` | — | Bangumi Bearer Token（解锁 3 个用户相关工具，可选） |
-| `MEMORY_ENABLED` | `True` | L2 跨会话记忆开关 |
+| `RAG_ENABLED` | `False` | 注册本地检索工具并初始化其数据库 |
+| `MEMORY_ENABLED` | `False` | L2 跨会话记忆开关 |
 | `DEV_MODE` | `False` | 开启后 `/chat` 响应附带 telemetry |
 | `BGM_LOG_LEVEL` | `INFO` | 日志级别（`DEBUG` 可看逐节点日志） |
 
@@ -226,6 +220,9 @@ docs/           # design/、eval/、memory/、Rag/、Tools/
 ---
 
 ## 文档索引
+
+日常讨论先读 [产品基线](PRODUCT.md) → [当前工作](ROADMAP.md)。完整阅读顺序与维护状态见
+[文档地图](docs/README.md)；旧探索、调研、验收和历史计划不作为另一份当前任务清单。
 
 | 文档 | 内容 |
 |------|------|
