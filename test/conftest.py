@@ -22,6 +22,13 @@ from agent.state import AgentState
 
 
 @pytest.fixture(autouse=True)
+def _isolate_session_storage(tmp_path, monkeypatch):
+    from main import session_store
+
+    monkeypatch.setattr(session_store, "path", tmp_path / "sessions.sqlite3")
+
+
+@pytest.fixture(autouse=True)
 def _disable_dev_mode_for_tests():
     """强制 DEV_MODE=False，确保 test mock ``agent_app.ainvoke`` 不被 astream 路径绕过。
 

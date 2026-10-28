@@ -6,10 +6,19 @@
 :root{font:16px/1.7 system-ui;color:#292b35;background:#f6f4f0}body{max-width:850px;margin:40px auto;padding:0 20px}h1{margin-bottom:0}p{margin-top:6px}button,input,textarea,select{font:inherit;border:1px solid #c9c6c0;border-radius:8px;padding:8px;background:white}button{cursor:pointer}button:disabled{opacity:.5;cursor:wait}textarea{box-sizing:border-box;width:100%;min-height:110px}article{padding:16px 20px;margin:16px 0;border-radius:12px;background:white;white-space:pre-wrap;overflow-wrap:anywhere}article[data-role=user]{background:#e9e6f7}small,#status{color:#666}#status{margin:16px 0}details{margin:16px 0}form{margin-top:20px}.controls{display:flex;gap:12px;flex-wrap:wrap}#token{max-width:90%}
 </style>
 <h1>BGM Agent</h1><p>查作品，聊感受，整理你的观点。</p>
-<small>当前会话仅临时保留；刷新页面会开始新会话，尚不支持重启恢复。</small>
+<small>对话、你确认的背景和回复依据保存在本机，直到你删除。删除不涉及旧 L2、导出文件或备份。</small>
 <details><summary>实例访问凭据（启用认证时填写）</summary><input id="token" type="password" autocomplete="off" placeholder="Bearer 凭据"><button id="check">检查配置</button></details>
+<p><small id="storage"></small></p>
 <div id="status" role="status" aria-live="polite">正在检查配置…</div>
-<button id="new">新对话</button>
+<div class="controls"><select id="sessions" aria-label="已保存会话"></select><button id="new">新对话</button><button id="refresh">刷新状态</button><button id="delete">删除会话</button></div>
+<details><summary>当前对象与背景（可检查、修改）</summary>
+<p><label for="object_url">Bangumi 条目链接</label><input id="object_url" style="width:95%" placeholder="https://bgm.tv/subject/400602"></p>
+<label for="progress">观看进度与剧透范围</label><textarea id="progress" placeholder="例如：只看到第3集，不要剧透"></textarea>
+<label for="corrections">明确纠正与立场</label><textarea id="corrections" placeholder="例如：我批评的是演出，不是剧情"></textarea>
+<label for="preferences">本会话偏好</label><textarea id="preferences"></textarea>
+<label for="materials">引用材料（不自动当成你的观点）</label><textarea id="materials"></textarea>
+<button id="save-context">保存背景</button><small>仅保存你填写的背景，不自动提取长期画像；背景总长最多8000字。</small>
+</details>
 <section id="messages" aria-label="对话记录" aria-live="polite"></section>
 <form id="chat"><label for="message">作品名称、Bangumi 链接、材料或你的想法</label><textarea id="message" required maxlength="20000" placeholder="例如：我想聊聊最近看的作品…"></textarea>
 <div class="controls"><select id="depth" aria-label="查询深度"><option value="fast">快速</option><option value="deep">深入</option></select><button id="send" disabled>发送</button></div></form>

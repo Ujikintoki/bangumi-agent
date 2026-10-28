@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 
+from api.access import same_origin_local_request
 from core.auth import authenticated_user
 from core.config import get_settings
 
@@ -21,7 +22,7 @@ async def javascript():
     return FileResponse(_WEB / "chat.js", media_type="text/javascript")
 
 
-@router.get("/api/readiness")
+@router.get("/api/readiness", dependencies=[Depends(same_origin_local_request)])
 async def readiness(user_id: str = Depends(authenticated_user)):
     settings = get_settings()
     missing = []
@@ -34,5 +35,6 @@ async def readiness(user_id: str = Depends(authenticated_user)):
         "missing": missing,
         "rag_enabled": settings.RAG_ENABLED,
         "memory_enabled": settings.MEMORY_ENABLED,
-        "history": "temporary",
+        "history": "sqlite",
+        "storage_path": settings.SESSION_DB_PATH,
     }

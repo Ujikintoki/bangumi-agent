@@ -11,7 +11,11 @@
 
 当前本机入口：`GET /` 与 `/web/chat.js` 由 `api/local_web.py` 提供；`GET /api/readiness`
 沿用 Bearer 身份校验，仅返回缺项与能力开关，不返回凭据或供应商错误正文。
-网页经现有 `/chat` JSON 路径及 L1 整轮互斥调用 Agent；尚未接入 SQLite 会话恢复。
+网页经 `api/sessions.py` → `application/conversations.py` → 现有 `_chat`/Agent/Render 调用，
+`sessions/store.py` 是 SQLite 历史事实来源。`main.py` 组装执行回调；下层不反向导入 main 或 HTTP。
+持久会话不写 L1/L2，已完成对话窗口与用户确认的背景由服务端装配；旧 `/chat`/SSE 保留 L1 兼容语义。
+上下文经分类、推理期 SystemMessage 和最终 Render 传递；不从模型回答自动固化用户立场。
+pending 在执行前提交，回答与结局事务提交后交付；版本检查及删除后的行缺失阻止在途写回。
 默认关闭 RAG/L2，只有显式开启才在生命周期初始化原有数据库；L1 导入不加载 L2 数据层。
 
 ## 0. 为什么需要这份文档

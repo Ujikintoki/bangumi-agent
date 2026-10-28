@@ -37,7 +37,7 @@ BGM Agent 不是"帮你查数据的 AI"——它是有自己的品位和脾气�
 
 - **7 intent 异质拓扑** — chat 直通渲染；fetch/realtime/profile 走确定性 Pipeline（独立 subgraph + 专属 prompt + 专属工具集）；explore/discuss 走 ReAct 自主探索。**隐式终止**：LLM 输出文本（无 tool_calls）即结束，无显式终止工具
 - **3 种人格 × 2 种深度** — `output_style`（bangumi / bangumi_kawaii / neutral）× `depth`（fast / deep）。两层独立管线：Character Card（System Prompt）决定思考方式，Render Node（独立 LLM 调用）决定语言风格
-- **16 个工具** — Bangumi 条目搜索与详情、角色/声优、每日放送、热门趋势、话题讨论、用户画像，以及本地 RAG 语义搜索（13 个无条件 + 3 个需 `BANGUMI_ACCESS_TOKEN`）
+- **按配置注册领域工具** — Bangumi 条目搜索与详情、角色/声优、每日放送、热门趋势与社区内容；用户工具需 `BANGUMI_ACCESS_TOKEN`，本地检索需显式开启 RAG。
 - **多轮记忆** — L1 滑动窗口（fast 10000 / deep 16000 tok，tiktoken 精确计数）+ 工具结果压缩；L2 跨会话语义召回（pgvector + 时间衰减）；session 缓存跨请求续聊
 - **RAG 三通道检索** — 向量语义（"温馨的日常故事"）+ 名称精确 + 关键词硬过滤，灌入本地 pgvector，支撑 `search_local_bangumi` 工具
 - **SSE 流式接口** — `/chat/stream` 保留流式形态（当前推送最终 render 事件，为逐 token 渲染预留）
@@ -61,11 +61,15 @@ uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 
 打开 http://127.0.0.1:8000/。网页显示模型配置缺项，支持快速/深入对话、新对话及失败反馈。
 启用认证的实例在页面填写 Bearer 凭据；凭据仅保留在当前页面内存中。
-当前会话仅暂存于单进程 L1，页面刷新开始新会话；历史列表、重启恢复和删除尚待接入。
-名称、链接与粘贴文本目前原样进入 Agent，不承诺已确定性解析链接或读取任意外链正文。
+网页会话保存在 `.local-data/sessions.sqlite3`（可用 `SESSION_DB_PATH` 改位置）；支持列表、返回、重启续聊及删除。
+只恢复已完成轮；中断轮会显示状态，不自动重放工具。旧 `/chat`、`/chat/stream` 仍是兼容的临时会话接口。
+背景面板可显式保存条目链接、材料、纠正、会话偏好和剧透范围，总长最多8000字；不会自动写长期画像。
+名称和普通聊天内的链接仍交给 Agent 理解；背景面板中的 Bangumi 作品/人物/角色链接会校验并保存类型与 ID。
+不承诺自动读取任意外链正文；粘贴材料与用户立场保持分开。
 匿名模式仅用于本机回环地址，不要绑定局域网或公网。
 
-本轮以替身验证 HTTP/Agent 接线和安全失败，未调用真实模型或 Bangumi API，模型兼容性及真实回答质量仍待验收。
+已验收真实网页对话、公开条目评分查询、保存背景、重启恢复和续聊；具体环境与边界见
+[本机网页验收记录](docs/Test/local-web-acceptance-2026-10-29.md)。这不代表全部模型或所有领域任务通过。
 
 ### 可选本地数据能力
 
@@ -80,6 +84,17 @@ uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 ---
 
 ## API
+
+### 网页会话接口
+
+`GET /api/readiness` 返回模型配置缺项、能力开关与本机保存位置，不返回密钥。
+`POST/GET /api/sessions` 创建/列出会话；`GET/DELETE /api/sessions/{id}` 读取/删除。
+`PATCH /api/sessions/{id}/context` 更新用户确认的背景；写操作携带当前 `version`，删除用查询参数。
+`POST /api/sessions/{id}/turns` 接收 `request_id`（UUID）、`version`、`message`、`depth` 和可选 `output_style`。
+`GET /api/sessions/{id}/turns/{request_id}` 查询已提交或中断的结局；同 ID 同输入重放不会重新生成，输入冲突返回409。
+会话接口沿用 Bearer 归属，拒绝跨来源网页访问；匿名访问只接受回环主机。
+回复与结局在 SQLite 提交成功后返回；存储故障返回503，不宣称已保存。删除后在途结果不能恢复正文。
+刷新状态可找回已生成但未送达的回答；历史依据带保存时间，不代表当前数值。
 
 ### POST /chat
 
@@ -132,6 +147,7 @@ uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 | `DATABASE_URL` | `postgresql://myuser:mypassword@localhost:5432/bangumidb` | PostgreSQL + pgvector 连接 |
 | `ZHIPU_API_KEY` | — | 智谱 embedding-2（RAG + L2 记忆需要） |
 | `BANGUMI_ACCESS_TOKEN` | — | Bangumi Bearer Token（解锁 3 个用户相关工具，可选） |
+| `SESSION_DB_PATH` | `.local-data/sessions.sqlite3` | 本机可见会话、背景及回复依据 |
 | `RAG_ENABLED` | `False` | 注册本地检索工具并初始化其数据库 |
 | `MEMORY_ENABLED` | `False` | L2 跨会话记忆开关 |
 | `DEV_MODE` | `False` | 开启后 `/chat` 响应附带 telemetry |

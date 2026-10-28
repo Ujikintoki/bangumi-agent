@@ -51,6 +51,9 @@ class AgentState(TypedDict):
         depth: 深度模式：fast | deep。
     """
 
+    session_context: NotRequired[str]
+    """用户显式确认的会话内背景，以数据使用，不自动升级为长期记忆。"""
+
     messages: Annotated[list[BaseMessage], operator.add]
     """对话历史，使用 Annotated[list[BaseMessage], operator.add] 保证节点间追加语义。"""
 

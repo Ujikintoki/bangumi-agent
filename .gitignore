@@ -44,3 +44,6 @@ htmlcov/
 .claude/
 
 bangumi-agent-sanitized/
+
+# 本机会话数据
+.local-data/

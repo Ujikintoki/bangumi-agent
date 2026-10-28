@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     API_USER_TOKENS: dict[str, str] = Field(default_factory=dict, repr=False)
     """用户 ID → 独立访问凭据，环境变量使用 JSON 对象；不要提交真实凭据。"""
 
+    SESSION_DB_PATH: str = str(Path(__file__).resolve().parents[1] / ".local-data" / "sessions.sqlite3")
+    """本机可见历史与上下文；不使用 PostgreSQL。"""
+
     RAG_ENABLED: bool = False
     """显式启用本地检索及其 PostgreSQL/embedding 依赖。"""
 

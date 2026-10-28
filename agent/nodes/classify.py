@@ -247,7 +247,12 @@ async def classify_node(state: AgentState) -> dict:
     user_input = extract_user_input(state)
 
     classifier_llm = create_classifier_llm()
-    intent, confidence = await classify_intent(user_input, classifier_llm)
+    from agent.helpers import session_context_block
+
+    context = session_context_block(state)
+    recent = [str(m.content)[:1000] for m in state.get("messages", [])[:-1] if m.type in {"human", "ai"} and m.content][-4:]
+    classification_input = (context + "\n近期对话（仅背景）：" + "\n".join(recent) + "\n本轮用户输入：" + user_input) if context or recent else user_input
+    intent, confidence = await classify_intent(classification_input, classifier_llm)
 
     # 置信度路由
     routed_intent = route_by_classification(intent, confidence)

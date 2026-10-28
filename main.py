@@ -31,6 +31,9 @@ from core.auth import authenticated_user, validate_auth_configuration
 from core.config import get_settings
 from api.local_web import router as local_web_router
 from middleware import rate_limit_middleware
+from application.conversations import Conversations
+from api.sessions import create_router as create_sessions_router
+from sessions.store import SessionStore
 
 try:
     from langgraph.errors import GraphRecursionError
@@ -38,6 +41,7 @@ except ImportError:
     GraphRecursionError = Exception  # type: ignore[assignment,misc]
 
 settings = get_settings()
+session_store = SessionStore(settings.SESSION_DB_PATH)
 
 
 def _setup_logging() -> None:
@@ -149,6 +153,7 @@ async def lifespan(app: FastAPI):
     """管理应用的生命周期。"""
     logger.info("🚀 系统启动 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
     validate_auth_configuration()
+    session_store.initialize()
     if settings.MEMORY_ENABLED or settings.RAG_ENABLED:
         from database.engine import init_db
 
@@ -293,7 +298,7 @@ async def chat(request: ChatRequest = _authorized_request_dependency) -> ChatRes
         return await _chat(request)
 
 
-async def _chat(request: ChatRequest) -> ChatResponse:
+async def _chat(request: ChatRequest, *, history=None, context=None, managed=False) -> ChatResponse:
     """Agent 对话端点。
 
     通过 ``depth`` 控制深度模式：
@@ -309,7 +314,7 @@ async def _chat(request: ChatRequest) -> ChatResponse:
         ChatResponse: 包含回复、迭代次数、工具列表、意图分类、深度模式的响应。
     """
     initial_state, session_id, depth, output_style = await _build_initial_state(
-        request
+        request, history=history, context=context
     )
 
     telemetry = None
@@ -353,6 +358,7 @@ async def _chat(request: ChatRequest) -> ChatResponse:
             output_style=output_style,
             depth=depth,
             turn_result=turn_result,
+            session_context=initial_state.get("session_context", ""),
         )
         if rendered:
             result["messages"] = messages_for_render
@@ -403,19 +409,20 @@ async def _chat(request: ChatRequest) -> ChatResponse:
         if telemetry:
             set_current_telemetry(None)
 
-    # ── L1 Session 缓存：保存本轮消息 ──
-    session_cache = get_session_cache()
-    max_cached = 30 if depth == "deep" else 20
-    await session_cache.store(
-        _session_key(request.user_id, session_id),
-        result.get("messages", []),
-        max_messages=max_cached,
-    )
+    if not managed:
+        # ── L1 Session 缓存：保存本轮消息 ──
+        session_cache = get_session_cache()
+        max_cached = 30 if depth == "deep" else 20
+        await session_cache.store(
+            _session_key(request.user_id, session_id),
+            result.get("messages", []),
+            max_messages=max_cached,
+        )
 
-    # ── L2 记忆写入（fire-and-forget） ──
-    asyncio.create_task(
-        _remember_session(result, request, depth, session_id=session_id)
-    )
+        # ── L2 记忆写入（fire-and-forget） ──
+        asyncio.create_task(
+            _remember_session(result, request, depth, session_id=session_id)
+        )
 
     from agent.config import get_max_iterations
 
@@ -611,7 +618,7 @@ async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) 
 
 
 async def _build_initial_state(
-    request: ChatRequest,
+    request: ChatRequest, *, history=None, context=None,
 ) -> tuple[AgentState, str, str, str]:
     """构造 graph 初始状态（/chat 与 /chat/stream 共用）。
 
@@ -626,7 +633,10 @@ async def _build_initial_state(
 
     # ── L1 Session 缓存：恢复同 session 前序消息 ──
     session_cache = get_session_cache()
-    cached = await session_cache.load(_session_key(request.user_id, session_id))
+    cached = (await session_cache.load(_session_key(request.user_id, session_id))) if history is None else [
+        (HumanMessage if item["role"] == "user" else AIMessage)(content=item["content"])
+        for item in history[-20:]
+    ]
 
     # 种子 SystemMessage——将在 reasoning_node 中被替换为完整 prompt
     _seed = get_agent_profile("companion").capabilities
@@ -636,6 +646,7 @@ async def _build_initial_state(
             *cached,
             HumanMessage(content=request.message),
         ],
+        "session_context": json.dumps(context, ensure_ascii=False) if context else "",
         "iterations": 0,
         "query_intent": "unknown",
         "session_id": session_id,
@@ -655,6 +666,7 @@ async def _render_final_reply(
     output_style: str,
     depth: str,
     turn_result: dict | None = None,
+    session_context: str = "",
 ) -> tuple[list, str | None]:
     """统一渲染路径（/chat 与 /chat/stream 共用，隐式终止后处理）。
 
@@ -725,7 +737,7 @@ async def _render_final_reply(
         character=character,
         depth=depth,
         force=force_render,
-        conversation_context=_conversation_context(messages),
+        conversation_context=([{"role": "user", "content": "用户确认的会话背景（引用材料不代表用户立场）：" + session_context}] if session_context else []) + _conversation_context(messages),
     )
     if rendered:
         if query_intent == "chat" and turn_result is not None:
@@ -1289,3 +1301,22 @@ async def _remember_session(
             effective_session_id,
             exc_info=True,
         )
+
+
+async def _execute_managed_turn(*, owner, sid, message, depth, style, history, context):
+    request = ChatRequest(message=message, user_id=owner, session_id=sid, depth=depth, output_style=style)
+    # 仍复用原 Agent/Render；持久会话不借用可过期的 L1 作为事实来源。
+    async with get_session_cache().claim(_session_key(owner, sid)) as acquired:
+        if not acquired:
+            from sessions.store import SessionError
+            raise SessionError("busy")
+        response = await _chat(request, history=history, context=context, managed=True)
+        return response.model_dump()
+
+
+async def _clear_session_cache(owner, sid):
+    await get_session_cache().clear(_session_key(owner, sid))
+
+
+conversations = Conversations(session_store, _execute_managed_turn)
+app.include_router(create_sessions_router(conversations, _clear_session_cache))

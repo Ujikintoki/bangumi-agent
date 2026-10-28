@@ -74,7 +74,7 @@ for name in ("LLM_BASE_URL", "LLM_AZURE_ENDPOINT", "AZURE_OPENAI_ENDPOINT",
     os.environ[name] = ""
 os.environ.update(DATABASE_URL="postgresql://offline:offline@127.0.0.1:1/offline",
                   AUTH_ENABLED="false", API_USER_TOKENS="{}", ENVIRONMENT="test",
-                  MEMORY_ENABLED="false", DEV_MODE="false")
+                  MEMORY_ENABLED="false", RAG_ENABLED="false", DEV_MODE="false")
 get_settings.cache_clear()
 
 import pytest
@@ -85,7 +85,7 @@ files = [
     "test_memory", "test_phase5_l1", "test_compression_shapes",
     "test_bgm_tools", "test_sanitizers", "test_schemas", "test_state",
     "test_reasoning", "test_devtools_tool_telemetry",
-    "test_turn_handoff", "test_local_web",
+    "test_turn_handoff", "test_local_web", "test_sessions",
 ]
 status = pytest.main(["-q", "-p", "asyncio", "-p", "no:cacheprovider",
                       *[f"test/{name}.py" for name in files]])

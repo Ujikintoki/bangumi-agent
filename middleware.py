@@ -41,7 +41,8 @@ def _sweep_stale(now: float) -> None:
 
 async def rate_limit_middleware(request: Request, call_next):
     # 只限制对话端点；/health 与文档页豁免（否则监控会误报）
-    if request.url.path not in ("/chat", "/chat/stream"):
+    managed_turn = (request.method == "POST" and request.url.path.startswith("/api/sessions/") and request.url.path.endswith("/turns"))
+    if request.url.path not in ("/chat", "/chat/stream") and not managed_turn:
         return await call_next(request)
 
     limit = get_settings().RATE_LIMIT_PER_MINUTE

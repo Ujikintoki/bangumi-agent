@@ -97,6 +97,9 @@ async def reasoning_node(state: AgentState) -> dict:
     )
 
     # ── Step 3: 构建消息列表 ───────────────────────────────
+    from agent.helpers import session_context_block
+
+    system_content += session_context_block(state)
     messages_for_llm = build_message_list(messages, system_content)
 
     # ── Step 4: Dynamic Tool Binding + Forced Tool Choice ────
