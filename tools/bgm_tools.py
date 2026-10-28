@@ -1400,8 +1400,10 @@ def get_agent_tools() -> list:
         get_subject_episodes,
         get_entity_comments,
         get_subject_characters,
-        search_local_bangumi,
     ]
+
+    if get_settings().RAG_ENABLED:
+        tools.append(search_local_bangumi)
 
     token = get_settings().BANGUMI_ACCESS_TOKEN
     if token:

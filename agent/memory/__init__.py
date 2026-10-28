@@ -11,8 +11,17 @@ from agent.memory.short_term import (  # noqa: F401
     manage_memory,
     trim_messages,
 )
-from agent.memory.long_term import MemoryManager, get_memory_manager  # noqa: F401
 from agent.memory.cache import get_session_cache  # noqa: F401
+
+
+def __getattr__(name):
+    # 保留公开导入兼容；基础 L1 不加载 PostgreSQL 依赖。
+    if name in {"MemoryManager", "get_memory_manager"}:
+        from agent.memory import long_term
+        return getattr(long_term, name)
+    raise AttributeError(name)
+
+
 
 __all__ = [
     "DEFAULT_MAX_TOKENS",

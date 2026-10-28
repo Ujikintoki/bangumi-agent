@@ -29,7 +29,7 @@ from agent.persona.render import render_fallback_line, render_reply, tool_outcom
 from agent.state import AgentState, TurnResult
 from core.auth import authenticated_user, validate_auth_configuration
 from core.config import get_settings
-from database.engine import init_db
+from api.local_web import router as local_web_router
 from middleware import rate_limit_middleware
 
 try:
@@ -149,7 +149,10 @@ async def lifespan(app: FastAPI):
     """管理应用的生命周期。"""
     logger.info("🚀 系统启动 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
     validate_auth_configuration()
-    init_db()
+    if settings.MEMORY_ENABLED or settings.RAG_ENABLED:
+        from database.engine import init_db
+
+        init_db()
     print(f"[lifespan] {settings.PROJECT_NAME} v{settings.VERSION} 启动成功")
     yield
     logger.info("🛑 系统关闭 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
@@ -161,6 +164,8 @@ app = FastAPI(
     version=settings.VERSION,
     lifespan=lifespan,
 )
+
+app.include_router(local_web_router)
 
 # Bearer 凭据绑定用户；CORS 不承担认证。生产来源白名单仍待部署阶段配置。
 #
@@ -1239,6 +1244,8 @@ async def _remember_session(
     Args:
         session_id: 实际使用的 session ID（优先于 request.session_id，避免匿名 session 塌缩）。
     """
+    if not settings.MEMORY_ENABLED:
+        return
     effective_session_id = session_id or request.session_id
     try:
         from agent.config import get_max_iterations
@@ -1257,7 +1264,6 @@ async def _remember_session(
             max_iterations=max_iterations,
         )
 
-        effective_session_id = session_id or request.session_id
         query_intent = result.get("query_intent", "unknown")
 
         await asyncio.wait_for(

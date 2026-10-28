@@ -28,15 +28,25 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 logger = logging.getLogger("bgm-agent.memory")
 
-# ── 全局编码器（cl100k_base 是 GPT-4/DeepSeek/Qwen 的通用编码） ─
-try:
-    _ENCODER = tiktoken.get_encoding("cl100k_base")
-except Exception:
-    logger.warning(
-        "tiktoken 编码器初始化失败（版本不兼容或编码缺失），"
-        "将回退到 len//2 字符估算。建议: pip install tiktoken>=0.5.0"
-    )
-    _ENCODER = None
+class _LazyEncoder:
+    """计数时才加载编码；导入和首次打开网页不下载 tokenizer 数据。"""
+
+    def __init__(self):
+        self.encoding = None
+
+    def _get(self):
+        if self.encoding is None:
+            self.encoding = tiktoken.get_encoding("cl100k_base")
+        return self.encoding
+
+    def encode(self, text):
+        return self._get().encode(text)
+
+    def decode(self, tokens):
+        return self._get().decode(tokens)
+
+
+_ENCODER = _LazyEncoder()
 
 # ── Token 预算分配（按 depth 分级，与 system prompt 大小解耦） ─
 DEPTH_TOKEN_BUDGETS: dict[str, int] = {

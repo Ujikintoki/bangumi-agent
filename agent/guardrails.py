@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -160,6 +161,6 @@ def format_tool_error(error: Exception) -> str:
         error: 工具函数抛出的异常。
 
     Returns:
-        仅含异常类型和消息的简短错误描述。
+        不含异常正文的结构化失败，避免供应商秘密进入证据。
     """
-    return f"工具执行失败（{type(error).__name__}）：{error}"
+    return json.dumps({"_error": "tool_execution_failed", "message": "工具执行失败，请稍后重试。"}, ensure_ascii=False)

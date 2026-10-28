@@ -86,6 +86,11 @@ async def recall_memory_step(
     if memory_context is not None:
         return memory_context
 
+    from core.config import get_settings
+
+    if not get_settings().MEMORY_ENABLED:
+        return ""
+
     user_id = state.get("user_id", "anonymous")
     if user_id == "anonymous":
         return ""
