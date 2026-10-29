@@ -1,12 +1,15 @@
 const $ = id => document.getElementById(id);
 let current = null, busy = false, ready = false, connected = false;
+const activeStates = new Set(['accepted', 'running', 'cancelling']);
+let pollTimer = null;
 const contextFields = ['object_url', 'progress', 'corrections', 'preferences', 'materials'];
 const headers = () => ({'Content-Type': 'application/json', ...($('token').value ? {Authorization: `Bearer ${$('token').value}`} : {})});
 const status = text => { $('status').textContent = text; };
 function controls() {
-  const pending = current?.turns.some(turn => turn.status === 'pending');
+  const pending = current?.turns.some(turn => activeStates.has(turn.status));
   for (const id of ['send', 'save-context']) $(id).disabled = !ready || busy || !current || pending;
   for (const id of ['new', 'delete', 'sessions']) $(id).disabled = busy || !connected;
+  $('cancel').disabled = busy || !connected || !current?.turns.some(turn => activeStates.has(turn.status));
   $('check').disabled = busy;
   $('refresh').disabled = false;
 }
@@ -76,7 +79,7 @@ function display() {
         $('messages').append(details);
       }
       if (turn.status === 'failed') show('failure', '本轮失败，未加入后续模型历史。');
-    } else show('failure', turn.status === 'pending' ? '本轮正在执行。可刷新状态查看结果，不会重复执行。' : '本轮已中断；不会自动重放模型或工具。');
+    } else show('failure', activeStates.has(turn.status) ? ({accepted:'请求已登记，等待执行。', running:'正在执行，断开网页不会取消本轮。', cancelling:'正在请求停止；等待服务端确认。'}[turn.status]) : ({cancelled:'本轮已取消。', failed:'本轮执行失败：' + (turn.reason || 'execution'), interrupted:'本轮已中断；不会自动重放模型或工具。'}[turn.status] || '等待状态更新。'));
   }
   for (const key of contextFields) $(key).value = current?.context[key] || '';
   controls();
@@ -93,11 +96,29 @@ async function listing() {
   if (current) $('sessions').value = current.id;
   return sessions;
 }
-async function load(sid) {
+async function load(sid, preserveDraft = false) {
+  const draft = preserveDraft ? Object.fromEntries(contextFields.map(key => [key, $(key).value])) : null;
   current = await request(`/api/sessions/${sid}`);
   localStorage.setItem('bgm-selected-session', sid);
   display();
   await listing();
+  if (draft) for (const key of contextFields) $(key).value = draft[key];
+  schedulePoll();
+}
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  const turn = current?.turns.find(turn => activeStates.has(turn.status));
+  if (!turn || !connected) return;
+  const sid = current.id;
+  pollTimer = setTimeout(async () => {
+    if (current?.id !== sid) return;
+    try {
+      const latest = await request(`/api/sessions/${sid}/turns/${turn.request_id}`);
+      if (current?.id !== sid) return;
+      await load(sid, true);
+      status(activeStates.has(latest.status) ? '本轮仍在执行，可明确取消；无需重复发送。' : latest.status === 'completed' ? '回复已保存。' : '本轮已结束：' + latest.status);
+    } catch (error) { status(error.message + ' 可刷新状态继续查询。'); }
+  }, 1500);
 }
 async function create() {
   current = await request('/api/sessions', 'POST');
@@ -153,6 +174,13 @@ $('delete').onclick = () => action(async () => {
   if (sessions.length) await load(sessions[0].id);
   status('会话已删除。');
 });
+$('cancel').onclick = () => action(async () => {
+  const turn = current?.turns.find(turn => activeStates.has(turn.status));
+  if (!turn) return;
+  await request(`/api/sessions/${current.id}/turns/${turn.request_id}/cancel`, 'POST');
+  await load(current.id, true);
+  status('已提交取消请求，以服务端最终状态为准。');
+});
 $('chat').onsubmit = async event => {
   event.preventDefault();
   const message = $('message').value.trim();
@@ -167,13 +195,13 @@ $('chat').onsubmit = async event => {
   try {
     const turn = await request(`/api/sessions/${sid}/turns`, 'POST', {message, request_id: requestId, version: current.version, depth: $('depth').value});
     await load(sid);
-    status(turn.status === 'pending' ? '正在执行，可刷新状态。' : turn.status === 'failed' ? '本轮处理失败，结果已保存。' : turn.response?.turn_result?.status === 'partial' ? '已保存回复，部分资料缺失。' : '回复已保存。');
+    status(activeStates.has(turn.status) ? '正在执行，可刷新状态。' : turn.status === 'failed' ? '本轮处理失败，结果已保存。' : turn.response?.turn_result?.status === 'partial' ? '已保存回复，部分资料缺失。' : '回复已保存。');
   } catch (error) {
     status(error.message);
     try {
       await load(sid);
       const turn = await request(`/api/sessions/${sid}/turns/${requestId}`);
-      status(turn.status === 'pending' ? '连接已恢复，本轮仍在执行；刷新状态即可，不需要重发。' : '已读取本轮保存的结果。');
+      status(activeStates.has(turn.status) ? '连接已恢复，本轮仍在执行；刷新状态即可，不需要重发。' : '已读取本轮保存的结果。');
     } catch (_) {
       status('无法确认本轮结果。请刷新状态；相同请求 ID：' + requestId + '。不要连续重发。');
     }

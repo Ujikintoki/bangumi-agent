@@ -12,6 +12,7 @@
 | [本机网页开发设计](product/local-web-v1-development.md) | 第一版技术契约、改动落点与验收 | 实现完整使用链路时 |
 | [README](../README.md) | 配置、启动和调用 | 实际运行时 |
 | [架构蓝图](architecture-blueprint.md) | 系统职责、依赖方向和请求路径 | 定义系统职责或准备跨层修改时 |
+| [轮次生命周期](Architecture/turn-lifecycle.md) | 请求状态、取消、恢复及故障矩阵 | 维护执行、连接或持久化行为时 |
 | [AGENTS](../AGENTS.md) | 开发规则与数据安全边界 | 执行修改前 |
 | 本文 | 阅读入口、文档职责和维护状态 | 不知道该读哪份时 |
 

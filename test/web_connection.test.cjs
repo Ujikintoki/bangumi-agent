@@ -55,3 +55,23 @@ test('refresh preserves unsaved context edits as well as the message draft', asy
   assert.equal(fields.get('object_url').value, 'https://bangumi.tv/subject/554779');
   assert.equal(fields.get('message').value, 'unsent draft');
 });
+
+test('restored running turn is polled to completion without posting again', async () => {
+  let polls = 0, posts = 0;
+  const {fields} = page(async (path, options) => {
+    if (options.method === 'POST') posts++;
+    if (path.endsWith('/turns/r')) polls++;
+    return {ok:true, json:async () => {
+      if (path === '/api/readiness') return {ready:true, storage_path:'test.sqlite3'};
+      if (path === '/api/sessions') return [{id:'saved',title:'saved'}];
+      const turn = {request_id:'r', message:'saved input', status:polls ? 'completed' : 'running', response:polls ? {reply:'saved output'} : null};
+      if (path.endsWith('/turns/r')) return turn;
+      return {id:'saved', context:{}, turns:[turn]};
+    }};
+  });
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.ok(polls >= 1);
+  assert.equal(posts, 0);
+  assert.equal(fields.get('cancel').disabled, true);
+  assert.equal(fields.get('send').disabled, false);
+});

@@ -27,6 +27,7 @@ def test_history_context_restart_and_delete(tmp_path):
     rid = str(uuid4())
     assert store.begin('alice', a['id'], rid, a['version'], '看看', ['fast', None]) == (True, 2)
     response = {'reply': '一起聊演出。', 'turn_result': {'status': 'success', 'sources': [{'url': 'https://bgm.tv/subject/1'}]}}
+    store.transition('alice', a['id'], rid, 'running')
     store.complete('alice', a['id'], rid, 2, response)
     restarted = SessionStore(store.path)
     restarted.initialize()
@@ -72,12 +73,13 @@ async def test_replay_busy_cancellation_and_delete_during_execution(tmp_path):
     task = asyncio.create_task(service.send('alice', sid, rid, 0, 'original', 'fast', None))
     await asyncio.wait_for(started.wait(), 2)
     replay = await service.send('alice', sid, rid, 0, 'original', 'fast', None)
-    assert replay['status'] == 'pending'
+    assert replay['status'] == 'running'
     with pytest.raises(SessionError, match='request_conflict'):
         await service.send('alice', sid, rid, 0, 'different', 'fast', None)
     with pytest.raises(SessionError, match='busy'):
         await service.send('alice', sid, str(uuid4()), 1, 'next', 'fast', None)
     store.delete('alice', sid, 1)
+    service.deleted('alice', sid)
     finish.set()
     with pytest.raises(SessionError, match='not_found'):
         await task
@@ -90,7 +92,10 @@ async def test_replay_busy_cancellation_and_delete_during_execution(tmp_path):
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    assert store.read('alice', sid)['turns'][0]['status'] == 'interrupted'
+    pending = store.read('alice', sid)['turns'][0]
+    service.cancel('alice', sid, pending['request_id'])
+    await service.close()
+    assert store.read('alice', sid)['turns'][0]['status'] in {'cancelled', 'interrupted'}
 
 
 @pytest.mark.asyncio
@@ -118,11 +123,11 @@ def test_http_lifecycle_and_context_reach_agent_and_render():
         with (patch('main.agent_app.ainvoke', new=AsyncMock(return_value={'messages': [AIMessage(content='谈演出')], 'query_intent': 'discuss'})) as graph,
               patch('main.render_reply', new=AsyncMock(return_value='谈演出')) as render):
             payload = {'request_id': str(uuid4()), 'version': 1, 'message': '继续'}
-            response = client.post(f'/api/sessions/{sid}/turns', json=payload)
+            response = client.post(f'/api/sessions/{sid}/turns?wait=true', json=payload)
             assert response.status_code == 200
             assert '演出不是剧情' in graph.call_args.args[0]['session_context']
             assert '第3集' in render.call_args.kwargs['conversation_context'][0]['content']
-            assert client.post(f'/api/sessions/{sid}/turns', json=payload).json() == response.json()
+            assert client.post(f'/api/sessions/{sid}/turns?wait=true', json=payload).json() == response.json()
             graph.assert_awaited_once()
         saved = client.get(f'/api/sessions/{sid}').json()
         assert saved['turns'][0]['response']['reply'] == '谈演出'
@@ -149,10 +154,10 @@ def test_storage_commit_failure_does_not_claim_saved(monkeypatch):
         sid = client.post('/api/sessions').json()['id']
         monkeypatch.setattr(session_store, 'complete', lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError('disk full')))
         with patch('main.agent_app.ainvoke', new=AsyncMock(return_value={'messages': [AIMessage(content='generated')], 'query_intent': 'discuss'})):
-            response = client.post(f'/api/sessions/{sid}/turns', json={'request_id': str(uuid4()), 'version': 0, 'message': '保存失败探针'})
+            response = client.post(f'/api/sessions/{sid}/turns?wait=true', json={'request_id': str(uuid4()), 'version': 0, 'message': '保存失败探针'})
         assert response.status_code == 503
         assert 'generated' not in response.text
-        assert session_store.read('anonymous', sid)['turns'][0]['status'] == 'pending'
+        assert session_store.read('anonymous', sid)['turns'][0]['status'] == 'running'
 
 
 def test_saved_context_conflict_and_supported_link_validation():

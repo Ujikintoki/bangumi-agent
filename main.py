@@ -153,13 +153,17 @@ async def lifespan(app: FastAPI):
     """管理应用的生命周期。"""
     logger.info("🚀 系统启动 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
     validate_auth_configuration()
+    conversations.start()
     session_store.initialize()
     if settings.MEMORY_ENABLED or settings.RAG_ENABLED:
         from database.engine import init_db
 
         init_db()
     print(f"[lifespan] {settings.PROJECT_NAME} v{settings.VERSION} 启动成功")
-    yield
+    try:
+        yield
+    finally:
+        await conversations.close()
     logger.info("🛑 系统关闭 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
     print(f"[lifespan] {settings.PROJECT_NAME} v{settings.VERSION} 已关闭")
 
@@ -1318,5 +1322,8 @@ async def _clear_session_cache(owner, sid):
     await get_session_cache().clear(_session_key(owner, sid))
 
 
-conversations = Conversations(session_store, _execute_managed_turn)
+conversations = Conversations(
+    session_store, _execute_managed_turn,
+    timeout_for=lambda depth: settings.REQUEST_TIMEOUT_DEEP if depth == "deep" else settings.REQUEST_TIMEOUT_FAST,
+)
 app.include_router(create_sessions_router(conversations, _clear_session_cache))

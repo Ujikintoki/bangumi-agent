@@ -85,7 +85,7 @@ files = [
     "test_memory", "test_phase5_l1", "test_compression_shapes",
     "test_bgm_tools", "test_sanitizers", "test_schemas", "test_state",
     "test_reasoning", "test_devtools_tool_telemetry",
-    "test_turn_handoff", "test_local_web", "test_sessions",
+    "test_turn_handoff", "test_local_web", "test_sessions", "test_lifecycle",
 ]
 status = pytest.main(["-q", "-p", "asyncio", "-p", "no:cacheprovider",
                       *[f"test/{name}.py" for name in files]])

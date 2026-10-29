@@ -3,7 +3,7 @@ import sqlite3
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from api.access import same_origin_local_request
@@ -56,20 +56,32 @@ def create_router(service, clear_cache):
     @router.delete('/{sid}')
     async def delete(sid: str, version: int, owner: str = Depends(authenticated_user)):
         run(store.delete, owner, sid, version)
+        service.deleted(owner, sid)
         await clear_cache(owner, sid)
         return {'deleted': True}
 
     @router.get('/{sid}/turns/{rid}')
     async def turn(sid: str, rid: str, owner: str = Depends(authenticated_user)):
-        return run(store.turn, owner, sid, rid)
+        return run(service.inspect, owner, sid, rid)
+
+    @router.post('/{sid}/turns/{rid}/cancel')
+    async def cancel(sid: str, rid: str, owner: str = Depends(authenticated_user)):
+        return run(service.cancel, owner, sid, rid)
 
     @router.post('/{sid}/turns')
-    async def send(sid: str, body: TurnRequest, owner: str = Depends(authenticated_user)):
-        try:
-            return await service.send(owner, sid, str(body.request_id), body.version, body.message, body.depth, body.output_style)
-        except SessionError as error:
-            raise HTTPException(404 if error.code == 'not_found' else 409, detail=error.code) from None
-        except sqlite3.Error:
-            raise HTTPException(503, detail='会话存储不可用，未确认保存；请检查数据目录或磁盘空间。') from None
+    async def send(sid: str, body: TurnRequest, response: Response, wait: bool = False,
+                   owner: str = Depends(authenticated_user)):
+        args = (owner, sid, str(body.request_id), body.version, body.message, body.depth, body.output_style)
+        if wait:
+            try:
+                return await service.send(*args)
+            except SessionError as error:
+                raise HTTPException(404 if error.code == 'not_found' else 409, detail=error.code) from None
+            except sqlite3.Error:
+                raise HTTPException(503, detail='会话存储不可用，未确认保存；请检查数据目录或磁盘空间。') from None
+        turn = run(service.submit, *args)
+        if turn['status'] in {'accepted', 'running', 'cancelling'}:
+            response.status_code = 202
+        return turn
 
     return router

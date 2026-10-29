@@ -94,8 +94,9 @@ uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 `GET /api/readiness` 返回模型配置缺项、能力开关与本机保存位置，不返回密钥。
 `POST/GET /api/sessions` 创建/列出会话；`GET/DELETE /api/sessions/{id}` 读取/删除。
 `PATCH /api/sessions/{id}/context` 更新用户确认的背景；写操作携带当前 `version`，删除用查询参数。
-`POST /api/sessions/{id}/turns` 接收 `request_id`（UUID）、`version`、`message`、`depth` 和可选 `output_style`。
-`GET /api/sessions/{id}/turns/{request_id}` 查询已提交或中断的结局；同 ID 同输入重放不会重新生成，输入冲突返回409。
+`POST /api/sessions/{id}/turns` 默认登记后返回202，由应用继续执行，网页自动查询；`?wait=true` 可等待结果。接收 `request_id`（UUID）、`version`、`message`、`depth` 和可选 `output_style`。
+`POST /api/sessions/{id}/turns/{request_id}/cancel` 明确取消，等待服务端确认。
+`GET /api/sessions/{id}/turns/{request_id}` 查询执行状态、固定原因及已保存结果；同 ID 同输入重放不会重新生成，输入冲突返回409。
 会话接口沿用 Bearer 归属，拒绝跨来源网页访问；匿名访问只接受回环主机。
 回复与结局在 SQLite 提交成功后返回；存储故障返回503，不宣称已保存。删除后在途结果不能恢复正文。
 刷新状态可找回已生成但未送达的回答；历史依据带保存时间，不代表当前数值。
@@ -265,3 +266,6 @@ MIT © [Ujikintoki](https://github.com/Ujikintoki)
 
 网页连接状态回归（开发验证，需 Node.js；运行网页不需要 Node.js）：
 `node --test test/web_connection.test.cjs`。
+
+请求状态、取消、超时与故障测试见[轮次生命周期合同](docs/Architecture/turn-lifecycle.md)。
+隔离的真实HTTP/强杀重启验收：`uv run --no-sync python test/lifecycle_http_probe.py`（需回环网络，不调用真实模型）。
