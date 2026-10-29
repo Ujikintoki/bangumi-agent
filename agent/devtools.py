@@ -1,11 +1,7 @@
-"""
-开发者可观测性模块 — Token 统计 + 节点计时
+"""Legacy telemetry imports and response views backed by the unified trace.
 
-通过 ``DEV_MODE=true`` 环境变量控制。开启后自动记录每次 /chat 请求的：
-- 每次 LLM 调用的 prompt_tokens / completion_tokens / 耗时
-- 每个 graph 节点的起止时间
-
-输出为 JSON 友好的 dict，零侵入——调用方无感知，包装层透明拦截。
+DEV_MODE controls the response view, not collection. Graph and SDK adapters own
+execution observation; this module does not maintain separate token counters.
 """
 
 from __future__ import annotations
@@ -71,9 +67,9 @@ class ToolCallRecord:
 class RequestTelemetry:
     """Compatibility view of the current trace; owns no separate counters."""
     def __init__(self):
-        from core.observability.runtime import current, Runtime
+        from core.observability.runtime import current, Runtime, configured
         self.t_start = time.monotonic()
-        self.runtime = current.get()[0] if current.get() else Runtime()
+        self.runtime = current.get()[0] if current.get() else (configured() or Runtime())
         self.identity = current.get()
         self.context = None
 
@@ -88,15 +84,15 @@ class RequestTelemetry:
 
     @property
     def llm_calls(self):
-        return self.to_dict()['llm_calls']
+        return [LLMCallRecord(**item) for item in self.to_dict()['llm_calls']]
 
     @property
     def tool_calls(self):
-        return self.to_dict()['tool_calls']
+        return [ToolCallRecord(**item) for item in self.to_dict()['tool_calls']]
 
     @property
     def node_timings(self):
-        return self.to_dict()['node_timings']
+        return [NodeTiming(**item) for item in self.to_dict()['node_timings']]
 
     def add_llm_call(self, record):
         from core.observability.runtime import span
@@ -143,22 +139,28 @@ def instrument_tools(tools):
     """Legacy direct-call adapter. Graph uses the ToolNode seam instead."""
     from langchain_core.tools import StructuredTool
     from agent.observability import result_status
-    from core.observability.runtime import span
+    from core.observability.runtime import span, active
     wrapped = []
     for original in tools:
         if getattr(original, '_trace_compatibility', False):
             wrapped.append(original)
             continue
         async def invoke(_tool=original, **kwargs):
+            existing = active()
+            if existing and existing.record['name'] == 'tool.execute':
+                return await _tool.ainvoke(kwargs)
             with span('tool.execute', tool=_tool.name, argument_keys=sorted(kwargs)) as scope:
                 result = await _tool.ainvoke(kwargs)
                 if scope:
                     scope.record['result_status'] = result_status(result)
+                    if scope.record['result_status'] in {'failed', 'partial'}:
+                        scope.record['error_type'] = 'structured_tool_error'
                 return result
         tool = StructuredTool(name=original.name, description=original.description,
                               args_schema=original.args_schema, coroutine=invoke,
                               return_direct=getattr(original, 'return_direct', False))
         object.__setattr__(tool, '_trace_compatibility', True)
+        object.__setattr__(tool, '_trace_original', original)
         wrapped.append(tool)
     return wrapped
 
@@ -166,17 +168,17 @@ def instrument_tools(tools):
 class TelemetryLLMWrapper:
     """Legacy SDK adapter; observation is installed once on the underlying model."""
     def __init__(self, llm, label, telemetry):
-        from agent.observability import ModelObserver
+        from agent.observability import ModelObserver, install_callback
         self._llm, self._label, self._telemetry = llm, label, telemetry
-        callbacks = list(llm.callbacks or [])
-        if not any(isinstance(c, ModelObserver) for c in callbacks):
-            llm.callbacks = [*callbacks, ModelObserver(label)]
+        target = getattr(llm, "bound", llm)
+        install_callback(target, ModelObserver(label))
 
     async def ainvoke(self, *args, **kwargs):
-        return await self._llm.ainvoke(*args, **kwargs)
+        from agent.observability import invoke_model
+        return await invoke_model(self._llm, *args, **kwargs)
 
     def bind_tools(self, tools, **kwargs):
-        return self._llm.bind_tools(tools, **kwargs)
+        return TelemetryLLMWrapper(self._llm.bind_tools(tools, **kwargs), self._label, self._telemetry)
 
     def __getattr__(self, name):
         return getattr(self._llm, name)

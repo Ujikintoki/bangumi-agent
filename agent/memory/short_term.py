@@ -23,6 +23,8 @@ from __future__ import annotations
 import json
 import logging
 
+from core.observability import observe_sync
+
 import tiktoken
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
@@ -1068,10 +1070,10 @@ def _compress_previous_round_tools(messages: list[BaseMessage]) -> list[BaseMess
 
 
 def _observe_selection(stage, before, after, budget):
-    from core.observability.runtime import span, reference, current
+    from core.observability import span, reference, current
     if current.get() is None:
         return
-    with span('context.prepare', stage=stage, budget=budget) as scope:
+    with span('context.selection', stage=stage, budget=budget) as scope:
         if scope is None:
             return
         original = [{'id': reference(m), 'role': m.type, 'tool_call_id': getattr(m, 'tool_call_id', None)} for m in before]
@@ -1096,6 +1098,7 @@ def _observe_selection(stage, before, after, budget):
         scope.capture('context_after', lambda: values(after))
 
 
+@observe_sync("context.prepare")
 def manage_memory(
     messages: list[BaseMessage],
     max_tokens: int = DEFAULT_MAX_TOKENS,

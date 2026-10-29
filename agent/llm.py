@@ -102,8 +102,7 @@ def create_llm(
             "AZURE_OPENAI_API_VERSION", "2024-10-21"
         )
         logger.info(
-            "create_llm: Azure mode — endpoint=%s, deployment=%s, api_version=%s",
-            azure_endpoint,
+            "create_llm: Azure mode — deployment=%s, api_version=%s",
             resolved_model,
             azure_api_version,
         )
@@ -123,8 +122,7 @@ def create_llm(
     base_url = settings.LLM_BASE_URL
     if base_url:
         logger.info(
-            "create_llm: custom endpoint — base_url=%s, model=%s",
-            base_url,
+            "create_llm: custom endpoint — model=%s",
             resolved_model,
         )
         llm = ChatOpenAI(
@@ -214,6 +212,6 @@ def _maybe_wrap_telemetry(
     llm: ChatOpenAI, label: str | None
 ) -> ChatOpenAI:
     """Install the same SDK observer in every collection mode."""
-    from agent.observability import ModelObserver
-    llm.callbacks = [*(llm.callbacks or []), ModelObserver(label or "auxiliary")]
+    from agent.observability import ModelObserver, install_callback
+    install_callback(llm, ModelObserver(label or "auxiliary"))
     return llm

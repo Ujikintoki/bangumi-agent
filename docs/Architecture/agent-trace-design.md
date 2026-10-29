@@ -1,6 +1,6 @@
 # Agent Trace 统一设计与实施计划
 
-> 状态：待实施设计，2026-10-29。不是现有能力声明，不包含回复策略或 Render 拓扑调整。
+> 状态：实现合同及当前维护入口，2026-10-30；离线与隔离启动验证见第 13 节。未据此宣称真实模型质量通过，不包含回复策略或 Render 拓扑调整。
 > 范围：本机单用户、单应用进程。为 [C1–C5](../product/fixed-agent-scenarios.md) 的质量定位提供正式观测入口。
 > 本文将“减低透明度”按讨论上下文解释为“降低黑箱程度、减少定位盲区”；不等于无条件保存敏感全文。
 
@@ -295,3 +295,86 @@ T1/T2先形成一套写入与统计事实；T3/T4完成才算达到本项目最�
 
 本项目选择本地默认、按需详细快照、标准跨度基础与单一事实来源；不要求云平台、Collector、Grafana、
 Prometheus、跨服务分布式追踪、隐藏推理采集或自动LLM质量评委。
+
+## 13. 当前维护入口（2026-10-30）
+
+统一链路现在由 `core/observability/runtime.py` 的显式 OTel provider / LocalProcessor、
+`agent/observability.py` 的 SDK Callback 与 ToolNode adapter、应用轮次和本地 writer 组成。
+原 devtools 保留导入及响应 facade；模型工厂不再按 DEV_MODE 安装第二个 collector，
+`_run_with_telemetry` 兼容入口也调用普通 `ainvoke`，不再自行合并流式 state。
+`NodeTiming` 的旧更新间隔估算不作为节点跨度写入；调用该兼容写入口会标记 omitted 原因。
+
+### 启动、查询与短期诊断
+
+- `TRACE_LEVEL=metadata` 为默认；`off` 不创建新执行轨迹。`DEV_MODE` 仅控制旧响应摘要。
+- `TRACE_PATH` 默认 `.local-data/observability`，与会话库分开。显式 lifespan 启停 writer；导入不打开存储。
+- 同源、已认证查询：`GET /api/observability/sessions/{sid}?request_id={rid}`。
+  默认只有元数据；追加 `content=true` 才返回已采集的脱敏 artifact 内容，不会开启采集。
+  查询附带会话库中的 status/reason；无记录时明确返回 disabled 或 not_recorded，并附采集级别，不重跑请求。
+- `GET /api/observability/health` 返回采集级别、writer 状态、队列和丢失计数，不返回身份或正文。
+
+应用启动后，使用本机命令为下一次实际执行开启 scope（owner 使用当前认证用户 ID；匿名为 `anonymous`）：
+
+```bash
+python scripts/agent_trace.py scope --owner anonymous --session SESSION_ID --seconds 300
+python scripts/agent_trace.py export --owner anonymous --session SESSION_ID --request-id REQUEST_ID --content --output /private/tmp/trace-export.json
+```
+
+scope 必须在提交轮次前授予，最长一小时；每次 capture 再检查到期时间。
+它不能由模型、工具参数或 HTTP 请求授予。删除会话立即撤销 scope。
+CLI 直接修改本地控制记录，不启动第二个 provider writer、不对活进程执行恢复。
+导出文件拒绝覆盖已有路径，权限为 600；身份元数据用别名替换，正文仍可能包含使用者主动提供的身份信息。
+脱敏不保证识别任意自由文本中的全部秘密；只使用合成秘密做回归，不声称完整匿名化。
+
+### 如何沿一轮查看材料
+
+以 `trace` 找执行尝试，以 `id` / `parent` 看跨度树，以 `request` 对照持久轮次。
+`model.invoke` 上的 stage、schema_hash、model_parameters 和 model_input 是实际 SDK 调用边界的证据；
+不是由最终回复倒推。usage 只在这些唯一跨度上出现，cache_read 不再加到 input_tokens。
+供应商内部尝试数仍为 unknown，没有真实流式数据时不提供 TTFT，也不计算费用。
+
+`context.assemble` 保存装配候选与历史窗口；`context.prepare` 包住原记忆处理，
+子级 `context.selection` 记录历史工具压缩、单条限额与窗口选择前后快照和 manifest。
+opaque message_id 连接同一消息，transformed 项通过 derived_from 连接原项；
+无法唯一对齐时保持空引用，不凭相似文字猜测来源。
+ToolMessage 的 tool_call_id 将材料连接到唯一 `tool.execute`；原材料已有的评论 ID、作者、定位和截断标记位于诊断 artifact。
+`response.render` 保存图输出、来源裁剪、实际 Render 输入和来源处理后的最终输出；
+不将“在工具返回中存在”写成“模型已经理解”。
+
+根跨度保留 accepted_at、committed_at、accepted_to_commit_ms 和物理执行耗时。
+提交失败后的再次查询只产生新的 session.commit 跨度，不重跑模型。
+执行器未退出时根跨度保持开放，commit 与 execution.quiesced 是不同事实。
+重启把未闭合跨度标为 interrupted；业务最终状态始终查会话库。
+
+正式采集链路的可复现合成示例见 [诊断示例](../Test/agent-trace-synthetic-example.json) 和
+[验证说明](../Test/agent-trace-verification-2026-10-30.md)。它验证采集与材料交接，不验证模型质量。
+
+### 保留、删除与故障处理
+
+writer 使用有界队列和字节限额；热路径不等待文件写入。默认单 artifact 512KiB、单轮 16MiB，
+元数据 30 天、内容 7 天、规范存储总量 256MiB。默认限额保留：旧 C1–C5 冻结快照的文件大小核对见验证说明。
+保留清理在启动和空闲维护时运行；手动运行 `python scripts/agent_trace.py prune` 必须先停止应用。
+应用持有本地 writer 文件锁，手动清理不与活 writer 同时运行。
+
+删除会话先形成持久删除屏障，再清理索引、artifact 和 scope；屏障拒绝队列及重启后的迟到写入。
+物理清理失败会增加健康计数，删除标记立即阻止查询正文，下一次启动继续清理。
+应用启动还核对持久 Trace 的会话归属，清理业务删除已提交、观测删除尚未成功时留下的记录。
+最小删除屏障不保存正文；使用者冻结的旧验收包、导出及备份不在会话删除范围内。
+
+captured / disabled / truncated / unavailable / expired 与 redacted 标记分别表达状态；
+未知对象不使用 repr 序列化。队列满、超限、I/O 或 SDK 故障记录健康缺口，不能冒充完整。
+`recording_complete=false` 在缺失、开放跨度、截断、重启或故障时出现；无法落盘的故障只能由内存健康与日志报告。
+丢失计数是进程级保守信号，同进程其他轮次也可能因此显示不完整。
+诊断文件缺失会在查询时再次检查，避免仅凭 captured 索引声称正文仍在。
+
+### 经代码验证的适配例外
+
+锁定的 langchain-core 1.7.1 `BaseChatModel.agenerate` 在等待内部 `asyncio.gather` 时被取消，
+会跳过后续 `on_llm_error`；正式固定替身回归复现了模型跨度遗留 running。
+因此增加中立的 `invoke(call, ...)` 作用域，框架 adapter 注册待闭合 Callback，
+取消或异常时仅补齐仍未闭合的原跨度。该入口仍只 await 一次原方法、原样传播原异常，
+off / metadata / diagnostic 共享它；不包装或全局 patch BaseChatModel，不重试或屏蔽取消。
+已收到 SDK terminal Callback 的跨度按 run_id 移除，不再次统计。
+
+新真实验收脚本已移除旧观察 monkey-patch，使用同一 scope 与导出入口；
+`run` 要求显式 `--allow-paid`。历史 observer-source 与冻结证据没有修改，本次没有执行真实模型/API 场景。

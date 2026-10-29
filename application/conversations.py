@@ -3,8 +3,9 @@ import asyncio
 import logging
 import sqlite3
 import contextlib
-from core.observability.runtime import span, event
+from core.observability import span, event
 from dataclasses import dataclass
+from datetime import datetime
 
 from sessions.lifecycle import TERMINAL
 from sessions.store import SessionError, now
@@ -24,6 +25,8 @@ class Run:
     outcome: tuple | None = None
     storage_error: bool = False
     observation: object = None
+    accepted_at: str | None = None
+    committed_at: str | None = None
 
 
 class Conversations:
@@ -61,7 +64,9 @@ class Conversations:
         run.task = asyncio.create_task(self._run(run, session, message, depth, style))
         logger.info('turn accepted request_id=%s', rid)
         run.task.add_done_callback(lambda task: self._finished(run, task))
-        return self.store.turn(owner, sid, rid)
+        accepted = self.store.turn(owner, sid, rid)
+        run.accepted_at = accepted['created_at']
+        return accepted
 
     async def send(self, owner, sid, rid, version, message, depth, style):
         """兼容等待者；取消等待不取消应用持有的执行。"""
@@ -114,12 +119,13 @@ class Conversations:
                     self.runs.pop((owner, sid, run.rid), None)
 
     async def _run(self, run, session, message, depth, style):
-        manager = self.observer.turn(run.owner, run.sid, run.rid) if self.observer else contextlib.nullcontext()
+        manager = self.observer.turn(run.owner, run.sid, run.rid, persistent=True) if self.observer else contextlib.nullcontext()
         with manager as observation:
             run.observation = observation
             if observation:
-                observation.deferred = True
-                observation.event('lifecycle.accepted', status='accepted')
+                observation.defer()
+                observation.annotate(accepted_at=run.accepted_at)
+                observation.event('lifecycle.accepted', status='accepted', recorded_at=run.accepted_at)
             await self._run_body(run, session, message, depth, style)
 
     async def _run_body(self, run, session, message, depth, style):
@@ -132,11 +138,13 @@ class Conversations:
                 self.store.transition(run.owner, run.sid, run.rid, 'running')
                 event('lifecycle.running', status='running')
                 history = []
+                history_references = []
                 for turn in session['turns']:
                     saved = turn['response']
                     if turn['status'] == 'completed' and saved and saved.get('turn_result', {}).get('status') != 'failed':
                         history.extend([{'role': 'user', 'content': turn['message']}, {'role': 'assistant', 'content': saved['reply']}])
-                event('context.assembled', history_candidates=len(session['turns']), history_selected=len(history), background_version=run.version)
+                        history_references.extend([{'request_id': turn['request_id'], 'role': role} for role in ('user', 'assistant')])
+                event('context.assembled', history_candidates=len(session['turns']), history_selected=len(history), references=history_references, background_version=session.get('context_source') if session['context'] else 'none')
                 run.worker = asyncio.create_task(self.execute(owner=run.owner, sid=run.sid, message=message, depth=depth,
                                                               style=style, history=history, context=session['context']))
                 done, _ = await asyncio.wait({run.worker}, timeout=self.timeout_for(depth))
@@ -186,7 +194,9 @@ class Conversations:
                 if scope:
                     scope.event('commit.attempt', status=run.outcome[1], reason=run.outcome[2])
                 self._commit_body(run)
-                event('commit.confirmed', status=run.outcome[1], reason=run.outcome[2])
+                if scope:
+                    scope.capture('committed_result', lambda: {'reply': (run.outcome[0] or {}).get('reply'), 'turn_result': (run.outcome[0] or {}).get('turn_result'), 'status': run.outcome[1], 'reason': run.outcome[2]})
+                event('commit.confirmed', status=run.outcome[1], reason=run.outcome[2], recorded_at=run.committed_at)
 
     def _commit_body(self, run):
         response, status, reason = run.outcome
@@ -194,7 +204,15 @@ class Conversations:
             persisted = self.store.turn(run.owner, run.sid, run.rid)
             # 提交可能已成功，仅后续读回/确认失败；先核对事实来源，不能再次执行或覆盖终态。
             if persisted['status'] not in TERMINAL:
-                self.store.complete(run.owner, run.sid, run.rid, run.version, response, status, reason)
+                persisted = self.store.complete(run.owner, run.sid, run.rid, run.version, response, status, reason)
+            if run.observation:
+                run.committed_at = persisted.get('updated_at') if isinstance(persisted, dict) else None
+                run.observation.annotate(committed_at=run.committed_at)
+                run.observation.annotate(commit_outcome=status)
+                try:
+                    run.observation.annotate(accepted_to_commit_ms=(datetime.fromisoformat(run.committed_at)-datetime.fromisoformat(run.accepted_at)).total_seconds()*1000)
+                except (ValueError, TypeError):
+                    run.observation.annotate(accepted_to_commit_ms=None)
         except sqlite3.Error:
             run.storage_error = True
             raise
@@ -211,7 +229,7 @@ class Conversations:
             return
         if run.worker and not run.worker.cancelled():
             run.worker.exception()
-        if run.observation:
+        if run.observation and not run.observation.is_finished:
             run.observation.event('execution.quiesced', status=run.outcome[1] if run.outcome else 'deleted')
             run.observation.finish()
         if not run.storage_error:

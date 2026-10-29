@@ -25,7 +25,7 @@ import logging
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from agent.observability import observe_tool_call, observed, observed_route, TOOL_OBSERVER
+from agent.observability import observe_tool_call, observed, observed_route, TOOL_OBSERVER, install_callback
 from agent.guardrails import format_tool_error
 from agent.nodes.classify import classify_node
 from agent.nodes.pipeline import (
@@ -226,11 +226,9 @@ def build_graph(tools: list | None = None) -> StateGraph:
     """
     if tools is None:
         tools = get_agent_tools()
-    tools = list(tools)
+    tools = [getattr(tool, "_trace_original", tool) if getattr(tool, "_trace_compatibility", False) is True else tool for tool in tools]
     for tool in tools:
-        callbacks = list(tool.callbacks or [])
-        if TOOL_OBSERVER not in callbacks:
-            tool.callbacks = [*callbacks, TOOL_OBSERVER]
+        install_callback(tool, TOOL_OBSERVER)
 
     graph = StateGraph(AgentState)
 

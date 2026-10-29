@@ -155,7 +155,9 @@ uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 | `SESSION_DB_PATH` | `.local-data/sessions.sqlite3` | 本机可见会话、背景及回复依据 |
 | `RAG_ENABLED` | `False` | 注册本地检索工具并初始化其数据库 |
 | `MEMORY_ENABLED` | `False` | L2 跨会话记忆开关 |
-| `DEV_MODE` | `False` | 开启后 `/chat` 响应附带 telemetry |
+| `TRACE_LEVEL` | `metadata` | `off` 关闭；默认元数据不采输入输出正文 |
+| `TRACE_PATH` | `.local-data/observability` | 独立 Trace 索引、私有 artifact 与诊断 scope |
+| `DEV_MODE` | `False` | `/chat` 返回从统一 Trace 派生的兼容摘要 |
 | `BGM_LOG_LEVEL` | `INFO` | 日志级别（`DEBUG` 可看逐节点日志） |
 
 ---
@@ -269,3 +271,10 @@ MIT © [Ujikintoki](https://github.com/Ujikintoki)
 
 请求状态、取消、超时与故障测试见[轮次生命周期合同](docs/Architecture/turn-lifecycle.md)。
 隔离的真实HTTP/强杀重启验收：`uv run --no-sync python test/lifecycle_http_probe.py`（需回环网络，不调用真实模型）。
+
+### 本机 Agent Trace
+
+默认采集统一 Trace 元数据；`TRACE_LEVEL=off` 关闭采集，`TRACE_PATH` 指定独立观测目录。
+详细输入输出需要在提交轮次前以本机命令授予限时会话 scope；DEV_MODE 只返回兼容摘要。
+查询、脱敏导出、保留清理及删除边界见[Trace 维护入口](docs/Architecture/agent-trace-design.md#13-当前维护入口2026-10-30)。
+无付费合成示例：`python scripts/trace_synthetic.py --output /private/tmp/agent-trace-example.json`（需已准备 tokenizer 缓存）。

@@ -9,6 +9,8 @@ fast / deep 两种深度模式共享同一逻辑，差异在迭代上限和 toke
 
 from __future__ import annotations
 
+from core.observability import invoke
+
 import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -157,7 +159,7 @@ async def reasoning_node(state: AgentState) -> dict:
 
     # ── LLM 调用 ────────────────────────────────────────────
     try:
-        response: AIMessage = await llm_to_use.ainvoke(messages_for_llm)
+        response: AIMessage = await invoke(llm_to_use.ainvoke, messages_for_llm)
     except Exception as e:  # noqa: BLE001 - node contract converts provider failures
         logger.warning("reasoning_node: LLM 调用失败 (%s)", type(e).__name__)
         return {

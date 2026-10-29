@@ -7,6 +7,8 @@ classify_intent 提供 LLM 分类 + 置信度路由。
 
 from __future__ import annotations
 
+from core.observability import invoke
+
 import json
 import logging
 import re
@@ -129,7 +131,7 @@ async def classify_intent_llm(
         if _PROFILE_TRIGGER.search(user_message):
             prompt += _PROFILE_HINT
         llm_with_tool = llm.bind_tools([CLASSIFY_INTENT_SCHEMA])
-        response = await llm_with_tool.ainvoke(
+        response = await invoke(llm_with_tool.ainvoke,
             [HumanMessage(content=prompt + "\n\n用户消息: " + safe_message)]
         )
 
@@ -144,7 +146,7 @@ async def classify_intent_llm(
             intent = _resolve_alias(raw_intent)
             if intent not in _VALID_INTENTS:
                 logger.warning(
-                    "classify_intent_llm: 非预期输出 '%s' → 'fallback'", raw_intent
+                    "classify_intent_llm: invalid intent → fallback"
                 )
                 return ("fallback", 0.0)
 
@@ -155,12 +157,12 @@ async def classify_intent_llm(
         # 无 tool_calls → fallback
         content = str(response.content).strip() if hasattr(response, "content") else ""
         logger.warning(
-            "classify_intent_llm: 无 tool_calls, content='%s' → fallback", content[:80]
+            "classify_intent_llm: no tool_calls → fallback"
         )
         return ("fallback", 0.0)
 
     except Exception as e:
-        logger.warning("classify_intent_llm: LLM 调用失败 (%s)，fallback", e)
+        logger.warning("classify_intent_llm: LLM 调用失败 (%s)，fallback", type(e).__name__)
         return ("fallback", 0.0)
 
 
@@ -257,7 +259,7 @@ async def classify_node(state: AgentState) -> dict:
     # 置信度路由
     routed_intent = route_by_classification(intent, confidence)
 
-    from core.observability.runtime import event
+    from core.observability import event
     event('classification.result', status=routed_intent, selected={'raw_intent': intent, 'confidence': confidence}, schema_version='classification-v1')
     logger.info(
         "[Classify] intent=%s (raw=%s, conf=%.2f)",

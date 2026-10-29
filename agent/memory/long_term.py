@@ -11,6 +11,8 @@ L2 长记忆的统一入口：召回（recall） + 记住（remember）。
 
 from __future__ import annotations
 
+from core.observability import invoke
+
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -502,7 +504,7 @@ class MemoryManager:
             prompt = SUMMARIZE_PROMPT_V2.format(
                 conversation_history=conversation_text
             )
-            response = await llm.ainvoke(prompt)
+            response = await invoke(llm.ainvoke, prompt)
             raw = (
                 response.content.strip()
                 if hasattr(response, "content")

@@ -11,6 +11,8 @@ Pipeline 节点 — v5 异质拓扑中编译时确定的执行计划
 
 from __future__ import annotations
 
+from core.observability import invoke
+
 import logging
 
 from langchain_core.messages import AIMessage
@@ -96,7 +98,7 @@ async def _pipeline_step(
     )
 
     try:
-        response: AIMessage = await llm_to_use.ainvoke(built)
+        response: AIMessage = await invoke(llm_to_use.ainvoke, built)
     except Exception as e:  # noqa: BLE001 - node contract converts provider failures
         logger.warning("pipeline_step: LLM 调用失败 (%s)", type(e).__name__)
         return {

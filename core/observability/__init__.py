@@ -1,4 +1,10 @@
-"""Neutral local observation interface. Importing this module performs no I/O."""
-from .runtime import Runtime, current, span
+"""Neutral observation interface. Importing this module performs no I/O."""
+from .runtime import (
+    CorrelationFilter, Runtime, active, begin, capture, configure, configured, current, event, invoke,
+    observe_sync, reference, register_invocation_finalizer, span, summary,
+)
 
-__all__ = ['Runtime', 'current', 'span']
+__all__ = [
+    'CorrelationFilter', 'Runtime', 'active', 'begin', 'capture', 'configure', 'configured', 'current',
+    'event', 'invoke', 'observe_sync', 'reference', 'register_invocation_finalizer', 'span', 'summary',
+]

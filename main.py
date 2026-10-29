@@ -19,7 +19,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from pydantic import BaseModel, Field
 
 from agent.devtools import RequestTelemetry, set_current_telemetry
-from core.observability.runtime import configured, configure, current, span
+from core.observability import configured, configure, current, span
 from agent.observability import observed
 from agent.graph import agent_app
 from agent.memory.cache import get_session_cache
@@ -58,7 +58,7 @@ def _setup_logging() -> None:
     if not root.handlers:
         handler = logging.StreamHandler()
         handler.setLevel(level)
-        from core.observability.runtime import CorrelationFilter
+        from core.observability import CorrelationFilter
         handler.addFilter(CorrelationFilter())
         fmt = logging.Formatter(
             "[%(asctime)s] %(levelname)-5s %(name)s trace=%(trace_id)s span=%(span_id)s request=%(request_id)s | %(message)s",
@@ -157,9 +157,11 @@ async def lifespan(app: FastAPI):
     """管理应用的生命周期。"""
     logger.info("🚀 系统启动 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
     validate_auth_configuration()
+    conversations.start()
+    session_store.initialize()
     from core.observability import Runtime
     observer = Runtime(settings.TRACE_PATH, level=settings.TRACE_LEVEL, secrets=[
-        settings.LLM_API_KEY, settings.BANGUMI_ACCESS_TOKEN,
+        settings.LLM_API_KEY, settings.BANGUMI_ACCESS_TOKEN, settings.BANGUMI_APP_SECRET, settings.ZHIPU_API_KEY,
         *settings.API_USER_TOKENS.values(),
         *[__import__('os').environ.get(key, '') for key in ('OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY', 'ZHIPU_API_KEY')],
     ])
@@ -169,8 +171,16 @@ async def lifespan(app: FastAPI):
         observer.failed()
     configure(observer)
     conversations.observer = observer
-    conversations.start()
-    session_store.initialize()
+    from sessions.store import SessionError
+    try:
+        for owner, sid in observer.sessions() if observer.thread else []:
+            try:
+                session_store.read(owner, sid)
+            except SessionError as error:
+                if error.code == 'not_found':
+                    observer.delete(owner, sid)
+    except Exception:
+        observer.failed()
     if settings.MEMORY_ENABLED or settings.RAG_ENABLED:
         from database.engine import init_db
 
@@ -324,8 +334,11 @@ async def _chat(request: ChatRequest, *, history=None, context=None, managed=Fal
     import contextlib
     runtime = configured()
     manager = runtime.turn(request.user_id, request.session_id or uuid.uuid4().hex, uuid.uuid4().hex) if runtime and current.get() is None else contextlib.nullcontext()
-    with manager:
-        return await _chat_impl(request, history=history, context=context, managed=managed)
+    with manager as observation:
+        response = await _chat_impl(request, history=history, context=context, managed=managed)
+    if observation and response.telemetry is not None:
+        response.telemetry['elapsed_ms'] = observation.elapsed_ms
+    return response
 
 
 async def _chat_impl(request: ChatRequest, *, history=None, context=None, managed=False) -> ChatResponse:
@@ -491,13 +504,21 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
     if not acquired:
         await claim.__aexit__(None, None, None)
         raise HTTPException(status_code=409, detail="Session already has an active request")
+    import contextlib
+    runtime = configured()
+    observation = runtime.detached_turn(request.user_id, request.session_id, uuid.uuid4().hex) if runtime else None
+    stream_error = None
     try:
-        initial_state, session_id, depth, output_style = await _build_initial_state(request)
-    except BaseException:
+        with observation.activate() if observation else contextlib.nullcontext():
+            initial_state, session_id, depth, output_style = await _build_initial_state(request)
+    except BaseException as error:
+        if observation:
+            observation.finish(error)
         await claim.__aexit__(None, None, None)
         raise
 
     async def generate():
+        nonlocal stream_error
         session_cache = get_session_cache()  # 单例，恢复/保存 L1 session
         final_state: dict = dict(
             initial_state
@@ -511,9 +532,10 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
             )
 
             async def _graph_and_render():
-                state = await agent_app.ainvoke(
-                    initial_state, config={"recursion_limit": 50}
-                )
+                with span('graph.execute'):
+                    state = await agent_app.ainvoke(
+                        initial_state, config={"recursion_limit": 50}
+                    )
                 messages_for_render = state.get("messages", [])
                 user_query = (
                     _extract_user_query_from_messages(messages_for_render)
@@ -556,6 +578,7 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
             yield "data: [DONE]\n\n"
 
         except asyncio.TimeoutError:
+            stream_error = asyncio.TimeoutError()
             # 请求级超时——必须放在 except Exception 之前（TimeoutError 是其子类）
             logger.warning(
                 "/chat/stream: 请求超时 (depth=%s, timeout=%ss)", depth, timeout_s
@@ -563,10 +586,12 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
             yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '查询处理超时，请尝试更具体的提问方式。', 'turn_result': _failed_turn_result('timeout')}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except GraphRecursionError:
+            stream_error = GraphRecursionError()
             logger.warning("/chat/stream: recursion_limit 触发 (depth=%s)", depth)
             yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '查询处理超时，请尝试更具体的提问方式。', 'turn_result': _failed_turn_result('iteration_limit')}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except asyncio.CancelledError:
+            stream_error = asyncio.CancelledError()
             # 客户端断开 — CancelledError 是 BaseException 子类，不被 except Exception 捕获。
             # 在此尽力保存 L1 + L2 状态（用 shield 防止被二次取消）。
             logger.warning("/chat/stream: 客户端断开，尝试紧急保存 session 状态")
@@ -585,6 +610,7 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
             # 的注入内容（审计盲区修复）。
             # 连接已断开，不发送 SSE 事件，直接退出生成器
         except Exception as exc:  # noqa: BLE001 - SSE boundary returns a structured failure
+            stream_error = exc
             logger.warning("/chat/stream: Agent 执行异常 (%s)", type(exc).__name__)
             yield f"data: {json.dumps({'node': 'error', 'session_id': session_id, 'message': '内部处理错误，请稍后重试', 'turn_result': _failed_turn_result('execution')}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
@@ -595,12 +621,12 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
                 await super().__call__(scope, receive, send)
             finally:
                 await claim.__aexit__(None, None, None)
+                if observation:
+                    observation.finish(stream_error)
 
     async def observed_generate():
         import contextlib
-        runtime = configured()
-        manager = runtime.turn(request.user_id, session_id, uuid.uuid4().hex) if runtime else contextlib.nullcontext()
-        with manager:
+        with observation.activate() if observation else contextlib.nullcontext():
             async for item in generate():
                 yield item
     return ReservedStream(observed_generate(), media_type="text/event-stream")
@@ -661,10 +687,12 @@ async def _build_initial_state(
         "output_style": output_style,
         "depth": depth,
     }
-    from core.observability.runtime import active
+    from core.observability import active
     scope = active()
     if scope:
-        scope.event('context.history_window', history_candidates=len(history) if history is not None else len(cached), history_selected=len(cached), reason='last_20_persisted_messages' if history is not None else 'l1_cache', missing=['origin_kind_for_free_text'])
+        from core.observability import reference
+        offset = max(0, len(history)-len(cached)) if history is not None else 0
+        scope.event('context.history_window', history_candidates=len(history) if history is not None else len(cached), history_selected=len(cached), selected=[{'message_id': reference(message), 'source_history_index': offset+index} for index, message in enumerate(cached)], omitted=list(range(offset)), reason='last_20_persisted_messages' if history is not None else 'l1_cache', missing=['origin_kind_for_free_text'])
         from agent.observability import messages_value
         scope.capture('assembled_messages', lambda: messages_value(initial_state['messages']))
         scope.capture('accepted_context', lambda: {'history': history, 'background': context})
@@ -951,7 +979,7 @@ def _render_input_for_turn(summary: str, turn_result: dict | None) -> str:
                     "truncated_ids": [item.get("id") for item in view["comments_sample"].get("items", [])
                                       if item.get("truncated")],
                 }
-        from core.observability.runtime import event, capture
+        from core.observability import event, capture
         before_ids = [item.get('source_id', item.get('id')) for item in (sample or {}).get('items', [])] if isinstance(sample, dict) else []
         after_ids = [item.get('source_id', item.get('id')) for item in view.get('comments_sample', {}).get('items', [])]
         event('render.source_budget', source_id=source.get('call_id'), selected=after_ids,
@@ -1191,7 +1219,7 @@ def _conversation_context(messages: list) -> list[dict[str, str]]:
         if isinstance(m, (HumanMessage, AIMessage))
         and m.content and not (isinstance(m, AIMessage) and m.tool_calls)
     ]
-    from core.observability.runtime import event, capture
+    from core.observability import event, capture
     event('render.history_window', candidate_count=len(visible), selected_count=len(visible[-6:]),
           omitted=list(range(max(0, len(visible)-6))), reason='last_6_visible_messages_1500_chars')
     capture('render_history', lambda: visible[-6:])
@@ -1347,3 +1375,5 @@ conversations = Conversations(
     timeout_for=lambda depth: settings.REQUEST_TIMEOUT_DEEP if depth == "deep" else settings.REQUEST_TIMEOUT_FAST,
 )
 app.include_router(create_sessions_router(conversations, _clear_session_cache))
+from api.observability import create_router as create_trace_router
+app.include_router(create_trace_router(conversations))

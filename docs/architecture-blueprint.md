@@ -18,8 +18,10 @@
 accepted 在执行前提交；应用持有独立任务，HTTP断开不取消。状态查询和明确取消与提交分离，
 回答与结局事务提交后交付；版本检查及删除后的行缺失阻止在途写回。详见[生命周期合同](Architecture/turn-lifecycle.md)。
 默认关闭 RAG/L2，只有显式开启才在生命周期初始化原有数据库；L1 导入不加载 L2 数据层。
-观测仍以现有 devtools 和生命周期日志为主；[统一 Trace 设计](Architecture/agent-trace-design.md)尚待实施。
-规划中业务层依赖中立观测接口，框架适配与本地存储分离；trace 不替代会话持久化或执行恢复。
+观测由中立 `core.observability`、框架 adapter、本地 OTel processor/writer 组成，
+模型、工具、上下文和生命周期共享 Trace；devtools 是兼容摘要视图。
+查询、限时 scope 与删除合同见[统一 Trace 维护入口](Architecture/agent-trace-design.md#13-当前维护入口2026-10-30)。
+Trace 不替代会话持久化或执行恢复。
 
 ## 0. 为什么需要这份文档
 
@@ -76,7 +78,7 @@ accepted 在执行前提交；应用持有独立任务，HTTP断开不取消。�
 | 5 | **编排层** Orchestration | 管理整轮请求生命周期与图内 Think-Act-Observe 循环 | `main.py` 整轮编排 + `agent/graph.py` 任务内编排 | ✅ |
 | 6 | **人格层** Persona | 提供角色配置，并在部分取数路径影响数据态度、在所有成功路径影响最终表达 | `agent/persona/` + Aggregator / Render 调用点 | ✅ |
 | 7 | **护栏** Guardrails | 在 harness 代码里而非只靠 prompt：预算封顶、输入校验、错误格式化 | `agent/guardrails.py` + 路由熔断 | 🟡 |
-| 8 | **可观测性** Observability | 全量 trace、checkpoint 持久执行、失败可续跑 | `agent/devtools.py`（DEV_MODE telemetry） | 🟡 |
+| 8 | **可观测性** Observability | 统一本地 Trace 与限时诊断；执行恢复由应用负责 | `core/observability` + `agent/observability.py` | 🟡 |
 | 9 | **评估** Evaluation | 官方定位为"number one thing"：golden set + CI 回归 + judge | `eval/`（现状见 `eval/README.md`）+ `docs/eval/` 方法论 | 🟡 |
 
 🟡 = 存在但未到生产级；§5 逐板块给出方向。
@@ -101,7 +103,7 @@ HTTP 服务 / 整轮编排 main.py
 └─→ 记忆 memory（SessionCache 恢复/保存与 L2 后台写入）
 
    横切基础能力（被多层使用，不属任何层，也不感知任何层）：
-   模型工厂 agent/llm.py · 护栏 agent/guardrails.py · 观测 agent/devtools.py
+   模型工厂 agent/llm.py · 护栏 agent/guardrails.py · 观测 core.observability（devtools 为兼容视图）
    层外：评估 eval/（不参与运行时，是开发期工具）
 ```
 
@@ -373,9 +375,10 @@ Pipeline 的固定步骤路由会先于通用软熔断返回，因此不能概�
 
 ### 5.7 可观测性 🟡
 
-现状：`DEV_MODE=true` telemetry（节点耗时 + token 统计），够开发态。
-
-方向：全量 trace（官方"最小栈" = 每轮请求 trace 到可观测平台）；checkpoint 持久执行（§5.4）；生产日志规范。
+现状：应用持有执行身份，中立 OTel 接口与框架 adapter 将模型、工具、材料选择、Render 和提交连接到本地 Trace。
+默认元数据，显式限时会话 scope 才采正文；日志带关联标识，旧 telemetry 从同一跨度派生。
+故障、保留和删除见[维护合同](Architecture/agent-trace-design.md#13-当前维护入口2026-10-30)。
+真实供应商边界仍待授权验证；Trace 不提供自动重试或 checkpoint 恢复。
 
 ### 5.8 评估 🟡（P0 级工程债）
 
