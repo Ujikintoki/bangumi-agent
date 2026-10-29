@@ -3,11 +3,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function page(fetch) {
+function page(fetch, {missing = []} = {}) {
+  const ids = new Set([...fs.readFileSync("web/index.html", "utf8").matchAll(/id="([^"]+)"/g)].map(match => match[1]));
   const fields = new Map();
   const element = () => ({value: '', disabled: false, textContent: '', style: {}, dataset: {}, append() {}, replaceChildren() {}});
   const sandbox = {
-    document: {getElementById(id) {if (!fields.has(id)) fields.set(id, element()); return fields.get(id);}, createElement: element},
+    document: {getElementById(id) {if (!ids.has(id) || missing.includes(id)) return null; if (!fields.has(id)) fields.set(id, element()); return fields.get(id);}, createElement: element},
     fetch, AbortController, setTimeout: (fn, ms) => setTimeout(fn, Math.min(ms, 10)), clearTimeout,
     localStorage: {getItem() {return null;}, setItem() {}, removeItem() {}},
   };
@@ -74,4 +75,14 @@ test('restored running turn is polled to completion without posting again', asyn
   assert.equal(posts, 0);
   assert.equal(fields.get('cancel').disabled, true);
   assert.equal(fields.get('send').disabled, false);
+});
+
+
+test('a previously opened page without the cancel button remains usable', async () => {
+  let context;
+  assert.doesNotThrow(() => {
+    context = page(async () => {throw new TypeError('Failed to fetch');}, {missing:['cancel']});
+  });
+  await settle();
+  assert.equal(context.fields.get('check').disabled, false);
 });

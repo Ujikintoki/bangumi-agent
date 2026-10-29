@@ -9,7 +9,7 @@ function controls() {
   const pending = current?.turns.some(turn => activeStates.has(turn.status));
   for (const id of ['send', 'save-context']) $(id).disabled = !ready || busy || !current || pending;
   for (const id of ['new', 'delete', 'sessions']) $(id).disabled = busy || !connected;
-  $('cancel').disabled = busy || !connected || !current?.turns.some(turn => activeStates.has(turn.status));
+  if ($('cancel')) $('cancel').disabled = busy || !connected || !current?.turns.some(turn => activeStates.has(turn.status));
   $('check').disabled = busy;
   $('refresh').disabled = false;
 }
@@ -174,7 +174,7 @@ $('delete').onclick = () => action(async () => {
   if (sessions.length) await load(sessions[0].id);
   status('会话已删除。');
 });
-$('cancel').onclick = () => action(async () => {
+if ($('cancel')) $('cancel').onclick = () => action(async () => {
   const turn = current?.turns.find(turn => activeStates.has(turn.status));
   if (!turn) return;
   await request(`/api/sessions/${current.id}/turns/${turn.request_id}/cancel`, 'POST');

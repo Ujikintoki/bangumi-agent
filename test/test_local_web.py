@@ -68,3 +68,16 @@ def test_readiness_preserves_bearer_auth(monkeypatch):
 def test_local_search_requires_explicit_enable(monkeypatch):
     monkeypatch.setattr(get_settings(), 'RAG_ENABLED', True)
     assert 'search_local_bangumi' in {tool.name for tool in get_agent_tools()}
+
+
+def test_ui_assets_are_versioned_and_do_not_reuse_stale_html():
+    import re
+    client = TestClient(app)
+    page = client.get('/')
+    assert page.headers['cache-control'] == 'no-store'
+    script = re.search(r'src="(/web/chat.js\?v=[a-f0-9]+)"', page.text).group(1)
+    assert script.endswith(page.headers['x-ui-version'])
+    response = client.get(script)
+    assert response.status_code == 200
+    assert response.headers['cache-control'] == 'no-store'
+    assert 'id="cancel"' in page.text
