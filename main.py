@@ -158,7 +158,11 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 系统启动 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
     validate_auth_configuration()
     from core.observability import Runtime
-    observer = Runtime(settings.TRACE_PATH, level=settings.TRACE_LEVEL)
+    observer = Runtime(settings.TRACE_PATH, level=settings.TRACE_LEVEL, secrets=[
+        settings.LLM_API_KEY, settings.BANGUMI_ACCESS_TOKEN,
+        *settings.API_USER_TOKENS.values(),
+        *[__import__('os').environ.get(key, '') for key in ('OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY', 'ZHIPU_API_KEY')],
+    ])
     try:
         observer.start()
     except Exception:
@@ -657,6 +661,13 @@ async def _build_initial_state(
         "output_style": output_style,
         "depth": depth,
     }
+    from core.observability.runtime import active
+    scope = active()
+    if scope:
+        scope.event('context.history_window', history_candidates=len(history) if history is not None else len(cached), history_selected=len(cached), reason='last_20_persisted_messages' if history is not None else 'l1_cache', missing=['origin_kind_for_free_text'])
+        from agent.observability import messages_value
+        scope.capture('assembled_messages', lambda: messages_value(initial_state['messages']))
+        scope.capture('accepted_context', lambda: {'history': history, 'background': context})
     return initial_state, session_id, depth, output_style
 
 
@@ -940,6 +951,13 @@ def _render_input_for_turn(summary: str, turn_result: dict | None) -> str:
                     "truncated_ids": [item.get("id") for item in view["comments_sample"].get("items", [])
                                       if item.get("truncated")],
                 }
+        from core.observability.runtime import event, capture
+        before_ids = [item.get('source_id', item.get('id')) for item in (sample or {}).get('items', [])] if isinstance(sample, dict) else []
+        after_ids = [item.get('source_id', item.get('id')) for item in view.get('comments_sample', {}).get('items', [])]
+        event('render.source_budget', source_id=source.get('call_id'), selected=after_ids,
+              omitted=[item for item in before_ids if item not in after_ids], budget=source_budget,
+              truncated=view.get('context_truncated', False), reason='render_source_budget')
+        capture('render_source_view', lambda: view)
         sources.append(view)
     public_result = {
         "status": turn_result.get("status", "unknown"),
@@ -1173,6 +1191,10 @@ def _conversation_context(messages: list) -> list[dict[str, str]]:
         if isinstance(m, (HumanMessage, AIMessage))
         and m.content and not (isinstance(m, AIMessage) and m.tool_calls)
     ]
+    from core.observability.runtime import event, capture
+    event('render.history_window', candidate_count=len(visible), selected_count=len(visible[-6:]),
+          omitted=list(range(max(0, len(visible)-6))), reason='last_6_visible_messages_1500_chars')
+    capture('render_history', lambda: visible[-6:])
     return visible[-6:]
 
 

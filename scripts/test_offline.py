@@ -7,6 +7,7 @@ The tokenizer cache must be prepared separately; this command never downloads it
 import os
 import socket
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,6 +76,8 @@ for name in ("LLM_BASE_URL", "LLM_AZURE_ENDPOINT", "AZURE_OPENAI_ENDPOINT",
 os.environ.update(DATABASE_URL="postgresql://offline:offline@127.0.0.1:1/offline",
                   AUTH_ENABLED="false", API_USER_TOKENS="{}", ENVIRONMENT="test",
                   MEMORY_ENABLED="false", RAG_ENABLED="false", DEV_MODE="false")
+trace_test_storage = tempfile.TemporaryDirectory(prefix="bgm-offline-trace-")
+os.environ["TRACE_PATH"] = trace_test_storage.name
 get_settings.cache_clear()
 
 import pytest

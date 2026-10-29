@@ -83,7 +83,7 @@ class RequestTelemetry:
             return summary([])
         runtime, owner, session, request = self.identity
         runtime.flush()
-        records = runtime.query(owner, session)['records']
+        records = runtime.query(owner, session, content=False)['records']
         return summary([r for r in records if r['request'] == request])
 
     @property

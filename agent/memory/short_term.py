@@ -1067,6 +1067,35 @@ def _compress_previous_round_tools(messages: list[BaseMessage]) -> list[BaseMess
     return result
 
 
+def _observe_selection(stage, before, after, budget):
+    from core.observability.runtime import span, reference, current
+    if current.get() is None:
+        return
+    with span('context.prepare', stage=stage, budget=budget) as scope:
+        if scope is None:
+            return
+        original = [{'id': reference(m), 'role': m.type, 'tool_call_id': getattr(m, 'tool_call_id', None)} for m in before]
+        manifest = []
+        for message in after:
+            exact = next((i for i, old in enumerate(before) if old is message), None)
+            source = exact
+            if source is None:
+                source = next((i for i, old in enumerate(before) if getattr(message, 'tool_call_id', None) and getattr(old, 'tool_call_id', None) == message.tool_call_id), None)
+            if source is None:
+                candidates = [i for i, old in enumerate(before) if old.type == message.type]
+                source = candidates[0] if len(candidates) == 1 else None
+            manifest.append({'id': reference(message), 'derived_from': original[source]['id'] if source is not None else None,
+                             'status': 'selected' if exact is not None else 'transformed', 'reason': stage})
+        used = {item['derived_from'] for item in manifest}
+        omitted = [item['id'] for item in original if item['id'] not in used]
+        scope.event('context.selection', candidate_count=len(before), selected_count=len(after), selected=manifest, omitted=omitted, reason=stage)
+        def values(messages):
+            return [{'message_id': reference(m), 'role': m.type, 'content': m.content,
+                     'tool_call_id': getattr(m, 'tool_call_id', None)} for m in messages]
+        scope.capture('context_before', lambda: values(before))
+        scope.capture('context_after', lambda: values(after))
+
+
 def manage_memory(
     messages: list[BaseMessage],
     max_tokens: int = DEFAULT_MAX_TOKENS,
@@ -1088,10 +1117,14 @@ def manage_memory(
         可能压缩/截断后的消息列表。
     """
     # Step 0: 压缩上一轮工具结果（保留语义骨架）
+    before = messages
     messages = _compress_previous_round_tools(messages)
+    _observe_selection("previous_tool_compression", before, messages, max_tokens)
 
     # Step 1: 截断超大单条消息（SystemMessage 除外）
+    before = messages
     messages = _truncate_oversized_messages(messages)
+    _observe_selection("single_message_limit", before, messages, max_tokens)
 
     # Step 2: 检查总预算
     current_tokens = estimate_tokens(messages)
@@ -1104,4 +1137,6 @@ def manage_memory(
         current_tokens,
         max_tokens,
     )
-    return trim_messages(messages, max_tokens)
+    selected = trim_messages(messages, max_tokens)
+    _observe_selection("window_budget", messages, selected, max_tokens)
+    return selected

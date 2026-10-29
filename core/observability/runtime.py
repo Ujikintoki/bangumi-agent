@@ -12,6 +12,10 @@ import sqlite3
 import threading
 import time
 import uuid
+import weakref
+import importlib.metadata
+import platform
+import subprocess
 
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry import trace
@@ -34,9 +38,9 @@ def clean(value, depth=0):
     if type(value) is str:
         return _SECRET.sub('[REDACTED]', value)
     if type(value) in (list, tuple):
-        return [clean(v, depth+1) for v in value]
+        return [clean(v, depth+1) for v in value if not (type(v) is dict and v.get('type') in {'reasoning', 'thinking', 'analysis', 'redacted_thinking'})]
     if type(value) is dict:
-        return {k: clean(v, depth+1) for k, v in value.items() if type(k) is str and not _FORBIDDEN.search(k)}
+        return {k: ('[ERROR BODY OMITTED]' if k.endswith('_error') else clean(v, depth+1)) for k, v in value.items() if type(k) is str and not _FORBIDDEN.search(k)}
     raise ValueError('unsupported observation value')
 
 
@@ -54,7 +58,7 @@ def configured():
 
 
 class Runtime:
-    def __init__(self, path=None, *, level='metadata', capacity=2048, byte_limit=16*1024*1024):
+    def __init__(self, path=None, *, level='metadata', capacity=2048, byte_limit=16*1024*1024, secrets=(), artifact_limit=512*1024, turn_limit=16*1024*1024):
         if level not in {'off', 'metadata'}:
             raise ValueError('diagnostics require an explicit session scope')
         self.path = Path(path) if path is not None else None
@@ -72,10 +76,25 @@ class Runtime:
         self.stopping = threading.Event()
         self.instance = uuid.uuid4().hex
         self.records = {}
+        self.secrets = tuple(value for value in secrets if isinstance(value, str) and value)
+        self.artifact_limit, self.turn_limit = artifact_limit, turn_limit
+        self.content_bytes = {}
+        self.material_refs = {}
+        self.scope_paths = {}
+        self.artifact_values = {}
+        self.versions = {}
 
     def start(self):
         if self.level == 'off' or self.thread or self.path is None:
             return
+        self.versions = {'python': platform.python_version(), 'dependencies': {name: importlib.metadata.version(name) for name in ('opentelemetry-sdk', 'langchain-core', 'langgraph')}}
+        try:
+            root = Path(__file__).resolve().parents[2]
+            revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, stderr=subprocess.DEVNULL, timeout=1).decode().strip()
+            dirty = bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, stderr=subprocess.DEVNULL, timeout=1))
+            self.versions.update(code_revision=revision, dirty=dirty)
+        except (OSError, subprocess.SubprocessError):
+            self.versions.update(code_revision='unknown', dirty=None)
         self.path.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.path, 0o700)
         with self.connect() as db:
@@ -104,20 +123,41 @@ class Runtime:
         if self.dropped == 1:
             logger.warning('trace recording incomplete')
 
-    def emit(self, record):
+    def encode(self, value):
+        raw = json.dumps(clean(value), ensure_ascii=False)
+        for secret in self.secrets:
+            raw = raw.replace(json.dumps(secret, ensure_ascii=False)[1:-1], '[REDACTED]')
+        return raw
+
+    def reference(self, message):
+        ctx = current.get()
+        scope = active()
+        if not ctx or not scope:
+            return None
+        key = (scope.record['trace'], id(message))
+        old = self.material_refs.get(key)
+        if old and old[0]() is message:
+            return old[1]
+        value = uuid.uuid4().hex
+        self.material_refs[key] = (weakref.ref(message), value)
+        return value
+
+    def emit(self, record, artifact=None):
         try:
-            raw = json.dumps(clean(record), ensure_ascii=False)
-            size = len(raw.encode())
+            raw = self.encode(record)
+            size = len(raw.encode()) + (len(artifact[1].encode()) if artifact else 0)
             with self.lock:
                 if (record['owner'], record['session']) in self.deleted:
                     return
                 if self.path is None:
                     self.records[record['id']] = json.loads(raw)
+                    if artifact:
+                        self.artifact_values[artifact[0]] = json.loads(artifact[1])
                     return
                 if not self.thread or self.stopping.is_set() or self.pending_bytes + size > self.byte_limit:
                     self.failed()
                     return
-                self.queue.put_nowait((record['owner'], record['session'], record['id'], record['trace'], raw, size))
+                self.queue.put_nowait((record['owner'], record['session'], record['id'], record['trace'], raw, size, artifact))
                 self.pending_bytes += size
         except Exception:
             self.failed()
@@ -125,16 +165,27 @@ class Runtime:
     def _write(self):
         while not self.stopping.is_set() or not self.queue.empty():
             try:
-                owner, session, rid, tid, raw, size = self.queue.get(timeout=.02)
+                owner, session, rid, tid, raw, size, artifact = self.queue.get(timeout=.02)
             except queue.Empty:
                 continue
             try:
                 with self.lock:
                     if (owner, session) not in self.deleted:
+                        if artifact:
+                            relative, payload = artifact
+                            target = self.path / relative
+                            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                            with open(target, 'x', encoding='utf-8', opener=lambda path, flags: os.open(path, flags, 0o600)) as stream:
+                                stream.write(payload)
                         with self.connect() as db:
                             db.execute('insert or replace into records values (?,?,?,?,?)', (rid, owner, session, tid, raw))
             except Exception:
                 self.failed()
+                if artifact:
+                    try:
+                        (self.path / artifact[0]).unlink(missing_ok=True)
+                    except OSError:
+                        pass
             finally:
                 with self.lock:
                     self.pending_bytes -= size
@@ -162,6 +213,8 @@ class Runtime:
         token = current.set((self, owner, session, request))
         try:
             with span('turn.execute', attempt=1) as scope:
+                if scope:
+                    scope.record['versions'] = self.versions
                 yield scope
         finally:
             current.reset(token)
@@ -175,17 +228,38 @@ class Runtime:
         with self.lock:
             self.deleted.add((owner, session))
             self.scopes.pop((owner, session), None)
+            matching = list(self.query(owner, session)['records'])
+            for record in matching:
+                for artifact in record.get('artifacts', []):
+                    relative = artifact.get('path')
+                    self.artifact_values.pop(relative, None)
+                    if self.path and relative:
+                        (self.path / relative).unlink(missing_ok=True)
             self.records = {k: r for k, r in self.records.items() if (r['owner'], r['session']) != (owner, session)}
             if self.path:
                 with self.connect() as db:
                     db.execute('delete from records where owner=? and session=?', (owner, session))
 
-    def query(self, owner, session):
+    def query(self, owner, session, *, content=True):
+        if self.level == 'off':
+            return {'schema_version': 1, 'recording_complete': False, 'dropped': self.dropped, 'records': [], 'reason': 'disabled'}
         if self.path is None:
-            records = [r for r in self.records.values() if (r['owner'], r['session']) == (owner, session)]
+            records = [json.loads(json.dumps(r)) for r in self.records.values() if (r['owner'], r['session']) == (owner, session)]
         else:
             with self.connect() as db:
                 records = [json.loads(row[0]) for row in db.execute('select body from records where owner=? and session=?', (owner, session))]
+        for record in records:
+            for artifact in record.get('artifacts', []):
+                if artifact['status'] != 'captured':
+                    continue
+                try:
+                    if self.path is not None and not (self.path / artifact['path']).is_file():
+                        raise FileNotFoundError()
+                    if content:
+                        artifact['value'] = self.artifact_values[artifact['path']] if self.path is None else json.loads((self.path / artifact['path']).read_text())
+                except (OSError, ValueError, KeyError):
+                    artifact['status'] = 'unavailable'
+                    record['recording_complete'] = False
         return {'schema_version': 1, 'recording_complete': bool(records) and not self.dropped and all(r.get('recording_complete', True) for r in records),
                 'dropped': self.dropped, 'records': records}
 
@@ -211,20 +285,31 @@ class Scope:
 
     def capture(self, role, value):
         r = self.record
+        reference = {'id': uuid.uuid4().hex, 'role': role, 'status': 'disabled'}
+        r.setdefault('artifacts', []).append(reference)
         if self.runtime.scopes.get((r['owner'], r['session']), 0) <= time.time():
-            self.event('capture.'+role, status='disabled')
-            return
+            self.runtime.emit(r)
+            return reference['id']
         try:
-            raw = json.dumps(clean(value() if callable(value) else value), ensure_ascii=False)
-            if len(raw.encode()) > 512*1024:
-                r['recording_complete'] = False
-                self.event('capture.'+role, status='truncated')
-            else:
-                r.setdefault('captures', []).append({'id': uuid.uuid4().hex, 'role': role, 'value': json.loads(raw)})
-                self.runtime.emit(r)
+            raw = self.runtime.encode(value() if callable(value) else value)
+            size = len(raw.encode())
+            with self.runtime.lock:
+                consumed = self.runtime.content_bytes.get(r['trace'], 0)
+                if size > self.runtime.artifact_limit or consumed + size > self.runtime.turn_limit:
+                    r['recording_complete'] = False
+                    reference.update(status='truncated', reason='content_limit', original_bytes=size)
+                    self.runtime.emit(r)
+                else:
+                    namespace = self.runtime.scope_paths.setdefault((r['owner'], r['session']), uuid.uuid4().hex)
+                    relative = f"artifacts/{namespace}/{reference['id']}.json"
+                    reference.update(status='captured', path=relative, bytes=size)
+                    self.runtime.content_bytes[r['trace']] = consumed + size
+                    self.runtime.emit(r, (relative, raw))
         except Exception:
             r['recording_complete'] = False
-            self.event('capture.'+role, status='unavailable')
+            reference.update(status='unavailable', reason='serialization')
+            self.runtime.emit(r)
+        return reference['id']
 
     def finish(self, error=None):
         if self.ended:
@@ -238,6 +323,9 @@ class Scope:
         self.runtime.emit(r)
         if self.native:
             self.native.end()
+        if r['name'] == 'turn.execute':
+            self.runtime.material_refs = {k: v for k, v in self.runtime.material_refs.items() if k[0] != r['trace']}
+            self.runtime.content_bytes.pop(r['trace'], None)
 
     @contextlib.contextmanager
     def activate(self):
@@ -320,3 +408,13 @@ class CorrelationFilter(logging.Filter):
         ctx = current.get()
         record.request_id = ctx[3] if ctx else '-'
         return True
+
+
+def reference(value):
+    scope = active()
+    return scope.runtime.reference(value) if scope else None
+
+
+def capture(role, value):
+    scope = active()
+    return scope.capture(role, value) if scope else None

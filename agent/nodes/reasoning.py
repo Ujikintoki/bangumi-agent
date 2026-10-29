@@ -258,29 +258,5 @@ def _detect_search_only_stall(messages: list, intent: str) -> bool:
 
 
 def _log_message_state(messages: list, iteration: int) -> None:
-    """记录消息列表结构（DEBUG 级别）。"""
-    if not logger.isEnabledFor(logging.DEBUG):
-        return
-
-    logger.debug("── 消息状态 (iter=%d, 共 %d 条) ──", iteration, len(messages))
-    for i, m in enumerate(messages):
-        mtype = type(m).__name__
-        content = m.content if hasattr(m, "content") else str(m)
-        if isinstance(content, str):
-            preview = content[:200].replace("\n", "\\n")
-        else:
-            preview = str(content)[:200]
-
-        if isinstance(m, ToolMessage):
-            tc_id = getattr(m, "tool_call_id", "?")
-            name = getattr(m, "name", "?")
-            logger.debug(
-                "  [%d] %s name=%s tc_id=%s content=%s",
-                i, mtype, name, tc_id, content if isinstance(content, str) else str(content),
-            )
-        elif isinstance(m, AIMessage):
-            tcs = getattr(m, "tool_calls", []) or []
-            tc_names = [tc.get("name", "?") for tc in tcs]
-            logger.debug("  [%d] %s tool_calls=%s preview=%s", i, mtype, tc_names, preview)
-        else:
-            logger.debug("  [%d] %s preview=%s", i, mtype, preview)
+    """Only log structural metadata; diagnostic content belongs to trace artifacts."""
+    logger.debug('message state iteration=%s roles=%s', iteration, [m.type for m in messages])

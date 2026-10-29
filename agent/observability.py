@@ -5,14 +5,20 @@ import json
 import threading
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage
-from core.observability.runtime import active, begin, event, span
+from core.observability.runtime import active, begin, event, span, reference
 
 
 def messages_value(messages):
-    return [{'message_id': getattr(m, 'id', None), 'role': m.type, 'content': m.content,
-             'origin_kind': {'human': 'user_statement', 'ai': 'historical_assistant', 'tool': 'unknown'}.get(m.type, 'unknown'),
+    return [{'message_id': reference(m), 'sdk_message_id': getattr(m, 'id', None), 'role': m.type, 'content': visible_content(m.content),
+             'origin_kind': {'human': 'unknown', 'ai': 'historical_assistant', 'tool': 'unknown'}.get(m.type, 'unknown'),
              'tool_call_id': getattr(m, 'tool_call_id', None),
              'tool_calls': getattr(m, 'tool_calls', [])} for m in messages if isinstance(m, BaseMessage)]
+
+
+def visible_content(content):
+    if isinstance(content, list):
+        return [part for part in content if not isinstance(part, dict) or part.get('type') not in {'reasoning', 'thinking', 'analysis', 'redacted_thinking'}]
+    return content
 
 
 def result_status(value):
@@ -119,9 +125,18 @@ def observed(name):
         @functools.wraps(function)
         async def wrapped(*args, **kwargs):
             with span(name) as scope:
+                if scope and name == 'response.render':
+                    source = kwargs.get('turn_result') or {}
+                    scope.capture('graph_output', lambda: messages_value(kwargs.get('messages', args[0] if args else [])))
+                    scope.capture('render_sources', lambda: source)
+                    scope.event('render.materials', references=[{'call_id': item.get('call_id'), 'tool': item.get('tool'), 'outcome': item.get('outcome')} for item in source.get('sources', [])])
                 result = await function(*args, **kwargs)
                 if scope and isinstance(result, dict):
                     scope.event('node.result', status=result.get('query_intent'), iteration=result.get('iterations'))
+                    if 'messages' in result:
+                        scope.capture('node_output', lambda: messages_value(result['messages']))
+                if scope and name == 'response.render':
+                    scope.capture('render_final', lambda: {'messages': messages_value(result[0]), 'reply': result[1]})
                 return result
         return wrapped
     return decorate

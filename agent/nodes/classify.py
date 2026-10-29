@@ -257,9 +257,11 @@ async def classify_node(state: AgentState) -> dict:
     # 置信度路由
     routed_intent = route_by_classification(intent, confidence)
 
+    from core.observability.runtime import event
+    event('classification.result', status=routed_intent, selected={'raw_intent': intent, 'confidence': confidence}, schema_version='classification-v1')
     logger.info(
-        "[Classify] query='%s' → intent=%s (raw=%s, conf=%.2f)",
-        user_input[:80], routed_intent, intent, confidence,
+        "[Classify] intent=%s (raw=%s, conf=%.2f)",
+        routed_intent, intent, confidence,
     )
 
     return {
