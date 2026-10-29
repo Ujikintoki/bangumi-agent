@@ -14,6 +14,7 @@
 | [架构蓝图](architecture-blueprint.md) | 系统职责、依赖方向和请求路径 | 定义系统职责或准备跨层修改时 |
 | [固定验收场景](product/fixed-agent-scenarios.md) | 主连续场景、意图/工具问题组与判定标准 | 实施领域可靠性或准备真实验收时 |
 | [轮次生命周期](Architecture/turn-lifecycle.md) | 请求状态、取消、恢复及故障矩阵 | 维护执行、连接或持久化行为时 |
+| [Agent Trace 设计](Architecture/agent-trace-design.md) | 待实施的统一观测合同、旧 telemetry 迁移和验收要求 | 实施材料可见性与质量定位时 |
 | [AGENTS](../AGENTS.md) | 开发规则与数据安全边界 | 执行修改前 |
 | 本文 | 阅读入口、文档职责和维护状态 | 不知道该读哪份时 |
 

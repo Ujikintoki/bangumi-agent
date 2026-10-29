@@ -29,6 +29,9 @@ SQLite 会话保存、切换、重启后恢复、删除与用户确认的背景�
 生命周期已统一accepted/running/cancelling与终态，执行独立于连接；恢复、取消及故障边界见[维护合同](docs/Architecture/turn-lifecycle.md)。
 下一步按[固定验收场景](docs/product/fixed-agent-scenarios.md)聚焦原连续任务的领域可靠性：
 评分/趋势/比较、原评定位，以及长对话中的立场与材料忠实性。
+在调整回复策略前，先按[统一 Trace 设计](docs/Architecture/agent-trace-design.md)归并现有 telemetry，
+补齐正式的模型输入、工具结果和上下文选择记录；以固定场景的可追溯材料定位问题，再决定业务改动。
+该设计尚待实施，依次完成统一记录、执行观测归并、材料可见性和查询维护；暂缓 Render 策略调整。
 每个增量都交付可运行行为及相应验证，不再以另一轮全仓盘点或产品讨论作为开工前置。
 
 ## 实现顺序与退出条件
