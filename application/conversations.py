@@ -2,6 +2,8 @@
 import asyncio
 import logging
 import sqlite3
+import contextlib
+from core.observability.runtime import span, event
 from dataclasses import dataclass
 
 from sessions.lifecycle import TERMINAL
@@ -21,10 +23,12 @@ class Run:
     stop: str | None = None
     outcome: tuple | None = None
     storage_error: bool = False
+    observation: object = None
 
 
 class Conversations:
-    def __init__(self, store, execute, *, timeout_for=None, max_active=32):
+    def __init__(self, store, execute, *, timeout_for=None, max_active=32, observer=None):
+        self.observer = observer
         self.store = store
         self.execute = execute
         self.timeout_for = timeout_for or (lambda depth: 120 if depth == 'deep' else 45)
@@ -87,6 +91,8 @@ class Conversations:
         if run is None:
             raise SessionError('execution_unavailable')
         self.store.transition(owner, sid, rid, 'cancelling')
+        if run.observation:
+            run.observation.event('lifecycle.cancelling', status='cancelling')
         run.stop = 'cancelled'
         logger.info('turn cancellation requested request_id=%s', rid)
         if run.worker:
@@ -94,6 +100,11 @@ class Conversations:
         return self.store.turn(owner, sid, rid)
 
     def deleted(self, owner, sid):
+        if self.observer:
+            try:
+                self.observer.delete(owner, sid)
+            except Exception:
+                self.observer.failed()
         for run in list(self.runs.values()):
             if (run.owner, run.sid) == (owner, sid):
                 run.stop = 'deleted'
@@ -103,6 +114,15 @@ class Conversations:
                     self.runs.pop((owner, sid, run.rid), None)
 
     async def _run(self, run, session, message, depth, style):
+        manager = self.observer.turn(run.owner, run.sid, run.rid) if self.observer else contextlib.nullcontext()
+        with manager as observation:
+            run.observation = observation
+            if observation:
+                observation.deferred = True
+                observation.event('lifecycle.accepted', status='accepted')
+            await self._run_body(run, session, message, depth, style)
+
+    async def _run_body(self, run, session, message, depth, style):
         response = None
         status, reason = 'interrupted', 'service_shutdown'
         try:
@@ -110,11 +130,13 @@ class Conversations:
                 status, reason = ('cancelled', 'user_cancelled') if run.stop == 'cancelled' else ('interrupted', run.stop)
             else:
                 self.store.transition(run.owner, run.sid, run.rid, 'running')
+                event('lifecycle.running', status='running')
                 history = []
                 for turn in session['turns']:
                     saved = turn['response']
                     if turn['status'] == 'completed' and saved and saved.get('turn_result', {}).get('status') != 'failed':
                         history.extend([{'role': 'user', 'content': turn['message']}, {'role': 'assistant', 'content': saved['reply']}])
+                event('context.assembled', history_candidates=len(session['turns']), history_selected=len(history), background_version=run.version)
                 run.worker = asyncio.create_task(self.execute(owner=run.owner, sid=run.sid, message=message, depth=depth,
                                                               style=style, history=history, context=session['context']))
                 done, _ = await asyncio.wait({run.worker}, timeout=self.timeout_for(depth))
@@ -158,6 +180,15 @@ class Conversations:
                 logger.warning('turn commit rejected request_id=%s code=%s', run.rid, error.code)
 
     def _commit(self, run):
+        manager = run.observation.activate() if run.observation else contextlib.nullcontext()
+        with manager:
+            with span('session.commit') as scope:
+                if scope:
+                    scope.event('commit.attempt', status=run.outcome[1], reason=run.outcome[2])
+                self._commit_body(run)
+                event('commit.confirmed', status=run.outcome[1], reason=run.outcome[2])
+
+    def _commit_body(self, run):
         response, status, reason = run.outcome
         try:
             persisted = self.store.turn(run.owner, run.sid, run.rid)
@@ -180,6 +211,9 @@ class Conversations:
             return
         if run.worker and not run.worker.cancelled():
             run.worker.exception()
+        if run.observation:
+            run.observation.event('execution.quiesced', status=run.outcome[1] if run.outcome else 'deleted')
+            run.observation.finish()
         if not run.storage_error:
             self.runs.pop((run.owner, run.sid, run.rid), None)
 

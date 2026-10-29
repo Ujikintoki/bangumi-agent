@@ -69,149 +69,114 @@ class ToolCallRecord:
 
 
 class RequestTelemetry:
-    """单次 /chat 请求的可观测性数据收集器。"""
+    """Compatibility view of the current trace; owns no separate counters."""
+    def __init__(self):
+        from core.observability.runtime import current, Runtime
+        self.t_start = time.monotonic()
+        self.runtime = current.get()[0] if current.get() else Runtime()
+        self.identity = current.get()
+        self.context = None
 
-    def __init__(self) -> None:
-        self.t_start: float = time.monotonic()
-        self.llm_calls: list[LLMCallRecord] = []
-        self.node_timings: list[NodeTiming] = []
-        self.tool_calls: list[ToolCallRecord] = []
+    def to_dict(self):
+        from core.observability.runtime import summary
+        if not self.identity:
+            return summary([])
+        runtime, owner, session, request = self.identity
+        runtime.flush()
+        records = runtime.query(owner, session)['records']
+        return summary([r for r in records if r['request'] == request])
 
-    def add_llm_call(self, record: LLMCallRecord) -> None:
-        self.llm_calls.append(record)
+    @property
+    def llm_calls(self):
+        return self.to_dict()['llm_calls']
 
-    def add_node_timing(self, timing: NodeTiming) -> None:
-        self.node_timings.append(timing)
+    @property
+    def tool_calls(self):
+        return self.to_dict()['tool_calls']
 
-    def add_tool_call(self, record: ToolCallRecord) -> None:
-        self.tool_calls.append(record)
+    @property
+    def node_timings(self):
+        return self.to_dict()['node_timings']
 
-    def to_dict(self) -> dict:
-        return {
-            "elapsed_ms": int((time.monotonic() - self.t_start) * 1000),
-            "llm_calls": [c.to_dict() for c in self.llm_calls],
-            "node_timings": [t.to_dict() for t in self.node_timings],
-            "tool_calls": [t.to_dict() for t in self.tool_calls],
-        }
+    def add_llm_call(self, record):
+        from core.observability.runtime import span
+        with span('model.invoke', stage=record.label) as scope:
+            if scope:
+                scope.record['elapsed_ms'] = record.elapsed_ms
+                scope.record['usage'] = {'input_tokens': record.prompt_tokens, 'output_tokens': record.completion_tokens}
+
+    def add_tool_call(self, record):
+        from core.observability.runtime import span
+        with span('tool.execute', tool=record.tool, argument_keys=record.argument_keys) as scope:
+            if scope:
+                scope.record['result_status'] = record.status
+
+    def add_node_timing(self, timing):
+        # Interval estimates are not execution spans and cannot become a second timing source.
+        from core.observability.runtime import event
+        event('legacy.timing_omitted', reason='interval_estimate')
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# ContextVar — per-request 线程/协程安全
-# ═══════════════════════════════════════════════════════════════════════════
-
-_current_telemetry: ContextVar[RequestTelemetry | None] = ContextVar(
-    "telemetry", default=None
-)
+_current_telemetry = ContextVar('telemetry_compatibility', default=None)
 
 
-def get_current_telemetry() -> RequestTelemetry | None:
-    """返回当前请求的 telemetry 实例，未启用时返回 None。"""
+def get_current_telemetry():
     return _current_telemetry.get()
 
 
-def set_current_telemetry(t: RequestTelemetry | None) -> None:
-    """设置当前请求的 telemetry 实例。"""
-    _current_telemetry.set(t)
+def set_current_telemetry(value):
+    from core.observability.runtime import current
+    previous = _current_telemetry.get()
+    if previous and previous.context:
+        previous.context.__exit__(None, None, None)
+        previous.context = None
+    _current_telemetry.set(value)
+    if value and current.get() is None:
+        import uuid
+        value.context = value.runtime.turn('legacy', uuid.uuid4().hex, uuid.uuid4().hex)
+        value.context.__enter__()
+    if value:
+        value.identity = current.get()
 
 
-def instrument_tools(tools: list) -> list:
-    """用同 schema 包装工具，按调用记录脱敏参数键、耗时和结局。"""
+def instrument_tools(tools):
+    """Legacy direct-call adapter. Graph uses the ToolNode seam instead."""
     from langchain_core.tools import StructuredTool
-
+    from agent.observability import result_status
+    from core.observability.runtime import span
     wrapped = []
     for original in tools:
-        async def _invoke(_tool=original, **kwargs):
-            started = time.monotonic()
-            status = "success"
-            error_type = None
-            try:
+        if getattr(original, '_trace_compatibility', False):
+            wrapped.append(original)
+            continue
+        async def invoke(_tool=original, **kwargs):
+            with span('tool.execute', tool=_tool.name, argument_keys=sorted(kwargs)) as scope:
                 result = await _tool.ainvoke(kwargs)
-                if isinstance(result, dict) and (
-                    "_error" in result
-                    or any(str(key).endswith("_error") for key in result)
-                ):
-                    has_data = any(
-                        bool(value)
-                        for key, value in result.items()
-                        if key != "_error"
-                        and not str(key).endswith("_error")
-                        and isinstance(value, (dict, list))
-                    )
-                    status = "partial" if has_data else "failed"
-                    error_type = "structured_tool_error"
+                if scope:
+                    scope.record['result_status'] = result_status(result)
                 return result
-            except Exception as exc:
-                status = "failed"
-                error_type = type(exc).__name__
-                raise
-            finally:
-                telemetry = get_current_telemetry()
-                if telemetry is not None:
-                    telemetry.add_tool_call(ToolCallRecord(
-                        tool=_tool.name,
-                        elapsed_ms=int((time.monotonic() - started) * 1000),
-                        status=status,
-                        argument_keys=sorted(kwargs),
-                        error_type=error_type,
-                    ))
-
-        wrapped.append(StructuredTool(
-            name=original.name,
-            description=original.description,
-            args_schema=original.args_schema,
-            coroutine=_invoke,
-            return_direct=getattr(original, "return_direct", False),
-        ))
+        tool = StructuredTool(name=original.name, description=original.description,
+                              args_schema=original.args_schema, coroutine=invoke,
+                              return_direct=getattr(original, 'return_direct', False))
+        object.__setattr__(tool, '_trace_compatibility', True)
+        wrapped.append(tool)
     return wrapped
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# LLM Wrapper — 透明拦截 ainvoke()
-# ═══════════════════════════════════════════════════════════════════════════
-
-
 class TelemetryLLMWrapper:
-    """包装 ChatOpenAI，拦截 ``ainvoke()`` 记录 token 消耗。
+    """Legacy SDK adapter; observation is installed once on the underlying model."""
+    def __init__(self, llm, label, telemetry):
+        from agent.observability import ModelObserver
+        self._llm, self._label, self._telemetry = llm, label, telemetry
+        callbacks = list(llm.callbacks or [])
+        if not any(isinstance(c, ModelObserver) for c in callbacks):
+            llm.callbacks = [*callbacks, ModelObserver(label)]
 
-    ``bind_tools()`` 返回的绑定对象也会被自动包装，确保工具调用场景不漏记。
-    所有其他方法透传给被包装的 LLM。
-    """
+    async def ainvoke(self, *args, **kwargs):
+        return await self._llm.ainvoke(*args, **kwargs)
 
-    def __init__(self, llm: Any, label: str, telemetry: RequestTelemetry) -> None:
-        self._llm = llm
-        self._label = label
-        self._telemetry = telemetry
+    def bind_tools(self, tools, **kwargs):
+        return self._llm.bind_tools(tools, **kwargs)
 
-    async def ainvoke(
-        self, messages: list[BaseMessage], *args: Any, **kwargs: Any
-    ) -> Any:
-        t0 = time.monotonic()
-        response = await self._llm.ainvoke(messages, *args, **kwargs)
-        elapsed = (time.monotonic() - t0) * 1000
-
-        usage = {}
-        if hasattr(response, "response_metadata"):
-            usage = response.response_metadata.get("token_usage", {})
-            if not isinstance(usage, dict):
-                usage = {}
-
-        self._telemetry.add_llm_call(
-            LLMCallRecord(
-                label=self._label,
-                elapsed_ms=int(elapsed),
-                prompt_tokens=usage.get("prompt_tokens", 0),
-                completion_tokens=usage.get("completion_tokens", 0),
-            )
-        )
-        return response
-
-    def bind_tools(
-        self, tools: list, **kwargs: Any
-    ) -> TelemetryLLMWrapper:
-        """返回包装后的绑定对象，确保工具调用场景的 token 统计不丢失。"""
-        bound = self._llm.bind_tools(tools, **kwargs)
-        return TelemetryLLMWrapper(bound, self._label, self._telemetry)
-
-    def __getattr__(self, name: str) -> Any:
-        """透传所有其他方法到被包装的 LLM。"""
+    def __getattr__(self, name):
         return getattr(self._llm, name)

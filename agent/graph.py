@@ -25,7 +25,7 @@ import logging
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
-from agent.devtools import instrument_tools
+from agent.observability import observe_tool_call, observed, observed_route, TOOL_OBSERVER
 from agent.guardrails import format_tool_error
 from agent.nodes.classify import classify_node
 from agent.nodes.pipeline import (
@@ -68,10 +68,10 @@ def _build_fetch_pipeline(tools: list) -> StateGraph:
         if t.name in ("search_bangumi_subject", "get_bangumi_subject_detail")
     ]
 
-    g.add_node("search", fetch_search_node)
-    g.add_node("detail", fetch_detail_node)
-    g.add_node("synthesize", synthesize_node)
-    g.add_node("tool", ToolNode(fetch_tools, handle_tool_errors=format_tool_error))
+    g.add_node("search", observed("node.fetch_search_node")(fetch_search_node))
+    g.add_node("detail", observed("node.fetch_detail_node")(fetch_detail_node))
+    g.add_node("synthesize", observed("node.synthesize_node")(synthesize_node))
+    g.add_node("tool", ToolNode(fetch_tools, handle_tool_errors=format_tool_error, awrap_tool_call=observe_tool_call))
 
     g.add_edge(START, "search")
 
@@ -106,9 +106,9 @@ def _build_realtime_pipeline(tools: list) -> StateGraph:
         if t.name in ("get_calendar", "get_trending_subjects", "get_hot_topics")
     ]
 
-    g.add_node("search", realtime_search_node)
-    g.add_node("synthesize", synthesize_node)
-    g.add_node("tool", ToolNode(rt_tools, handle_tool_errors=format_tool_error))
+    g.add_node("search", observed("node.realtime_search_node")(realtime_search_node))
+    g.add_node("synthesize", observed("node.synthesize_node")(synthesize_node))
+    g.add_node("tool", ToolNode(rt_tools, handle_tool_errors=format_tool_error, awrap_tool_call=observe_tool_call))
 
     g.add_edge(START, "search")
 
@@ -141,9 +141,9 @@ def _build_profile_pipeline(tools: list) -> StateGraph:
         if t.name in ("get_user_profile", "get_user_timeline")
     ]
 
-    g.add_node("search", profile_search_node)
-    g.add_node("synthesize", synthesize_node)
-    g.add_node("tool", ToolNode(pf_tools, handle_tool_errors=format_tool_error))
+    g.add_node("search", observed("node.profile_search_node")(profile_search_node))
+    g.add_node("synthesize", observed("node.synthesize_node")(synthesize_node))
+    g.add_node("tool", ToolNode(pf_tools, handle_tool_errors=format_tool_error, awrap_tool_call=observe_tool_call))
 
     g.add_edge(START, "search")
 
@@ -226,12 +226,16 @@ def build_graph(tools: list | None = None) -> StateGraph:
     """
     if tools is None:
         tools = get_agent_tools()
-    tools = instrument_tools(tools)
+    tools = list(tools)
+    for tool in tools:
+        callbacks = list(tool.callbacks or [])
+        if TOOL_OBSERVER not in callbacks:
+            tool.callbacks = [*callbacks, TOOL_OBSERVER]
 
     graph = StateGraph(AgentState)
 
     # ── 注册节点 ──────────────────────────────────────────
-    graph.add_node("classify_node", classify_node)
+    graph.add_node("classify_node", observed("node.classify_node")(classify_node))
 
     # Pipeline 子图（每个子图内部自包含步骤 + 工具）
     # 经 _pipeline_node 包装：子图会把它收到的消息原样退还，直接挂载会让
@@ -249,8 +253,8 @@ def build_graph(tools: list | None = None) -> StateGraph:
     )
 
     # ReAct 节点
-    graph.add_node("reasoning_node", reasoning_node)
-    graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=format_tool_error))
+    graph.add_node("reasoning_node", observed("node.reasoning_node")(reasoning_node))
+    graph.add_node("tool_node", ToolNode(tools, handle_tool_errors=format_tool_error, awrap_tool_call=observe_tool_call))
 
     # ── 固定边 ────────────────────────────────────────────
     graph.add_edge(START, "classify_node")

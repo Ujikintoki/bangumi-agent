@@ -167,6 +167,7 @@ def create_classifier_llm(
     """
     return create_llm(
         temperature=0,
+        _telemetry_label="classify",
         max_tokens=200,
         request_timeout=10,
         settings=settings,
@@ -212,12 +213,7 @@ def _resolve_api_key(settings: Settings) -> str:
 def _maybe_wrap_telemetry(
     llm: ChatOpenAI, label: str | None
 ) -> ChatOpenAI:
-    """DEV_MODE 时用 TelemetryLLMWrapper 包装 LLM，透明记录 token 消耗。"""
-    if label is None:
-        return llm
-    from agent.devtools import TelemetryLLMWrapper, get_current_telemetry
-
-    telemetry = get_current_telemetry()
-    if telemetry is None:
-        return llm
-    return TelemetryLLMWrapper(llm, label=label, telemetry=telemetry)  # type: ignore[return-value]
+    """Install the same SDK observer in every collection mode."""
+    from agent.observability import ModelObserver
+    llm.callbacks = [*(llm.callbacks or []), ModelObserver(label or "auxiliary")]
+    return llm

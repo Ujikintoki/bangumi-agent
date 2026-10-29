@@ -101,3 +101,61 @@ def test_restart_and_no_import_io(tmp_path):
     result = recovered.query('u', 's')
     assert result['records'][0]['status'] == 'interrupted'
     assert not result['recording_complete']
+
+
+@pytest.mark.asyncio
+async def test_sdk_model_and_tool_seam(tmp_path):
+    from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+    from langchain_core.messages import AIMessage
+    from langchain_core.tools import tool
+    from langgraph.prebuilt import ToolNode
+    from agent.observability import ModelObserver, TOOL_OBSERVER, observe_tool_call
+    from core.observability.runtime import summary
+    runtime = Runtime(tmp_path)
+    runtime.start()
+    @tool
+    async def lookup(value: int) -> dict:
+        """Synthetic lookup."""
+        return {'value': value}
+    lookup.callbacks = [TOOL_OBSERVER]
+    model = FakeMessagesListChatModel(responses=[AIMessage(content='visible', usage_metadata={'input_tokens': 12, 'output_tokens': 2, 'total_tokens': 14})], callbacks=[ModelObserver('reasoning')])
+    node = ToolNode([lookup], awrap_tool_call=observe_tool_call, handle_tool_errors=True)
+    from langgraph.graph import StateGraph, START, END
+    from agent.state import AgentState
+    graph = StateGraph(AgentState)
+    graph.add_node('tools', node)
+    graph.add_edge(START, 'tools')
+    graph.add_edge('tools', END)
+    node = graph.compile()
+    with runtime.turn('u', 's', 'r'):
+        await model.ainvoke('question')
+        await node.ainvoke({'messages': [AIMessage(content='', tool_calls=[{'name':'lookup','args':{'value': 1},'id':'tc1'}])]})
+        await node.ainvoke({'messages': [AIMessage(content='', tool_calls=[{'name':'lookup','args':{'value': 'invalid'},'id':'tc2'}])]})
+    runtime.close()
+    records = runtime.query('u','s')['records']
+    view = summary(records)
+    assert len(view['llm_calls']) == 1
+    assert view['llm_calls'][0]['prompt_tokens'] == 12
+    assert len(view['tool_calls']) == 2
+    failed = next(r for r in records if r['attributes'].get('tool_call_id') == 'tc2')
+    assert failed['result_status'] == 'failed'
+    assert any(e['attributes'].get('actual_execution') is False for e in failed['events'])
+    assert all(r['parent'] for r in records if r['name'] != 'turn.execute')
+
+
+@pytest.mark.asyncio
+async def test_sdk_error_and_cancel_closes(tmp_path):
+    from agent.observability import ModelObserver
+    runtime = Runtime(tmp_path)
+    runtime.start()
+    observer = ModelObserver('classify')
+    with runtime.turn('u','s','r'):
+        observer.on_chat_model_start({}, [[]], run_id='one')
+        observer.on_llm_error(ValueError('private'), run_id='one')
+        observer.on_llm_error(ValueError(), run_id='one')
+        observer.on_chat_model_start({}, [[]], run_id='two')
+        observer.on_llm_error(asyncio.CancelledError(), run_id='two')
+    runtime.close()
+    models = [r for r in runtime.query('u','s')['records'] if r['name']=='model.invoke']
+    assert len(models) == 2
+    assert {r['status'] for r in models} == {'error','cancelled'}

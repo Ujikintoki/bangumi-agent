@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     """运行环境标识，可选值如 development / staging / production。"""
 
+    TRACE_LEVEL: str = Field(default="metadata", pattern="^(off|metadata)$")
+    TRACE_PATH: str = str(Path(__file__).resolve().parents[1] / ".local-data" / "observability")
+
     DEV_MODE: bool = False
     """开发者可观测性开关。开启后 /chat 响应附带 token 统计 + 节点耗时。"""
 

@@ -1,8 +1,9 @@
-"""Explicitly owned OTel provider and bounded, fail-open local writer."""
+"""Explicit OTel ownership, bounded local recording and task-local execution identity."""
 import asyncio
 import contextlib
 import contextvars
 import json
+import logging
 import os
 from pathlib import Path
 import queue
@@ -16,27 +17,47 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry import trace
 
 current = contextvars.ContextVar('observation', default=None)
+_active_scope = contextvars.ContextVar('observation_span', default=None)
+_default = None
+logger = logging.getLogger('bgm-agent.trace')
 _SECRET = re.compile(r'(?i)(bearer\s+\S+|sk-[a-z0-9_-]+)')
-_FORBIDDEN = re.compile(r'(?i)(secret|password|authorization|api.?key|token$|reasoning_content|hidden)')
+_FORBIDDEN = re.compile(r'(?i)(secret|password|authorization|api.?key|access_token|reasoning_content|hidden|headers)')
+# Only program-supplied metadata can cross this boundary; arbitrary content uses capture.
+_ATTRIBUTES = frozenset('stage sdk_run_id model temperature max_tokens tool_choice schema_version schema_hash prompt_version code_revision dirty python_version dependencies tool tool_call_id argument_keys status reason error_type actual_execution validation usage input_tokens output_tokens total_tokens cache_read finish_reason provider_attempts iteration history_candidates history_selected background_version selected omitted transformed references budget candidate_count selected_count origin_kind derived_from missing truncated source_id request_id attempt recorded_at'.split())
 
 
-def clean(value):
+def clean(value, depth=0):
+    if depth > 24:
+        raise ValueError('observation nesting limit')
     if value is None or type(value) in (bool, int, float):
         return value
     if type(value) is str:
         return _SECRET.sub('[REDACTED]', value)
     if type(value) in (list, tuple):
-        return [clean(v) for v in value]
+        return [clean(v, depth+1) for v in value]
     if type(value) is dict:
-        return {k: clean(v) for k, v in value.items() if type(k) is str and not _FORBIDDEN.search(k)}
+        return {k: clean(v, depth+1) for k, v in value.items() if type(k) is str and not _FORBIDDEN.search(k)}
     raise ValueError('unsupported observation value')
 
 
+def metadata(value):
+    return clean({k: v for k, v in value.items() if k in _ATTRIBUTES})
+
+
+def configure(runtime):
+    global _default
+    _default = runtime
+
+
+def configured():
+    return _default
+
+
 class Runtime:
-    def __init__(self, path, *, level='metadata', capacity=2048, byte_limit=16*1024*1024):
+    def __init__(self, path=None, *, level='metadata', capacity=2048, byte_limit=16*1024*1024):
         if level not in {'off', 'metadata'}:
             raise ValueError('diagnostics require an explicit session scope')
-        self.path = Path(path)
+        self.path = Path(path) if path is not None else None
         self.level = level
         self.queue = queue.Queue(capacity)
         self.byte_limit = byte_limit
@@ -50,9 +71,10 @@ class Runtime:
         self.thread = None
         self.stopping = threading.Event()
         self.instance = uuid.uuid4().hex
+        self.records = {}
 
     def start(self):
-        if self.level == 'off' or self.thread:
+        if self.level == 'off' or self.thread or self.path is None:
             return
         self.path.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.path, 0o700)
@@ -62,7 +84,6 @@ class Runtime:
                 raise ValueError('unsupported trace schema')
             db.execute('create table if not exists records (id text primary key, owner text, session text, trace text, body text)')
             db.execute('pragma user_version=1')
-            # Previous process cannot finish these spans; never infer business status.
             for rid, body in db.execute('select id, body from records').fetchall():
                 record = json.loads(body)
                 if record.get('status') == 'running':
@@ -74,7 +95,14 @@ class Runtime:
         self.thread.start()
 
     def connect(self):
-        return sqlite3.connect(self.path / 'traces.sqlite3', timeout=.1)
+        db = sqlite3.connect(self.path / 'traces.sqlite3', timeout=.1)
+        db.execute('pragma secure_delete=on')
+        return db
+
+    def failed(self):
+        self.dropped += 1
+        if self.dropped == 1:
+            logger.warning('trace recording incomplete')
 
     def emit(self, record):
         try:
@@ -83,39 +111,47 @@ class Runtime:
             with self.lock:
                 if (record['owner'], record['session']) in self.deleted:
                     return
-                if not self.thread or self.stopping.is_set() or self.pending_bytes + size > self.byte_limit:
-                    self.dropped += 1
+                if self.path is None:
+                    self.records[record['id']] = json.loads(raw)
                     return
-                self.queue.put_nowait((record, raw, size))
+                if not self.thread or self.stopping.is_set() or self.pending_bytes + size > self.byte_limit:
+                    self.failed()
+                    return
+                self.queue.put_nowait((record['owner'], record['session'], record['id'], record['trace'], raw, size))
                 self.pending_bytes += size
         except Exception:
-            self.dropped += 1
+            self.failed()
 
     def _write(self):
         while not self.stopping.is_set() or not self.queue.empty():
             try:
-                record, raw, size = self.queue.get(timeout=.02)
+                owner, session, rid, tid, raw, size = self.queue.get(timeout=.02)
             except queue.Empty:
                 continue
             try:
                 with self.lock:
-                    if (record['owner'], record['session']) not in self.deleted:
+                    if (owner, session) not in self.deleted:
                         with self.connect() as db:
-                            db.execute('insert or replace into records values (?,?,?,?,?)',
-                                       (record['id'], record['owner'], record['session'], record['trace'], raw))
+                            db.execute('insert or replace into records values (?,?,?,?,?)', (rid, owner, session, tid, raw))
             except Exception:
-                self.dropped += 1
+                self.failed()
             finally:
                 with self.lock:
                     self.pending_bytes -= size
                 self.queue.task_done()
+
+    def flush(self, timeout=1):
+        until = time.monotonic()+timeout
+        while self.queue.unfinished_tasks and time.monotonic() < until:
+            time.sleep(.001)
+        return not self.queue.unfinished_tasks
 
     def close(self, timeout=1):
         self.stopping.set()
         if self.thread:
             self.thread.join(timeout)
         if self.pending_bytes:
-            self.dropped += 1
+            self.failed()
         self.provider.shutdown()
 
     @contextlib.contextmanager
@@ -125,7 +161,7 @@ class Runtime:
             return
         token = current.set((self, owner, session, request))
         try:
-            with span('turn.execute') as scope:
+            with span('turn.execute', attempt=1) as scope:
                 yield scope
         finally:
             current.reset(token)
@@ -133,81 +169,154 @@ class Runtime:
     def diagnostic(self, owner, session, seconds=300):
         if not 0 < seconds <= 3600:
             raise ValueError('diagnostic scope must expire within one hour')
-        self.scopes[(owner, session)] = time.monotonic() + seconds
+        self.scopes[(owner, session)] = time.time() + seconds
 
     def delete(self, owner, session):
         with self.lock:
             self.deleted.add((owner, session))
             self.scopes.pop((owner, session), None)
-            with self.connect() as db:
-                db.execute('delete from records where owner=? and session=?', (owner, session))
+            self.records = {k: r for k, r in self.records.items() if (r['owner'], r['session']) != (owner, session)}
+            if self.path:
+                with self.connect() as db:
+                    db.execute('delete from records where owner=? and session=?', (owner, session))
 
     def query(self, owner, session):
-        with self.connect() as db:
-            records = [json.loads(row[0]) for row in db.execute('select body from records where owner=? and session=?', (owner, session))]
-        return {'schema_version': 1, 'recording_complete': not self.dropped and all(r.get('recording_complete', True) for r in records),
+        if self.path is None:
+            records = [r for r in self.records.values() if (r['owner'], r['session']) == (owner, session)]
+        else:
+            with self.connect() as db:
+                records = [json.loads(row[0]) for row in db.execute('select body from records where owner=? and session=?', (owner, session))]
+        return {'schema_version': 1, 'recording_complete': bool(records) and not self.dropped and all(r.get('recording_complete', True) for r in records),
                 'dropped': self.dropped, 'records': records}
 
 
 class Scope:
-    def __init__(self, runtime, record):
-        self.runtime, self.record = runtime, record
+    def __init__(self, runtime, record, native=None):
+        self.runtime, self.record, self.native = runtime, record, native
+        self.started = time.monotonic()
+        self.ended = False
 
     def event(self, name, **attributes):
         try:
-            event = {'id': uuid.uuid4().hex, 'name': name, 'attributes': clean(attributes)}
-            if len(json.dumps(event).encode()) > 512*1024 or len(self.record['events']) >= 256:
+            event = {'id': uuid.uuid4().hex, 'time': time.time(), 'name': name, 'attributes': metadata(attributes)}
+            if len(json.dumps(event).encode()) > 16384 or len(self.record['events']) >= 256:
                 self.record['recording_complete'] = False
-                self.runtime.dropped += 1
+                self.runtime.failed()
                 return
             self.record['events'].append(event)
-            self.runtime.emit(dict(self.record))
+            self.runtime.emit(self.record)
         except Exception:
             self.record['recording_complete'] = False
-            self.runtime.dropped += 1
+            self.runtime.failed()
 
     def capture(self, role, value):
         r = self.record
-        if self.runtime.scopes.get((r['owner'], r['session']), 0) <= time.monotonic():
-            self.event('capture', role=role, status='disabled')
+        if self.runtime.scopes.get((r['owner'], r['session']), 0) <= time.time():
+            self.event('capture.'+role, status='disabled')
             return
         try:
-            raw = json.dumps(clean(value), ensure_ascii=False)
+            raw = json.dumps(clean(value() if callable(value) else value), ensure_ascii=False)
             if len(raw.encode()) > 512*1024:
                 r['recording_complete'] = False
-                self.event('capture', role=role, status='truncated')
+                self.event('capture.'+role, status='truncated')
             else:
-                self.event('capture', role=role, status='captured', value=json.loads(raw))
+                r.setdefault('captures', []).append({'id': uuid.uuid4().hex, 'role': role, 'value': json.loads(raw)})
+                self.runtime.emit(r)
         except Exception:
             r['recording_complete'] = False
-            self.event('capture', role=role, status='unavailable')
+            self.event('capture.'+role, status='unavailable')
+
+    def finish(self, error=None):
+        if self.ended:
+            return
+        self.ended = True
+        r = self.record
+        r['elapsed_ms'] = (time.monotonic()-self.started)*1000
+        r['status'] = 'cancelled' if isinstance(error, asyncio.CancelledError) else ('error' if error else 'success')
+        if error:
+            r['error_type'] = type(error).__name__
+        self.runtime.emit(r)
+        if self.native:
+            self.native.end()
+
+    @contextlib.contextmanager
+    def activate(self):
+        identity_token = current.set((self.runtime, self.record["owner"], self.record["session"], self.record["request"]))
+        token = _active_scope.set(self)
+        with trace.use_span(self.native, end_on_exit=False, record_exception=False, set_status_on_exception=False):
+            try:
+                yield self
+            finally:
+                _active_scope.reset(token)
+                current.reset(identity_token)
 
 
-@contextlib.contextmanager
-def span(name, **attributes):
+def begin(name, **attributes):
     ctx = current.get()
     if ctx is None:
-        yield None
-        return
+        return None
     runtime, owner, session, request = ctx
-    parent = trace.get_current_span().get_span_context()
-    with runtime.tracer.start_as_current_span(name, record_exception=False, set_status_on_exception=False) as native:
+    try:
+        parent = trace.get_current_span().get_span_context()
+        native = runtime.tracer.start_span(name)
         identity = native.get_span_context()
         record = dict(schema_version=1, id=f'{identity.span_id:016x}', trace=f'{identity.trace_id:032x}',
                       parent=f'{parent.span_id:016x}' if parent.is_valid else None, name=name,
                       owner=owner, session=session, request=request, instance=runtime.instance,
-                      time=time.time(), status='running', attributes=clean(attributes), events=[], recording_complete=True)
-        scope = Scope(runtime, record)
-        runtime.emit(dict(record))
-        start = time.monotonic()
+                      time=time.time(), status='running', attributes=metadata(attributes), events=[], recording_complete=True)
+        scope = Scope(runtime, record, native)
+        runtime.emit(record)
+        return scope
+    except Exception:
+        runtime.failed()
+        return None
+
+
+@contextlib.contextmanager
+def span(name, **attributes):
+    scope = begin(name, **attributes)
+    if scope is None:
+        yield None
+        return
+    with scope.activate():
         try:
             yield scope
         except BaseException as exc:
-            record['status'] = 'cancelled' if isinstance(exc, asyncio.CancelledError) else 'error'
-            record['error_type'] = type(exc).__name__
+            scope.finish(exc)
             raise
         else:
-            record['status'] = 'success'
-        finally:
-            record['elapsed_ms'] = (time.monotonic()-start)*1000
-            runtime.emit(record)
+            if not getattr(scope, "deferred", False):
+                scope.finish()
+
+
+def active():
+    return _active_scope.get()
+
+
+def event(name, **attributes):
+    scope = active()
+    if scope:
+        scope.event(name, **attributes)
+
+
+def summary(records):
+    models = [r for r in records if r['name'] == 'model.invoke']
+    tools = [r for r in records if r['name'] == 'tool.execute']
+    return {'elapsed_ms': max((r.get('elapsed_ms', 0) for r in records if r['name'] == 'turn.execute'), default=0),
+            'llm_calls': [{'label': r['attributes'].get('stage'), 'elapsed_ms': r.get('elapsed_ms'),
+                           'prompt_tokens': (r.get('usage') or {}).get('input_tokens'),
+                           'completion_tokens': (r.get('usage') or {}).get('output_tokens')} for r in models],
+            'tool_calls': [{'tool': r['attributes'].get('tool'), 'elapsed_ms': r.get('elapsed_ms'),
+                            'status': r.get('result_status', r['status']), 'argument_keys': r['attributes'].get('argument_keys', []),
+                            'error_type': r.get('error_type')} for r in tools],
+            'node_timings': [{'node': r['name'][5:], 'elapsed_ms': r.get('elapsed_ms')} for r in records if r['name'].startswith('node.')]}
+
+
+class CorrelationFilter(logging.Filter):
+    def filter(self, record):
+        identity = trace.get_current_span().get_span_context()
+        record.trace_id = f'{identity.trace_id:032x}' if identity.is_valid else '-'
+        record.span_id = f'{identity.span_id:016x}' if identity.is_valid else '-'
+        ctx = current.get()
+        record.request_id = ctx[3] if ctx else '-'
+        return True

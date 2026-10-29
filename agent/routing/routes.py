@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from agent.observability import observed_route
+
 import logging
 from typing import Literal
 
@@ -21,6 +23,7 @@ logger = logging.getLogger("bgm-agent.graph")
 # ── 条件路由: classify_node → per-intent 分发 ──────────────
 
 
+@observed_route
 def route_after_classify(
     state: AgentState,
 ) -> Literal[
@@ -123,6 +126,7 @@ def _soft_breakers(state: AgentState) -> str | None:
 # ── 条件路由: tool_node → next step / END ────────────────────
 
 
+@observed_route
 def route_after_tool(
     state: AgentState,
 ) -> Literal[
@@ -177,6 +181,7 @@ def route_after_tool(
     return "reasoning_node"
 
 
+@observed_route
 def route_after_tool_react(
     state: AgentState,
 ) -> Literal["reasoning_node", "__end__"]:
@@ -211,6 +216,7 @@ def route_after_tool_react(
 # ── 条件路由: reasoning/pipeline → tool / END ────────────────
 
 
+@observed_route
 def route_after_reasoning(
     state: AgentState,
 ) -> Literal["tool_node", "__end__"]:

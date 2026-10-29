@@ -19,6 +19,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from pydantic import BaseModel, Field
 
 from agent.devtools import RequestTelemetry, set_current_telemetry
+from core.observability.runtime import configured, configure, current, span
+from agent.observability import observed
 from agent.graph import agent_app
 from agent.memory.cache import get_session_cache
 from agent.persona.profiles import get_agent_profile, get_character
@@ -56,8 +58,10 @@ def _setup_logging() -> None:
     if not root.handlers:
         handler = logging.StreamHandler()
         handler.setLevel(level)
+        from core.observability.runtime import CorrelationFilter
+        handler.addFilter(CorrelationFilter())
         fmt = logging.Formatter(
-            "[%(asctime)s] %(levelname)-5s %(name)s | %(message)s",
+            "[%(asctime)s] %(levelname)-5s %(name)s trace=%(trace_id)s span=%(span_id)s request=%(request_id)s | %(message)s",
             datefmt="%m-%d %H:%M:%S",
         )
         handler.setFormatter(fmt)
@@ -153,6 +157,14 @@ async def lifespan(app: FastAPI):
     """管理应用的生命周期。"""
     logger.info("🚀 系统启动 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
     validate_auth_configuration()
+    from core.observability import Runtime
+    observer = Runtime(settings.TRACE_PATH, level=settings.TRACE_LEVEL)
+    try:
+        observer.start()
+    except Exception:
+        observer.failed()
+    configure(observer)
+    conversations.observer = observer
     conversations.start()
     session_store.initialize()
     if settings.MEMORY_ENABLED or settings.RAG_ENABLED:
@@ -164,6 +176,8 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await conversations.close()
+        observer.close()
+        configure(None)
     logger.info("🛑 系统关闭 — %s v%s", settings.PROJECT_NAME, settings.VERSION)
     print(f"[lifespan] {settings.PROJECT_NAME} v{settings.VERSION} 已关闭")
 
@@ -303,6 +317,14 @@ async def chat(request: ChatRequest = _authorized_request_dependency) -> ChatRes
 
 
 async def _chat(request: ChatRequest, *, history=None, context=None, managed=False) -> ChatResponse:
+    import contextlib
+    runtime = configured()
+    manager = runtime.turn(request.user_id, request.session_id or uuid.uuid4().hex, uuid.uuid4().hex) if runtime and current.get() is None else contextlib.nullcontext()
+    with manager:
+        return await _chat_impl(request, history=history, context=context, managed=managed)
+
+
+async def _chat_impl(request: ChatRequest, *, history=None, context=None, managed=False) -> ChatResponse:
     """Agent 对话端点。
 
     通过 ``depth`` 控制深度模式：
@@ -338,12 +360,8 @@ async def _chat(request: ChatRequest, *, history=None, context=None, managed=Fal
         渲染是独立 LLM 调用，若在 wait_for 之外，挂起的 render 会绕过
         请求超时（审计盲区修复）。
         """
-        if telemetry:
-            result = await _run_with_telemetry(initial_state, telemetry)
-        else:
-            result = await agent_app.ainvoke(
-                initial_state, config={"recursion_limit": 50}
-            )
+        with span('graph.execute'):
+            result = await agent_app.ainvoke(initial_state, config={"recursion_limit": 50})
         messages_for_render = result.get("messages", [])
         user_query = (
             _extract_user_query_from_messages(messages_for_render) or request.message
@@ -574,7 +592,14 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
             finally:
                 await claim.__aexit__(None, None, None)
 
-    return ReservedStream(generate(), media_type="text/event-stream")
+    async def observed_generate():
+        import contextlib
+        runtime = configured()
+        manager = runtime.turn(request.user_id, session_id, uuid.uuid4().hex) if runtime else contextlib.nullcontext()
+        with manager:
+            async for item in generate():
+                yield item
+    return ReservedStream(observed_generate(), media_type="text/event-stream")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -583,37 +608,8 @@ async def chat_stream(request: ChatRequest = _authorized_request_dependency):
 
 
 async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) -> dict:
-    """用 ``astream()`` 跑 graph，记录每个节点的起止时间并累积完整 state。
-
-    和 ``ainvoke()`` 的最终结果一致，但额外在过程中记录 NodeTiming。
-    ``stream_mode="updates"`` 每个事件仅是节点 delta，需累积合并为完整 state。
-    """
-    import time
-
-    prev_time = telemetry.t_start
-    final_state: dict = dict(initial_state)
-    messages_key = "messages"
-
-    async for event in agent_app.astream(initial_state, config={"recursion_limit": 50}):
-        now = time.monotonic()
-        for node_name, node_output in event.items():
-            if node_output is None:
-                continue
-            from agent.devtools import NodeTiming
-
-            elapsed = (now - prev_time) * 1000
-            telemetry.add_node_timing(
-                NodeTiming(node=node_name, elapsed_ms=int(elapsed))
-            )
-            prev_time = now
-            # 累积合并：messages 追加，其余键覆盖
-            for key, value in node_output.items():
-                if key == messages_key and key in final_state:
-                    final_state[messages_key].extend(value)
-                else:
-                    final_state[key] = value
-
-    return final_state
+    """Compatibility helper; uses the ordinary graph invocation path."""
+    return await agent_app.ainvoke(initial_state, config={"recursion_limit": 50})
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -621,6 +617,7 @@ async def _run_with_telemetry(initial_state: dict, telemetry: RequestTelemetry) 
 # ═══════════════════════════════════════════════════════════════════
 
 
+@observed("context.assemble")
 async def _build_initial_state(
     request: ChatRequest, *, history=None, context=None,
 ) -> tuple[AgentState, str, str, str]:
@@ -663,6 +660,7 @@ async def _build_initial_state(
     return initial_state, session_id, depth, output_style
 
 
+@observed("response.render")
 async def _render_final_reply(
     messages: list,
     user_query: str,
