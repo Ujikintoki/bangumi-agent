@@ -59,6 +59,10 @@ cp .env.example .env
 uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
+启动命令会持续占用终端；关闭终端或结束进程后，网页标签仍可能保留，但服务已经离线。
+网页断连后可用“刷新状态”重新检查连接；它会保留未发送的问题和背景编辑。
+背景编辑需要点击“保存背景”才参与后续请求。当前不包含系统级服务托管或自动重启。
+
 打开 http://127.0.0.1:8000/。网页显示模型配置缺项，支持快速/深入对话、新对话及失败反馈。
 启用认证的实例在页面填写 Bearer 凭据；凭据仅保留在当前页面内存中。
 网页会话保存在 `.local-data/sessions.sqlite3`（可用 `SESSION_DB_PATH` 改位置）；支持列表、返回、重启续聊及删除。
@@ -258,3 +262,6 @@ docs/           # design/、eval/、memory/、Rag/、Tools/
 ## License
 
 MIT © [Ujikintoki](https://github.com/Ujikintoki)
+
+网页连接状态回归（开发验证，需 Node.js；运行网页不需要 Node.js）：
+`node --test test/web_connection.test.cjs`。

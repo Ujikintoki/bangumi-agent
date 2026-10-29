@@ -6,16 +6,30 @@ const status = text => { $('status').textContent = text; };
 function controls() {
   const pending = current?.turns.some(turn => turn.status === 'pending');
   for (const id of ['send', 'save-context']) $(id).disabled = !ready || busy || !current || pending;
-  for (const id of ['new', 'delete', 'sessions', 'check', 'refresh']) $(id).disabled = busy || !connected;
+  for (const id of ['new', 'delete', 'sessions']) $(id).disabled = busy || !connected;
+  $('check').disabled = busy;
+  $('refresh').disabled = false;
 }
 async function request(path, method = 'GET', body) {
-  const response = await fetch(path, {method, headers: headers(), ...(body ? {body: JSON.stringify(body)} : {})});
-  if (!response.ok) {
-    const messages = {401: '请填写有效的实例访问凭据。', 404: '会话已不存在，请新建对话。', 409: '会话状态已变化或正在执行，请刷新状态。', 422: '输入不符合要求；请检查条目链接、长度和必填内容（背景总长最多8000字）。', 429: '发送较频繁，请稍后重试。', 503: '会话存储不可用，未确认保存；请检查磁盘空间和数据目录。'};
-    throw new Error(messages[response.status] || '请求未完成，请检查服务后刷新状态。');
-  }
-  return response.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), method === 'POST' && path.endsWith('/turns') ? 150000 : 10000);
+  try {
+    const response = await fetch(path, {method, headers: headers(), signal: controller.signal, ...(body ? {body: JSON.stringify(body)} : {})});
+    if (!response.ok) {
+      const messages = {401: '请填写有效的实例访问凭据。', 404: '会话已不存在，请新建对话。', 409: '会话状态已变化或正在执行，请刷新状态。', 422: '输入不符合要求；请检查条目链接、长度和必填内容（背景总长最多8000字）。', 429: '发送较频繁，请稍后重试。', 503: '会话存储不可用，未确认保存；请检查磁盘空间和数据目录。'};
+      throw new Error(messages[response.status] || '请求未完成，请检查服务后刷新状态。');
+    }
+    return await response.json();
+  } catch (error) {
+    if (controller.signal.aborted || error instanceof TypeError) {
+      connected = ready = false;
+      controls();
+      throw new Error(controller.signal.aborted ? '连接等待超时，无法确认执行结果。请检查服务并刷新状态，不要重复发送。' : '无法连接本机服务。请启动服务后点击刷新状态；未发送的输入仍保留。');
+    }
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
+
 function show(role, text) {
   const article = document.createElement('article');
   article.dataset.role = role;
@@ -95,7 +109,8 @@ async function create() {
 async function action(work) {
   try { await work(); } catch (error) { status(error.message); } finally { controls(); }
 }
-async function check() {
+async function check({preserveDraft = false} = {}) {
+  const draft = preserveDraft ? Object.fromEntries(contextFields.map(key => [key, $(key).value])) : null;
   ready = false;
   connected = false;
   controls();
@@ -111,11 +126,16 @@ async function check() {
     const sid = sessions.find(item => item.id === selected)?.id || sessions[0]?.id;
     if (sid) await load(sid); else if (ready) await create();
   } catch (error) { status(error.message); }
+  if (draft) {
+    const changed = contextFields.some(key => draft[key] !== (current?.context[key] || ''));
+    for (const key of contextFields) $(key).value = draft[key];
+    if (connected && changed) status('连接已恢复。背景面板保留了未保存的编辑，请先保存背景再发送。');
+  }
   controls();
 }
-$('check').onclick = check;
+$('check').onclick = () => check({preserveDraft: true});
 $('new').onclick = () => action(create);
-$('refresh').onclick = () => action(async () => { if (current) await load(current.id); status('已读取服务器保存的状态。'); });
+$('refresh').onclick = () => check({preserveDraft: true});
 $('sessions').onchange = () => action(async () => { await load($('sessions').value); status('已打开保存的对话。'); });
 $('save-context').onclick = () => action(async () => {
   const context = Object.fromEntries(contextFields.map(key => [key, $(key).value.trim()]));
