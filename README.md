@@ -41,7 +41,7 @@ BGM Agent 不是"帮你查数据的 AI"——它是有自己的品位和脾气�
 - **多轮记忆** — L1 滑动窗口（fast 10000 / deep 16000 tok，tiktoken 精确计数）+ 工具结果压缩；L2 跨会话语义召回（pgvector + 时间衰减）；session 缓存跨请求续聊
 - **RAG 三通道检索** — 向量语义（"温馨的日常故事"）+ 名称精确 + 关键词硬过滤，灌入本地 pgvector，支撑 `search_local_bangumi` 工具
 - **SSE 流式接口** — `/chat/stream` 保留流式形态（当前推送最终 render 事件，为逐 token 渲染预留）
-- **开发者可观测性** — `DEV_MODE=true` 返回 token 统计 + 节点耗时
+- **开发者可观测性** — 统一本机Trace默认记录元数据，限时诊断scope采集详细输入输出；`DEV_MODE=true`提供兼容摘要
 
 ---
 
@@ -75,6 +75,7 @@ uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 已验收真实网页对话、公开条目评分查询、保存背景、重启恢复和续聊；具体环境与边界见
 [本机网页验收记录](docs/Test/local-web-acceptance-2026-10-29.md)。这不代表全部模型或所有领域任务通过。
 当前版本的页面、重启恢复、取消与故障边界复验见[集成验收](docs/Test/local-web-integrated-acceptance-2026-10-31.md)。
+基础local-web与生命周期增量已收口；当前Agent领域可靠性的缺口与候选设计状态统一见[ROADMAP](ROADMAP.md)，不代表完整产品验收通过。
 
 ### 可选本地数据能力
 

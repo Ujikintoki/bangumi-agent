@@ -22,8 +22,10 @@ accepted 在执行前提交；应用持有独立任务，HTTP断开不取消。�
 模型、工具、上下文和生命周期共享 Trace；devtools 是兼容摘要视图。
 查询、限时 scope 与删除合同见[统一 Trace 维护入口](Architecture/agent-trace-design.md#13-当前维护入口2026-10-30)。
 Trace 不替代会话持久化或执行恢复。
-工具与工作上下文的整体方案尚未实施，现已[暂存](product/agent-exploration-hold-2026-10-30.md)；
-本轮按本机Web合同收口，不把目标设计当作当前依赖或开工前置。
+基础local-web与执行生命周期增量已完成[集成检查与收口](Test/local-web-integrated-acceptance-2026-10-31.md)，
+当前问题转向对象/材料在Agent中的延续、任务判断、观点归属和表达职责，问题状态集中在ROADMAP。
+工具与工作上下文整体方案仍为[暂存设计](Architecture/agent-tools-and-working-context.md)，尚未实施；
+不把候选方案当作当前依赖，也不把基础harness通过当作领域质量通过。
 
 ## 0. 为什么需要这份文档
 
@@ -53,7 +55,8 @@ Trace 不替代会话持久化或执行恢复。
 ---
 
 > 2026-10-02 运行边界补充：HTTP 入口已有私有预览 Bearer 身份校验、用户级 session key 和整轮互斥。
-> Pipeline L2 现已注入各步骤 prompt；chat 历史/长期记忆仍待验证。状态均为单进程内存，尚未生产验收。
+> Pipeline L2 注入各步骤prompt；其可选路径需独立验证。旧临时聊天与活动执行仍有单进程内存状态，
+> 当前网页会话历史、显式背景和轮次结局持久化在SQLite；没有图级checkpoint或半途执行恢复。
 > HTTP 边界允许结构化 401/403/409/503；“工具不抛异常”不等于认证失败返回 200。
 
 ## 1. 你的直觉是对的：板块 × 分层是两个正交视角
@@ -359,7 +362,9 @@ Pipeline 的固定步骤路由会先于通用软熔断返回，因此不能概�
 
 原则（Anthropic）：**把逻辑从 prompt 移到代码**——能确定的事情不要让 LLM 决定。我们的 pipeline subgraph（编译时步骤 + 运行时工具路由）正是这条原则的产物；路由熔断（硬迭代上限 / 连续 2 次空搜索 / 重复调用检测）是"engineer owns the graph"的护栏面。
 
-方向：引入 LangGraph checkpointer（持久执行）——官方把 super-step 级 checkpoint 定位为可靠性底座（失败续跑、可回放、可 fork）；当前我们只有 `recursion_limit=50` + 应用层 session cache，没有图级断点。
+候选方向：LangGraph checkpointer用于图级断点续跑、回放等能力；当前未采用。
+已有应用层轮次生命周期及SQLite会话恢复只恢复已完成对话、标明中断，不自动续跑半途工具。
+是否引入checkpoint必须由具体任务需求证明，不作为基础harness收口后的默认下一步。
 
 ### 5.5 人格层 ✅（本项目特有板块）
 
@@ -388,7 +393,9 @@ Pipeline 的固定步骤路由会先于通用软熔断返回，因此不能概�
 
 现状：评测资产已归拢到根 `eval/` 一处（分类器 / RAG 检索 / 回复质量 / 记忆四条轴 + 一道图接线门禁，详见 `eval/README.md`），`docs/eval/` 是计划书，但评测**不在开发闭环里**——人格/提示词改动不强制跑评测。
 
-方向（下一步就该做）：把人格/端到端场景评测常驻化——20-30 条场景 golden set（`docs/eval/e2e-scenario-testing.md` 已有设计），snark 风格 / 字数 / 意图分类三类行为断言，prompt 变更后一键回归。**评测常驻之前，人格层改动都应该视为高风险操作。**
+维护方向：围绕当前固定场景保留可重复输入、真实Trace和人工判据；Prompt改动必须有相应回归证据。
+历史`docs/eval/e2e-scenario-testing.md`中的更大场景集与自动评判是候选，不自动成为当前任务。
+评测扩张及人格重设计是否启动，以ROADMAP和对应产品问题为准。
 
 ---
 
