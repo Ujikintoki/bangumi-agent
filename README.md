@@ -74,6 +74,7 @@ uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000
 
 已验收真实网页对话、公开条目评分查询、保存背景、重启恢复和续聊；具体环境与边界见
 [本机网页验收记录](docs/Test/local-web-acceptance-2026-10-29.md)。这不代表全部模型或所有领域任务通过。
+当前版本的页面、重启恢复、取消与故障边界复验见[集成验收](docs/Test/local-web-integrated-acceptance-2026-10-31.md)。
 
 ### 可选本地数据能力
 
