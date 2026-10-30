@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 let current = null, busy = false, ready = false, connected = false;
 const activeStates = new Set(['accepted', 'running', 'cancelling']);
 let pollTimer = null;
+let navigation = 0;
 const contextFields = ['object_url', 'progress', 'corrections', 'preferences', 'materials'];
 const headers = () => ({'Content-Type': 'application/json', ...($('token').value ? {Authorization: `Bearer ${$('token').value}`} : {})});
 const status = text => { $('status').textContent = text; };
@@ -20,7 +21,9 @@ async function request(path, method = 'GET', body) {
     const response = await fetch(path, {method, headers: headers(), signal: controller.signal, ...(body ? {body: JSON.stringify(body)} : {})});
     if (!response.ok) {
       const messages = {401: '请填写有效的实例访问凭据。', 404: '会话已不存在，请新建对话。', 409: '会话状态已变化或正在执行，请刷新状态。', 422: '输入不符合要求；请检查条目链接、长度和必填内容（背景总长最多8000字）。', 429: '发送较频繁，请稍后重试。', 503: '会话存储不可用，未确认保存；请检查磁盘空间和数据目录。'};
-      throw new Error(messages[response.status] || '请求未完成，请检查服务后刷新状态。');
+      const error = new Error(messages[response.status] || '请求未完成，请检查服务后刷新状态。');
+      error.status = response.status;
+      throw error;
     }
     return await response.json();
   } catch (error) {
@@ -84,8 +87,9 @@ function display() {
   for (const key of contextFields) $(key).value = current?.context[key] || '';
   controls();
 }
-async function listing() {
+async function listing(generation = navigation) {
   const sessions = await request('/api/sessions');
+  if (generation !== navigation) return sessions;
   $('sessions').replaceChildren();
   for (const session of sessions) {
     const option = document.createElement('option');
@@ -97,13 +101,19 @@ async function listing() {
   return sessions;
 }
 async function load(sid, preserveDraft = false) {
-  const draft = preserveDraft ? Object.fromEntries(contextFields.map(key => [key, $(key).value])) : null;
-  current = await request(`/api/sessions/${sid}`);
+  const generation = ++navigation;
+  const draft = preserveDraft && current?.id === sid ? Object.fromEntries(contextFields.map(key => [key, $(key).value])) : null;
+  const session = await request(`/api/sessions/${sid}`);
+  // 轮询或旧标签操作的晚到响应不能覆盖用户刚选中的会话。
+  if (generation !== navigation) return false;
+  current = session;
   localStorage.setItem('bgm-selected-session', sid);
   display();
-  await listing();
+  await listing(generation);
+  if (generation !== navigation) return false;
   if (draft) for (const key of contextFields) $(key).value = draft[key];
   schedulePoll();
+  return true;
 }
 function schedulePoll() {
   clearTimeout(pollTimer);
@@ -115,13 +125,16 @@ function schedulePoll() {
     try {
       const latest = await request(`/api/sessions/${sid}/turns/${turn.request_id}`);
       if (current?.id !== sid) return;
-      await load(sid, true);
+      if (!await load(sid, true)) return;
       status(activeStates.has(latest.status) ? '本轮仍在执行，可明确取消；无需重复发送。' : latest.status === 'completed' ? '回复已保存。' : '本轮已结束：' + latest.status);
     } catch (error) { status(error.message + ' 可刷新状态继续查询。'); }
   }, 1500);
 }
 async function create() {
-  current = await request('/api/sessions', 'POST');
+  const generation = ++navigation;
+  const session = await request('/api/sessions', 'POST');
+  if (generation !== navigation) return;
+  current = session;
   localStorage.setItem('bgm-selected-session', current.id);
   display();
   await listing();
@@ -131,6 +144,7 @@ async function action(work) {
   try { await work(); } catch (error) { status(error.message); } finally { controls(); }
 }
 async function check({preserveDraft = false} = {}) {
+  const draftSid = current?.id;
   const draft = preserveDraft ? Object.fromEntries(contextFields.map(key => [key, $(key).value])) : null;
   ready = false;
   connected = false;
@@ -147,7 +161,7 @@ async function check({preserveDraft = false} = {}) {
     const sid = sessions.find(item => item.id === selected)?.id || sessions[0]?.id;
     if (sid) await load(sid); else if (ready) await create();
   } catch (error) { status(error.message); }
-  if (draft) {
+  if (draft && current?.id === draftSid) {
     const changed = contextFields.some(key => draft[key] !== (current?.context[key] || ''));
     for (const key of contextFields) $(key).value = draft[key];
     if (connected && changed) status('连接已恢复。背景面板保留了未保存的编辑，请先保存背景再发送。');
@@ -167,6 +181,7 @@ $('save-context').onclick = () => action(async () => {
 $('delete').onclick = () => action(async () => {
   if (!current || !window.confirm('删除本机会话、正文、背景及来源？此操作无法撤销。')) return;
   await request(`/api/sessions/${current.id}?version=${current.version}`, 'DELETE');
+  ++navigation;
   localStorage.removeItem('bgm-selected-session');
   current = null;
   display();
@@ -190,17 +205,23 @@ $('chat').onsubmit = async event => {
   const sid = current.id;
   const requestId = crypto.randomUUID();
   show('user', message);
-  $('message').value = '';
   status('正在处理…');
   try {
     const turn = await request(`/api/sessions/${sid}/turns`, 'POST', {message, request_id: requestId, version: current.version, depth: $('depth').value});
-    await load(sid);
+    if ($('message').value.trim() === message) $('message').value = '';
+    if (!await load(sid, true)) return;
     status(activeStates.has(turn.status) ? '正在执行，可刷新状态。' : turn.status === 'failed' ? '本轮处理失败，结果已保存。' : turn.response?.turn_result?.status === 'partial' ? '已保存回复，部分资料缺失。' : '回复已保存。');
   } catch (error) {
     status(error.message);
+    if ([401, 403, 404, 409, 422, 429].includes(error.status)) {
+      try { await load(sid, true); } catch (_) { /* 保留原始拒绝原因及输入。 */ }
+      status(error.message);
+      return;
+    }
     try {
-      await load(sid);
+      if (!await load(sid, true)) return;
       const turn = await request(`/api/sessions/${sid}/turns/${requestId}`);
+      if ($('message').value.trim() === message) $('message').value = '';
       status(activeStates.has(turn.status) ? '连接已恢复，本轮仍在执行；刷新状态即可，不需要重发。' : '已读取本轮保存的结果。');
     } catch (_) {
       status('无法确认本轮结果。请刷新状态；相同请求 ID：' + requestId + '。不要连续重发。');
