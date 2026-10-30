@@ -45,8 +45,12 @@ class ModelObserver(BaseCallbackHandler):
     raise_error = False
     run_inline = True
 
-    def __init__(self, stage):
+    def __init__(self, stage, *, prompt_metadata=None):
         self.stage = stage
+        self.prompt_metadata = dict(prompt_metadata) if prompt_metadata is not None else {
+            'prompt_version': None, 'prompt_version_status': 'unavailable',
+            'prompt_version_reason': 'not_declared_by_caller',
+        }
         self.runs = {}
         self.lock = threading.Lock()
 
@@ -58,6 +62,9 @@ class ModelObserver(BaseCallbackHandler):
             self.runs[run_id] = scope
         register_invocation_finalizer(lambda error: self.close_pending(run_id, error))
         try:
+            scope.set_attributes(**self.prompt_metadata)
+            if self.prompt_metadata.get('prompt_version_reason') == 'public_source_unavailable':
+                scope.incomplete('prompt_version_unavailable')
             invocation = kwargs.get('invocation_params', {})
             for key in ('model', 'temperature', 'max_tokens', 'tool_choice'):
                 value = invocation.get(key)

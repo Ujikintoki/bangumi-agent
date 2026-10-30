@@ -213,5 +213,7 @@ def _maybe_wrap_telemetry(
 ) -> ChatOpenAI:
     """Install the same SDK observer in every collection mode."""
     from agent.observability import ModelObserver, install_callback
-    install_callback(llm, ModelObserver(label or "auxiliary"))
+    from agent.prompt_versions import public_prompt_metadata
+    stage = label or "auxiliary"
+    install_callback(llm, ModelObserver(stage, prompt_metadata=public_prompt_metadata(stage)))
     return llm

@@ -29,7 +29,7 @@ logger = logging.getLogger('bgm-agent.trace')
 _SECRET = re.compile(r'(?i)(bearer\s+\S+|sk-[a-z0-9_-]+)')
 _FORBIDDEN = re.compile(r'(?i)(secret|password|authorization|api.?key|access_token|reasoning_content|hidden|headers|(^|_)(token|credential|credentials|key|auth|cookie)$)')
 # Only program-supplied metadata can cross this boundary; arbitrary content uses capture.
-_ATTRIBUTES = frozenset('session_kind stage sdk_run_id model temperature max_tokens tool_choice schema_version schema_hash prompt_version code_revision dirty python_version dependencies tool tool_call_id argument_keys status reason error_type actual_execution validation usage input_tokens output_tokens total_tokens cache_read finish_reason provider_attempts iteration history_candidates history_selected background_version selected omitted transformed references budget candidate_count selected_count origin_kind derived_from missing truncated source_id request_id attempt recorded_at'.split())
+_ATTRIBUTES = frozenset('session_kind stage sdk_run_id model temperature max_tokens tool_choice schema_version schema_hash prompt_version prompt_version_status prompt_version_reason code_revision dirty python_version dependencies tool tool_call_id argument_keys status reason error_type actual_execution validation usage input_tokens output_tokens total_tokens cache_read finish_reason provider_attempts iteration history_candidates history_selected background_version selected omitted transformed references budget candidate_count selected_count origin_kind derived_from missing truncated source_id request_id attempt recorded_at'.split())
 
 
 def clean(value, depth=0, redactions=None):

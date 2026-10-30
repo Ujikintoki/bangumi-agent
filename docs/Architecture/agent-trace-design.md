@@ -378,3 +378,21 @@ off / metadata / diagnostic 共享它；不包装或全局 patch BaseChatModel�
 
 新真实验收脚本已移除旧观察 monkey-patch，使用同一 scope 与导出入口；
 `run` 要求显式 `--allow-paid`。历史 observer-source 与冻结证据没有修改，本次没有执行真实模型/API 场景。
+
+### 日志异常通道、查询范围与模板版本
+
+日志 filter 对正文、异常链、缓存 exc_text 和 stack_info 应用相同脱敏规则。
+异常堆栈先格式化为脱敏文本，再清除 LogRecord 的原始 exc_info，避免后续 handler 重新追加未脱敏内容；
+异常类别和必要定位文本保留，业务异常对象及传播不变。
+
+统一 `Runtime.query(..., request=...)` 在验证 artifact 与汇总完整性之前筛选请求。
+HTTP 的 request_id 与 CLI 导出均使用该入口；其他轮次的 incomplete、running、内容到期不归到当前轮次，
+进程级 dropped 保守信号仍然适用。无匹配记录仍不能判为完整。
+
+正式模型工厂为 classify、reasoning、pipeline、render 写入 prompt_version 与 prompt_version_status。
+版本是 `agent/prompt_versions.py` 中明确列出的公开模板、构建代码与固定拼接源码的 source bundle 版本，
+不是实际消息内容的 hash。它可以因构建代码变化而变化，即使某次拼装文本不变；实际输入仍通过私有 artifact 查看。
+版本按进程缓存，代码/模板修改需重启加载；新增公开模板及构建文件必须维护来源清单。
+自定义调用未声明来源时记录 unavailable / not_declared_by_caller，未注册阶段记录 unregistered_stage；
+公开源文件不可读取时记录 public_source_unavailable 并标记该跨度采集不完整，不能阻止模型执行。
+历史冻结示例不回填不存在的模板版本。修复验证见[独立核对缺陷修复记录](../Test/agent-trace-review-fixes-2026-10-30.md)。
