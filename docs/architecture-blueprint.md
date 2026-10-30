@@ -22,8 +22,8 @@ accepted 在执行前提交；应用持有独立任务，HTTP断开不取消。�
 模型、工具、上下文和生命周期共享 Trace；devtools 是兼容摘要视图。
 查询、限时 scope 与删除合同见[统一 Trace 维护入口](Architecture/agent-trace-design.md#13-当前维护入口2026-10-30)。
 Trace 不替代会话持久化或执行恢复。
-工具与材料流转的目标职责见[Tools与工作上下文设计](Architecture/agent-tools-and-working-context.md)，尚未实施；
-拟由数据层返回中立结果、编排侧接纳并装配工作上下文，不允许工具反向依赖AgentState或会话存储。
+工具与工作上下文的整体方案尚未实施，现已[暂存](product/agent-exploration-hold-2026-10-30.md)；
+本轮按本机Web合同收口，不把目标设计当作当前依赖或开工前置。
 
 ## 0. 为什么需要这份文档
 
