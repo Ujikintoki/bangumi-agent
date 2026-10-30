@@ -657,13 +657,25 @@ class CorrelationFilter(logging.Filter):
         ctx = current.get()
         record.request_id = ctx[3] if ctx else '-'
         try:
-            message = _SECRET.sub('[REDACTED]', record.getMessage())
             runtime = ctx[0] if ctx else configured()
-            for secret in runtime.secrets if runtime else ():
-                message = message.replace(secret, '[REDACTED]')
-            record.msg, record.args = message, ()
+            def redact(value):
+                value = _SECRET.sub('[REDACTED]', value)
+                for secret in runtime.secrets if runtime else ():
+                    value = value.replace(secret, '[REDACTED]')
+                return value
+            record.msg, record.args = redact(record.getMessage()), ()
+            # Formatter appends these channels after getMessage(). Render once, then
+            # remove the raw exception tuple so no later handler can reconstruct it.
+            if record.exc_text:
+                record.exc_text = redact(record.exc_text)
+            elif record.exc_info:
+                record.exc_text = redact(logging.Formatter().formatException(record.exc_info))
+            record.exc_info = None
+            if record.stack_info:
+                record.stack_info = redact(record.stack_info)
         except Exception:
             record.msg, record.args = 'log content unavailable', ()
+            record.exc_info, record.exc_text, record.stack_info = None, None, None
         return True
 
 

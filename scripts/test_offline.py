@@ -83,7 +83,7 @@ get_settings.cache_clear()
 import pytest
 
 files = [
-    "test_observability", "test_p0_contracts", "test_client", "test_endpoint", "test_rate_limit",
+    "test_observability", "test_trace_review_regressions", "test_p0_contracts", "test_client", "test_endpoint", "test_rate_limit",
     "test_render_fallback", "test_render_degrade_outcome", "test_routes",
     "test_memory", "test_phase5_l1", "test_compression_shapes",
     "test_bgm_tools", "test_sanitizers", "test_schemas", "test_state",
