@@ -62,9 +62,7 @@ def prune(runtime, *, now=None, metadata_days=30, artifact_days=7, target_bytes=
 
 def export(runtime, owner, session, *, content=False, request=None):
     from .runtime import summary
-    result = runtime.query(owner, session, content=content)
-    result['records'] = [r for r in result['records'] if request is None or r['request']==request]
-    result['recording_complete'] = bool(result['records']) and result['recording_complete']
+    result = runtime.query(owner, session, content=content, request=request)
     result['summary'] = summary(result['records'])
     # Identity aliases remove reusable session and user identifiers from exported metadata.
     requests = {}

@@ -25,13 +25,12 @@ def create_router(service):
         if observer is None:
             return {'recording_complete': False, 'reason': 'unavailable', 'records': []}
         try:
-            result = observer.query(owner, sid, content=content)
+            result = observer.query(owner, sid, content=content, request=request_id)
         except (sqlite3.Error, OSError, ValueError):
             return {'recording_complete': False, 'reason': 'storage_unavailable', 'records': []}
-        records = [r for r in result['records'] if request_id is None or r['request'] == request_id]
+        records = result['records']
         result['collection_level'] = observer.level
         result['records'] = records
-        result['recording_complete'] = bool(records) and result['recording_complete']
         result['summary'] = summary(records)
         result['turns'] = [{'request_id': t['request_id'], 'status': t['status'], 'reason': t.get('reason')} for t in session['turns'] if request_id is None or t['request_id'] == request_id]
         if not records:

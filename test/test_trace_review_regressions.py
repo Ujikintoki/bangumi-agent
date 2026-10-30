@@ -44,3 +44,53 @@ def test_exception_channels_are_redacted(kind):
     finally:
         handler.close()
         runtime.close()
+
+
+@pytest.mark.parametrize('gap', ['incomplete', 'running', 'expired'])
+def test_request_completeness_is_scoped_before_aggregation(tmp_path, gap):
+    import time
+    from core.observability.maintenance import export, prune
+    from sessions.store import SessionStore
+    from application.conversations import Conversations
+    from api.observability import create_router
+    from core.auth import authenticated_user
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    store = SessionStore(tmp_path/'sessions.sqlite3')
+    store.initialize()
+    sid = store.create('u')['id']
+    runtime = Runtime(tmp_path/'trace')
+    runtime.start()
+    manager = runtime.turn('u', sid, 'bad')
+    bad = manager.__enter__()
+    try:
+        if gap == 'incomplete':
+            bad.incomplete('fixture_gap')
+        elif gap == 'expired':
+            runtime.diagnostic('u', sid)
+            bad.capture('fixture', 'synthetic content')
+        if gap != 'running':
+            manager.__exit__(None, None, None)
+        with runtime.turn('u', sid, 'good'):
+            pass
+        runtime.flush()
+        if gap == 'expired':
+            prune(runtime, now=time.time()+8*86400)
+        service = Conversations(store, None, observer=runtime)
+        app = FastAPI()
+        app.include_router(create_router(service))
+        app.dependency_overrides[authenticated_user] = lambda: 'u'
+        with TestClient(app) as client:
+            path = f'/api/observability/sessions/{sid}'
+            assert client.get(path).json()['recording_complete'] is False
+            assert client.get(path+'?request_id=good').json()['recording_complete'] is True
+            assert client.get(path+'?request_id=missing').json()['recording_complete'] is False
+            assert export(runtime, 'u', sid, request='good')['recording_complete'] is True
+            assert export(runtime, 'u', sid, request='bad')['recording_complete'] is False
+            runtime.failed()
+            assert client.get(path+'?request_id=good').json()['recording_complete'] is False
+            assert export(runtime, 'u', sid, request='good')['recording_complete'] is False
+    finally:
+        if gap == 'running':
+            manager.__exit__(None, None, None)
+        runtime.close()

@@ -418,7 +418,7 @@ class Runtime:
         return {'level': self.level, 'writer_running': bool(self.thread and self.thread.is_alive()),
                 'dropped': self.dropped, 'queued_records': self.queue.qsize(), 'queued_bytes': self.pending_bytes}
 
-    def query(self, owner, session, *, content=True):
+    def query(self, owner, session, *, content=True, request=None):
         if self.path and (self.path / 'traces.sqlite3').exists():
             with self.connect() as db:
                 if db.execute('pragma user_version').fetchone()[0] != 1:
@@ -430,7 +430,8 @@ class Runtime:
             return {'schema_version': 1, 'recording_complete': False, 'dropped': self.dropped, 'records': [], 'reason': 'deleted'}
         if self.level == 'off' and (self.path is None or not (self.path / 'traces.sqlite3').exists()):
             return {'schema_version': 1, 'recording_complete': False, 'dropped': self.dropped, 'records': [], 'reason': 'disabled'}
-        records = self._read_records(owner, session)
+        records = [record for record in self._read_records(owner, session)
+                   if request is None or record['request'] == request]
         for record in records:
             for artifact in record.get('artifacts', []):
                 if artifact['status'] != 'captured':
