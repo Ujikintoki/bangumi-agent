@@ -35,6 +35,8 @@ SQLite 会话保存、切换、重启后恢复、删除与用户确认的背景�
 离线与隔离启动证据见[Trace 验证](docs/Test/agent-trace-verification-2026-10-30.md)。
 正式Trace已完成一次[固定场景真实采集](docs/Test/c1-c5-formal-trace-2026-10-30-run1.md)，执行结局与回复质量分别判断；
 下一步根据保留的失败和材料传递证据定位领域错误，暂缓 Render 策略调整。
+工具信息流转的整体待实施合同见[Tools与工作上下文设计](docs/Architecture/agent-tools-and-working-context.md)，
+覆盖统一结果、编排侧接纳、跨轮材料与阶段视图；实施前按合同核对职责和最小验收，不把工具改造等同于C5通过。
 每个增量都交付可运行行为及相应验证，不再以另一轮全仓盘点或产品讨论作为开工前置。
 
 ## 实现顺序与退出条件

@@ -15,6 +15,7 @@
 | [固定验收场景](product/fixed-agent-scenarios.md) | 主连续场景、意图/工具问题组与判定标准 | 实施领域可靠性或准备真实验收时 |
 | [轮次生命周期](Architecture/turn-lifecycle.md) | 请求状态、取消、恢复及故障矩阵 | 维护执行、连接或持久化行为时 |
 | [Agent Trace 设计](Architecture/agent-trace-design.md) | 待实施的统一观测合同、旧 telemetry 迁移和验收要求 | 实施材料可见性与质量定位时 |
+| [Tools与工作上下文设计](Architecture/agent-tools-and-working-context.md) | 待实施的工具结果、材料接纳、跨轮延续与模型视图合同 | 规划或实施工具信息流转时 |
 | [AGENTS](../AGENTS.md) | 开发规则与数据安全边界 | 执行修改前 |
 | 本文 | 阅读入口、文档职责和维护状态 | 不知道该读哪份时 |
 
@@ -54,6 +55,7 @@
 | [Trace 独立复验](Test/agent-trace-independent-review-2026-10-30.md) | 静态核对、隔离动态运行与已复现缺口；不代表真实供应商或产品质量验收 |
 | [C1–C5 正式Trace真实执行](Test/c1-c5-formal-trace-2026-10-30-run1.md) | 修复复验后单次真实连续执行与完整采集；保留失败，不作策略因果结论 |
 | [C5 Render最小对照](Test/c5-render-contrast-2026-10-30.md) | 固定历史、人格块与任务框架的四组小样本比较；只分析，不决定生产改法 |
+| [Tools设计一手参考](product/agent-tools-design-references.md) | 官方工具合同、状态与材料机制及本项目适用范围；不直接生成待办 |
 
 ## 已冻结的产品探索
 
