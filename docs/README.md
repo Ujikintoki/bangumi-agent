@@ -9,21 +9,23 @@
 |---|---|---|
 | [PRODUCT](../PRODUCT.md) | 产品共识、范围和待确认的选择 | 讨论要做成什么时 |
 | [ROADMAP](../ROADMAP.md) | 当前阶段、下一步和推进条件 | 回到项目、决定接下来做什么时 |
-| [本机网页开发设计](product/local-web-v1-development.md) | 第一版技术契约、改动落点与验收 | 维护基础harness或判断剩余领域任务边界时 |
+| [Harness研究](product/agent-harness-research-2026-10-31.md) | 官方机制、上游源码和后端编排的定时点研究 | 比较成熟底座与扩展方式时；不是已选型结论 |
+| [本机网页开发设计](product/local-web-v1-development.md) | 旧版技术契约、改动落点与验收参考 | 查旧实现时；不约束新工程形状 |
 | [README](../README.md) | 配置、启动和调用 | 实际运行时 |
-| [架构蓝图](architecture-blueprint.md) | 系统职责、依赖方向和请求路径 | 定义系统职责或准备跨层修改时 |
+| [架构蓝图](architecture-blueprint.md) | 旧实现的职责、依赖方向和请求路径；选型后更新目标设计 | 区分旧代码事实与新方案时 |
 | [固定验收场景](product/fixed-agent-scenarios.md) | 主连续场景、意图/工具问题组与判定标准 | 实施领域可靠性或准备真实验收时 |
-| [轮次生命周期](Architecture/turn-lifecycle.md) | 请求状态、取消、恢复及故障矩阵 | 维护执行、连接或持久化行为时 |
-| [Agent Trace 维护](Architecture/agent-trace-design.md) | 已接入观测的合同、查询、导出和维护要求 | 诊断本机链路问题时；暂不扩展专项 |
+| [跨轮对象交接合同](Architecture/agent-entity-continuity.md) | 旧方案的记录归属、交接与参数约束 | 参考对象延续问题时；不继续原实施顺序 |
+| [轮次生命周期](Architecture/turn-lifecycle.md) | 旧版请求、取消、恢复及故障矩阵 | 比较上游实际行为时；不要求逐字继承 |
+| [Agent Trace 维护](Architecture/agent-trace-design.md) | 旧版观测合同、查询和导出 | 查旧证据时；不自动移植到新工程 |
 | [AGENTS](../AGENTS.md) | 开发规则与数据安全边界 | 执行修改前 |
 | 本文 | 阅读入口、文档职责和维护状态 | 不知道该读哪份时 |
 
-当前状态：基础local-web后端harness增量已收口，现回到Agent领域可靠性的设计与验收。
-已讨论的重要问题集中维护在ROADMAP；以本机网页合同限定交付边界，不重新扩大通用harness建设。
+当前状态：保留PRODUCT，从干净工程重建实现，旧代码拟完整归档作参考；归档与上游试用尚未执行。
+当前顺序由ROADMAP维护；优先比较成熟应用的完整使用链路，旧本机网页合同不作为新架构前提。
 产品讨论先读 PRODUCT → ROADMAP；不需要从旧探索稿或历史 Phase 开始补课。
 
 两轮盘点已交付；[盘点委托](codebase-inventory-brief.md)及其报告停止滚动维护。
-不再以新一轮全仓盘点或产品讨论作为开始实现的前置条件。
+旧盘点用于查证，不重新生成全仓待办；新方案按产品行为与上游实际使用选择。
 
 ## 按需维护的技术手册
 
@@ -71,9 +73,9 @@
 [2026-10-30范围校准记录](product/agent-exploration-hold-2026-10-30.md)集中说明已实现工程、
 固定证据、未实施方案与讨论假设；它是此次校准快照，不作为第二份路线图。
 [Tools与工作上下文设计](Architecture/agent-tools-and-working-context.md)暂存、未实施，停止按其增量开工。
-意图体系、人格/Render重设计、更多付费对照和全量场景扩充均不自动进入当前任务。
-已有生命周期与Trace保持维护；C2/C5等原合同失败继续保留为验收缺口。
-基础harness收口后的问题状态以ROADMAP为准，不更新旧快照制造另一份当前计划。
+旧局部修补顺序由当前重建路线替代；候选工具、意图、人格/Render设计只作参考。
+旧生命周期与Trace用于解释已有证据；C2/C5等失败用于新任务验收，不绑定旧实现。
+重建状态以ROADMAP为准，不更新旧快照制造另一份当前计划。
 
 ## 历史参考，不是待办
 
